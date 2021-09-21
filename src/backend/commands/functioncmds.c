@@ -2447,7 +2447,11 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 		i++;
 	}
 
-	/*
+	/* Get rid of temporary snapshot for arguments, if we made one */
+	if (!atomic)
+		PopActiveSnapshot();
+
+	/* BABELFISH
 	 * If we are here for INSERT ... EXECUTE, prepare a resultinfo node for
 	 * communication before invoking the function, which can accumulate the
 	 * result sets.
@@ -2515,10 +2519,11 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 	retval = FunctionCallInvoke(fcinfo);
 	pgstat_end_function_usage(&fcusage, true);
 
+	/* Handle the procedure's outputs */
 	if (((stmt->relation && stmt->attrnos) || (stmt->retdesc && stmt->dest)) &&
 		rsinfo.setDesc && rsinfo.setResult)
 	{
-		/*
+		/* BABELFISH
 		 * If we are here for INSERT ... EXECUTE, send all tuples accumulated in
 		 * resultinfo to the DestReceiver, which will later be consumed by the
 		 * INSERT execution.
