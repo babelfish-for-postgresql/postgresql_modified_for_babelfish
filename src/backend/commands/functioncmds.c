@@ -73,6 +73,7 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
+#include "utils/snapmgr.h"
 #include "utils/syscache.h"
 #include "utils/typcache.h"
 
@@ -2357,6 +2358,16 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 	estate->es_param_list_info = params;
 	econtext = CreateExprContext(estate);
 
+	/*
+	 * If we're called in non-atomic context, we also have to ensure that the
+	 * argument expressions run with an up-to-date snapshot.  Our caller will
+	 * have provided a current snapshot in atomic contexts, but not in
+	 * non-atomic contexts, because the possibility of a COMMIT/ROLLBACK
+	 * destroying the snapshot makes higher-level management too complicated.
+	 */
+	if (!atomic)
+		PushActiveSnapshot(GetTransactionSnapshot());
+
 	i = 0;
 	foreach(lc, fexpr->args)
 	{
@@ -2374,7 +2385,11 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 		i++;
 	}
 
-	/*
+	/* Get rid of temporary snapshot for arguments, if we made one */
+	if (!atomic)
+		PopActiveSnapshot();
+
+	/* BABELFISH
 	 * If we are here for INSERT ... EXECUTE, prepare a resultinfo node for
 	 * communication before invoking the function, which can accumulate the
 	 * result sets.
@@ -2433,14 +2448,16 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 		rsinfo.setDesc = NULL;
 	}
 
+	/* Here we actually call the procedure */
 	pgstat_init_function_usage(fcinfo, &fcusage);
 	retval = FunctionCallInvoke(fcinfo);
 	pgstat_end_function_usage(&fcusage, true);
 
+	/* Handle the procedure's outputs */
 	if (((stmt->relation && stmt->attrnos) || (stmt->retdesc && stmt->dest)) &&
 		rsinfo.setDesc && rsinfo.setResult)
 	{
-		/*
+		/* BABELFISH
 		 * If we are here for INSERT ... EXECUTE, send all tuples accumulated in
 		 * resultinfo to the DestReceiver, which will later be consumed by the
 		 * INSERT execution.
@@ -2465,10 +2482,7 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 	}
 	else if (fexpr->funcresulttype == RECORDOID)
 	{
-		/*
-		 * send tuple to client
-		 */
-
+		/* send tuple to client */
 		HeapTupleHeader td;
 		Oid			tupType;
 		int32		tupTypmod;
