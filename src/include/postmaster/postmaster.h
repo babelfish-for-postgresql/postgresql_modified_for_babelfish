@@ -31,6 +31,9 @@ extern char *bonjour_name;
 extern bool restart_after_crash;
 extern bool remove_temp_files_after_crash;
 
+/* Global variables in pqcomm.c */
+extern bool	IsNonLibpqClient;
+
 #ifdef WIN32
 extern HANDLE PostmasterHandle;
 #else

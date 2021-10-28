@@ -26,6 +26,7 @@
 #include "catalog/pg_type.h"
 #include "common/hashfn.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "parser/parse_type.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
@@ -811,6 +812,9 @@ BuildDescForRelation(List *schema)
 
 		attname = entry->colname;
 		typenameTypeIdAndMod(NULL, entry->typeName, &atttypid, &atttypmod);
+
+		if (sql_dialect == SQL_DIALECT_TSQL && check_or_set_default_typmod_hook)
+			(*check_or_set_default_typmod_hook)(entry->typeName, &atttypmod, false);
 
 		aclresult = pg_type_aclcheck(atttypid, GetUserId(), ACL_USAGE);
 		if (aclresult != ACLCHECK_OK)

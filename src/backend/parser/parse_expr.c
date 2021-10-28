@@ -32,9 +32,11 @@
 #include "parser/parse_relation.h"
 #include "parser/parse_target.h"
 #include "parser/parse_type.h"
+#include "parser/parser.h"
 #include "utils/builtins.h"
 #include "utils/date.h"
 #include "utils/lsyscache.h"
+#include "utils/rel.h"
 #include "utils/timestamp.h"
 #include "utils/xml.h"
 
@@ -83,7 +85,7 @@ static Expr *make_distinct_op(ParseState *pstate, List *opname,
 static Node *make_nulltest_from_distinct(ParseState *pstate,
 										 A_Expr *distincta, Node *arg);
 
-
+lookup_param_hook_type lookup_param_hook = NULL;
 /*
  * transformExpr -
  *	  Analyze and transform expressions. Type checking and type casting is
@@ -449,6 +451,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
 	char	   *colname = NULL;
 	ParseNamespaceItem *nsitem;
 	int			levels_up;
+	bool 		transformCols = false;
 	enum
 	{
 		CRERR_NO_COLUMN,
@@ -533,6 +536,9 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
 				 errmsg_internal("%s", err),
 				 parser_errposition(pstate, cref->location)));
 
+	if (lookup_param_hook && (node = (*lookup_param_hook)(pstate, cref)) != NULL)
+		return node;
+
 	/*
 	 * Give the PreParseColumnRefHook, if any, first shot.  If it returns
 	 * non-null then that's all, folks.
@@ -542,6 +548,43 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
 		node = pstate->p_pre_columnref_hook(pstate, cref);
 		if (node != NULL)
 			return node;
+	}
+
+	/* 
+	* Qualify column names with table name. This block of code will only run
+	* when unqialified column refs of WHERE clause in UPDATE statement are being
+	* transformed when OUTPUT clause is present.
+	*/
+	if (get_output_clause_status_hook && list_length(cref->fields) == 1
+	&& sql_dialect == SQL_DIALECT_TSQL)
+		transformCols = (*get_output_clause_status_hook) ();
+
+	if (transformCols && pstate->p_target_relation)
+	{
+		Value 		*table_qualifier;
+		Node 		*node_col;
+		Node	    *field1 = (Node *) linitial(cref->fields);
+
+		table_qualifier = makeString(RelationGetRelationName(pstate->p_target_relation));
+
+		Assert(IsA(field1, String));
+		colname = strVal(field1);
+
+		/*
+		 * Try to identify as an unqualified column from the nsitem of the
+		 * target table, levels_up = 0.
+		 */
+		node_col = scanNSItemForColumn(pstate, pstate->p_target_nsitem, 0, colname,
+									   cref->location);
+
+		/* 
+		* Only qualify the column with target table if it belongs to the target 
+		* table. We can avoid mis-qualifying columns of non-target tables this way.
+		* Since ambiguous columns are checked for already, we do not care about
+		* columns belonging to other tables at this point.
+		*/
+		if (node_col)
+			cref->fields = lcons(table_qualifier, cref->fields);
 	}
 
 	/*----------
@@ -877,13 +920,21 @@ transformAExprOp(ParseState *pstate, A_Expr *a)
 	 */
 	if (Transform_null_equals &&
 		list_length(a->name) == 1 &&
-		strcmp(strVal(linitial(a->name)), "=") == 0 &&
+		(strcmp(strVal(linitial(a->name)), "=") == 0 ||
+		 /* If we're in tsql dialect, Extend Transform_null_equals to transform
+		  * "foo <> NULL" and "NULL <> foo" to "IS NOT NULL " */
+		 (sql_dialect == SQL_DIALECT_TSQL &&
+		  (strcmp(strVal(linitial(a->name)), "<>") == 0 ||
+		   strcmp(strVal(linitial(a->name)), "!=") == 0))) &&
 		(exprIsNullConstant(lexpr) || exprIsNullConstant(rexpr)) &&
 		(!IsA(lexpr, CaseTestExpr) && !IsA(rexpr, CaseTestExpr)))
 	{
 		NullTest   *n = makeNode(NullTest);
 
-		n->nulltesttype = IS_NULL;
+		if(strcmp(strVal(linitial(a->name)), "=") == 0)
+			n->nulltesttype = IS_NULL;
+		else
+			n->nulltesttype = IS_NOT_NULL;
 		n->location = a->location;
 
 		if (exprIsNullConstant(lexpr))
@@ -2593,6 +2644,9 @@ transformTypeCast(ParseState *pstate, TypeCast *tc)
 
 	/* Look up the type name first */
 	typenameTypeIdAndMod(pstate, tc->typeName, &targetType, &targetTypmod);
+
+	if (sql_dialect == SQL_DIALECT_TSQL && check_or_set_default_typmod_hook)
+		(*check_or_set_default_typmod_hook)(tc->typeName, &targetTypmod, true);
 
 	/*
 	 * If the subject of the typecast is an ARRAY[] construct and the target

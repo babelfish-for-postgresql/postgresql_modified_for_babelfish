@@ -86,4 +86,7 @@ extern struct ArrayType *strlist_to_textarray(List *list);
 
 extern ObjectType get_relkind_objtype(char relkind);
 
+extern ObjectAddress get_object_address_trigger_tsql(List *object,
+							Relation *relp, bool missing_ok);
+
 #endif							/* OBJECTADDRESS_H */

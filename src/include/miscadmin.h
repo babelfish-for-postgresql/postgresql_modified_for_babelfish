@@ -461,6 +461,7 @@ extern void InitializeMaxBackends(void);
 extern void InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 						 Oid useroid, char *out_dbname, bool override_allow_connections);
 extern void BaseInit(void);
+extern void	PerformAuthentication(struct Port *port);
 
 /* in utils/init/miscinit.c */
 extern bool IgnoreSystemIndexes;
@@ -476,6 +477,7 @@ extern void TouchSocketLockFiles(void);
 extern void AddToDataDirLockFile(int target_line, const char *str);
 extern bool RecheckDataDirLockFile(void);
 extern void ValidatePgVersion(const char *path);
+extern void load_libraries(const char *libraries, const char *gucname, bool restricted);
 extern void process_shared_preload_libraries(void);
 extern void process_session_preload_libraries(void);
 extern void pg_bindtextdomain(const char *domain);

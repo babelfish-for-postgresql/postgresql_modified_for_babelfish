@@ -87,4 +87,8 @@ extern void psql_scan_reselect_sql_lexer(PsqlScanState state);
 
 extern bool psql_scan_in_quote(PsqlScanState state);
 
+extern void psql_scan_setup_ex(PsqlScanState state,
+				const char *line, int line_len,
+							int encoding, bool std_strings, bool tsql);
+
 #endif							/* PSQLSCAN_H */

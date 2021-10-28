@@ -58,4 +58,5 @@ extern Oid	AlterTypeNamespaceInternal(Oid typeOid, Oid nspOid,
 
 extern ObjectAddress AlterType(AlterTypeStmt *stmt);
 
+extern bool enable_domain_typmod;
 #endif							/* TYPECMDS_H */

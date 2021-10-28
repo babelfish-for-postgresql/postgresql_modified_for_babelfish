@@ -22,6 +22,29 @@
 #include "storage/relfilenode.h"
 
 
+/* Sequence validate increment hook */
+typedef void (*pltsql_sequence_validate_increment_hook_type) (int64 increment_by,
+																int64 max_value,
+																int64 min_value);
+extern PGDLLIMPORT pltsql_sequence_validate_increment_hook_type pltsql_sequence_validate_increment_hook;
+
+/* Sequence datatype hook */
+typedef void (*pltsql_sequence_datatype_hook_type) (ParseState *pstate,
+														Oid *newtypid,
+														bool for_identity,
+														DefElem *as_type,
+														DefElem **max_value,
+														DefElem **min_value);
+extern PGDLLIMPORT pltsql_sequence_datatype_hook_type pltsql_sequence_datatype_hook;
+
+/* Sequence nextval hook */
+typedef void (*pltsql_nextval_hook_type) (Oid seqid, int64 val);
+extern PGDLLIMPORT pltsql_nextval_hook_type pltsql_nextval_hook;
+
+/* Sequence reset cache hook */
+typedef void (*pltsql_resetcache_hook_type) ();
+extern PGDLLIMPORT pltsql_resetcache_hook_type pltsql_resetcache_hook;
+
 typedef struct FormData_pg_sequence_data
 {
 	int64		last_value;

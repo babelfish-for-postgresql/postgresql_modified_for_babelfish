@@ -22,4 +22,8 @@ extern Node *transformExpr(ParseState *pstate, Node *expr, ParseExprKind exprKin
 
 extern const char *ParseExprKindName(ParseExprKind exprKind);
 
+/* Hook for finding parameter definition */
+typedef Node * (*lookup_param_hook_type)(ParseState *pstate, ColumnRef *cref);
+extern PGDLLIMPORT lookup_param_hook_type lookup_param_hook;
+
 #endif							/* PARSE_EXPR_H */

@@ -59,6 +59,7 @@
 #include "nodes/nodeFuncs.h"
 #include "parser/gramparse.h"
 #include "parser/parser.h"
+#include "parser/scansup.h"  /* downcase_identifier */
 #include "storage/lmgr.h"
 #include "utils/date.h"
 #include "utils/datetime.h"
@@ -155,6 +156,7 @@ typedef struct GroupClause
 
 static void base_yyerror(YYLTYPE *yylloc, core_yyscan_t yyscanner,
 						 const char *msg);
+static char *downcaseIfTsqlAndCaseInsensitive(char* str);
 static RawStmt *makeRawStmt(Node *stmt, int stmt_location);
 static void updateRawStmtEnd(RawStmt *rs, int end_location);
 static Node *makeColumnRef(char *colname, List *indirection,
@@ -203,6 +205,15 @@ static void processCASbits(int cas_bits, int location, const char *constrType,
 			   bool *no_inherit, core_yyscan_t yyscanner);
 static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "gram-tsql-prologue.y.h"*/
+
+#include "libpq/libpq-be.h" /* needed for MyProcPort->is_tds_client */
+#include "miscadmin.h" /* needed for MyProcPort->is_tds_client */
+
+rewrite_typmod_expr_hook_type rewrite_typmod_expr_hook = NULL;
+validate_numeric_typmods_hook_type validate_numeric_typmods_hook = NULL;
+check_recursive_cte_hook_type check_recursive_cte_hook = NULL;
 %}
 
 %pure-parser
@@ -548,7 +559,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <str>		Sconst comment_text notify_payload
 %type <str>		RoleId opt_boolean_or_string
 %type <list>	var_list
-%type <str>		ColId ColLabel BareColLabel
+%type <str>		ColId ColIdDef ColLabel BareColLabel AS_ColLabel 
 %type <str>		NonReservedWord NonReservedWord_or_Sconst
 %type <str>		var_name type_function_name param_name
 %type <str>		createdb_opt_name plassign_target
@@ -627,6 +638,11 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %token <ival>	ICONST PARAM
 %token			TYPECAST DOT_DOT COLON_EQUALS EQUALS_GREATER
 %token			LESS_EQUALS GREATER_EQUALS NOT_EQUALS
+
+/* Non-keyword TSQL tokens. They need to be appear after the common ones above. */
+/* TODO: these tokens are also used in pg-tsql pl_gram.y. We may remove it once ALNTR parser is introduced */
+%token          DIALECT_TSQL
+%token <str>	TSQL_XCONST TSQL_LABEL
 
 /*
  * If you want to make any keyword changes, update the keyword table in
@@ -793,6 +809,8 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
  */
 %nonassoc	UNBOUNDED		/* ideally would have same precedence as IDENT */
 %nonassoc	IDENT PARTITION RANGE ROWS GROUPS PRECEDING FOLLOWING CUBE ROLLUP
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "gram-tsql-nonassoc-ident-tokens"*/
 %left		Op OPERATOR		/* multi-character ops and user-defined operators */
 %left		'+' '-'
 %left		'*' '/' '%'
@@ -813,6 +831,9 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
  * left-associativity among the JOIN rules themselves.
  */
 %left		JOIN CROSS LEFT FULL RIGHT INNER_P NATURAL
+
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "gram-tsql-decl.y"*/
 
 %%
 
@@ -1127,36 +1148,37 @@ AlterOptRoleElem:
 				}
 			| IDENT
 				{
+					char	   *ident = downcaseIfTsqlAndCaseInsensitive($1);
 					/*
 					 * We handle identifiers that aren't parser keywords with
 					 * the following special-case codes, to avoid bloating the
 					 * size of the main parser.
 					 */
-					if (strcmp($1, "superuser") == 0)
+					if (strcmp(ident, "superuser") == 0)
 						$$ = makeDefElem("superuser", (Node *)makeInteger(true), @1);
-					else if (strcmp($1, "nosuperuser") == 0)
+					else if (strcmp(ident, "nosuperuser") == 0)
 						$$ = makeDefElem("superuser", (Node *)makeInteger(false), @1);
-					else if (strcmp($1, "createrole") == 0)
+					else if (strcmp(ident, "createrole") == 0)
 						$$ = makeDefElem("createrole", (Node *)makeInteger(true), @1);
-					else if (strcmp($1, "nocreaterole") == 0)
+					else if (strcmp(ident, "nocreaterole") == 0)
 						$$ = makeDefElem("createrole", (Node *)makeInteger(false), @1);
-					else if (strcmp($1, "replication") == 0)
+					else if (strcmp(ident, "replication") == 0)
 						$$ = makeDefElem("isreplication", (Node *)makeInteger(true), @1);
-					else if (strcmp($1, "noreplication") == 0)
+					else if (strcmp(ident, "noreplication") == 0)
 						$$ = makeDefElem("isreplication", (Node *)makeInteger(false), @1);
-					else if (strcmp($1, "createdb") == 0)
+					else if (strcmp(ident, "createdb") == 0)
 						$$ = makeDefElem("createdb", (Node *)makeInteger(true), @1);
-					else if (strcmp($1, "nocreatedb") == 0)
+					else if (strcmp(ident, "nocreatedb") == 0)
 						$$ = makeDefElem("createdb", (Node *)makeInteger(false), @1);
-					else if (strcmp($1, "login") == 0)
+					else if (strcmp(ident, "login") == 0)
 						$$ = makeDefElem("canlogin", (Node *)makeInteger(true), @1);
-					else if (strcmp($1, "nologin") == 0)
+					else if (strcmp(ident, "nologin") == 0)
 						$$ = makeDefElem("canlogin", (Node *)makeInteger(false), @1);
-					else if (strcmp($1, "bypassrls") == 0)
+					else if (strcmp(ident, "bypassrls") == 0)
 						$$ = makeDefElem("bypassrls", (Node *)makeInteger(true), @1);
-					else if (strcmp($1, "nobypassrls") == 0)
+					else if (strcmp(ident, "nobypassrls") == 0)
 						$$ = makeDefElem("bypassrls", (Node *)makeInteger(false), @1);
-					else if (strcmp($1, "noinherit") == 0)
+					else if (strcmp(ident, "noinherit") == 0)
 					{
 						/*
 						 * Note that INHERIT is a keyword, so it's handled by main parser, but
@@ -1393,6 +1415,7 @@ CreateSchemaStmt:
 					n->authrole = $5;
 					n->schemaElts = $6;
 					n->if_not_exists = false;
+					n->location = @3;
 					$$ = (Node *)n;
 				}
 			| CREATE SCHEMA ColId OptSchemaEltList
@@ -1403,6 +1426,7 @@ CreateSchemaStmt:
 					n->authrole = NULL;
 					n->schemaElts = $4;
 					n->if_not_exists = false;
+					n->location = @3;
 					$$ = (Node *)n;
 				}
 			| CREATE SCHEMA IF_P NOT EXISTS OptSchemaName AUTHORIZATION RoleSpec OptSchemaEltList
@@ -1418,6 +1442,7 @@ CreateSchemaStmt:
 								 parser_errposition(@9)));
 					n->schemaElts = $9;
 					n->if_not_exists = true;
+					n->location = @6;
 					$$ = (Node *)n;
 				}
 			| CREATE SCHEMA IF_P NOT EXISTS ColId OptSchemaEltList
@@ -1433,6 +1458,7 @@ CreateSchemaStmt:
 								 parser_errposition(@7)));
 					n->schemaElts = $7;
 					n->if_not_exists = true;
+					n->location = @6;
 					$$ = (Node *)n;
 				}
 		;
@@ -1688,7 +1714,7 @@ zone_value:
 				}
 			| IDENT
 				{
-					$$ = makeStringConst($1, @1);
+					$$ = makeStringConst(downcaseIfTsqlAndCaseInsensitive($1), @1);
 				}
 			| ConstInterval Sconst opt_interval
 				{
@@ -3271,7 +3297,8 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 			OnCommitOption OptTableSpace
 				{
 					CreateStmt *n = makeNode(CreateStmt);
-					$4->relpersistence = $2;
+					if (sql_dialect != SQL_DIALECT_TSQL || $4->relpersistence != RELPERSISTENCE_TEMP)
+						$4->relpersistence = $2;
 					n->relation = $4;
 					n->tableElts = $6;
 					n->inhRelations = $8;
@@ -3290,7 +3317,8 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 			OptWith OnCommitOption OptTableSpace
 				{
 					CreateStmt *n = makeNode(CreateStmt);
-					$7->relpersistence = $2;
+					if (sql_dialect != SQL_DIALECT_TSQL || $7->relpersistence != RELPERSISTENCE_TEMP)
+						$7->relpersistence = $2;
 					n->relation = $7;
 					n->tableElts = $9;
 					n->inhRelations = $11;
@@ -3309,7 +3337,8 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 			OptWith OnCommitOption OptTableSpace
 				{
 					CreateStmt *n = makeNode(CreateStmt);
-					$4->relpersistence = $2;
+					if (sql_dialect != SQL_DIALECT_TSQL || $4->relpersistence != RELPERSISTENCE_TEMP)
+						$4->relpersistence = $2;
 					n->relation = $4;
 					n->tableElts = $7;
 					n->inhRelations = NIL;
@@ -3329,7 +3358,8 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 			OptWith OnCommitOption OptTableSpace
 				{
 					CreateStmt *n = makeNode(CreateStmt);
-					$7->relpersistence = $2;
+					if (sql_dialect != SQL_DIALECT_TSQL || $7->relpersistence != RELPERSISTENCE_TEMP)
+						$7->relpersistence = $2;
 					n->relation = $7;
 					n->tableElts = $10;
 					n->inhRelations = NIL;
@@ -3349,7 +3379,8 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 			table_access_method_clause OptWith OnCommitOption OptTableSpace
 				{
 					CreateStmt *n = makeNode(CreateStmt);
-					$4->relpersistence = $2;
+					if (sql_dialect != SQL_DIALECT_TSQL || $4->relpersistence != RELPERSISTENCE_TEMP)
+						$4->relpersistence = $2;
 					n->relation = $4;
 					n->tableElts = $8;
 					n->inhRelations = list_make1($7);
@@ -3369,7 +3400,8 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 			table_access_method_clause OptWith OnCommitOption OptTableSpace
 				{
 					CreateStmt *n = makeNode(CreateStmt);
-					$7->relpersistence = $2;
+					if (sql_dialect != SQL_DIALECT_TSQL || $7->relpersistence != RELPERSISTENCE_TEMP)
+						$7->relpersistence = $2;
 					n->relation = $7;
 					n->tableElts = $11;
 					n->inhRelations = list_make1($10);
@@ -3484,7 +3516,7 @@ columnDef:	ColId Typename opt_column_compression create_generic_options ColQualL
 				}
 		;
 
-columnOptions:	ColId ColQualList
+columnOptions:	ColIdDef ColQualList
 				{
 					ColumnDef *n = makeNode(ColumnDef);
 					n->colname = $1;
@@ -3502,7 +3534,7 @@ columnOptions:	ColId ColQualList
 					n->location = @1;
 					$$ = (Node *)n;
 				}
-				| ColId WITH OPTIONS ColQualList
+				| ColIdDef WITH OPTIONS ColQualList
 				{
 					ColumnDef *n = makeNode(ColumnDef);
 					n->colname = $1;
@@ -3652,6 +3684,12 @@ ColConstraintElem:
 					n->raw_expr = $5;
 					n->cooked_expr = NULL;
 					n->location = @1;
+
+					if (sql_dialect == SQL_DIALECT_TSQL)
+						ereport(ERROR,
+								(errcode(ERRCODE_SYNTAX_ERROR),
+								 errmsg("This syntax is only valid when babelfishpg_tsql.sql_dialect is postgres"),
+								 parser_errposition(@2)));
 
 					/*
 					 * Can't do this in the grammar because of shift/reduce
@@ -5287,9 +5325,11 @@ RowSecurityOptionalToRole:
 RowSecurityDefaultPermissive:
 			AS IDENT
 				{
-					if (strcmp($2, "permissive") == 0)
+					char	   *ident = downcaseIfTsqlAndCaseInsensitive($2);
+
+					if (strcmp(ident, "permissive") == 0)
 						$$ = true;
-					else if (strcmp($2, "restrictive") == 0)
+					else if (strcmp(ident, "restrictive") == 0)
 						$$ = false;
 					else
 						ereport(ERROR,
@@ -5866,7 +5906,7 @@ old_aggr_list: old_aggr_elem						{ $$ = list_make1($1); }
  */
 old_aggr_elem:  IDENT '=' def_arg
 				{
-					$$ = makeDefElem($1, (Node *)$3, @1);
+					$$ = makeDefElem(downcaseIfTsqlAndCaseInsensitive($1), (Node *)$3, @1);
 				}
 		;
 
@@ -6236,6 +6276,16 @@ DropStmt:	DROP object_type_any_name IF_P EXISTS any_name_list opt_drop_behavior
 					n->removeType = $2;
 					n->objects = list_make1(lappend($5, makeString($3)));
 					n->behavior = $6;
+
+					if($2 == OBJECT_TRIGGER && sql_dialect == SQL_DIALECT_TSQL)
+					{
+						/*
+						 * Force DROP_CASCADE in TSQL dialect so that the
+						 * implicit trigger function also gets dropped
+						 */
+						n->behavior = DROP_CASCADE;
+					}
+
 					n->missing_ok = false;
 					n->concurrent = false;
 					$$ = (Node *) n;
@@ -6246,6 +6296,16 @@ DropStmt:	DROP object_type_any_name IF_P EXISTS any_name_list opt_drop_behavior
 					n->removeType = $2;
 					n->objects = list_make1(lappend($7, makeString($5)));
 					n->behavior = $8;
+
+					if($2 == OBJECT_TRIGGER && sql_dialect == SQL_DIALECT_TSQL)
+					{
+						/*
+						 * Force DROP_CASCADE in TSQL dialect so that the
+						 * implicit trigger function also gets dropped
+						 */
+						n->behavior = DROP_CASCADE;
+					}
+
 					n->missing_ok = true;
 					n->concurrent = false;
 					$$ = (Node *) n;
@@ -10225,7 +10285,7 @@ createdb_opt_item:
  * exercising every such option, at least at the syntax level.
  */
 createdb_opt_name:
-			IDENT							{ $$ = $1; }
+			IDENT							{ $$ = downcaseIfTsqlAndCaseInsensitive($1); }
 			| CONNECTION LIMIT				{ $$ = pstrdup("connection_limit"); }
 			| ENCODING						{ $$ = pstrdup($1); }
 			| LOCATION						{ $$ = pstrdup($1); }
@@ -11040,6 +11100,7 @@ insert_column_item:
 				{
 					$$ = makeNode(ResTarget);
 					$$->name = $1;
+					$$->name_location = @1;
 					$$->indirection = check_indirection($2, yyscanner);
 					$$->val = NULL;
 					$$->location = @1;
@@ -11234,6 +11295,7 @@ set_target:
 				{
 					$$ = makeNode(ResTarget);
 					$$->name = $1;
+					$$->name_location = @1;
 					$$->indirection = check_indirection($2, yyscanner);
 					$$->val = NULL;	/* upper production sets this */
 					$$->location = @1;
@@ -11480,6 +11542,7 @@ simple_select:
 					cr->location = -1;
 
 					rt->name = NULL;
+					rt->name_location = -1;
 					rt->indirection = NIL;
 					rt->val = (Node *)cr;
 					rt->location = -1;
@@ -11516,6 +11579,8 @@ with_clause:
 				$$ = makeNode(WithClause);
 				$$->ctes = $2;
 				$$->recursive = false;
+				if (sql_dialect == SQL_DIALECT_TSQL && check_recursive_cte_hook != NULL)
+					$$->recursive = (*check_recursive_cte_hook)($$);
 				$$->location = @1;
 			}
 		| WITH_LA cte_list
@@ -11523,6 +11588,8 @@ with_clause:
 				$$ = makeNode(WithClause);
 				$$->ctes = $2;
 				$$->recursive = false;
+				if (sql_dialect == SQL_DIALECT_TSQL && check_recursive_cte_hook != NULL)
+					$$->recursive = (*check_recursive_cte_hook)($$);
 				$$->location = @1;
 			}
 		| WITH RECURSIVE cte_list
@@ -11683,12 +11750,14 @@ OptTempTableName:
 			| TABLE qualified_name
 				{
 					$$ = $2;
-					$$->relpersistence = RELPERSISTENCE_PERMANENT;
+					if (sql_dialect != SQL_DIALECT_TSQL || $$->relpersistence != RELPERSISTENCE_TEMP)
+						$$->relpersistence = RELPERSISTENCE_PERMANENT;
 				}
 			| qualified_name
 				{
 					$$ = $1;
-					$$->relpersistence = RELPERSISTENCE_PERMANENT;
+					if (sql_dialect != SQL_DIALECT_TSQL || $$->relpersistence != RELPERSISTENCE_TEMP)
+						$$->relpersistence = RELPERSISTENCE_PERMANENT;
 				}
 		;
 
@@ -12721,7 +12790,7 @@ xmltable_column_option_list:
 
 xmltable_column_option_el:
 			IDENT b_expr
-				{ $$ = makeDefElem($1, $2, @1); }
+				{ $$ = makeDefElem(downcaseIfTsqlAndCaseInsensitive($1), $2, @1); }
 			| DEFAULT b_expr
 				{ $$ = makeDefElem("default", $2, @1); }
 			| NOT NULL_P
@@ -12742,6 +12811,7 @@ xml_namespace_el:
 				{
 					$$ = makeNode(ResTarget);
 					$$->name = $3;
+					$$->name_location = @3;
 					$$->indirection = NIL;
 					$$->val = $1;
 					$$->location = @1;
@@ -12750,6 +12820,7 @@ xml_namespace_el:
 				{
 					$$ = makeNode(ResTarget);
 					$$->name = NULL;
+					$$->name_location = -1;
 					$$->indirection = NIL;
 					$$->val = $2;
 					$$->location = @1;
@@ -12870,7 +12941,12 @@ GenericType:
 				}
 		;
 
-opt_type_modifiers: '(' expr_list ')'				{ $$ = $2; }
+opt_type_modifiers: '(' expr_list ')'
+						{
+							$$ = $2;
+							if (sql_dialect == SQL_DIALECT_TSQL && rewrite_typmod_expr_hook != NULL)
+								$$ = (*rewrite_typmod_expr_hook)($2);
+						}
 					| /* EMPTY */					{ $$ = NIL; }
 		;
 
@@ -12914,21 +12990,50 @@ Numeric:	INT_P
 				}
 			| DECIMAL_P opt_type_modifiers
 				{
-					$$ = SystemTypeName("numeric");
-					$$->typmods = $2;
-					$$->location = @1;
+					if (sql_dialect == SQL_DIALECT_TSQL)
+					{
+						$$ = makeTypeName("decimal");
+						$$->typmods = $2;
+						$$->location = @1;
+						if (validate_numeric_typmods_hook)
+						{
+							(*validate_numeric_typmods_hook)(&($$->typmods), false, yyscanner);
+						}
+					}
+					else
+					{
+						$$ = SystemTypeName("numeric");
+						$$->typmods = $2;
+						$$->location = @1;
+					}
 				}
 			| DEC opt_type_modifiers
 				{
-					$$ = SystemTypeName("numeric");
-					$$->typmods = $2;
-					$$->location = @1;
+					if (sql_dialect == SQL_DIALECT_TSQL)
+					{
+						$$ = makeTypeName("decimal");
+						$$->typmods = $2;
+						$$->location = @1;
+						if (validate_numeric_typmods_hook)
+						{
+							(*validate_numeric_typmods_hook)(&($$->typmods), false, yyscanner);
+						}
+					}
+					else
+					{
+						$$ = SystemTypeName("numeric");
+						$$->typmods = $2;
+						$$->location = @1;
+					}
 				}
 			| NUMERIC opt_type_modifiers
 				{
 					$$ = SystemTypeName("numeric");
 					$$->typmods = $2;
 					$$->location = @1;
+					if ((sql_dialect == SQL_DIALECT_TSQL) &&
+					   validate_numeric_typmods_hook != NULL)
+						(*validate_numeric_typmods_hook)(&($$->typmods), true, yyscanner);
 				}
 			| BOOLEAN_P
 				{
@@ -14044,7 +14149,13 @@ func_expr_common_subexpr:
 				}
 			| CURRENT_TIMESTAMP
 				{
-					$$ = makeSQLValueFunction(SVFOP_CURRENT_TIMESTAMP, -1, @1);
+					if (sql_dialect != SQL_DIALECT_TSQL)
+						$$ = makeSQLValueFunction(SVFOP_CURRENT_TIMESTAMP, -1, @1);
+					else
+						$$ = (Node *)makeFuncCall(list_make2(makeString("sys"), makeString("getdate")),
+													NULL,
+													COERCE_EXPLICIT_CALL,
+													-1); /* generate "sys"."getdate" for SQL_DIALECT_TSQL */
 				}
 			| CURRENT_TIMESTAMP '(' Iconst ')'
 				{
@@ -14072,7 +14183,13 @@ func_expr_common_subexpr:
 				}
 			| CURRENT_USER
 				{
-					$$ = makeSQLValueFunction(SVFOP_CURRENT_USER, -1, @1);
+					if (sql_dialect == SQL_DIALECT_TSQL)
+						$$ = (Node *) makeFuncCall(list_make2(makeString("sys"), makeString("user_name_sysname")),
+													NIL,
+													COERCE_EXPLICIT_CALL,
+													@1);
+					else
+						$$ = makeSQLValueFunction(SVFOP_CURRENT_USER, -1, @1);
 				}
 			| SESSION_USER
 				{
@@ -14080,7 +14197,13 @@ func_expr_common_subexpr:
 				}
 			| USER
 				{
-					$$ = makeSQLValueFunction(SVFOP_USER, -1, @1);
+					if (sql_dialect == SQL_DIALECT_TSQL)
+						$$ = (Node *) makeFuncCall(list_make2(makeString("sys"), makeString("user_name")),
+													NIL,
+													COERCE_EXPLICIT_CALL,
+													@1);
+					else
+						$$ = makeSQLValueFunction(SVFOP_USER, -1, @1);
 				}
 			| CURRENT_CATALOG
 				{
@@ -14336,6 +14459,7 @@ xml_attribute_el: a_expr AS ColLabel
 				{
 					$$ = makeNode(ResTarget);
 					$$->name = $3;
+					$$->name_location = @3;
 					$$->indirection = NIL;
 					$$->val = (Node *) $1;
 					$$->location = @1;
@@ -14344,6 +14468,7 @@ xml_attribute_el: a_expr AS ColLabel
 				{
 					$$ = makeNode(ResTarget);
 					$$->name = NULL;
+					$$->name_location = -1;
 					$$->indirection = NIL;
 					$$->val = (Node *) $1;
 					$$->location = @1;
@@ -14789,7 +14914,7 @@ extract_list:
  * - thomas 2001-04-12
  */
 extract_arg:
-			IDENT									{ $$ = $1; }
+			IDENT									{ $$ = downcaseIfTsqlAndCaseInsensitive($1); }
 			| YEAR_P								{ $$ = "year"; }
 			| MONTH_P								{ $$ = "month"; }
 			| DAY_P									{ $$ = "day"; }
@@ -15018,10 +15143,11 @@ target_list:
 			| target_list ',' target_el				{ $$ = lappend($1, $3); }
 		;
 
-target_el:	a_expr AS ColLabel
+target_el:	a_expr AS AS_ColLabel
 				{
 					$$ = makeNode(ResTarget);
 					$$->name = $3;
+					$$->name_location = @3;
 					$$->indirection = NIL;
 					$$->val = (Node *)$1;
 					$$->location = @1;
@@ -15029,7 +15155,13 @@ target_el:	a_expr AS ColLabel
 			| a_expr BareColLabel
 				{
 					$$ = makeNode(ResTarget);
+
+					/* In TSQL we need to preserve the case of the AS clause in the outermost
+					 * query block, at least.  Target list references must be resolved case-
+					 * insensitively when the database collation is case-insensitive.
+					 */
 					$$->name = $2;
+					$$->name_location = @2;
 					$$->indirection = NIL;
 					$$->val = (Node *)$1;
 					$$->location = @1;
@@ -15038,6 +15170,7 @@ target_el:	a_expr AS ColLabel
 				{
 					$$ = makeNode(ResTarget);
 					$$->name = NULL;
+					$$->name_location = -1;
 					$$->indirection = NIL;
 					$$->val = (Node *)$1;
 					$$->location = @1;
@@ -15050,6 +15183,7 @@ target_el:	a_expr AS ColLabel
 
 					$$ = makeNode(ResTarget);
 					$$->name = NULL;
+					$$->name_location = -1;
 					$$->indirection = NIL;
 					$$->val = (Node *)n;
 					$$->location = @1;
@@ -15079,6 +15213,9 @@ qualified_name:
 			ColId
 				{
 					$$ = makeRangeVar(NULL, $1, @1);
+					/* TSQL temp table names */
+					if (strncmp($1, "#", 1) == 0 || strncmp($1, "##", 2) == 0)
+						$$->relpersistence = RELPERSISTENCE_TEMP;
 				}
 			| ColId indirection
 				{
@@ -15088,13 +15225,25 @@ qualified_name:
 					{
 						case 1:
 							$$->catalogname = NULL;
-							$$->schemaname = $1;
-							$$->relname = strVal(linitial($2));
+							$$->schemaname = downcaseIfTsqlAndCaseInsensitive($1);
+							/* TSQL temp table names. Schema name is allowed but ignored for temp tables.*/
+							if (strncmp(strVal(linitial($2)), "#", 1) == 0 || strncmp(strVal(linitial($2)), "##", 2) == 0)
+							{
+								$$->relpersistence = RELPERSISTENCE_TEMP;
+								$$->schemaname = NULL;
+							}
+							$$->relname = downcaseIfTsqlAndCaseInsensitive(strVal(linitial($2)));
 							break;
 						case 2:
-							$$->catalogname = $1;
-							$$->schemaname = strVal(linitial($2));
-							$$->relname = strVal(lsecond($2));
+							$$->catalogname = downcaseIfTsqlAndCaseInsensitive($1);
+							$$->schemaname = downcaseIfTsqlAndCaseInsensitive(strVal(linitial($2)));
+							/* TSQL temp table names. Schema name is allowed but ignored for temp tables.*/
+							if (strncmp(strVal(lsecond($2)), "#", 1) == 0 || strncmp(strVal(lsecond($2)), "##", 2) == 0)
+							{
+								$$->relpersistence = RELPERSISTENCE_TEMP;
+								$$->schemaname = NULL;
+							}
+							$$->relname = downcaseIfTsqlAndCaseInsensitive(strVal(lsecond($2)));
 							break;
 						default:
 							ereport(ERROR,
@@ -15412,31 +15561,84 @@ plassign_equals: COLON_EQUALS
  */
 
 /* Column identifier --- names that can be column, table, etc names.
+ * ColId downcases in TSQL so that identifiers are case-insensitive
  */
-ColId:		IDENT									{ $$ = $1; }
-			| unreserved_keyword					{ $$ = pstrdup($1); }
-			| col_name_keyword						{ $$ = pstrdup($1); }
+ColId:		IDENT									{ $$ = downcaseIfTsqlAndCaseInsensitive($1); }
+			| unreserved_keyword					{ $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1)); }
+			| col_name_keyword						{ $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1)); }
+		;
+
+/* ColIdDef passes through the case produced by the lexer, which for TSQL retains regular identifers
+ * in their original case. In the PostgreSQL dialect there is no difference between ColId and ColIdDef.
+ *
+ * ColIdDef is used in CREATE TABLE to preserve the original case of a column when in the TSQL dialect.
+ * it is also used in the COLLATE clause to preserve the case of the collation name so that COLLATE C
+ * and other collation names created in the Postgres dialect that use delimited identifiers can be found 
+ * case-sensitively in TSQL, but in internally when in the TSQL dialect it also downcases the collation
+ * name so that it finds collation names case-insensitively in the TSQL dialect.  It is not supported
+ * to create a collation name in Postgres that is the the same as another collation name after case
+ * folding.
+ */
+ColIdDef:	IDENT
+				  {
+					/* If in the TSQL dialect, the colname is still in its original case
+					* even for regular identifiers.  Save it to the Babelfish metadata
+					 * so that it can be used as the column alias for SELECT *
+					 */
+					/* TBD */
+
+					/* Now downcase the colname if in the TSQL dialect and the default
+					 * collation is case-insensitive.
+					 */
+					  $$ = downcaseIfTsqlAndCaseInsensitive($1);
+				  }
+			| unreserved_keyword
+				  {
+					  /* If in the TSQL dialect, save the original column in the Babelfish metadata */
+					  /* TBD */
+
+					  /* Now downcase the colname in the TSQL dialect if the database collation
+					   * is case-sensitive.
+					   */
+					  $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1));
+				  }
+			| col_name_keyword
+				  {
+					  /* If in the TSQL dialect, save the original column in the Babelfish metadata */
+					  /* TBD */
+
+					  /* Now downcase the colname in the TSQL dialect if the database collation
+					   * is case-sensitive.
+					   */
+					  $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1));
+				  }
 		;
 
 /* Type/function identifier --- names that can be type or function names.
  */
-type_function_name:	IDENT							{ $$ = $1; }
-			| unreserved_keyword					{ $$ = pstrdup($1); }
-			| type_func_name_keyword				{ $$ = pstrdup($1); }
+type_function_name:	IDENT							{ $$ = downcaseIfTsqlAndCaseInsensitive($1); }
+			| unreserved_keyword					{ $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1)); }
+			| type_func_name_keyword				{ $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1)); }
 		;
 
 /* Any not-fully-reserved word --- these names can be, eg, role names.
  */
-NonReservedWord:	IDENT							{ $$ = $1; }
-			| unreserved_keyword					{ $$ = pstrdup($1); }
-			| col_name_keyword						{ $$ = pstrdup($1); }
-			| type_func_name_keyword				{ $$ = pstrdup($1); }
+NonReservedWord:	IDENT							{ $$ = downcaseIfTsqlAndCaseInsensitive($1); }
+			| unreserved_keyword					{ $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1)); }
+			| col_name_keyword						{ $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1)); }
+			| type_func_name_keyword				{ $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1)); }
 		;
 
 /* Column label --- allowed labels in "AS" clauses.
  * This presently includes *all* Postgres keywords.
  */
-ColLabel:	IDENT									{ $$ = $1; }
+ColLabel:	IDENT									{ $$ = downcaseIfTsqlAndCaseInsensitive($1); }
+			| unreserved_keyword					{ $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1)); }
+			| col_name_keyword						{ $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1)); }
+			| type_func_name_keyword				{ $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1)); }
+			| reserved_keyword						{ $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1)); }
+		;
+AS_ColLabel:	IDENT								{ $$ = $1; }
 			| unreserved_keyword					{ $$ = pstrdup($1); }
 			| col_name_keyword						{ $$ = pstrdup($1); }
 			| type_func_name_keyword				{ $$ = pstrdup($1); }
@@ -16391,6 +16593,9 @@ bare_label_keyword:
 			| ZONE
 		;
 
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "gram-tsql-rule.y"*/
+
 %%
 
 /*
@@ -16402,6 +16607,16 @@ static void
 base_yyerror(YYLTYPE *yylloc, core_yyscan_t yyscanner, const char *msg)
 {
 	parser_yyerror(msg);
+}
+
+static char *
+downcaseIfTsqlAndCaseInsensitive(char* str)
+{
+	if (sql_dialect == SQL_DIALECT_TSQL
+		&& pltsql_case_insensitive_identifiers)
+		return downcase_identifier(str, strlen(str), false, false);
+	else
+		return str;
 }
 
 static RawStmt *
@@ -17238,6 +17453,7 @@ makeRecursiveViewSelect(char *relname, List *aliases, Node *query)
 		ResTarget *rt = makeNode(ResTarget);
 
 		rt->name = NULL;
+		rt->name_location = -1;
 		rt->indirection = NIL;
 		rt->val = makeColumnRef(strVal(lfirst(lc)), NIL, -1, 0);
 		rt->location = -1;
@@ -17262,3 +17478,6 @@ parser_init(base_yy_extra_type *yyext)
 {
 	yyext->parsetree = NIL;		/* in case grammar forgets to set it */
 }
+
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "gram-tsql-epilogue.y.c"*/

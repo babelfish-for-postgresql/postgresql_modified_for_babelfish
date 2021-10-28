@@ -380,9 +380,9 @@ main(int argc, char *argv[])
 					puts(cell->val);
 
 				scan_state = psql_scan_create(&psqlscan_callbacks);
-				psql_scan_setup(scan_state,
+				psql_scan_setup_ex(scan_state,
 								cell->val, strlen(cell->val),
-								pset.encoding, standard_strings());
+								pset.encoding, standard_strings(), pset.tsql);
 				cond_stack = conditional_stack_create();
 				psql_scan_set_passthrough(scan_state, (void *) cond_stack);
 

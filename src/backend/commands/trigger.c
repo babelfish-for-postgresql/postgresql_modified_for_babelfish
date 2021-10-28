@@ -40,6 +40,7 @@
 #include "nodes/bitmapset.h"
 #include "nodes/makefuncs.h"
 #include "optimizer/optimizer.h"
+#include "parser/parser.h"      /* only needed for GUC variables */
 #include "parser/parse_clause.h"
 #include "parser/parse_collate.h"
 #include "parser/parse_func.h"
@@ -95,6 +96,20 @@ static void AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 								  TransitionCaptureState *transition_capture);
 static void AfterTriggerEnlargeQueryState(void);
 static bool before_stmt_triggers_fired(Oid relid, CmdType cmdType);
+static IOTState instead_stmt_triggers_fired(Oid relid, CmdType cmdType);
+
+static IOTState instead_stmt_triggers_fired(Oid relid, CmdType cmdType);
+static void set_iot_state(Oid relid, CmdType cmdType, IOTState newState);
+
+/* 
+* In babelfish triggers, the procedural code is part of the CREATE TRIGGER
+* statement, instead of being in a separate function. Therefore we termed these
+* triggers as composite triggers, as they handle the procedural code and trigger
+* creation in the same statement.
+*/
+static bool IsCompositeTriggerActive(void);
+static void AddCompositeTriggerLevelData(void);
+static bool IsCompositeTrigger(Oid fn_oid);
 
 
 /*
@@ -181,6 +196,8 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	Relation	rel;
 	AclResult	aclresult;
 	Relation	tgrel;
+	SysScanDesc tgscan;
+	ScanKeyData key;
 	Relation	pgrel;
 	HeapTuple	tuple = NULL;
 	Oid			funcrettype;
@@ -209,7 +226,9 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	if (rel->rd_rel->relkind == RELKIND_RELATION)
 	{
 		/* Tables can't have INSTEAD OF triggers */
-		if (stmt->timing != TRIGGER_TYPE_BEFORE &&
+		/* BABELFISH: Support Instead of triggers, lift restriction for TSQL */
+		if (sql_dialect != SQL_DIALECT_TSQL &&
+			stmt->timing != TRIGGER_TYPE_BEFORE &&
 			stmt->timing != TRIGGER_TYPE_AFTER)
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -220,7 +239,9 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	else if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
 	{
 		/* Partitioned tables can't have INSTEAD OF triggers */
-		if (stmt->timing != TRIGGER_TYPE_BEFORE &&
+		/* BABELFISH: Support Instead of triggers, lift restriction for TSQL */
+		if (sql_dialect != SQL_DIALECT_TSQL &&
+			stmt->timing != TRIGGER_TYPE_BEFORE &&
 			stmt->timing != TRIGGER_TYPE_AFTER)
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -379,10 +400,14 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	/* INSTEAD triggers must be row-level, and can't have WHEN or columns */
 	if (TRIGGER_FOR_INSTEAD(tgtype))
 	{
-		if (!TRIGGER_FOR_ROW(tgtype))
+		if (sql_dialect != SQL_DIALECT_TSQL && !TRIGGER_FOR_ROW(tgtype))
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("INSTEAD OF triggers must be FOR EACH ROW")));
+					errmsg("INSTEAD OF triggers must be FOR EACH ROW")));
+		if (sql_dialect == SQL_DIALECT_TSQL && TRIGGER_FOR_ROW(tgtype))
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					errmsg("INSTEAD OF triggers not supported for FOR EACH ROW with TSQL dialect")));
 		if (stmt->whenClause)
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -463,7 +488,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 							 errmsg("ROW triggers with transition tables are not supported on inheritance children")));
 			}
 
-			if (stmt->timing != TRIGGER_TYPE_AFTER)
+			if (sql_dialect != SQL_DIALECT_TSQL && stmt->timing != TRIGGER_TYPE_AFTER)
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 						 errmsg("transition table name can only be specified for an AFTER trigger")));
@@ -527,11 +552,18 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 			}
 			else
 			{
-				if (!(TRIGGER_FOR_DELETE(tgtype) ||
-					  TRIGGER_FOR_UPDATE(tgtype)))
-					ereport(ERROR,
+				if (sql_dialect != SQL_DIALECT_TSQL) {
+					if (!(TRIGGER_FOR_DELETE(tgtype) ||
+						TRIGGER_FOR_UPDATE(tgtype)))
+						ereport(ERROR,
 							(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 							 errmsg("OLD TABLE can only be specified for a DELETE or UPDATE trigger")));
+				} else if (!(TRIGGER_FOR_DELETE(tgtype) ||
+						TRIGGER_FOR_UPDATE(tgtype) ||
+						TRIGGER_FOR_INSERT(tgtype)))
+						ereport(ERROR,
+								(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+								 errmsg("TSQL: OLD TABLE can only be specified for a INSERT or DELETE or UPDATE trigger")));
 
 				if (oldtablename != NULL)
 					ereport(ERROR,
@@ -847,6 +879,69 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	{
 		/* user-defined trigger; use the specified trigger name as-is */
 		trigname = stmt->trigname;
+	}
+
+	if (!isInternal)
+	{
+		/*
+		* If we are in tsql dialect, we need to ensure that trigger names are
+		* unique throughout the database. In PG, unique triggers are enforced on
+		* a table, and therefore the table name is required to drop a trigger.
+		* Tsql allows dropping a trigger without the table name, and we need to
+		* enforce unique trigger names in order to do the same.
+		* TODO: This can be done using a new hook. 
+		*/
+		if(sql_dialect == SQL_DIALECT_TSQL)
+		{
+			ScanKeyInit(&key,
+						Anum_pg_trigger_tgname,
+						BTEqualStrategyNumber, F_NAMEEQ,
+						CStringGetDatum(trigname));
+			tgscan = systable_beginscan(tgrel, TriggerRelidNameIndexId, false,
+										NULL, 1, &key);
+			while (HeapTupleIsValid(tuple = systable_getnext(tgscan)))
+			{
+				Form_pg_trigger pg_trigger = (Form_pg_trigger) GETSTRUCT(tuple);
+
+				if (namestrcmp(&(pg_trigger->tgname), trigname) == 0)
+					ereport(ERROR,
+							(errcode(ERRCODE_DUPLICATE_OBJECT),
+							errmsg("trigger \"%s\" already exists in the database",
+									trigname)));
+			}
+			systable_endscan(tgscan);
+			if (TRIGGER_FOR_INSTEAD(tgtype)) {
+				ScanKeyInit(&key,
+						Anum_pg_trigger_tgrelid,
+						BTEqualStrategyNumber, F_OIDEQ,
+						ObjectIdGetDatum(RelationGetRelid(rel)));
+				tgscan = systable_beginscan(tgrel, TriggerRelidNameIndexId, true, NULL, 1, &key);
+				while (HeapTupleIsValid(tuple = systable_getnext(tgscan)))
+				{
+					Form_pg_trigger pg_trigger = (Form_pg_trigger) GETSTRUCT(tuple);
+					if (TRIGGER_FOR_UPDATE(tgtype) &&
+						TRIGGER_TYPE_MATCHES(pg_trigger->tgtype, TRIGGER_TYPE_STATEMENT, TRIGGER_TYPE_INSTEAD, TRIGGER_TYPE_UPDATE)) {
+						ereport(ERROR,
+								(errcode(ERRCODE_DUPLICATE_OBJECT),
+								 errmsg("cannot create trigger \"%s\" for relation \"%s\" because an INSTEAD OF UPDATE trigger already exists on this object.",
+									 trigname, RelationGetRelationName(rel))));
+					} else if (TRIGGER_FOR_INSERT(tgtype) &&
+								TRIGGER_TYPE_MATCHES(pg_trigger->tgtype, TRIGGER_TYPE_STATEMENT, TRIGGER_TYPE_INSTEAD, TRIGGER_TYPE_INSERT)) {
+						ereport(ERROR,
+								(errcode(ERRCODE_DUPLICATE_OBJECT),
+								 errmsg("cannot create trigger \"%s\" for relation \"%s\" because an INSTEAD OF INSERT trigger already exists on this object.",
+									 trigname, RelationGetRelationName(rel))));
+					} else if (TRIGGER_FOR_DELETE(tgtype) &&
+								TRIGGER_TYPE_MATCHES(pg_trigger->tgtype, TRIGGER_TYPE_STATEMENT, TRIGGER_TYPE_INSTEAD, TRIGGER_TYPE_DELETE)) {
+						ereport(ERROR,
+								(errcode(ERRCODE_DUPLICATE_OBJECT),
+								errmsg("cannot create trigger \"%s\" for relation \"%s\" because an INSTEAD OF DELETE trigger already exists on this object.",
+									trigname, RelationGetRelationName(rel))));
+					}
+				}
+				systable_endscan(tgscan);
+			}
+		}
 	}
 
 	/*
@@ -1815,13 +1910,16 @@ SetTriggerFlags(TriggerDesc *trigdesc, Trigger *trigger)
 							 TRIGGER_TYPE_AFTER, TRIGGER_TYPE_INSERT);
 	trigdesc->trig_insert_instead_row |=
 		TRIGGER_TYPE_MATCHES(tgtype, TRIGGER_TYPE_ROW,
-							 TRIGGER_TYPE_INSTEAD, TRIGGER_TYPE_INSERT);
+							TRIGGER_TYPE_INSTEAD, TRIGGER_TYPE_INSERT);
 	trigdesc->trig_insert_before_statement |=
 		TRIGGER_TYPE_MATCHES(tgtype, TRIGGER_TYPE_STATEMENT,
 							 TRIGGER_TYPE_BEFORE, TRIGGER_TYPE_INSERT);
 	trigdesc->trig_insert_after_statement |=
 		TRIGGER_TYPE_MATCHES(tgtype, TRIGGER_TYPE_STATEMENT,
 							 TRIGGER_TYPE_AFTER, TRIGGER_TYPE_INSERT);
+	trigdesc->trig_insert_instead_statement |=
+		TRIGGER_TYPE_MATCHES(tgtype, TRIGGER_TYPE_STATEMENT,
+							TRIGGER_TYPE_INSTEAD, TRIGGER_TYPE_INSERT);
 	trigdesc->trig_update_before_row |=
 		TRIGGER_TYPE_MATCHES(tgtype, TRIGGER_TYPE_ROW,
 							 TRIGGER_TYPE_BEFORE, TRIGGER_TYPE_UPDATE);
@@ -1837,6 +1935,9 @@ SetTriggerFlags(TriggerDesc *trigdesc, Trigger *trigger)
 	trigdesc->trig_update_after_statement |=
 		TRIGGER_TYPE_MATCHES(tgtype, TRIGGER_TYPE_STATEMENT,
 							 TRIGGER_TYPE_AFTER, TRIGGER_TYPE_UPDATE);
+	trigdesc->trig_update_instead_statement |=
+		TRIGGER_TYPE_MATCHES(tgtype, TRIGGER_TYPE_STATEMENT,
+							TRIGGER_TYPE_INSTEAD, TRIGGER_TYPE_UPDATE);
 	trigdesc->trig_delete_before_row |=
 		TRIGGER_TYPE_MATCHES(tgtype, TRIGGER_TYPE_ROW,
 							 TRIGGER_TYPE_BEFORE, TRIGGER_TYPE_DELETE);
@@ -1852,6 +1953,9 @@ SetTriggerFlags(TriggerDesc *trigdesc, Trigger *trigger)
 	trigdesc->trig_delete_after_statement |=
 		TRIGGER_TYPE_MATCHES(tgtype, TRIGGER_TYPE_STATEMENT,
 							 TRIGGER_TYPE_AFTER, TRIGGER_TYPE_DELETE);
+	trigdesc->trig_delete_instead_statement |=
+		TRIGGER_TYPE_MATCHES(tgtype, TRIGGER_TYPE_STATEMENT,
+							TRIGGER_TYPE_INSTEAD, TRIGGER_TYPE_DELETE);
 	/* there are no row-level truncate triggers */
 	trigdesc->trig_truncate_before_statement |=
 		TRIGGER_TYPE_MATCHES(tgtype, TRIGGER_TYPE_STATEMENT,
@@ -2188,6 +2292,60 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 	return (HeapTuple) DatumGetPointer(result);
 }
 
+IOTState
+ExecISInsertTriggers(EState *estate, ResultRelInfo *relinfo)
+{
+	TriggerDesc *trigdesc;
+	int i;
+	TriggerData LocTriggerData;
+	IOTState prevState;
+	trigdesc = relinfo->ri_TrigDesc;
+	if (trigdesc == NULL)
+		return IOT_NOT_REQUIRED;
+	if (!trigdesc->trig_insert_instead_statement) {
+		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_INSERT, IOT_NOT_REQUIRED);
+		return IOT_NOT_REQUIRED;
+	}
+
+	// if the trigger is already fired or not required
+	prevState = instead_stmt_triggers_fired(RelationGetRelid(relinfo->ri_RelationDesc), CMD_INSERT);
+	if (prevState != IOT_NOT_FIRED)
+		return prevState;
+	LocTriggerData.type = T_TriggerData;
+	LocTriggerData.tg_event = TRIGGER_EVENT_INSERT | TRIGGER_EVENT_INSTEAD;
+	LocTriggerData.tg_relation = relinfo->ri_RelationDesc;
+	LocTriggerData.tg_trigtuple = NULL;
+	LocTriggerData.tg_newtuple = NULL;
+	LocTriggerData.tg_trigslot = NULL;
+	LocTriggerData.tg_newslot = NULL;
+	LocTriggerData.tg_oldtable = NULL;
+	LocTriggerData.tg_newtable = NULL;
+	for (i = 0; i < trigdesc->numtriggers; i++)
+	{
+		Trigger    *trigger = &trigdesc->triggers[i];
+		HeapTuple   newtuple;
+		if (!TRIGGER_TYPE_MATCHES(trigger->tgtype,
+					TRIGGER_TYPE_STATEMENT,
+					TRIGGER_TYPE_INSTEAD,
+					TRIGGER_TYPE_INSERT))
+			continue;
+		if (!TriggerEnabled(estate, relinfo, trigger, LocTriggerData.tg_event, NULL, NULL, NULL))
+			continue;
+		LocTriggerData.tg_trigger = trigger;
+		newtuple = ExecCallTriggerFunc(
+				&LocTriggerData,
+				i,
+				relinfo->ri_TrigFunctions,
+				relinfo->ri_TrigInstrument,
+				GetPerTupleMemoryContext(estate));
+		if (newtuple)
+			ereport(ERROR,
+					(errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
+					 errmsg("INSTEAD STATEMENT trigger cannot return a value")));
+	}
+	return IOT_FIRED;
+}
+
 void
 ExecBSInsertTriggers(EState *estate, ResultRelInfo *relinfo)
 {
@@ -2453,6 +2611,68 @@ ExecBSDeleteTriggers(EState *estate, ResultRelInfo *relinfo)
 	}
 }
 
+IOTState
+ExecISDeleteTriggers(EState *estate, ResultRelInfo *relinfo)
+{
+	TriggerDesc *trigdesc;
+	int			i;
+	TriggerData LocTriggerData;
+	IOTState prevState;
+
+	trigdesc = relinfo->ri_TrigDesc;
+
+	if (trigdesc == NULL)
+		return IOT_NOT_REQUIRED;
+	if (!trigdesc->trig_delete_instead_statement) {
+		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_DELETE, IOT_NOT_REQUIRED);
+		return IOT_NOT_REQUIRED;
+	}
+	prevState = instead_stmt_triggers_fired(RelationGetRelid(relinfo->ri_RelationDesc), CMD_DELETE);
+	// if the trigger is already fired or not required
+	if (prevState != IOT_NOT_FIRED)
+		return prevState;
+
+	LocTriggerData.type = T_TriggerData;
+	LocTriggerData.tg_event = TRIGGER_EVENT_DELETE |
+		TRIGGER_EVENT_INSTEAD;
+	LocTriggerData.tg_relation = relinfo->ri_RelationDesc;
+	LocTriggerData.tg_trigtuple = NULL;
+	LocTriggerData.tg_newtuple = NULL;
+	LocTriggerData.tg_oldtable = NULL;
+	LocTriggerData.tg_newtable = NULL;
+	LocTriggerData.tg_trigtuple = InvalidBuffer;
+	LocTriggerData.tg_newtuple = InvalidBuffer;
+	for (i = 0; i < trigdesc->numtriggers; i++)
+	{
+		Trigger    *trigger = &trigdesc->triggers[i];
+		HeapTuple	newtuple;
+
+		if (!TRIGGER_TYPE_MATCHES(trigger->tgtype,
+								  TRIGGER_TYPE_STATEMENT,
+								  TRIGGER_TYPE_INSTEAD,
+								  TRIGGER_TYPE_DELETE))
+			continue;
+		if (!TriggerEnabled(estate, relinfo, trigger, LocTriggerData.tg_event,
+							NULL, NULL, NULL))
+			continue;
+
+		LocTriggerData.tg_trigger = trigger;
+		newtuple = ExecCallTriggerFunc(&LocTriggerData,
+									   i,
+									   relinfo->ri_TrigFunctions,
+									   relinfo->ri_TrigInstrument,
+									   GetPerTupleMemoryContext(estate));
+
+		if (newtuple)
+			ereport(ERROR,
+					(errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
+					 errmsg("INSTEAD STATEMENT trigger cannot return a value")));
+	}
+	return IOT_FIRED;
+}
+
+
+
 void
 ExecASDeleteTriggers(EState *estate, ResultRelInfo *relinfo,
 					 TransitionCaptureState *transition_capture)
@@ -2632,6 +2852,71 @@ ExecIRDeleteTriggers(EState *estate, ResultRelInfo *relinfo,
 			heap_freetuple(rettuple);
 	}
 	return true;
+}
+
+IOTState
+ExecISUpdateTriggers(EState *estate, ResultRelInfo *relinfo)
+{
+	TriggerDesc *trigdesc;
+	int			i;
+	TriggerData LocTriggerData;
+	Bitmapset  *updatedCols;
+	IOTState prevState;
+
+	trigdesc = relinfo->ri_TrigDesc;
+
+	if (trigdesc == NULL)
+		return IOT_NOT_REQUIRED;
+
+	if (!trigdesc->trig_update_instead_statement) {
+		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_UPDATE, IOT_NOT_REQUIRED);
+		return IOT_NOT_REQUIRED;
+	}
+
+	prevState = instead_stmt_triggers_fired(RelationGetRelid(relinfo->ri_RelationDesc), CMD_UPDATE);
+	// if the trigger is already fired or not required
+	if (prevState != IOT_NOT_FIRED)
+		return prevState;
+
+	updatedCols = ExecGetAllUpdatedCols(relinfo, estate);
+
+	LocTriggerData.type = T_TriggerData;
+	LocTriggerData.tg_event = TRIGGER_EVENT_UPDATE |
+		TRIGGER_EVENT_INSTEAD;
+	LocTriggerData.tg_relation = relinfo->ri_RelationDesc;
+	LocTriggerData.tg_trigtuple = NULL;
+	LocTriggerData.tg_newtuple = NULL;
+	LocTriggerData.tg_oldtable = NULL;
+	LocTriggerData.tg_newtable = NULL;
+	LocTriggerData.tg_trigtuple = InvalidBuffer;
+	LocTriggerData.tg_newtuple = InvalidBuffer;
+	for (i = 0; i < trigdesc->numtriggers; i++)
+	{
+		Trigger    *trigger = &trigdesc->triggers[i];
+		HeapTuple	newtuple;
+
+		if (!TRIGGER_TYPE_MATCHES(trigger->tgtype,
+								  TRIGGER_TYPE_STATEMENT,
+								  TRIGGER_TYPE_INSTEAD,
+								  TRIGGER_TYPE_UPDATE))
+			continue;
+		if (!TriggerEnabled(estate, relinfo, trigger, LocTriggerData.tg_event,
+							updatedCols, NULL, NULL))
+			continue;
+
+		LocTriggerData.tg_trigger = trigger;
+		newtuple = ExecCallTriggerFunc(&LocTriggerData,
+									   i,
+									   relinfo->ri_TrigFunctions,
+									   relinfo->ri_TrigInstrument,
+									   GetPerTupleMemoryContext(estate));
+
+		if (newtuple)
+			ereport(ERROR,
+					(errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
+					 errmsg("INSTEAD OF STATEMENT trigger cannot return a value")));
+	}
+	return IOT_FIRED;
 }
 
 void
@@ -3522,6 +3807,30 @@ struct AfterTriggersQueryData
 	List	   *tables;			/* list of AfterTriggersTableData, see below */
 };
 
+/*
+ * TSQL triggers are kept in different data structures
+ * to support transaction commands inside triggers. These
+ * structures are allocated using memory context of
+ * TSQL executor rather than current transaction context
+ */
+typedef struct CompositeTriggerData
+{
+	AfterTriggersQueryData data;
+	int triggerLevel;
+	uint32 xactSubxid;
+	bool cleanupReq;
+	struct CompositeTriggerData *next;
+} CompositeTriggerData;
+
+typedef struct CompositeTriggers
+{
+	CompositeTriggerData *triggers;
+	MemoryContext curCxt;
+	int triggerLevel;
+} CompositeTriggers;
+
+static CompositeTriggers compositeTriggers = {NULL, NULL, 0};
+
 struct AfterTriggersTransData
 {
 	/* these fields are just for resetting at subtrans abort: */
@@ -3539,6 +3848,7 @@ struct AfterTriggersTableData
 	bool		closed;			/* true when no longer OK to add tuples */
 	bool		before_trig_done;	/* did we already queue BS triggers? */
 	bool		after_trig_done;	/* did we already queue AS triggers? */
+	bool		instead_trig_done;  /* did we already queue IS triggers? */
 	AfterTriggerEventList after_trig_events;	/* if so, saved list pointer */
 	Tuplestorestate *old_tuplestore;	/* "old" transition table, if any */
 	Tuplestorestate *new_tuplestore;	/* "new" transition table, if any */
@@ -3560,7 +3870,7 @@ static AfterTriggersTableData *GetAfterTriggersTableData(Oid relid,
 														 CmdType cmdType);
 static TupleTableSlot *GetAfterTriggersStoreSlot(AfterTriggersTableData *table,
 												 TupleDesc tupdesc);
-static void AfterTriggerFreeQuery(AfterTriggersQueryData *qs);
+static void AfterTriggerFreeQuery(AfterTriggersQueryData *qs, bool free_tables);
 static SetConstraintState SetConstraintStateCreate(int numalloc);
 static SetConstraintState SetConstraintStateCopy(SetConstraintState state);
 static SetConstraintState SetConstraintStateAddItem(SetConstraintState state,
@@ -4350,12 +4660,22 @@ GetAfterTriggersTableData(Oid relid, CmdType cmdType)
 			return table;
 	}
 
-	oldcxt = MemoryContextSwitchTo(CurTransactionContext);
+	if (compositeTriggers.triggerLevel > 0 )
+		oldcxt = MemoryContextSwitchTo(compositeTriggers.curCxt);
+	else
+		oldcxt = MemoryContextSwitchTo(CurTransactionContext);
 
 	table = (AfterTriggersTableData *) palloc0(sizeof(AfterTriggersTableData));
 	table->relid = relid;
 	table->cmdType = cmdType;
 	qs->tables = lappend(qs->tables, table);
+
+	/* Keep additional reference to tables inside TSQL trigger data */
+	if (compositeTriggers.triggerLevel > 0 )
+	{
+		AddCompositeTriggerLevelData();
+		compositeTriggers.triggers->data.tables = lappend(compositeTriggers.triggers->data.tables, table);
+	}
 
 	MemoryContextSwitchTo(oldcxt);
 
@@ -4380,7 +4700,10 @@ GetAfterTriggersStoreSlot(AfterTriggersTableData *table,
 		 * it last till end-of-subxact is good enough.  It'll be freed by
 		 * AfterTriggerFreeQuery().
 		 */
-		oldcxt = MemoryContextSwitchTo(CurTransactionContext);
+		if (compositeTriggers.triggerLevel > 0 )
+			oldcxt = MemoryContextSwitchTo(compositeTriggers.curCxt);
+		else
+			oldcxt = MemoryContextSwitchTo(CurTransactionContext);
 		table->storeslot = MakeSingleTupleTableSlot(tupdesc, &TTSOpsVirtual);
 		MemoryContextSwitchTo(oldcxt);
 	}
@@ -4472,7 +4795,10 @@ MakeTransitionCaptureState(TriggerDesc *trigdesc, Oid relid, CmdType cmdType)
 	table = GetAfterTriggersTableData(relid, cmdType);
 
 	/* Now create required tuplestore(s), if we don't have them already. */
-	oldcxt = MemoryContextSwitchTo(CurTransactionContext);
+	if (compositeTriggers.triggerLevel > 0 )
+		oldcxt = MemoryContextSwitchTo(compositeTriggers.curCxt);
+	else
+		oldcxt = MemoryContextSwitchTo(CurTransactionContext);
 	saveResourceOwner = CurrentResourceOwner;
 	CurrentResourceOwner = CurTransactionResourceOwner;
 
@@ -4633,7 +4959,7 @@ AfterTriggerEndQuery(EState *estate)
 	}
 
 	/* Release query-level-local storage, including tuplestores if any */
-	AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth]);
+	AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth], !IsCompositeTriggerActive());
 
 	afterTriggers.query_depth--;
 }
@@ -4647,7 +4973,7 @@ AfterTriggerEndQuery(EState *estate)
  *	and then called again for the same query level.
  */
 static void
-AfterTriggerFreeQuery(AfterTriggersQueryData *qs)
+AfterTriggerFreeQuery(AfterTriggersQueryData *qs, bool free_tables)
 {
 	Tuplestorestate *ts;
 	List	   *tables;
@@ -4661,6 +4987,13 @@ AfterTriggerFreeQuery(AfterTriggersQueryData *qs)
 	qs->fdw_tuplestore = NULL;
 	if (ts)
 		tuplestore_end(ts);
+
+	/* Babelfish triggers will remove transition tables later */
+	if (!free_tables)
+	{
+		qs->tables = NIL;
+		return;
+	}
 
 	/* Release per-table subsidiary storage */
 	tables = qs->tables;
@@ -4880,6 +5213,17 @@ AfterTriggerEndSubXact(bool isCommit)
 	else
 	{
 		/*
+		 * Babelfish triggers will skip relation table cleanup
+		 * if savepoint rollback has already done it
+		 */
+		CompositeTriggerData *trigger = compositeTriggers.triggers;
+		while (trigger != NULL)
+		{
+			if (trigger->xactSubxid == GetCurrentSubTransactionId())
+				trigger->cleanupReq = false;
+			trigger = trigger->next;
+		}
+		/*
 		 * Aborting.  It is possible subxact start failed before calling
 		 * AfterTriggerBeginSubXact, in which case we mustn't risk touching
 		 * trans_stack levels that aren't there.
@@ -4896,7 +5240,7 @@ AfterTriggerEndSubXact(bool isCommit)
 		while (afterTriggers.query_depth > afterTriggers.trans_stack[my_level].query_depth)
 		{
 			if (afterTriggers.query_depth < afterTriggers.maxquerydepth)
-				AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth]);
+				AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth], !IsCompositeTriggerActive());
 			afterTriggers.query_depth--;
 		}
 		Assert(afterTriggers.query_depth ==
@@ -5758,7 +6102,23 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 			new_shared.ats_table = NULL;
 		new_shared.ats_modifiedcols = modifiedCols;
 
-		afterTriggerAddEvent(&afterTriggers.query_stack[afterTriggers.query_depth].events,
+		/*
+		 * In case of Babelfish triggers, add events to babelfihs
+		 * trigger data list
+		 */
+		if (compositeTriggers.triggerLevel > 0 &&
+			IsCompositeTrigger(trigger->tgfoid))
+		{
+			MemoryContext oldCxt = MemoryContextSwitchTo(compositeTriggers.curCxt);
+			MemoryContext oldEventCxt = afterTriggers.event_cxt;
+			AddCompositeTriggerLevelData();
+			afterTriggers.event_cxt = CurrentMemoryContext;
+			afterTriggerAddEvent(&compositeTriggers.triggers->data.events, &new_event, &new_shared);
+			afterTriggers.event_cxt = oldEventCxt;
+			MemoryContextSwitchTo(oldCxt);
+		}
+		else
+			afterTriggerAddEvent(&afterTriggers.query_stack[afterTriggers.query_depth].events,
 							 &new_event, &new_shared);
 	}
 
@@ -5804,6 +6164,48 @@ before_stmt_triggers_fired(Oid relid, CmdType cmdType)
 	table = GetAfterTriggersTableData(relid, cmdType);
 	result = table->before_trig_done;
 	table->before_trig_done = true;
+	return result;
+}
+
+static void
+set_iot_state(Oid relid, CmdType cmdType, IOTState newState)
+{
+	AfterTriggersTableData *table;
+
+	if (afterTriggers.query_depth < 0 ||
+		afterTriggers.query_depth >= afterTriggers.maxquerydepth)
+		return;
+	table = GetAfterTriggersTableData(relid, cmdType);
+	table->instead_trig_done = newState;
+}
+/*
+ * Detect whether we already queued INSTEAD STATEMENT triggers for the given
+ * relation + operation, and set the flag so the next call will report "true".
+ */
+static IOTState
+instead_stmt_triggers_fired(Oid relid, CmdType cmdType)
+{
+	IOTState		result;
+	AfterTriggersTableData *table;
+
+	/* Check state, like AfterTriggerSaveEvent. */
+	if (afterTriggers.query_depth < 0)
+		elog(ERROR, "instead_stmt_triggers_fired() called outside of query");
+
+	/* Be sure we have enough space to record events at this query depth. */
+	if (afterTriggers.query_depth >= afterTriggers.maxquerydepth)
+		AfterTriggerEnlargeQueryState();
+
+	/*
+	 * We keep this state in the AfterTriggersTableData that also holds
+	 * transition tables for the relation + operation.  In this way, if we are
+	 * forced to make a new set of transition tables because more tuples get
+	 * entered after we've already fired triggers, we will allow a new set of
+	 * statement triggers to get queued.
+	 */
+	table = GetAfterTriggersTableData(relid, cmdType);
+	result = table->instead_trig_done;
+	table->instead_trig_done = IOT_FIRED;
 	return result;
 }
 
@@ -5905,4 +6307,140 @@ Datum
 pg_trigger_depth(PG_FUNCTION_ARGS)
 {
 	PG_RETURN_INT32(MyTriggerDepth);
+}
+
+/*
+ * If trigger is active at current nesting level
+ */
+static
+bool IsCompositeTriggerActive(void)
+{
+	return (compositeTriggers.triggers != NULL &&
+			compositeTriggers.triggers->triggerLevel == compositeTriggers.triggerLevel);
+}
+
+/*
+ * Create a new entry for trigger data at current
+ * nesting level if not present already
+ */
+static
+void AddCompositeTriggerLevelData(void)
+{
+	if (compositeTriggers.triggers == NULL || compositeTriggers.triggers->triggerLevel < compositeTriggers.triggerLevel)
+	{
+		CompositeTriggerData *triggers = palloc0(sizeof(CompositeTriggerData));
+		triggers->triggerLevel = compositeTriggers.triggerLevel;
+		triggers->next = compositeTriggers.triggers;
+		triggers->xactSubxid = GetCurrentSubTransactionId();
+		triggers->cleanupReq = true;
+		compositeTriggers.triggers = triggers;
+	}
+}
+
+/*
+ * Open new nesting level for trigger from TSQL executor
+ */
+void BeginCompositeTriggers(MemoryContext curCxt)
+{
+	compositeTriggers.triggerLevel++;
+	compositeTriggers.curCxt = curCxt;
+}
+
+/*
+ * End current nesting level for trigger from TSQL executor
+ * If there is trigger data at current level, fire all trigger
+ * events and do cleanup
+ */
+void EndCompositeTriggers(bool error)
+{
+	if (IsCompositeTriggerActive())
+	{
+		CompositeTriggerData *triggers = compositeTriggers.triggers;
+		/* In case of error, only end the nesting level */
+		if (!error)
+		{
+			AfterTriggerEvent event;
+			AfterTriggerEventChunk *chunk;
+			EState *estate;
+			int before_lxid = MyProc->lxid;
+			ResourceOwner oldOwner = CurrentResourceOwner;
+
+			/* Mark all triggers as IN PROGRESS */
+			for_each_event_chunk(event, chunk, triggers->data.events)
+			{
+				AfterTriggerShared evtshared = GetTriggerSharedData(event);
+
+				evtshared->ats_firing_id = 0;
+				Assert(!(event->ate_flags &
+						 (AFTER_TRIGGER_DONE | AFTER_TRIGGER_IN_PROGRESS)));
+				event->ate_flags |= AFTER_TRIGGER_IN_PROGRESS;
+			}
+			/* Fire all triggers events, deferred is not supported */
+			estate = CreateExecutorState();
+			if (!afterTriggerInvokeEvents(&triggers->data.events, 0, estate, false))
+				Assert(false);
+			CurrentResourceOwner = oldOwner;
+
+			/* In case of transactional event, skip cleanup */
+			if (before_lxid == MyProc->lxid && triggers->cleanupReq)
+				ExecCloseResultRelations(estate);
+			ExecResetTupleTable(estate->es_tupleTable, false);
+			FreeExecutorState(estate);
+		}
+		compositeTriggers.triggers = triggers->next;
+		AfterTriggerFreeQuery(&triggers->data, true);
+		pfree(triggers);
+	}
+	compositeTriggers.triggerLevel--;
+}
+
+/*
+ * Find if the trigger is TSQL or PG type
+ */
+static
+bool IsCompositeTrigger(Oid fn_oid)
+{
+	bool	isComposite = false;
+	Oid		pltsql_lang_oid = InvalidOid;
+	Oid		pltsql_validator_oid = InvalidOid;
+	/*
+	 * FIXME: the following typedef (PLtsql_config) describes a
+	 * structure shared with PLtsql.  Since the type is shared,
+	 * we should find a header file that is properly shared and
+	 * move this typedef
+	 *
+	 * This typedef *must* be kept in-synch with the PLtsql_config
+	 * type declaration found in contrib/babelfishpg_tsql/src/pgtsql.h
+	 */
+	typedef struct PLtsql_config
+	{
+		char	*version;         /* Extension version info */
+		Oid		 handler_oid;     /* Oid of language handler function */
+		Oid		 validator_oid;   /* Oid of language validator function */
+	} PLtsql_config;
+
+	PLtsql_config **config = (PLtsql_config **) find_rendezvous_variable("PLtsql_config");
+
+	if (*config)
+	{
+		pltsql_lang_oid = (*config)->handler_oid;
+		pltsql_validator_oid = (*config)->validator_oid;
+	}
+
+	if (pltsql_lang_oid != InvalidOid)
+	{
+		HeapTuple	tuple;
+		Form_pg_proc procedureStruct;
+		tuple = SearchSysCache1(PROCOID, fn_oid);
+		if (!HeapTupleIsValid(tuple))
+			elog(ERROR, "cache lookup failed for trigger %u", fn_oid);
+		procedureStruct = (Form_pg_proc) GETSTRUCT(tuple);
+
+		if ((procedureStruct->prolang == pltsql_lang_oid) || (procedureStruct->prolang == pltsql_validator_oid))
+			isComposite = true;
+
+		ReleaseSysCache(tuple);
+
+	}
+	return isComposite;
 }

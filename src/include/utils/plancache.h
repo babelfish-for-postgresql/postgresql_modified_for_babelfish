@@ -130,6 +130,7 @@ typedef struct CachedPlanSource
 	/* State kept to help decide whether to use custom or generic plans: */
 	double		generic_cost;	/* cost of generic plan, or -1 if not known */
 	double		total_custom_cost;	/* total cost of custom plans so far */
+	List	   *pltsql_plan_info;	/* list of guc info lists to revalidate */
 	int64		num_custom_plans;	/* # of custom plans included in total */
 	int64		num_generic_plans;	/* # of generic plans */
 } CachedPlanSource;
@@ -184,6 +185,11 @@ typedef struct CachedExpression
 	dlist_node	node;			/* link in global list of CachedExpressions */
 } CachedExpression;
 
+typedef void (*plansource_complete_hook_type) (CachedPlanSource *plansource);
+extern PGDLLIMPORT plansource_complete_hook_type plansource_complete_hook;
+
+typedef bool (*plansource_revalidate_hook_type) (CachedPlanSource *plansource);
+extern PGDLLIMPORT plansource_revalidate_hook_type plansource_revalidate_hook;
 
 extern void InitPlanCache(void);
 extern void ResetPlanCache(void);

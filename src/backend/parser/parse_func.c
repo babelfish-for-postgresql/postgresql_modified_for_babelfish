@@ -30,11 +30,13 @@
 #include "parser/parse_relation.h"
 #include "parser/parse_target.h"
 #include "parser/parse_type.h"
+#include "parser/parser.h"  /* SQL_DIALECT_TSQL */
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
 
-
+func_select_candidate_hook_type func_select_candidate_hook = NULL;
+make_fn_arguments_from_stored_proc_probin_hook_type make_fn_arguments_from_stored_proc_probin_hook = NULL;
 /* Possible error codes from LookupFuncNameInternal */
 typedef enum
 {
@@ -673,7 +675,10 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 											   false);
 
 	/* perform the necessary typecasting of arguments */
-	make_fn_arguments(pstate, fargs, actual_arg_types, declared_arg_types);
+	if(sql_dialect == SQL_DIALECT_TSQL && make_fn_arguments_from_stored_proc_probin_hook != NULL)
+		(*make_fn_arguments_from_stored_proc_probin_hook)(pstate, fargs, actual_arg_types, declared_arg_types, funcid);
+	else
+		make_fn_arguments(pstate, fargs, actual_arg_types, declared_arg_types);
 
 	/*
 	 * If the function isn't actually variadic, forget any VARIADIC decoration
@@ -1153,6 +1158,21 @@ func_select_candidate(int nargs,
 		return candidates;
 
 	/*
+	 * T-SQL allows bidirectional implcit castings (implicit downcasting with precision loss)
+	 * This behavior may cause to find too many multiple candidates.
+	 * If we resolve all the unknwon types but still too many candidates,
+	 * let's try to choose the best candidate by T-SQL precedence rule.
+	 */
+	if (nunknowns == 0 &&
+	    sql_dialect == SQL_DIALECT_TSQL &&
+	    func_select_candidate_hook != NULL)
+	{
+		last_candidate = func_select_candidate_hook(nargs, input_base_typeids, candidates, false);
+		if (last_candidate)
+			return last_candidate; /* last_candiate->next should be already NULL */
+	}
+
+	/*
 	 * Still too many candidates?  Try assigning types for the unknown inputs.
 	 *
 	 * If there are no unknown inputs, we have no more heuristics that apply,
@@ -1235,6 +1255,19 @@ func_select_candidate(int nargs,
 			resolved_unknowns = false;
 			break;
 		}
+	}
+
+	/*
+	 * unknowns are resolved now.
+	 * let's try to choose the best candidate by T-SQL precedence rule with setting resolved_unknowns.
+	 */
+	if (resolved_unknowns &&
+		sql_dialect == SQL_DIALECT_TSQL &&
+		func_select_candidate_hook != NULL)
+	{
+		last_candidate = func_select_candidate_hook(nargs, input_base_typeids, candidates, true);
+		if (last_candidate)
+			return last_candidate; /* last_candiate->next should be already NULL */
 	}
 
 	if (resolved_unknowns)

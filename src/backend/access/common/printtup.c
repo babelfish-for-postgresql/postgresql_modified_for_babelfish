@@ -15,6 +15,7 @@
  */
 #include "postgres.h"
 
+#include "miscadmin.h"
 #include "access/printtup.h"
 #include "libpq/libpq.h"
 #include "libpq/pqformat.h"
@@ -63,6 +64,7 @@ typedef struct
 	MemoryContext tmpcontext;	/* Memory context for per-row workspace */
 } DR_printtup;
 
+
 /* ----------------
  *		Initialize: create a DestReceiver for printtup
  * ----------------
@@ -72,10 +74,20 @@ printtup_create_DR(CommandDest dest)
 {
 	DR_printtup *self = (DR_printtup *) palloc0(sizeof(DR_printtup));
 
-	self->pub.receiveSlot = printtup;	/* might get changed later */
-	self->pub.rStartup = printtup_startup;
-	self->pub.rShutdown = printtup_shutdown;
-	self->pub.rDestroy = printtup_destroy;
+	if (MyProcPort && MyProcPort->protocol_config->fn_printtup)
+	{
+		self->pub.receiveSlot = MyProcPort->protocol_config->fn_printtup;
+		self->pub.rStartup = MyProcPort->protocol_config->fn_printtup_startup;
+		self->pub.rShutdown = MyProcPort->protocol_config->fn_printtup_shutdown;
+		self->pub.rDestroy = MyProcPort->protocol_config->fn_printtup_destroy;
+	}
+	else
+	{
+		self->pub.receiveSlot = printtup;	/* might get changed later */
+		self->pub.rStartup = printtup_startup;
+		self->pub.rShutdown = printtup_shutdown;
+		self->pub.rDestroy = printtup_destroy;
+	}
 	self->pub.mydest = dest;
 
 	/*

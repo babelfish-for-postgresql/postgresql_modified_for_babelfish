@@ -34,6 +34,7 @@ extern int	errdomainconstraint(Oid datatypeOid, const char *conname);
 /* encode.c */
 extern uint64 hex_encode(const char *src, size_t len, char *dst);
 extern uint64 hex_decode(const char *src, size_t len, char *dst);
+extern uint64 hex_decode_allow_odd_digits(const char *src, unsigned len, char *dst);
 
 /* int.c */
 extern int2vector *buildint2vector(const int16 *int2s, int n);
@@ -124,5 +125,13 @@ extern int32 type_maximum_size(Oid type_oid, int32 typemod);
 
 /* quote.c */
 extern char *quote_literal_cstr(const char *rawstr);
+
+/* varchar.c */
+typedef bool (*suppress_string_truncation_error_hook_type)();
+extern PGDLLIMPORT suppress_string_truncation_error_hook_type suppress_string_truncation_error_hook;
+
+/* name.c */
+typedef Name (*cstr_to_name_hook_type)(char *s, int len);
+extern PGDLLIMPORT cstr_to_name_hook_type cstr_to_name_hook;
 
 #endif							/* BUILTINS_H */

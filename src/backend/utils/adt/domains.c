@@ -215,6 +215,7 @@ domain_in(PG_FUNCTION_ARGS)
 	Oid			domainType;
 	DomainIOData *my_extra;
 	Datum		value;
+	int32	typmod = -1;
 
 	/*
 	 * Since domain_in is not strict, we have to check for null inputs. The
@@ -243,12 +244,21 @@ domain_in(PG_FUNCTION_ARGS)
 	}
 
 	/*
+	 * typmod should usually be -1 for a domain unless enable_domain_typmod is
+	 * enabled when the domain is created. If so, use typmod from the input
+	 * instead of the default typmod my_extra->typtypmod that is set when the
+	 * domain is created.
+	 */
+	if (!PG_ARGISNULL(2))
+		typmod = DatumGetInt32(fcinfo->args[2].value);
+
+	/*
 	 * Invoke the base type's typinput procedure to convert the data.
 	 */
 	value = InputFunctionCall(&my_extra->proc,
 							  string,
 							  my_extra->typioparam,
-							  my_extra->typtypmod);
+							  typmod == -1 ? my_extra->typtypmod : typmod);
 
 	/*
 	 * Do the necessary checks to ensure it's a valid domain value.

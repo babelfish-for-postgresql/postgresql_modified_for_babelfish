@@ -45,6 +45,7 @@
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "parser/parse_func.h"
+#include "parser/parser.h"
 #include "storage/ipc.h"
 #include "storage/lmgr.h"
 #include "storage/sinvaladt.h"
@@ -197,6 +198,11 @@ static SubTransactionId myTempNamespaceSubID = InvalidSubTransactionId;
  */
 char	   *namespace_search_path = NULL;
 
+/* Catalog schema that TSQL uses */
+char *SYS_NAMESPACE_NAME = "sys";
+
+relname_lookup_hook_type relname_lookup_hook = NULL;
+
 
 /* Local functions */
 static void recomputeNamespacePath(void);
@@ -315,7 +321,10 @@ RangeVarGetRelidExtended(const RangeVar *relation, LOCKMODE lockmode,
 								 errmsg("temporary tables cannot specify a schema name")));
 				}
 
-				relId = get_relname_relid(relation->relname, myTempNamespace);
+				if (relname_lookup_hook)
+					relId = (*relname_lookup_hook) (relation->relname, myTempNamespace);
+				else
+					relId = get_relname_relid(relation->relname, myTempNamespace);
 			}
 		}
 		else if (relation->schemaname)
@@ -327,7 +336,12 @@ RangeVarGetRelidExtended(const RangeVar *relation, LOCKMODE lockmode,
 			if (missing_ok && !OidIsValid(namespaceId))
 				relId = InvalidOid;
 			else
-				relId = get_relname_relid(relation->relname, namespaceId);
+			{
+				if (relname_lookup_hook)
+					relId = (*relname_lookup_hook) (relation->relname, namespaceId);
+				else
+					relId = get_relname_relid(relation->relname, namespaceId);
+			}
 		}
 		else
 		{
@@ -689,7 +703,10 @@ RelnameGetRelid(const char *relname)
 	{
 		Oid			namespaceId = lfirst_oid(l);
 
-		relid = get_relname_relid(relname, namespaceId);
+		if (relname_lookup_hook)
+			relid = (*relname_lookup_hook) (relname, namespaceId);
+		else
+			relid = get_relname_relid(relname, namespaceId);
 		if (OidIsValid(relid))
 			return relid;
 	}
@@ -801,6 +818,38 @@ TypenameGetTypidExtended(const char *typname, bool temp_ok)
 								ObjectIdGetDatum(namespaceId));
 		if (OidIsValid(typid))
 			return typid;
+	}
+
+	/* Not found in path */
+	return InvalidOid;
+}
+
+/*
+ * typenameGetSchemaOID
+ *		Try to resolve an unqualified datatype name in serach path,
+ *		Returns OID of the schema if type found in search path, else InvalidOid.
+ *
+ */
+Oid
+typenameGetSchemaOID(const char *typname, bool temp_ok)
+{
+	Oid			typid;
+	ListCell   *l;
+
+	recomputeNamespacePath();
+
+	foreach(l, activeSearchPath)
+	{
+		Oid			namespaceId = lfirst_oid(l);
+
+		if (!temp_ok && namespaceId == myTempNamespace)
+			continue;			/* do not look in temp namespace */
+
+		typid = GetSysCacheOid2(TYPENAMENSP, Anum_pg_type_oid,
+								PointerGetDatum(typname),
+								ObjectIdGetDatum(namespaceId));
+		if (OidIsValid(typid))
+			return namespaceId;
 	}
 
 	/* Not found in path */
@@ -2029,8 +2078,29 @@ lookup_collation(const char *collname, Oid collnamespace, int32 encoding)
 							  PointerGetDatum(collname),
 							  Int32GetDatum(-1),
 							  ObjectIdGetDatum(collnamespace));
+
+
 	if (!HeapTupleIsValid(colltup))
-		return InvalidOid;
+	{
+		if (TranslateCollation_hook)
+		{
+			const char *xlatedCollname = (*TranslateCollation_hook) (collname, collnamespace, encoding);
+
+			if (NULL == xlatedCollname)
+				return InvalidOid;
+
+			colltup = SearchSysCache3(COLLNAMEENCNSP,
+									  PointerGetDatum(xlatedCollname),
+									  Int32GetDatum(-1),
+									  ObjectIdGetDatum(collnamespace));
+			
+			if (!HeapTupleIsValid(colltup))
+				return InvalidOid;
+		}
+		else
+			return InvalidOid;
+	}
+		
 	collform = (Form_pg_collation) GETSTRUCT(colltup);
 	if (collform->collprovider == COLLPROVIDER_ICU)
 	{
@@ -3420,7 +3490,9 @@ GetOverrideSearchPath(MemoryContext context)
 			result->addTemp = true;
 		else
 		{
-			Assert(linitial_oid(schemas) == PG_CATALOG_NAMESPACE);
+			/* sys comes before pg_catalog when sql_dialect is tsql */
+			if (sql_dialect != SQL_DIALECT_TSQL)
+				Assert(linitial_oid(schemas) == PG_CATALOG_NAMESPACE);
 			result->addCatalog = true;
 		}
 		schemas = list_delete_first(schemas);
@@ -3486,6 +3558,15 @@ OverrideSearchPathMatchesCurrent(OverrideSearchPath *path)
 	/* If path->addCatalog, next item should be pg_catalog. */
 	if (path->addCatalog)
 	{
+		/* If tsql dialect, next item should be sys */
+		if (sql_dialect == SQL_DIALECT_TSQL)
+		{
+			if (lc && lfirst_oid(lc) == get_namespace_oid(SYS_NAMESPACE_NAME, true))
+				lc = lnext(activeSearchPath, lc);
+			else
+				return false;
+		}
+
 		if (lc && lfirst_oid(lc) == PG_CATALOG_NAMESPACE)
 			lc = lnext(activeSearchPath, lc);
 		else
@@ -3892,6 +3973,17 @@ recomputeNamespacePath(void)
 	if (!list_member_oid(oidlist, PG_CATALOG_NAMESPACE))
 		oidlist = lcons_oid(PG_CATALOG_NAMESPACE, oidlist);
 
+	/*
+	 * When sql_dialect is tsql, schema sys is used for catalog instead of
+	 * pg_catalog. So, add it to search_path ahead of pg_catalog.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		Oid sys_oid = get_namespace_oid(SYS_NAMESPACE_NAME, true);
+		if (!list_member_oid(oidlist, sys_oid))
+			oidlist = lcons_oid(sys_oid, oidlist);
+	}
+
 	if (OidIsValid(myTempNamespace) &&
 		!list_member_oid(oidlist, myTempNamespace))
 		oidlist = lcons_oid(myTempNamespace, oidlist);
@@ -4278,7 +4370,8 @@ RemoveTempRelations(Oid tempNamespaceId)
 					PERFORM_DELETION_INTERNAL |
 					PERFORM_DELETION_QUIETLY |
 					PERFORM_DELETION_SKIP_ORIGINAL |
-					PERFORM_DELETION_SKIP_EXTENSIONS);
+					PERFORM_DELETION_SKIP_EXTENSIONS |
+					PERFORM_DELETION_SKIP_ENR);
 }
 
 /*
@@ -4357,6 +4450,13 @@ assign_search_path(const char *newval, void *extra)
 	 * it's needed.  This avoids trying to do database access during GUC
 	 * initialization, or outside a transaction.
 	 */
+	baseSearchPathValid = false;
+}
+
+/* assign_hook: do extra actions as needed */
+void
+assign_sql_dialect(int newval, void *extra)
+{
 	baseSearchPathValid = false;
 }
 

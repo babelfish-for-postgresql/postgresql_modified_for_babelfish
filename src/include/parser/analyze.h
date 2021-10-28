@@ -23,6 +23,28 @@ typedef void (*post_parse_analyze_hook_type) (ParseState *pstate,
 											  JumbleState *jstate);
 extern PGDLLIMPORT post_parse_analyze_hook_type post_parse_analyze_hook;
 
+/* Hook for plugins to get control with the raw parse tree */
+typedef void (*pre_parse_analyze_hook_type) (ParseState *pstate, RawStmt *parseTree);
+
+extern PGDLLIMPORT pre_parse_analyze_hook_type pre_parse_analyze_hook;
+
+/* Hook to handle qualifiers in returning list for output clause */
+typedef void (*pre_transform_returning_hook_type) (CmdType command, 
+										List *returningList, ParseState *pstate);
+
+extern PGDLLIMPORT pre_transform_returning_hook_type pre_transform_returning_hook;
+
+/* Hook to perform self-join transformation on UpdateStmt in output clause */
+typedef Node* (*pre_output_clause_transformation_hook_type) (ParseState *pstate, UpdateStmt *stmt, CmdType command);
+extern PGDLLIMPORT pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook;
+
+/* Hook to read a global variable with info on output clause */
+typedef bool (*get_output_clause_status_hook_type) (void);
+extern PGDLLIMPORT get_output_clause_status_hook_type get_output_clause_status_hook;
+
+/* Hook for plugins to get control after an insert row transform */
+typedef void (*post_transform_insert_row_hook_type) (List *icolumns, List *exprList);
+extern PGDLLIMPORT post_transform_insert_row_hook_type post_transform_insert_row_hook;
 
 extern Query *parse_analyze(RawStmt *parseTree, const char *sourceText,
 							Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);

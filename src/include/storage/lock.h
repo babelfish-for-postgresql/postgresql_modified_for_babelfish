@@ -129,6 +129,7 @@ typedef uint16 LOCKMETHODID;
 /* These identify the known lock methods */
 #define DEFAULT_LOCKMETHOD	1
 #define USER_LOCKMETHOD		2
+#define APPLOCK_LOCKMETHOD  3
 
 /*
  * LOCKTAG is the key information needed to look up a LOCK item in the
@@ -533,6 +534,10 @@ typedef enum
  */
 #define LockHashPartitionLockByProc(leader_pgproc) \
 	LockHashPartitionLock((leader_pgproc)->pgprocno)
+
+/* TSQL-only handler for releasing application lock. */
+typedef void (*applock_release_func_handler_type) (bool release_session);
+extern applock_release_func_handler_type applock_release_func_handler;
 
 /*
  * function prototypes

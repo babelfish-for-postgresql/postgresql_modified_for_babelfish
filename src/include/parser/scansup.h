@@ -24,4 +24,7 @@ extern void truncate_identifier(char *ident, int len, bool warn);
 
 extern bool scanner_isspace(char ch);
 
+typedef bool (*truncate_identifier_hook_type)(char *ident, int len, bool warn);
+extern PGDLLIMPORT truncate_identifier_hook_type truncate_identifier_hook;
+
 #endif							/* SCANSUP_H */

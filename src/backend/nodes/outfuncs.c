@@ -3446,6 +3446,10 @@ _outValue(StringInfo str, const Value *value)
 			/* internal representation already has leading 'b' */
 			appendStringInfoString(str, value->val.str);
 			break;
+		case T_TSQL_HexString:
+			/* internal representation already has leading '0x' */
+			appendStringInfoString(str, value->val.str);
+			break;
 		case T_Null:
 			/* this is seen only within A_Const, not in transformed trees */
 			appendStringInfoString(str, "NULL");
@@ -3541,6 +3545,7 @@ _outResTarget(StringInfo str, const ResTarget *node)
 	WRITE_NODE_FIELD(indirection);
 	WRITE_NODE_FIELD(val);
 	WRITE_LOCATION_FIELD(location);
+	WRITE_LOCATION_FIELD(name_location);
 }
 
 static void
@@ -3840,7 +3845,8 @@ outNode(StringInfo str, const void *obj)
 	else if (IsA(obj, Integer) ||
 			 IsA(obj, Float) ||
 			 IsA(obj, String) ||
-			 IsA(obj, BitString))
+			 IsA(obj, BitString) ||
+			 IsA(obj, TSQL_HexString))
 	{
 		/* nodeRead does not want to see { } around these! */
 		_outValue(str, obj);

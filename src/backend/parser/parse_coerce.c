@@ -21,6 +21,7 @@
 #include "catalog/pg_type.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
+#include "parser/parser.h" /* needed for sql_dialect */
 #include "parser/parse_coerce.h"
 #include "parser/parse_relation.h"
 #include "parser/parse_type.h"
@@ -31,6 +32,8 @@
 #include "utils/syscache.h"
 #include "utils/typcache.h"
 
+find_coercion_pathway_hook_type find_coercion_pathway_hook = NULL;
+determine_datatype_precedence_hook_type determine_datatype_precedence_hook = NULL;
 
 static Node *coerce_type_typmod(Node *node,
 								Oid targetTypeId, int32 targetTypMod,
@@ -445,6 +448,16 @@ coerce_type(ParseState *pstate, Node *node,
 		}
 		else
 		{
+			int32		baseTypeMod;
+
+			/*
+			 * targetTypeMod is allowed for a domain only if enable_domain_typmod
+			 * is enabled when the domain is created. Use the targetTypeMod if
+			 * it is specified for a domain. Otherwise use -1, in which case
+			 * the baseTypeMod of the domain will be used in coerce_to_domain().
+			 */
+			baseTypeMod = targetTypeMod > 0 ?  targetTypeMod : -1;
+
 			/*
 			 * We don't need to do a physical conversion, but we do need to
 			 * attach a RelabelType node so that the expression will be seen
@@ -454,7 +467,7 @@ coerce_type(ParseState *pstate, Node *node,
 			 * that must be accounted for.  If the destination is a domain
 			 * then we won't need a RelabelType node.
 			 */
-			result = coerce_to_domain(node, InvalidOid, -1, targetTypeId,
+			result = coerce_to_domain(node, InvalidOid, baseTypeMod, targetTypeId,
 									  ccontext, cformat, location,
 									  false);
 			if (result == node)
@@ -720,6 +733,21 @@ coerce_to_domain(Node *arg, Oid baseTypeId, int32 baseTypeMod, Oid typeId,
 	/* resultcollid will be set by parse_collate.c */
 	result->coercionformat = cformat;
 	result->location = location;
+
+	/*
+	 * tdsprotocol.c requires the correct typmod (instead of -1) for
+	 * sys domains to be passed down. See PrepareRowDescription for deails.
+	 * These sys domains are allowed to have typmod:
+	 * sys.varchar, sys.nvarchar, sys.nchar, sys.datetime2, sys.smalldatetime,
+	 * sys.varbinary, sys.binary
+	 *
+	 * Ideally we should be checking typeId matches one of the above types
+	 * but there is no quick way to do it atm (typcache doesn't have the typename).
+	 * However I don't think this change will cause PG regression since we
+	 * only do it in tsql dialect.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL)
+		result->resulttypmod = baseTypeMod;
 
 	return (Node *) result;
 }
@@ -1369,7 +1397,8 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 				pcategory = ncategory;
 				pispreferred = nispreferred;
 			}
-			else if (ncategory != pcategory)
+			else if (ncategory != pcategory
+				&& sql_dialect != SQL_DIALECT_TSQL) /* T-SQL allows to select common datatype between different categories */
 			{
 				/*
 				 * both types in different categories? then not much hope...
@@ -1399,6 +1428,22 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 				pcategory = ncategory;
 				pispreferred = nispreferred;
 			}
+			else if (sql_dialect == SQL_DIALECT_TSQL &&
+					 determine_datatype_precedence_hook != NULL &&
+					 !pispreferred &&
+					 can_coerce_type(1, &ptype, &ntype, COERCION_IMPLICIT) &&
+					 can_coerce_type(1, &ntype, &ptype, COERCION_IMPLICIT) &&
+					 determine_datatype_precedence_hook(ntype, ptype))
+			{
+				/*
+				 * T-SQL allows implicit casting on both-side.
+				 * common datatype should be decided by datatype precedence rule.
+				 */
+				pexpr = nexpr;
+				ptype = ntype;
+				pcategory = ncategory;
+				pispreferred = nispreferred;
+			}
 		}
 	}
 
@@ -1413,6 +1458,23 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 	 * literals while they are still literals, so a decision has to be made
 	 * now.
 	 */
+	if (ptype == UNKNOWNOID && sql_dialect == SQL_DIALECT_TSQL)
+	{
+		bool all_nullconst = true;
+		foreach(lc, exprs)
+		{
+			Node* expr = (Node *) lfirst(lc);
+			if (exprType(expr) != UNKNOWNOID || !IsA(expr, Const) || !((Const *) expr)->constisnull)
+			{
+				all_nullconst = false;
+				break;
+			}
+		}
+
+		if (all_nullconst)
+			ptype = INT4OID; /* in T-SQL, it is should be decided to INT4 */
+	}
+
 	if (ptype == UNKNOWNOID)
 		ptype = TEXTOID;
 
@@ -3102,6 +3164,20 @@ find_coercion_pathway(Oid targetTypeId, Oid sourceTypeId,
 	HeapTuple	tuple;
 
 	*funcid = InvalidOid;
+
+	/*
+	 * T-SQL allows more implicit casting in general.
+	 * check if rules (defiend with "assignment" property) is supported in T-SQL
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL &&
+	    find_coercion_pathway_hook != NULL)
+	{
+		result = find_coercion_pathway_hook(sourceTypeId, targetTypeId, ccontext, funcid);
+
+		/* Found overwritten cast rule in T-SQL. use it. */
+		if (result != COERCION_PATH_NONE)
+			return result;
+	}
 
 	/* Perhaps the types are domains; if so, look at their base types */
 	if (OidIsValid(sourceTypeId))
