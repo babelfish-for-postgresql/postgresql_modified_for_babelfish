@@ -1166,6 +1166,19 @@ typedef struct ProjectSetState
 	MemoryContext argcontext;	/* context for SRF arguments */
 } ProjectSetState;
 
+/*------------------
+ * Instead of trigger state information
+ * Contains the TSQL statement level IOT runtime state.
+ * -----------------
+ */
+typedef enum
+{
+	IOT_NOT_FIRED,          /* Instead of triggers not fired so far */
+	IOT_NOT_REQUIRED,       /* Attempted to fire TSQL IOT, but relation has none */
+	IOT_FIRED,              /* IOT fired for this statement */
+	IOT_UNKNOWN
+} IOTState;
+
 /* ----------------
  *	 ModifyTableState information
  * ----------------
@@ -1187,6 +1200,7 @@ typedef struct ModifyTableState
 	List	  **mt_arowmarks;	/* per-subplan ExecAuxRowMark lists */
 	EPQState	mt_epqstate;	/* for evaluating EvalPlanQual rechecks */
 	bool		fireBSTriggers; /* do we need to fire stmt triggers? */
+	IOTState	fireISTriggers; /* current state for instead stmt trigger */
 
 	/*
 	 * Slot for storing tuples in the root partitioned table's rowtype during
@@ -1205,6 +1219,9 @@ typedef struct ModifyTableState
 
 	/* Per plan map for tuple conversion from child to root */
 	TupleConversionMap **mt_per_subplan_tupconv_maps;
+
+	/* CallStmt for INSERT ... EXECUTE */
+	Node	   *callStmt;
 } ModifyTableState;
 
 /* ----------------

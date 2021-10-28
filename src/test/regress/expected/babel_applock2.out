@@ -1,0 +1,147 @@
+-- Applock test session #2
+-- wait for some initialization of the other session
+select pg_sleep(2);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+select pg_advisory_lock(1);
+ pg_advisory_lock 
+------------------
+ 
+(1 row)
+
+select pg_advisory_unlock(1);
+ pg_advisory_unlock 
+--------------------
+ t
+(1 row)
+
+set babelfish_pg_tsql.sql_dialect = 'tsql';
+\tsql on
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 1;
+GO
+INFO:  ------ Barrier 1         
+-- Test #1: basic locking-out and timeout
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 2;
+GO
+INFO:  ------ Barrier 2         
+-- timed out after waiting for 3 seconds
+exec babel_getapplock_print_return @Resource = 'lock1', @LockMode = 'Exclusive', @LockOwner = 'SESSION', @LockTimeout = 1000;
+GO
+WARNING:  Applock request for 'lock1' timed out
+INFO:  sp_getapplock returns -1        
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 3;
+go
+INFO:  ------ Barrier 3         
+-- lock acquired
+exec babel_getapplock_print_return @Resource = 'lock1', @LockMode = 'Exclusive', @LockOwner = 'SESSION', @LockTimeout = 1000;
+GO
+INFO:  sp_getapplock returns 0         
+exec babel_releaseapplock_print_return @Resource = 'lock1', @LockOwner = 'session';
+GO
+INFO:  sp_releaseapplock returns 0         
+-- Parallel test #2: additional lock modes
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 4;
+go
+INFO:  ------ Barrier 4         
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 5;
+go
+INFO:  ------ Barrier 5         
+-- IntentExclusive lock acquired while the other session is holding IntentShared on lock 1
+exec babel_getapplock_print_return @Resource = 'lock1', @LockMode = 'IntentExclusive', @LockOwner = 'SESSION', @LockTimeout = 1000;
+go
+INFO:  sp_getapplock returns 0         
+exec babel_releaseapplock_print_return @Resource = 'lock1', @LockOwner = 'SESSION';
+go
+INFO:  sp_releaseapplock returns 0         
+-- Exclusive lock failed to acquire while the other session is holding IntentShared on lock 1
+exec babel_getapplock_print_return @Resource = 'lock1', @LockMode = 'Exclusive', @LockOwner = 'SESSION', @LockTimeout = 1000;
+go
+WARNING:  Applock request for 'lock1' timed out
+INFO:  sp_getapplock returns -1        
+exec babel_getapplock_print_return @Resource = 'lock2', @LockMode = 'Update', @LockOwner = 'SESSION', @LockTimeout = 1000;
+go
+INFO:  sp_getapplock returns 0         
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 6;
+go
+INFO:  ------ Barrier 6         
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 7;
+go
+INFO:  ------ Barrier 7         
+exec babel_releaseapplock_print_return @Resource = 'lock2', @LockOwner = 'SESSION';
+go
+INFO:  sp_releaseapplock returns 0         
+-- Parallel test #3: deadlock
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 8;
+go
+INFO:  ------ Barrier 8         
+exec babel_getapplock_print_return @Resource = 'lock2', @LockMode = 'Exclusive', @LockOwner = 'SESSION', @LockTimeout = 1000;
+go
+INFO:  sp_getapplock returns 0         
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 9;
+go
+INFO:  ------ Barrier 9         
+exec babel_getapplock_print_return @Resource = 'lock1', @LockMode = 'Exclusive', @LockOwner = 'SESSION', @LockTimeout = 60000;
+go
+INFO:  sp_getapplock returns 0         
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 10;
+go
+INFO:  ------ Barrier 10        
+exec babel_releaseapplock_print_return @Resource = 'lock1', @LockOwner = 'SESSION';
+go
+INFO:  sp_releaseapplock returns 0         
+exec babel_releaseapplock_print_return @Resource = 'lock2', @LockOwner = 'SESSION';
+go
+INFO:  sp_releaseapplock returns 0         
+-- APPLOCK_TEST
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 11;
+GO
+INFO:  ------ Barrier 11        
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 12;
+GO
+INFO:  ------ Barrier 12        
+SELECT APPLOCK_TEST('public', 'lock1', 'Exclusive', 'session'); -- not grantable
+go
+ applock_test 
+--------------
+            0
+(1 row)
+
+SELECT APPLOCK_TEST('public', 'lock1', 'Shared', 'session'); -- grantable
+go
+ applock_test 
+--------------
+            1
+(1 row)
+
+insert into babel_applock_test_t1 values (1);
+go
+exec babel_applock_test_barrier 13;
+GO
+INFO:  ------ Barrier 13        

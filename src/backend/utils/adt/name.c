@@ -31,6 +31,7 @@
 #include "utils/lsyscache.h"
 #include "utils/varlena.h"
 
+cstr_to_name_hook_type cstr_to_name_hook = NULL;
 
 /*****************************************************************************
  *	 USER I/O ROUTINES (none)												 *
@@ -55,7 +56,12 @@ namein(PG_FUNCTION_ARGS)
 
 	/* Truncate oversize input */
 	if (len >= NAMEDATALEN)
+	{
+		if (cstr_to_name_hook) /* to apply special truncation logic */
+			PG_RETURN_NAME((*cstr_to_name_hook)(s, len));
+
 		len = pg_mbcliplen(s, len, NAMEDATALEN - 1);
+	}
 
 	/* We use palloc0 here to ensure result is zero-padded */
 	result = (Name) palloc0(NAMEDATALEN);

@@ -20,6 +20,8 @@
 #include "access/htup_details.h"
 #include "catalog/index.h"
 #include "catalog/indexing.h"
+#include "catalog/pg_subscription.h"
+#include "catalog/pg_subscription_rel.h"
 #include "executor/executor.h"
 #include "utils/rel.h"
 
@@ -223,6 +225,10 @@ CatalogTupleInsert(Relation heapRel, HeapTuple tup)
 
 	CatalogTupleCheckConstraints(heapRel, tup);
 
+	/* ENR carries catalog tuples themselves. Do not insert, and skip index.*/
+	if (ENRaddTuple(heapRel, tup))
+		return;
+
 	indstate = CatalogOpenIndexes(heapRel);
 
 	simple_heap_insert(heapRel, tup);
@@ -244,6 +250,10 @@ CatalogTupleInsertWithInfo(Relation heapRel, HeapTuple tup,
 						   CatalogIndexState indstate)
 {
 	CatalogTupleCheckConstraints(heapRel, tup);
+
+	/* ENR carries catalog tuples themselves. Do not insert, and skip index.*/
+	if (ENRaddTuple(heapRel, tup))
+		return;
 
 	simple_heap_insert(heapRel, tup);
 
@@ -268,6 +278,10 @@ CatalogTupleUpdate(Relation heapRel, ItemPointer otid, HeapTuple tup)
 
 	CatalogTupleCheckConstraints(heapRel, tup);
 
+	/* ENR carries catalog tuples themselves. Do not update, and skip index.*/
+	if (ENRupdateTuple(heapRel, tup))
+		return;
+
 	indstate = CatalogOpenIndexes(heapRel);
 
 	simple_heap_update(heapRel, otid, tup);
@@ -289,6 +303,10 @@ CatalogTupleUpdateWithInfo(Relation heapRel, ItemPointer otid, HeapTuple tup,
 						   CatalogIndexState indstate)
 {
 	CatalogTupleCheckConstraints(heapRel, tup);
+
+	/* ENR carries catalog tuples themselves. Do not update.*/
+	if (ENRupdateTuple(heapRel, tup))
+		return;
 
 	simple_heap_update(heapRel, otid, tup);
 

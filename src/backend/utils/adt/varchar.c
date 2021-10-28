@@ -22,11 +22,14 @@
 #include "mb/pg_wchar.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/supportnodes.h"
+#include "parser/parser.h"      /* only needed for GUC variables */
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/pg_locale.h"
 #include "utils/varlena.h"
+
+suppress_string_truncation_error_hook_type suppress_string_truncation_error_hook = NULL;
 
 /* common code for bpchartypmodin and varchartypmodin */
 static int32
@@ -37,6 +40,14 @@ anychar_typmodin(ArrayType *ta, const char *typename)
 	int			n;
 
 	tl = ArrayGetIntegerTypmods(ta, &n);
+
+	/*
+	 * Allow typmod of VARCHAR/NVARCHAR(MAX) to go through as is.
+	 */
+	if (*tl == TSQLMaxTypmod)
+	{
+		return *tl;
+	}
 
 	/*
 	 * we're not too tense about good error message here because grammar
@@ -80,7 +91,6 @@ anychar_typmodout(int32 typmod)
 
 	return res;
 }
-
 
 /*
  * CHAR() and VARCHAR() types are part of the SQL standard. CHAR()
@@ -301,7 +311,8 @@ bpchar(PG_FUNCTION_ARGS)
 
 		maxmblen = pg_mbcharcliplen(s, len, maxlen);
 
-		if (!isExplicit)
+		if (!isExplicit && 
+			!(suppress_string_truncation_error_hook && (*suppress_string_truncation_error_hook)()))
 		{
 			for (i = maxmblen; i < len; i++)
 				if (s[i] != ' ')
@@ -321,6 +332,7 @@ bpchar(PG_FUNCTION_ARGS)
 	}
 	else
 	{
+
 		/*
 		 * At this point, maxlen is the necessary byte length, not the number
 		 * of CHARACTERS!
@@ -625,7 +637,8 @@ varchar(PG_FUNCTION_ARGS)
 	/* truncate multibyte string preserving multibyte boundary */
 	maxmblen = pg_mbcharcliplen(s_data, len, maxlen);
 
-	if (!isExplicit)
+	if (!isExplicit && 
+		!(suppress_string_truncation_error_hook && (*suppress_string_truncation_error_hook)()))
 	{
 		for (i = maxmblen; i < len; i++)
 			if (s_data[i] != ' ')

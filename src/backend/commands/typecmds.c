@@ -59,6 +59,7 @@
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "optimizer/optimizer.h"
+#include "parser/parser.h"
 #include "parser/parse_coerce.h"
 #include "parser/parse_collate.h"
 #include "parser/parse_expr.h"
@@ -74,6 +75,8 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 
+
+bool enable_domain_typmod = false;
 
 /* result structure for get_rels_with_domain() */
 typedef struct
@@ -626,7 +629,8 @@ RemoveTypeById(Oid typeOid)
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for type %u", typeOid);
 
-	CatalogTupleDelete(relation, &tup->t_self);
+	if (!ENRdropTuple(relation, tup))
+		CatalogTupleDelete(relation, &tup->t_self);
 
 	/*
 	 * If it is an enum, delete the pg_enum entries too; we don't bother with
@@ -667,6 +671,8 @@ DefineDomain(CreateDomainStmt *stmt)
 	Oid			receiveProcedure;
 	Oid			sendProcedure;
 	Oid			analyzeProcedure;
+	Oid			typmodinOid = InvalidOid;
+	Oid			typmodoutOid = InvalidOid;
 	bool		byValue;
 	char		category;
 	char		delimiter;
@@ -725,6 +731,8 @@ DefineDomain(CreateDomainStmt *stmt)
 	typeTup = typenameType(NULL, stmt->typeName, &basetypeMod);
 	baseType = (Form_pg_type) GETSTRUCT(typeTup);
 	basetypeoid = baseType->oid;
+	if (sql_dialect == SQL_DIALECT_TSQL && check_or_set_default_typmod_hook)
+		(*check_or_set_default_typmod_hook)(stmt->typeName, &basetypeMod, false);
 
 	/*
 	 * Base type must be a plain base type, a composite type, another domain,
@@ -796,6 +804,13 @@ DefineDomain(CreateDomainStmt *stmt)
 	sendProcedure = baseType->typsend;
 
 	/* Domains never accept typmods, so no typmodin/typmodout needed */
+
+	/* Only allow typmods if GUC is set, used by babelfishpg_tsql extension */
+	if (enable_domain_typmod)
+	{
+		typmodinOid = baseType->typmodin;
+		typmodoutOid = baseType->typmodout;
+	}
 
 	/* Analysis function */
 	analyzeProcedure = baseType->typanalyze;
@@ -992,8 +1007,8 @@ DefineDomain(CreateDomainStmt *stmt)
 				   outputProcedure, /* output procedure */
 				   receiveProcedure,	/* receive procedure */
 				   sendProcedure,	/* send procedure */
-				   InvalidOid,	/* typmodin procedure - none */
-				   InvalidOid,	/* typmodout procedure - none */
+				   typmodinOid,	/* typmodin procedure */
+				   typmodoutOid,	/* typmodout procedure */
 				   analyzeProcedure,	/* analyze procedure */
 				   InvalidOid,	/* no array element type */
 				   false,		/* this isn't an array */
@@ -1032,8 +1047,8 @@ DefineDomain(CreateDomainStmt *stmt)
 			   F_ARRAY_OUT,		/* output procedure */
 			   F_ARRAY_RECV,	/* receive procedure */
 			   F_ARRAY_SEND,	/* send procedure */
-			   InvalidOid,		/* typmodin procedure - none */
-			   InvalidOid,		/* typmodout procedure - none */
+			   typmodinOid,		/* typmodin procedure */
+			   typmodoutOid,		/* typmodout procedure */
 			   F_ARRAY_TYPANALYZE,	/* analyze procedure */
 			   address.objectId,	/* element type ID */
 			   true,			/* yes this is an array type */

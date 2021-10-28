@@ -1,0 +1,37 @@
+-- [BABEL-2370] - Preserve case of unquoted column names and alias names in the output columns of a top-level SELECT
+CREATE EXTENSION IF NOT EXISTS babelfishpg_tsql CASCADE;
+NOTICE:  installing required extension "uuid-ossp"
+NOTICE:  installing required extension "babelfishpg_common"
+SET babelfishpg_tsql.sql_dialect = 'tsql';
+CREATE SCHEMA ts;
+CREATE TABLE ts.t1 (ABC text, b varchar(20), c char(4), Xyz int, "Delimited" int, "Special Chars" bigint);
+SELECT * from ts.t1;
+ abc | b | c | xyz | delimited | special chars 
+-----+---+---+-----+-----------+---------------
+(0 rows)
+
+SELECT xyz, XYZ, xYz, xyz ColName, xYz AS ColName, "Special Chars", "Delimited", "DeLIMITed" from ts.t1;
+ xyz | XYZ | xYz | ColName | ColName | Special Chars | Delimited | DeLIMITed 
+-----+-----+-----+---------+---------+---------------+-----------+-----------
+(0 rows)
+
+SELECT xyz AS "WOW! This is a very very long identifier that will get truncated with a uniquifying suffix by Babelfish" from ts.t1;
+NOTICE:  identifier "WOW! This is a very very long identifier that will get truncated with a uniquifying suffix by Babelfish" will be truncated to "WOW! This is a very very long ia01190c3b70a2e95cf74dd179f3280f6"
+ WOW! This is a very very long ia01190c3b70a2e95cf74dd179f3280f6 
+-----------------------------------------------------------------
+(0 rows)
+
+SELECT xyz AS "WOW! This is a very very long identifier that will get truncated with a uniquifying suffix by Babelfish - with extra stuff at the end" from ts.t1;
+NOTICE:  identifier "WOW! This is a very very long identifier that will get truncated with a uniquifying suffix by Babelfish - with extra stuff at the end" will be truncated to "WOW! This is a very very long i0c38f32b6ce858b1d0f8f2c48746d842"
+ WOW! This is a very very long i0c38f32b6ce858b1d0f8f2c48746d842 
+-----------------------------------------------------------------
+(0 rows)
+
+RESET babelfishpg_tsql.sql_dialect;
+DROP EXTENSION babelfishpg_tsql CASCADE;
+NOTICE:  drop cascades to 3 other objects
+DETAIL:  drop cascades to column c of table ts.t1
+drop cascades to column b of table ts.t1
+drop cascades to column abc of table ts.t1
+DROP SCHEMA ts CASCADE;
+NOTICE:  drop cascades to table ts.t1

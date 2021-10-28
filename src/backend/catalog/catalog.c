@@ -49,6 +49,8 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 
+IsExtendedCatalogHookType IsExtendedCatalogHook;
+
 /*
  * IsSystemRelation
  *		True iff the relation is either a system catalog or a toast table.
@@ -114,6 +116,10 @@ IsCatalogRelation(Relation relation)
 bool
 IsCatalogRelationOid(Oid relid)
 {
+	/* Allows extension to add new catalog tables on demand */
+	if (IsExtendedCatalogHook && IsExtendedCatalogHook(relid))
+		return true;
+
 	/*
 	 * We consider a relation to be a system catalog if it has an OID that was
 	 * manually assigned or assigned by genbki.pl.  This includes all the

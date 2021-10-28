@@ -104,7 +104,6 @@ float_zero_divide_error(void)
 			 errmsg("division by zero")));
 }
 
-
 /*
  * Returns -1 if 'val' represents negative infinity, 1 if 'val'
  * represents (positive) infinity, and 0 otherwise. On some platforms,

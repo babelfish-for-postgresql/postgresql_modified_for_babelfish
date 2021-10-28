@@ -58,16 +58,19 @@ typedef struct TriggerDesc
 	bool		trig_insert_instead_row;
 	bool		trig_insert_before_statement;
 	bool		trig_insert_after_statement;
+	bool		trig_insert_instead_statement;
 	bool		trig_update_before_row;
 	bool		trig_update_after_row;
 	bool		trig_update_instead_row;
 	bool		trig_update_before_statement;
 	bool		trig_update_after_statement;
+	bool		trig_update_instead_statement;
 	bool		trig_delete_before_row;
 	bool		trig_delete_after_row;
 	bool		trig_delete_instead_row;
 	bool		trig_delete_before_statement;
 	bool		trig_delete_after_statement;
+	bool		trig_delete_instead_statement;
 	/* there are no row-level truncate triggers */
 	bool		trig_truncate_before_statement;
 	bool		trig_truncate_after_statement;

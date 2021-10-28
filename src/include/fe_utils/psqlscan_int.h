@@ -103,6 +103,7 @@ typedef struct PsqlScanStateData
 	bool		std_strings;	/* are string literals standard? */
 	const char *curline;		/* actual flex input string for cur buf */
 	const char *refline;		/* original data for cur buffer */
+	bool        tsql;           /* enable TSQL features? */
 
 	/*
 	 * All this state lives across successive input lines, until explicitly

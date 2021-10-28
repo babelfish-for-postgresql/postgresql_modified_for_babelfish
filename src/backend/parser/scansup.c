@@ -19,6 +19,9 @@
 
 #include "mb/pg_wchar.h"
 #include "parser/scansup.h"
+#include "parser/parser.h" /* SQL_DIALECT_TSQL */
+
+truncate_identifier_hook_type truncate_identifier_hook = NULL;
 
 /* ----------------
  *		scanstr
@@ -187,6 +190,12 @@ truncate_identifier(char *ident, int len, bool warn)
 {
 	if (len >= NAMEDATALEN)
 	{
+		if (truncate_identifier_hook)
+		{
+			if ((*truncate_identifier_hook) (ident, len, warn))
+				return;
+		}
+
 		len = pg_mbcliplen(ident, len, NAMEDATALEN - 1);
 		if (warn)
 		{

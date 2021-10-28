@@ -47,6 +47,7 @@
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/supportnodes.h"
+#include "parser/parser.h"
 #include "utils/builtins.h"
 #include "utils/datum.h"
 #include "utils/lsyscache.h"
@@ -108,6 +109,11 @@ static Const *string_to_const(const char *str, Oid datatype);
 static Const *string_to_bytea_const(const char *str, size_t str_len);
 
 
+int pattern_fixed_prefix_wrapper(Const *patt,
+				int ptype,
+				Oid collation,
+				Const **prefix,
+				Selectivity *rest_selec);
 /*
  * Planner support functions for LIKE, regex, and related operators
  */
@@ -1021,6 +1027,32 @@ like_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
 		Assert((Pointer) bstr == DatumGetPointer(patt_const->constvalue));
 	}
 
+	/* TSQL uses the [ and ] characters as a kind of pattern matching
+	 * character.  This is not supported in the current version.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		for (pos = 0; pos < pattlen; pos++)
+		{
+			/* [ and ] are special characters in LIKE for TSQL */
+			if (patt[pos] == '[' ||
+				patt[pos] == ']')
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						 errmsg("pattern matching operators '[' and ']' are not supported for LIKE")));
+			}
+
+			/* Backslash escapes the next character */
+			if (patt[pos] == '\\')
+			{
+				pos++;
+				if (pos >= pattlen)
+					break;
+			}
+		}
+	}
+	
 	match = palloc(pattlen + 1);
 	match_pos = 0;
 	for (pos = 0; pos < pattlen; pos++)
@@ -1039,7 +1071,7 @@ like_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
 		}
 
 		/* Stop if case-varying character (it's sort of a wildcard) */
-		if (case_insensitive &&
+		if (case_insensitive && get_collation_isdeterministic(collation) &&
 			pattern_char_isalpha(patt[pos], is_multibyte, locale, locale_is_c))
 			break;
 
@@ -1242,7 +1274,6 @@ prefix_selectivity(PlannerInfo *root, VariableStatData *vardata,
 											collation,
 											greaterstrcon->constvalue,
 											greaterstrcon->consttype);
-
 		/* ineq_histogram_selectivity worked before, it shouldn't fail now */
 		Assert(topsel >= 0.0);
 
@@ -1767,4 +1798,13 @@ string_to_bytea_const(const char *str, size_t str_len)
 	conval = PointerGetDatum(bstr);
 
 	return makeConst(BYTEAOID, -1, InvalidOid, -1, conval, false, false);
+}
+/* This is a helper to make pattern_fixed_prefix extern */
+int pattern_fixed_prefix_wrapper(Const *patt,
+				int ptype,
+				Oid collation,
+				Const **prefix,
+				Selectivity *rest_selec)
+{
+	return pattern_fixed_prefix(patt,ptype,collation,prefix,rest_selec);
 }

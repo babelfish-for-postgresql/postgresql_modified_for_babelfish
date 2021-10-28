@@ -31,6 +31,9 @@ win32ver.rc
 *.exe
 lib*dll.def
 lib*.pc
+*regression.diffs
+*regression.out
+
 
 # Local excludes in root directory
 /GNUmakefile

@@ -574,6 +574,17 @@ typedef struct PgStat_MsgChecksumFailure
 	TimestampTz m_failure_time;
 } PgStat_MsgChecksumFailure;
 
+/* ----------
+ * PgStat_MsgROInconsistency		Sent by the backend to tell the collector
+ *								about an inconsistency that occurred.
+ * ----------
+ */
+typedef struct PgStat_MsgROInconsistency
+{
+	PgStat_MsgHdr	m_hdr;
+	bool		m_corrected;
+	TimestampTz	m_last_invalid_tuple;
+} PgStat_MsgROInconsistency;
 
 /* ----------
  * PgStat_Msg					Union over all possible messages.
@@ -1451,6 +1462,8 @@ extern void AtEOSubXact_PgStat(bool isCommit, int nestDepth);
 extern void AtPrepare_PgStat(void);
 extern void PostPrepare_PgStat(void);
 
+extern void Cleanup_xact_PgStat(void);
+
 extern void pgstat_twophase_postcommit(TransactionId xid, uint16 info,
 									   void *recdata, uint32 len);
 extern void pgstat_twophase_postabort(TransactionId xid, uint16 info,
@@ -1483,5 +1496,15 @@ extern void pgstat_count_slru_flush(int slru_idx);
 extern void pgstat_count_slru_truncate(int slru_idx);
 extern const char *pgstat_slru_name(int slru_idx);
 extern int	pgstat_slru_index(const char *name);
+
+/*
+ * Support functions for allowing call hooks for support stats from
+ * different protocols, and planning.
+ */
+extern void pg_stat_write_backend_details_NoAlloc(int outfile, PgBackendStatus *);
+extern void write_structdef_file(void);
+
+typedef void (*pre_function_call_hook_type) (const char *funcName);
+extern PGDLLIMPORT pre_function_call_hook_type pre_function_call_hook;
 
 #endif							/* PGSTAT_H */

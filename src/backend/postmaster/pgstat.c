@@ -62,11 +62,13 @@
 #include "storage/procsignal.h"
 #include "storage/sinvaladt.h"
 #include "utils/ascii.h"
+#include "utils/fmgrtab.h"
 #include "utils/guc.h"
 #include "utils/memutils.h"
 #include "utils/ps_status.h"
 #include "utils/rel.h"
 #include "utils/snapmgr.h"
+#include "utils/syscache.h"
 #include "utils/timestamp.h"
 
 /* ----------
@@ -360,6 +362,8 @@ static void pgstat_recv_recoveryconflict(PgStat_MsgRecoveryConflict *msg, int le
 static void pgstat_recv_deadlock(PgStat_MsgDeadlock *msg, int len);
 static void pgstat_recv_checksum_failure(PgStat_MsgChecksumFailure *msg, int len);
 static void pgstat_recv_tempfile(PgStat_MsgTempFile *msg, int len);
+
+pre_function_call_hook_type pre_function_call_hook = NULL;
 
 /* ------------------------------------------------------------
  * Public functions called from postmaster follow
@@ -1678,6 +1682,18 @@ pgstat_init_function_usage(FunctionCallInfo fcinfo,
 	PgStat_BackendFunctionEntry *htabent;
 	bool		found;
 
+	if (pre_function_call_hook)
+	{
+		HeapTuple proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
+		if (HeapTupleIsValid(proctup))
+		{
+			Form_pg_proc proc = (Form_pg_proc) GETSTRUCT(proctup);
+			(*pre_function_call_hook)(NameStr(proc->proname));
+		}
+
+		ReleaseSysCache(proctup);
+	}
+
 	if (pgstat_track_functions <= fcinfo->flinfo->fn_stats)
 	{
 		/* stats not wanted */
@@ -2404,6 +2420,38 @@ PostPrepare_PgStat(void)
 
 	/* Make sure any stats snapshot is thrown away */
 	pgstat_clear_snapshot();
+}
+
+/*
+ * Cleanup_xact_PgStat
+ *		Clean up transaction stat.
+ *
+ * Cleanup transaction state only. Used in cases where transaction states are
+ * changed but we cannot wait until committing to reset those states.
+ */
+void
+Cleanup_xact_PgStat()
+{
+	PgStat_SubXactStatus *xact_state;
+
+	/*
+	 * We don't bother to free any of the transactional state, since it's all
+	 * in TopTransactionContext and will go away anyway.
+	 */
+	xact_state = pgStatXactStack;
+	if (xact_state != NULL)
+	{
+		PgStat_TableXactStatus *trans;
+
+		for (trans = xact_state->first; trans != NULL; trans = trans->next)
+		{
+			PgStat_TableStatus *tabstat;
+
+			tabstat = trans->parent;
+			tabstat->trans = NULL;
+		}
+	}
+	pgStatXactStack = NULL;
 }
 
 /*

@@ -202,3 +202,6 @@ test: explain
 test: event_trigger
 test: fast_default
 test: stats
+
+# Tests that verify that babelfish does not regress PG in the postgres dialect
+test: tsql_like

@@ -65,6 +65,7 @@ extern void RemoveSocketFiles(void);
 extern void pq_init(void);
 extern int	pq_getbytes(char *s, size_t len);
 extern int	pq_getstring(StringInfo s);
+extern int	pq_getline(StringInfo s);
 extern void pq_startmsgread(void);
 extern void pq_endmsgread(void);
 extern bool pq_is_reading_msg(void);
