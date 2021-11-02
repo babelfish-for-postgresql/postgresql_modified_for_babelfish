@@ -1,5 +1,8 @@
 ## Babelfish for PostgreSQL
 
+[![Build Status](https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish/workflows/CI/badge.svg)](https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish/actions?query=workflow%3A%22CI%22)
+[![License: PostgreSQL](https://img.shields.io/badge/license-PostgreSQL-blue.svg)](LICENSE.PostgreSQL)
+
 This repository contains the PostgreSQL code base with a patch applied to
 enable some additional functionality provided by the Babelfish extensions. The
 Babelfish community strives to minimize the amount of changes to the PostgreSQL
