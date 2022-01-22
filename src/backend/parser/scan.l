@@ -150,6 +150,15 @@ extern void core_yyset_column(int column_no, yyscan_t yyscanner);
 int sql_dialect = SQL_DIALECT_PG;
 bool pltsql_case_insensitive_identifiers = true;
 
+/* Some extensions, e.g., Babelfish,
+ * may include original PG lexer in addition to their own lexer.
+ * This macro allows to add additional logics only at the beginning of PG lexer.
+ * So you can undef the macro in your own lexer-related extension
+ * to exclude the PG-specific logic.
+ */
+#define PG_YYLEX
+core_yylex_hook_type core_yylex_hook = NULL;
+
 /* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
 /*$$include "scan-tsql-prologue.l.h"*/
 %}
@@ -427,6 +436,18 @@ other			.
 /*$$include "scan-tsql-decl.l"*/
 
 %%
+%{
+#ifdef PG_YYLEX
+	if (sql_dialect == SQL_DIALECT_TSQL && core_yylex_hook)
+	{
+		/* This allows other extensions such as pg_stat_statements
+		 * call TSQL-specific yylex function seamlessly even
+		 * when they just call PG's core_yylex(...).
+		 */
+		return core_yylex_hook(yylval_param, yylloc_param, yyscanner);
+	}
+#endif
+%}
 
  /* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
  /*$$include "scan-tsql-rule.l"*/
