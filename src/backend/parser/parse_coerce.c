@@ -34,6 +34,7 @@
 
 find_coercion_pathway_hook_type find_coercion_pathway_hook = NULL;
 determine_datatype_precedence_hook_type determine_datatype_precedence_hook = NULL;
+validate_implicit_conversion_from_string_literal_hook_type validate_implicit_conversion_from_string_literal_hook = NULL;
 
 static Node *coerce_type_typmod(Node *node,
 								Oid targetTypeId, int32 targetTypMod,
@@ -305,6 +306,12 @@ coerce_type(ParseState *pstate, Node *node,
 		 * an error.
 		 */
 		setup_parser_errposition_callback(&pcbstate, pstate, con->location);
+
+		/*
+		 * Other than PG, T-SQL may forbid casting from string literal to certain datatypes (i.e. binary, varbinary)
+		 */
+		if (sql_dialect == SQL_DIALECT_TSQL && validate_implicit_conversion_from_string_literal_hook && ccontext != COERCION_EXPLICIT)
+			(*validate_implicit_conversion_from_string_literal_hook) (newcon, DatumGetCString(con->constvalue));
 
 		/*
 		 * We assume here that UNKNOWN's internal representation is the same
