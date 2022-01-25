@@ -128,6 +128,8 @@ static List *on_commits = NIL;
 
 InvokePreDropColumnHook_type InvokePreDropColumnHook = NULL;
 check_extended_attoptions_hook_type check_extended_attoptions_hook = NULL;
+find_attr_by_name_from_column_def_list_hook_type
+	find_attr_by_name_from_column_def_list_hook = NULL;
 
 /*
  * State information for ALTER TABLE
@@ -3019,6 +3021,15 @@ findAttrByName(const char *attributeName, List *schema)
 	ListCell   *s;
 	int			i = 1;
 
+	/*
+	 * In T-SQL, we need to compare downcased attribute names
+	 * in addition to the original names
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL
+		&& pltsql_case_insensitive_identifiers
+		&& find_attr_by_name_from_column_def_list_hook)
+		return (*find_attr_by_name_from_column_def_list_hook)(attributeName, schema);
+
 	foreach(s, schema)
 	{
 		ColumnDef  *def = lfirst(s);
@@ -3027,30 +3038,6 @@ findAttrByName(const char *attributeName, List *schema)
 			return i;
 
 		i++;
-	}
-
-	if (sql_dialect == SQL_DIALECT_TSQL
-		&& pltsql_case_insensitive_identifiers)
-	{
-		char *attrname = downcase_identifier(attributeName, strlen(attributeName), false, false);
-		int attrlen = strlen(attrname);
-
-		i = 1;
-		
-		foreach(s, schema)
-		{
-			ColumnDef  *def = lfirst(s);
-
-			if (strlen(def->colname) == attrlen)
-			{
-				char *defname = downcase_identifier(def->colname, strlen(def->colname), false, false);
-
-				if (strncmp(attrname, defname, attrlen) == 0)
-					return i;
-			}
-
-			i++;
-		}
 	}
 	
 	return 0;
