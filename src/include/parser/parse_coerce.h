@@ -111,4 +111,9 @@ typedef CoercionPathType (*find_coercion_pathway_hook_type) (Oid sourceTypeId,
  */
 typedef bool (*determine_datatype_precedence_hook_type) (Oid typeId1, Oid typeId2);
 
+/*
+ * Other than PG, T-SQL may forbid casting from string literal to certain datatypes (i.e. binary, varbinary)
+ */
+typedef void (*validate_implicit_conversion_from_string_literal_hook_type) (Const *newcon, const char *value);
+
 #endif							/* PARSE_COERCE_H */
