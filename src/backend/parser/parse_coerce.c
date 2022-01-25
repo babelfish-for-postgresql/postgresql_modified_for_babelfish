@@ -34,6 +34,7 @@
 
 find_coercion_pathway_hook_type find_coercion_pathway_hook = NULL;
 determine_datatype_precedence_hook_type determine_datatype_precedence_hook = NULL;
+coerce_string_literal_hook_type coerce_string_literal_hook = NULL;
 validate_implicit_conversion_from_string_literal_hook_type validate_implicit_conversion_from_string_literal_hook = NULL;
 
 static Node *coerce_type_typmod(Node *node,
@@ -317,14 +318,24 @@ coerce_type(ParseState *pstate, Node *node,
 		 * We assume here that UNKNOWN's internal representation is the same
 		 * as CSTRING.
 		 */
-		if (!con->constisnull)
-			newcon->constvalue = stringTypeDatum(baseType,
-												 DatumGetCString(con->constvalue),
-												 inputTypeMod);
+		if (sql_dialect == SQL_DIALECT_TSQL && coerce_string_literal_hook)
+		{
+			/*
+			 * T-SQL has different rules for string literal datatype coercions
+			 */
+			(*coerce_string_literal_hook) (newcon, DatumGetCString(con->constvalue), ccontext);
+		}
 		else
-			newcon->constvalue = stringTypeDatum(baseType,
-												 NULL,
-												 inputTypeMod);
+		{
+			if (!con->constisnull)
+				newcon->constvalue = stringTypeDatum(baseType,
+													DatumGetCString(con->constvalue),
+													inputTypeMod);
+			else
+				newcon->constvalue = stringTypeDatum(baseType,
+													NULL,
+													inputTypeMod);
+		}
 
 		/*
 		 * If it's a varlena value, force it to be in non-expanded
