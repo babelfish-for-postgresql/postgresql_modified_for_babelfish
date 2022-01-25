@@ -507,10 +507,15 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 			 * it's not yet clear what INSERT OR UPDATE trigger should see.
 			 * This restriction could be lifted if we can decide on the right
 			 * semantics in a later release.
+			 * 
+			 * We shall allow TSQL to create multi-event triggers with 
+			 * transition tables , since TSQL doesn’t support PG’s insert on conflict,
+			 * Babelfish doesn’t support MERGE statement yet
 			 */
-			if (((TRIGGER_FOR_INSERT(tgtype) ? 1 : 0) +
+			if ((((TRIGGER_FOR_INSERT(tgtype) ? 1 : 0) +
 				 (TRIGGER_FOR_UPDATE(tgtype) ? 1 : 0) +
-				 (TRIGGER_FOR_DELETE(tgtype) ? 1 : 0)) != 1)
+				 (TRIGGER_FOR_DELETE(tgtype) ? 1 : 0)) != 1) 
+				 && sql_dialect != SQL_DIALECT_TSQL)
 				ereport(ERROR,
 						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 						 errmsg("transition tables cannot be specified for triggers with more than one event")));
