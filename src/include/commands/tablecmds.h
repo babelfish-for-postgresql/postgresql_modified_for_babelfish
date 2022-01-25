@@ -113,4 +113,9 @@ extern PGDLLIMPORT InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook;
 typedef bool (*check_extended_attoptions_hook_type) (Node *options);
 extern check_extended_attoptions_hook_type check_extended_attoptions_hook;
 
+typedef int (*find_attr_by_name_from_column_def_list_hook_type) (
+	const char *attributeName, List *schema);
+extern PGDLLIMPORT find_attr_by_name_from_column_def_list_hook_type
+	find_attr_by_name_from_column_def_list_hook;
+
 #endif							/* TABLECMDS_H */

@@ -58,6 +58,8 @@ typedef struct
 
 #define MAX_FUZZY_DISTANCE				3
 
+find_attr_by_name_from_relation_hook_type
+	find_attr_by_name_from_relation_hook = NULL;
 
 static ParseNamespaceItem *scanNameSpaceForRefname(ParseState *pstate,
 												   const char *refname,
@@ -3419,6 +3421,15 @@ int
 attnameAttNum(Relation rd, const char *attname, bool sysColOK)
 {
 	int			i;
+
+	/*
+	 * In T-SQL, we need to compare downcased attribute names
+	 * in addition to the original names
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL
+		&& pltsql_case_insensitive_identifiers
+		&& find_attr_by_name_from_relation_hook)
+		return (*find_attr_by_name_from_relation_hook)(rd, attname, sysColOK);
 
 	for (i = 0; i < RelationGetNumberOfAttributes(rd); i++)
 	{
