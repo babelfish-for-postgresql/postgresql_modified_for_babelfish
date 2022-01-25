@@ -121,4 +121,9 @@ extern Oid	attnumTypeId(Relation rd, int attid);
 extern Oid	attnumCollationId(Relation rd, int attid);
 extern bool isQueryUsingTempRelation(Query *query);
 
+typedef int (*find_attr_by_name_from_relation_hook_type) (
+	Relation rd, const char *attname, bool sysColOK);
+extern PGDLLIMPORT find_attr_by_name_from_relation_hook_type
+	find_attr_by_name_from_relation_hook;
+
 #endif							/* PARSE_RELATION_H */
