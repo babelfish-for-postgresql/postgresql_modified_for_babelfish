@@ -2,11 +2,9 @@ name: CI
 
 on:
   push:
-    branches:
-      - 13_4
   pull_request:
     branches:
-      - 13_4
+      - BABEL_2_X_DEV__PG_14_2
 
 jobs:
   build-and-run-tests:
