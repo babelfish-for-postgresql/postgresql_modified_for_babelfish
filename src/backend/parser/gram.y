@@ -15237,10 +15237,11 @@ qualified_name:
 						case 2:
 							$$->catalogname = downcaseIfTsqlAndCaseInsensitive($1);
 							$$->schemaname = downcaseIfTsqlAndCaseInsensitive(strVal(linitial($2)));
-							/* TSQL temp table names. Schema name is allowed but ignored for temp tables.*/
+							/* TSQL temp table names. Catalog and schema names allowed but ignored for temp tables.*/
 							if (strncmp(strVal(lsecond($2)), "#", 1) == 0 || strncmp(strVal(lsecond($2)), "##", 2) == 0)
 							{
 								$$->relpersistence = RELPERSISTENCE_TEMP;
+								$$->catalogname = NULL;
 								$$->schemaname = NULL;
 							}
 							$$->relname = downcaseIfTsqlAndCaseInsensitive(strVal(lsecond($2)));
