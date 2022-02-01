@@ -1265,12 +1265,19 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 * created composite type as the desired table type.
 	 * So, remove the composite type's dependency on the relation, and record
 	 * the relation's dependency on the composite type.
+	 * Also, remove the relation's dependency on the owner, and record the
+	 * composite type's dependency on the owner.
 	 */
 	if (stmt->tsql_tabletype)
 	{
 		deleteDependencyRecordsForClass(typaddress->classId, typaddress->objectId,
 										RelationRelationId, DEPENDENCY_INTERNAL);
 		recordDependencyOn(&address, typaddress, DEPENDENCY_INTERNAL);
+
+		deleteSharedDependencyRecordsFor(address.classId, address.objectId,
+										 address.objectSubId);
+		recordDependencyOnOwner(typaddress->classId, typaddress->objectId,
+								ownerId);
 	}
 
 	/*
