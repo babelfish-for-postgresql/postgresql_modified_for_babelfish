@@ -1135,6 +1135,7 @@ static List *
 ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
 					bool make_target_entry)
 {
+	List	   *output;
 	List	   *fields = cref->fields;
 	int			numnames = list_length(fields);
 
@@ -1149,6 +1150,17 @@ ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
 		 * need not handle the make_target_entry==false case here.
 		 */
 		Assert(make_target_entry);
+
+		/*
+		 * In TSQL mode, we want to preserve original case in SELECT * statements
+		 */
+		if (sql_dialect == SQL_DIALECT_TSQL && pstate->p_post_expand_star_hook)
+		{
+			output = ExpandAllTables(pstate, cref->location);
+			pstate->p_post_expand_star_hook(pstate, cref, output);
+			return output;
+		}
+
 		return ExpandAllTables(pstate, cref->location);
 	}
 	else
