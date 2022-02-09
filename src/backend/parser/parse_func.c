@@ -1058,6 +1058,21 @@ func_select_candidate(int nargs,
 	}
 
 	/*
+	 * T-SQL allows bidirectional implcit castings (implicit downcasting with precision loss)
+	 * This behavior may cause to find too many multiple candidates.
+	 * If we resolve all the unknwon types but still too many candidates,
+	 * let's try to choose the best candidate by T-SQL precedence rule.
+	 */
+	if (nunknowns == 0 &&
+	    sql_dialect == SQL_DIALECT_TSQL &&
+	    func_select_candidate_hook != NULL)
+	{
+		last_candidate = func_select_candidate_hook(nargs, input_base_typeids, candidates, false);
+		if (last_candidate)
+			return last_candidate; /* last_candiate->next should be already NULL */
+	}
+
+	/*
 	 * Run through all candidates and keep those with the most matches on
 	 * exact types. Keep all candidates if none match.
 	 */
@@ -1149,21 +1164,6 @@ func_select_candidate(int nargs,
 
 	if (ncandidates == 1)
 		return candidates;
-
-	/*
-	 * T-SQL allows bidirectional implcit castings (implicit downcasting with precision loss)
-	 * This behavior may cause to find too many multiple candidates.
-	 * If we resolve all the unknwon types but still too many candidates,
-	 * let's try to choose the best candidate by T-SQL precedence rule.
-	 */
-	if (nunknowns == 0 &&
-	    sql_dialect == SQL_DIALECT_TSQL &&
-	    func_select_candidate_hook != NULL)
-	{
-		last_candidate = func_select_candidate_hook(nargs, input_base_typeids, candidates, false);
-		if (last_candidate)
-			return last_candidate; /* last_candiate->next should be already NULL */
-	}
 
 	/*
 	 * Still too many candidates?  Try assigning types for the unknown inputs.
