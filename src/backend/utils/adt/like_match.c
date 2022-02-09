@@ -220,6 +220,20 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 		NextByte(p, plen);
 	}
 
+	if (tlen > 0 && sql_dialect == SQL_DIALECT_TSQL)
+	{
+		/* End of pattern, but not of text.
+		 *
+		 * In T-SQL, trailing blanks, in the text to which the pattern is matched, are ignored.
+		 * For example, a text 'abc ' (abc followed by a single space) should be matched
+		 * by a pattern 'abc' (abc without a space).
+		 */
+		while (tlen > 0 && *t == ' ')
+			NextByte(t, tlen);
+		if (tlen <= 0)
+			return LIKE_TRUE;
+	}
+
 	if (tlen > 0)
 		return LIKE_FALSE;		/* end of pattern, but not of text */
 
