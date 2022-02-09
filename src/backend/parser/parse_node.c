@@ -65,6 +65,7 @@ make_parsestate(ParseState *parentParseState)
 		/* all hooks are copied from parent */
 		pstate->p_pre_columnref_hook = parentParseState->p_pre_columnref_hook;
 		pstate->p_post_columnref_hook = parentParseState->p_post_columnref_hook;
+		pstate->p_post_expand_star_hook = parentParseState->p_post_expand_star_hook;
 		pstate->p_paramref_hook = parentParseState->p_paramref_hook;
 		pstate->p_coerce_param_hook = parentParseState->p_coerce_param_hook;
 		pstate->p_ref_hook_state = parentParseState->p_ref_hook_state;
