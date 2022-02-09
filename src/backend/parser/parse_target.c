@@ -1298,6 +1298,16 @@ ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
 		}
 
 		/*
+		 * In TSQL mode, we want to preserve original case in SELECT relation.* statements
+		 */
+		if (make_target_entry && sql_dialect == SQL_DIALECT_TSQL && pstate->p_post_expand_star_hook)
+		{
+			output = ExpandSingleTable(pstate, nsitem, levels_up, cref->location,
+										make_target_entry);
+			pstate->p_post_expand_star_hook(pstate, cref, output);
+			return output;
+		}
+		/*
 		 * OK, expand the nsitem into fields.
 		 */
 		return ExpandSingleTable(pstate, nsitem, levels_up, cref->location,
