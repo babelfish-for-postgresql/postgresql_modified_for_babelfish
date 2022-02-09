@@ -37,6 +37,7 @@
 
 func_select_candidate_hook_type func_select_candidate_hook = NULL;
 make_fn_arguments_from_stored_proc_probin_hook_type make_fn_arguments_from_stored_proc_probin_hook = NULL;
+report_proc_not_found_error_hook_type report_proc_not_found_error_hook = NULL;
 /* Possible error codes from LookupFuncNameInternal */
 typedef enum
 {
@@ -591,6 +592,9 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 			if (retval)
 				return retval;
 		}
+
+		if (sql_dialect == SQL_DIALECT_TSQL && report_proc_not_found_error_hook)
+			report_proc_not_found_error_hook(funcname, argnames, nargs, pstate, location, proc_call);
 
 		/*
 		 * No function, and no column either.  Since we're dealing with
