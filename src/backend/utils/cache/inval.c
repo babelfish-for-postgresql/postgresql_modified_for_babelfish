@@ -1153,11 +1153,11 @@ CacheInvalidateHeapTuple(Relation relation,
 		return;
 
 	/*
-	 * We only need to worry about invalidation for tuples that are in system
-	 * catalogs; user-relation tuples are never in catcaches and can't affect
-	 * the relcache either.
+	 * We only need to worry about invalidation for tuples that are either in
+       * system catalogs or in babelfish catalogs ; user-relation tuples are
+       * never in catcaches and can't affect the relcache either.
 	 */
-	if (!IsCatalogRelation(relation))
+	if (!IsCatalogRelation(relation) && (!IsExtendedCatalogHook || !IsExtendedCatalogHook(relation->rd_id)))
 		return;
 
 	/*
