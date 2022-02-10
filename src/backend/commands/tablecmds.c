@@ -913,6 +913,8 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 			rawEnt->generated = colDef->generated;
 			rawDefaults = lappend(rawDefaults, rawEnt);
 			attr->atthasdef = true;
+
+			rawEnt->hasCollClause = colDef->collClause != NULL ? true : false;
 		}
 		else if (colDef->cooked_default != NULL)
 		{
@@ -6941,6 +6943,8 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 
 		rawEnt->generated = colDef->generated;
 
+		rawEnt->hasCollClause = colDef->collClause != NULL ? true : false;
+
 		/*
 		 * This function is intended for CREATE TABLE, so it processes a
 		 * _list_ of defaults, but we just do one.
@@ -7658,6 +7662,9 @@ ATExecColumnDefault(Relation rel, const char *colName,
 		rawEnt->raw_default = newDefault;
 		rawEnt->missingMode = false;
 		rawEnt->generated = '\0';
+
+		/* Cannot have a COLLATE clause with ALTER TABLE ALTER COLUMN SET/DROP DEFAULT */
+		rawEnt->hasCollClause = false;
 
 		/*
 		 * This function is intended for CREATE TABLE, so it processes a
