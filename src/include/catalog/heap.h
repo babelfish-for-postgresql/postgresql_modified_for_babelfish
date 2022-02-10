@@ -30,6 +30,7 @@ typedef struct RawColumnDefault
 	Node	   *raw_default;	/* default value (untransformed parse tree) */
 	bool		missingMode;	/* true if part of add column processing */
 	char		generated;		/* attgenerated setting */
+	bool		hasCollClause;	/* true if column has explicit COLLATE clause */
 } RawColumnDefault;
 
 typedef struct CookedConstraint
