@@ -3824,6 +3824,7 @@ typedef struct CompositeTriggerData
 	int triggerLevel;
 	uint32 xactSubxid;
 	bool cleanupReq;
+	int query_depth;
 	struct CompositeTriggerData *next;
 } CompositeTriggerData;
 
@@ -6338,6 +6339,7 @@ void AddCompositeTriggerLevelData(void)
 		triggers->next = compositeTriggers.triggers;
 		triggers->xactSubxid = GetCurrentSubTransactionId();
 		triggers->cleanupReq = true;
+		triggers->query_depth = afterTriggers.query_depth;
 		compositeTriggers.triggers = triggers;
 	}
 }
@@ -6394,6 +6396,18 @@ void EndCompositeTriggers(bool error)
 		}
 		compositeTriggers.triggers = triggers->next;
 		AfterTriggerFreeQuery(&triggers->data, true);
+
+		/*
+		 * In case of error, EndCompositeTriggers() is being invoked before 
+		 * AfterTriggerEndSubXact(). So, This will cleanup AfterTriggersTableData 
+		 * recorded in compositeTriggers. But reference to the AfterTriggersTableData 
+		 * is also maintained by PG trigger which in turn would have stale reference.
+		 * So, setting reference to AfterTriggersTableData to the NIL explicitly here 
+		 * to avoid seg fault issues.
+		 */ 
+		if (afterTriggers.query_depth < afterTriggers.maxquerydepth && afterTriggers.query_depth >= triggers->query_depth)
+			afterTriggers.query_stack[afterTriggers.query_depth].tables = NIL;
+
 		pfree(triggers);
 	}
 	compositeTriggers.triggerLevel--;
