@@ -922,6 +922,14 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
 		}
 	}
 
+	if (pstate->p_column_ref_overwrite_hook && sql_dialect == SQL_DIALECT_TSQL)
+	{
+		Node *hookresult = pstate->p_column_ref_overwrite_hook(pstate, cref, node);
+
+		if (hookresult)
+			node = hookresult;
+	}
+
 	return node;
 }
 
