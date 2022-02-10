@@ -2248,6 +2248,19 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 		newe = coerce_to_common_type(pstate, e,
 									 newc->coalescetype,
 									 "COALESCE");
+
+		/*
+		 * If we get a RelabelType node, we would need to adjust its typmod
+		 * as coerce_to_common_type function does not do length-coercion.
+		 * This is required when coercing a domain to its base type and since
+		 * domains are allowed to have typmod in TSQL mode, we should preserve
+		 * the typmod in this case.
+		 */
+		if (sql_dialect == SQL_DIALECT_TSQL && IsA(newe, RelabelType))
+		{
+			if (exprTypmod(newe) != exprTypmod(e))
+				((RelabelType *)newe)->resulttypmod = exprTypmod(e);
+		}
 		newcoercedargs = lappend(newcoercedargs, newe);
 	}
 
