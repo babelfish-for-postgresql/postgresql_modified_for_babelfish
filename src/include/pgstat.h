@@ -1507,4 +1507,13 @@ extern void write_structdef_file(void);
 typedef void (*pre_function_call_hook_type) (const char *funcName);
 extern PGDLLIMPORT pre_function_call_hook_type pre_function_call_hook;
 
+typedef void (*invalidate_stat_table_hook_type) (void);
+extern PGDLLIMPORT invalidate_stat_table_hook_type invalidate_stat_table_hook;
+
+typedef void (*guc_newval_hook_type) (const char *guc, bool boolVal, const char *strVal, int intVal);
+extern PGDLLIMPORT guc_newval_hook_type guc_newval_hook;
+
+typedef bool (*tsql_has_pgstat_permissions_hook_type) (Oid role);
+extern PGDLLIMPORT tsql_has_pgstat_permissions_hook_type tsql_has_pgstat_permissions_hook;
+
 #endif							/* PGSTAT_H */
