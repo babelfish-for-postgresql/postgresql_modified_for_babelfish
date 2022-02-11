@@ -364,6 +364,8 @@ static void pgstat_recv_checksum_failure(PgStat_MsgChecksumFailure *msg, int len
 static void pgstat_recv_tempfile(PgStat_MsgTempFile *msg, int len);
 
 pre_function_call_hook_type pre_function_call_hook = NULL;
+invalidate_stat_table_hook_type invalidate_stat_table_hook = NULL;
+guc_newval_hook_type guc_newval_hook = NULL;
 
 /* ------------------------------------------------------------
  * Public functions called from postmaster follow
@@ -5903,6 +5905,13 @@ pgstat_clear_snapshot(void)
 	pgStatDBHash = NULL;
 	localBackendStatusTable = NULL;
 	localNumBackends = 0;
+
+	/*
+	 * Signal babelfishpg_tds extension (if loaded) to
+	 * mark the local TDS status table as invalid too
+	 */
+	if (invalidate_stat_table_hook)
+		(*invalidate_stat_table_hook)();
 }
 
 
