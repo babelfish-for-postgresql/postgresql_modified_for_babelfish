@@ -905,7 +905,8 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 	}
 
 	if (post_transform_insert_row_hook)
-		(*post_transform_insert_row_hook) (icolumns, exprList);
+		(*post_transform_insert_row_hook) (icolumns, exprList, 
+						RelationGetRelid(pstate->p_target_relation));
 
 	/*
 	 * Generate query's target list using the computed list of expressions.
