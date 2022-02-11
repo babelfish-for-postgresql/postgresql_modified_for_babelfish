@@ -43,7 +43,7 @@ typedef bool (*get_output_clause_status_hook_type) (void);
 extern PGDLLIMPORT get_output_clause_status_hook_type get_output_clause_status_hook;
 
 /* Hook for plugins to get control after an insert row transform */
-typedef void (*post_transform_insert_row_hook_type) (List *icolumns, List *exprList);
+typedef void (*post_transform_insert_row_hook_type) (List *icolumns, List *exprList, Oid relid);
 extern PGDLLIMPORT post_transform_insert_row_hook_type post_transform_insert_row_hook;
 
 extern Query *parse_analyze(RawStmt *parseTree, const char *sourceText,
