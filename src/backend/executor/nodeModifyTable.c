@@ -663,6 +663,12 @@ ExecInsert(ModifyTableState *mtstate,
 		if (!ExecIRInsertTriggers(estate, resultRelInfo, slot))
 			return NULL;		/* "do nothing" */
 	}
+	else if (sql_dialect == SQL_DIALECT_TSQL && resultRelInfo->ri_TrigDesc &&
+		resultRelInfo->ri_TrigDesc->trig_insert_instead_statement){
+		ExecIRInsertTriggersTSQL(estate, resultRelInfo, slot, mtstate->mt_transition_capture);
+		// if it's a statement level IOT trigger, only get the transition table
+		return NULL;
+	}
 	else if (resultRelInfo->ri_FdwRoutine)
 	{
 		/*
@@ -2296,7 +2302,7 @@ fireISTriggers(ModifyTableState *node)
 	switch (node->operation)
 	{
 		case CMD_INSERT:
-			ret = ExecISInsertTriggers(node->ps.state, resultRelInfo);
+			ret = ExecISInsertTriggers(node->ps.state, resultRelInfo, node->mt_transition_capture);
 			if (plan->onConflictAction == ONCONFLICT_UPDATE)
 				ret = ExecISUpdateTriggers(node->ps.state,
 									 resultRelInfo);
@@ -2486,23 +2492,6 @@ ExecModifyTable(PlanState *pstate)
 	 */
 	if (node->mt_done)
 		return NULL;
-
-	/* Try to see if IOT exists on the action. fireISTriggers() should return
-	 * IOT_NOT_REQUIRED if there does not exist on the relation and action.
-	 * Otherwise, this should fire the IOT or recognize the IOT has already been
-	 * fired.
-	 */
-	if (node->fireISTriggers == IOT_NOT_FIRED)
-	{
-		node->fireISTriggers = fireISTriggers(node);
-	}
-
-	/* If IOT is already fired, bail out */
-	if (node->fireISTriggers == IOT_FIRED)
-	{
-		node->mt_done = true;
-		return NULL;
-	}
 
 	/*
 	 * On first call, fire BEFORE STATEMENT triggers before proceeding.
@@ -2795,6 +2784,25 @@ ExecModifyTable(PlanState *pstate)
 							resultRelInfo->ri_PlanSlots,
 							resultRelInfo->ri_NumSlots,
 							estate, node->canSetTag);
+	}
+
+	/* Try to see if IOT exists on the action. fireISTriggers() should return
+	 * IOT_NOT_REQUIRED if there does not exist on the relation and action.
+	 * Otherwise, this should fire the IOT or recognize the IOT has already been
+	 * fired.
+	 * 
+	 * IOT should be fired after execution is done
+	 */
+	if (node->fireISTriggers == IOT_NOT_FIRED)
+	{
+		node->fireISTriggers = fireISTriggers(node);
+	}
+
+	/* If IOT is already fired, bail out */
+	if (node->fireISTriggers == IOT_FIRED)
+	{
+		node->mt_done = true;
+		return NULL;
 	}
 
 	/*
