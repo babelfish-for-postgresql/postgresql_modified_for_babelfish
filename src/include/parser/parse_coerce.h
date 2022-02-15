@@ -114,7 +114,15 @@ typedef bool (*determine_datatype_precedence_hook_type) (Oid typeId1, Oid typeId
 /*
  * T-SQL has different rules for string literal datatype coercions
  */
-typedef void (*coerce_string_literal_hook_type) (Const *newcon, char *value, CoercionContext ccontext);
+typedef Node *(*coerce_string_literal_hook_type) (ParseCallbackState *pcbstate,
+												  Oid targetTypeId,
+												  int32 targetTypeMod,
+												  int32 baseTypeMod,
+												  Const *newcon,
+												  char *value,
+												  CoercionContext ccontext,
+												  CoercionForm cformat,
+												  int location);
 
 /*
  * T-SQL may forbid casting from string literal to certain datatypes (i.e. binary, varbinary)

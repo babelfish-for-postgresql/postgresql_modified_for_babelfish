@@ -323,7 +323,17 @@ coerce_type(ParseState *pstate, Node *node,
 			/*
 			 * T-SQL has different rules for string literal datatype coercions
 			 */
-			(*coerce_string_literal_hook) (newcon, DatumGetCString(con->constvalue), ccontext);
+			result = (*coerce_string_literal_hook) (&pcbstate, targetTypeId,
+												  targetTypeMod, baseTypeMod,
+												  newcon, DatumGetCString(con->constvalue),
+												  ccontext, cformat, location);
+			if (result) /* runtimer error function returned */
+				return result;
+
+			/*
+			 * If the result is NULL, the newcon should be already updated properly.
+			 * Keep advancing the code.
+			 */
 		}
 		else
 		{
