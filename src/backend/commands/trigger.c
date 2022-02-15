@@ -88,6 +88,12 @@ static HeapTuple ExecCallTriggerFunc(TriggerData *trigdata,
 									 FmgrInfo *finfo,
 									 Instrumentation *instr,
 									 MemoryContext per_tuple_context);
+static void InsteadofTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
+								  int event, bool row_trigger,
+								  TupleTableSlot *oldtup, TupleTableSlot *newtup,
+								  List *recheckIndexes, Bitmapset *modifiedCols,
+								  TransitionCaptureState *transition_capture);
+
 static void AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 								  int event, bool row_trigger,
 								  TupleTableSlot *oldtup, TupleTableSlot *newtup,
@@ -2146,7 +2152,8 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 	Assert(((TRIGGER_FIRED_BY_INSERT(trigdata->tg_event) ||
 			 TRIGGER_FIRED_BY_UPDATE(trigdata->tg_event) ||
 			 TRIGGER_FIRED_BY_DELETE(trigdata->tg_event)) &&
-			TRIGGER_FIRED_AFTER(trigdata->tg_event) &&
+			(TRIGGER_FIRED_AFTER(trigdata->tg_event) ||
+			(TRIGGER_FIRED_INSTEAD(trigdata->tg_event) && sql_dialect == SQL_DIALECT_TSQL)) &&
 			!(trigdata->tg_event & AFTER_TRIGGER_DEFERRABLE) &&
 			!(trigdata->tg_event & AFTER_TRIGGER_INITDEFERRED)) ||
 		   (trigdata->tg_oldtable == NULL && trigdata->tg_newtable == NULL));
@@ -2217,60 +2224,6 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 		InstrStopNode(instr + tgindx, 1);
 
 	return (HeapTuple) DatumGetPointer(result);
-}
-
-IOTState
-ExecISInsertTriggers(EState *estate, ResultRelInfo *relinfo)
-{
-	TriggerDesc *trigdesc;
-	int i;
-	TriggerData LocTriggerData;
-	IOTState prevState;
-	trigdesc = relinfo->ri_TrigDesc;
-	if (trigdesc == NULL)
-		return IOT_NOT_REQUIRED;
-	if (!trigdesc->trig_insert_instead_statement) {
-		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_INSERT, IOT_NOT_REQUIRED);
-		return IOT_NOT_REQUIRED;
-	}
-
-	// if the trigger is already fired or not required
-	prevState = instead_stmt_triggers_fired(RelationGetRelid(relinfo->ri_RelationDesc), CMD_INSERT);
-	if (prevState != IOT_NOT_FIRED)
-		return prevState;
-	LocTriggerData.type = T_TriggerData;
-	LocTriggerData.tg_event = TRIGGER_EVENT_INSERT | TRIGGER_EVENT_INSTEAD;
-	LocTriggerData.tg_relation = relinfo->ri_RelationDesc;
-	LocTriggerData.tg_trigtuple = NULL;
-	LocTriggerData.tg_newtuple = NULL;
-	LocTriggerData.tg_trigslot = NULL;
-	LocTriggerData.tg_newslot = NULL;
-	LocTriggerData.tg_oldtable = NULL;
-	LocTriggerData.tg_newtable = NULL;
-	for (i = 0; i < trigdesc->numtriggers; i++)
-	{
-		Trigger    *trigger = &trigdesc->triggers[i];
-		HeapTuple   newtuple;
-		if (!TRIGGER_TYPE_MATCHES(trigger->tgtype,
-					TRIGGER_TYPE_STATEMENT,
-					TRIGGER_TYPE_INSTEAD,
-					TRIGGER_TYPE_INSERT))
-			continue;
-		if (!TriggerEnabled(estate, relinfo, trigger, LocTriggerData.tg_event, NULL, NULL, NULL))
-			continue;
-		LocTriggerData.tg_trigger = trigger;
-		newtuple = ExecCallTriggerFunc(
-				&LocTriggerData,
-				i,
-				relinfo->ri_TrigFunctions,
-				relinfo->ri_TrigInstrument,
-				GetPerTupleMemoryContext(estate));
-		if (newtuple)
-			ereport(ERROR,
-					(errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
-					 errmsg("INSTEAD STATEMENT trigger cannot return a value")));
-	}
-	return IOT_FIRED;
 }
 
 void
@@ -2424,6 +2377,22 @@ ExecARInsertTriggers(EState *estate, ResultRelInfo *relinfo,
 							  true, NULL, slot,
 							  recheckIndexes, NULL,
 							  transition_capture);
+}
+
+void
+ExecIRInsertTriggersTSQL(EState *estate, ResultRelInfo *relinfo,
+					TupleTableSlot *slot,
+					TransitionCaptureState *transition_capture)
+{
+	TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
+
+	if ((trigdesc && trigdesc->trig_insert_instead_statement) && 
+		(transition_capture && transition_capture->tcs_insert_new_table)){
+		InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_INSERT,
+							  true, NULL, slot,
+							  NULL, NULL,
+							  transition_capture);
+	}
 }
 
 bool
@@ -4318,6 +4287,68 @@ AfterTriggerExecute(EState *estate,
 		InstrStopNode(instr + tgindx, 1);
 }
 
+IOTState
+ExecISInsertTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureState *transition_capture)
+{
+	TriggerDesc *trigdesc;
+    int i;
+	TriggerData LocTriggerData;
+    IOTState prevState;
+    trigdesc = relinfo->ri_TrigDesc;
+    if (trigdesc == NULL)
+       	return IOT_NOT_REQUIRED;
+    if (!trigdesc->trig_insert_instead_statement) 
+	{
+		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_INSERT, IOT_NOT_REQUIRED);
+    		return IOT_NOT_REQUIRED;
+	}
+
+    // if the trigger is already fired or not required
+    prevState = instead_stmt_triggers_fired(RelationGetRelid(relinfo->ri_RelationDesc), CMD_INSERT);
+    if (prevState != IOT_NOT_FIRED)
+    	return prevState;
+    LocTriggerData.type = T_TriggerData;
+    LocTriggerData.tg_event = TRIGGER_EVENT_INSERT | TRIGGER_EVENT_INSTEAD;
+    LocTriggerData.tg_relation = relinfo->ri_RelationDesc;
+    LocTriggerData.tg_trigtuple = NULL;
+    LocTriggerData.tg_newtuple = NULL;
+    LocTriggerData.tg_trigslot = NULL;
+    /*
+    * Set up the tuplestore information to let the trigger have access to
+    * transition tables.  When we first make a transition table available to
+    * a trigger, mark it "closed" so that it cannot change anymore.  If any
+    * additional events of the same type get queued in the current trigger
+    * query level, they'll go into new transition tables.
+    */
+    LocTriggerData.tg_oldtable = LocTriggerData.tg_newtable = NULL;
+	LocTriggerData.tg_oldtable = transition_capture->tcs_private->old_tuplestore;
+	LocTriggerData.tg_newtable = transition_capture->tcs_private->new_tuplestore;
+    for (i = 0; i < trigdesc->numtriggers; i++)
+    {
+        Trigger    *trigger = &trigdesc->triggers[i];
+        HeapTuple   newtuple;
+        if (!TRIGGER_TYPE_MATCHES(trigger->tgtype,
+            TRIGGER_TYPE_STATEMENT,
+            TRIGGER_TYPE_INSTEAD,
+            TRIGGER_TYPE_INSERT))
+                continue;
+    	if (!TriggerEnabled(estate, relinfo, trigger, LocTriggerData.tg_event, NULL, NULL, NULL))
+            continue;
+        LocTriggerData.tg_trigger = trigger;
+        newtuple = ExecCallTriggerFunc(
+            &LocTriggerData,
+            i,
+        	relinfo->ri_TrigFunctions,
+            relinfo->ri_TrigInstrument,
+            GetPerTupleMemoryContext(estate));
+        if (newtuple)
+            ereport(ERROR,
+                (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
+                errmsg("INSTEAD STATEMENT trigger cannot return a value")));
+    }
+    return IOT_FIRED;
+}
+
 
 /*
  * afterTriggerMarkEvents()
@@ -5703,6 +5734,87 @@ AfterTriggerPendingOnRel(Oid relid)
 	}
 
 	return false;
+}
+
+static void
+InsteadofTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
+					  int event, bool row_trigger,
+					  TupleTableSlot *oldslot, TupleTableSlot *newslot,
+					  List *recheckIndexes, Bitmapset *modifiedCols,
+					  TransitionCaptureState *transition_capture)
+{
+	if (row_trigger && transition_capture != NULL)
+	{
+		TupleTableSlot *original_insert_tuple = transition_capture->tcs_original_insert_tuple;
+		TupleConversionMap *map = transition_capture->tcs_map;
+		bool		delete_old_table = transition_capture->tcs_delete_old_table;
+		bool		update_old_table = transition_capture->tcs_update_old_table;
+		bool		update_new_table = transition_capture->tcs_update_new_table;
+		bool		insert_new_table = transition_capture->tcs_insert_new_table;
+
+		/*
+		 * For INSERT events NEW should be non-NULL, for DELETE events OLD
+		 * should be non-NULL, whereas for UPDATE events normally both OLD and
+		 * NEW are non-NULL.  But for UPDATE events fired for capturing
+		 * transition tuples during UPDATE partition-key row movement, OLD is
+		 * NULL when the event is for a row being inserted, whereas NEW is
+		 * NULL when the event is for a row being deleted.
+		 */
+		Assert(!(event == TRIGGER_EVENT_DELETE && delete_old_table &&
+				 TupIsNull(oldslot)));
+		Assert(!(event == TRIGGER_EVENT_INSERT && insert_new_table &&
+				 TupIsNull(newslot)));
+
+		if (!TupIsNull(oldslot) &&
+			((event == TRIGGER_EVENT_DELETE && delete_old_table) ||
+			 (event == TRIGGER_EVENT_UPDATE && update_old_table)))
+		{
+			Tuplestorestate *old_tuplestore;
+
+			old_tuplestore = transition_capture->tcs_private->old_tuplestore;
+
+			if (map != NULL)
+			{
+				AfterTriggersTableData *table = transition_capture->tcs_private;
+				TupleTableSlot *storeslot;
+
+				storeslot = GetAfterTriggersStoreSlot(table, map->outdesc);
+				execute_attr_map_slot(map->attrMap, oldslot, storeslot);
+				tuplestore_puttupleslot(old_tuplestore, storeslot);
+			}
+			else
+				tuplestore_puttupleslot(old_tuplestore, oldslot);
+		}
+
+		if (!TupIsNull(newslot) &&
+			((event == TRIGGER_EVENT_INSERT && insert_new_table) ||
+			 (event == TRIGGER_EVENT_UPDATE && update_new_table)))
+		{
+			Tuplestorestate *new_tuplestore;
+
+			new_tuplestore = transition_capture->tcs_private->new_tuplestore;
+
+			if (original_insert_tuple != NULL)
+				tuplestore_puttupleslot(new_tuplestore,
+										original_insert_tuple);
+			else if (map != NULL)
+			{
+				AfterTriggersTableData *table = transition_capture->tcs_private;
+				TupleTableSlot *storeslot;
+
+				storeslot = GetAfterTriggersStoreSlot(table, map->outdesc);
+				execute_attr_map_slot(map->attrMap, newslot, storeslot);
+				tuplestore_puttupleslot(new_tuplestore, storeslot);
+			}
+			else
+				tuplestore_puttupleslot(new_tuplestore, newslot);
+		}
+
+		/*
+		 * transition tables are the only reason we're here, return. 
+		 */
+		return;
+	}
 }
 
 
