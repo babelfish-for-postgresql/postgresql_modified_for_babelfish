@@ -193,7 +193,8 @@ extern void ExecASInsertTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TransitionCaptureState *transition_capture);
 extern IOTState ExecISInsertTriggers(EState *estate,
-								ResultRelInfo *relinfo);
+								ResultRelInfo *relinfo,
+								TransitionCaptureState *transition_capture);
 extern bool ExecBRInsertTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TupleTableSlot *slot);
@@ -201,6 +202,10 @@ extern void ExecARInsertTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TupleTableSlot *slot,
 								 List *recheckIndexes,
+								 TransitionCaptureState *transition_capture);
+extern void ExecIRInsertTriggersTSQL(EState *estate,
+								 ResultRelInfo *relinfo,
+								 TupleTableSlot *slot, 
 								 TransitionCaptureState *transition_capture);
 extern bool ExecIRInsertTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
