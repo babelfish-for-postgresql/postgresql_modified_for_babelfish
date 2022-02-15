@@ -15,6 +15,7 @@
 
 #include "postgres.h"
 
+#include "catalog/namespace.h"
 #include "catalog/pg_type.h"
 #include "commands/dbcommands.h"
 #include "miscadmin.h"
@@ -84,6 +85,7 @@ static Expr *make_distinct_op(ParseState *pstate, List *opname,
 							  Node *ltree, Node *rtree, int location);
 static Node *make_nulltest_from_distinct(ParseState *pstate,
 										 A_Expr *distincta, Node *arg);
+static List *ExpandChecksumStar(ParseState *pstate, FuncCall *fn, int location);
 
 lookup_param_hook_type lookup_param_hook = NULL;
 /*
@@ -1416,6 +1418,8 @@ transformFuncCall(ParseState *pstate, FuncCall *fn)
 	Node	   *last_srf = pstate->p_last_srf;
 	List	   *targs;
 	ListCell   *args;
+      char *schemaname;
+      char *functionname;
 
 	/* Transform the list of arguments ... */
 	targs = NIL;
@@ -1444,6 +1448,20 @@ transformFuncCall(ParseState *pstate, FuncCall *fn)
 												 EXPR_KIND_ORDER_BY));
 		}
 	}
+        
+      DeconstructQualifiedName(fn->funcname, &schemaname, &functionname);
+
+      /* Firstly, we check whether the schema name is null or 'sys'.
+       * When the function name is checksum, we check if the argument is '*',
+       * if yes, then we traverse the table and get the column names from the
+       * table. We replace the argument '*' with the list of column names.
+       */
+
+      if (!schemaname || (strlen(schemaname) == 3 && strncmp(schemaname, "sys", 3) == 0))
+              if (strlen(functionname) == 8 &&
+                          strncmp(functionname, "checksum", 8) == 0 &&
+                          fn->agg_star == true)
+                      targs = ExpandChecksumStar(pstate, fn, fn->location);
 
 	/* ... and hand off to ParseFuncOrColumn */
 	return ParseFuncOrColumn(pstate,
@@ -3178,4 +3196,19 @@ ParseExprKindName(ParseExprKind exprKind)
 			 */
 	}
 	return "unrecognized expression kind";
+}
+
+// Expands checksum(*) to checksum(c1, c2, ...)
+List *
+ExpandChecksumStar(ParseState *pstate, FuncCall *fn, int location)
+{
+        List      *target = NIL;
+        ListCell   *lc;
+        foreach(lc, pstate->p_namespace)
+        {
+                ParseNamespaceItem *nsitem = (ParseNamespaceItem *) lfirst(lc);
+                target = list_concat(target, expandNSItemVars(nsitem, 0, location, NULL));
+        }
+        fn->agg_star = false;
+        return target;
 }
