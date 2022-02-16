@@ -899,6 +899,15 @@ ExecDelete(ModifyTableState *mtstate,
 		ExecClearTuple(slot);
 	}
 
+	if (resultRelInfo->ri_TrigDesc &&
+		resultRelInfo->ri_TrigDesc->trig_delete_instead_statement &&
+		sql_dialect == SQL_DIALECT_TSQL && 
+		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_DELETE))
+	{
+		ExecIRDeleteTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, mtstate->mt_transition_capture);
+		return NULL;
+	}
+
 	/* INSTEAD OF ROW DELETE Triggers */
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_delete_instead_row)
@@ -1975,7 +1984,7 @@ fireISTriggers(ModifyTableState *node)
 			ret = ExecISUpdateTriggers(node->ps.state, resultRelInfo);
 			break;
 		case CMD_DELETE:
-			ret = ExecISDeleteTriggers(node->ps.state, resultRelInfo);
+			ret = ExecISDeleteTriggers(node->ps.state, resultRelInfo, node->mt_transition_capture);
 			break;
 		default:
 			elog(ERROR, "unknown operation");

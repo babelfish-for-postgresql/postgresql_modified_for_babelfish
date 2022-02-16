@@ -2395,6 +2395,37 @@ ExecIRInsertTriggersTSQL(EState *estate, ResultRelInfo *relinfo,
 	}
 }
 
+void
+ExecIRDeleteTriggersTSQL(EState *estate, ResultRelInfo *relinfo,
+					ItemPointer tupleid,
+					HeapTuple fdw_trigtuple,
+					TransitionCaptureState *transition_capture)
+{
+	TriggerDesc *trigdesc;
+	TupleTableSlot *slot;
+	trigdesc = relinfo->ri_TrigDesc;
+	if ((trigdesc && trigdesc->trig_delete_instead_statement) && 
+		(transition_capture && transition_capture->tcs_delete_old_table)){
+		Assert(HeapTupleIsValid(fdw_trigtuple) ^ ItemPointerIsValid(tupleid));
+		slot = ExecGetTriggerOldSlot(estate, relinfo);
+		if (fdw_trigtuple == NULL)
+			GetTupleForTrigger(estate,
+								NULL,
+								relinfo,
+								tupleid,
+								LockTupleExclusive,
+								slot,
+								NULL);
+		else
+			ExecForceStoreHeapTuple(fdw_trigtuple, slot, false);
+
+		InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_DELETE,
+							true, slot, NULL,
+							NIL, NULL,
+							transition_capture);
+	}
+}
+
 bool
 ExecIRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
 					 TupleTableSlot *slot)
@@ -2506,68 +2537,6 @@ ExecBSDeleteTriggers(EState *estate, ResultRelInfo *relinfo)
 					 errmsg("BEFORE STATEMENT trigger cannot return a value")));
 	}
 }
-
-IOTState
-ExecISDeleteTriggers(EState *estate, ResultRelInfo *relinfo)
-{
-	TriggerDesc *trigdesc;
-	int			i;
-	TriggerData LocTriggerData;
-	IOTState prevState;
-
-	trigdesc = relinfo->ri_TrigDesc;
-
-	if (trigdesc == NULL)
-		return IOT_NOT_REQUIRED;
-	if (!trigdesc->trig_delete_instead_statement) {
-		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_DELETE, IOT_NOT_REQUIRED);
-		return IOT_NOT_REQUIRED;
-	}
-	prevState = instead_stmt_triggers_fired(RelationGetRelid(relinfo->ri_RelationDesc), CMD_DELETE);
-	// if the trigger is already fired or not required
-	if (prevState != IOT_NOT_FIRED)
-		return prevState;
-
-	LocTriggerData.type = T_TriggerData;
-	LocTriggerData.tg_event = TRIGGER_EVENT_DELETE |
-		TRIGGER_EVENT_INSTEAD;
-	LocTriggerData.tg_relation = relinfo->ri_RelationDesc;
-	LocTriggerData.tg_trigtuple = NULL;
-	LocTriggerData.tg_newtuple = NULL;
-	LocTriggerData.tg_oldtable = NULL;
-	LocTriggerData.tg_newtable = NULL;
-	LocTriggerData.tg_trigtuple = InvalidBuffer;
-	LocTriggerData.tg_newtuple = InvalidBuffer;
-	for (i = 0; i < trigdesc->numtriggers; i++)
-	{
-		Trigger    *trigger = &trigdesc->triggers[i];
-		HeapTuple	newtuple;
-
-		if (!TRIGGER_TYPE_MATCHES(trigger->tgtype,
-								  TRIGGER_TYPE_STATEMENT,
-								  TRIGGER_TYPE_INSTEAD,
-								  TRIGGER_TYPE_DELETE))
-			continue;
-		if (!TriggerEnabled(estate, relinfo, trigger, LocTriggerData.tg_event,
-							NULL, NULL, NULL))
-			continue;
-
-		LocTriggerData.tg_trigger = trigger;
-		newtuple = ExecCallTriggerFunc(&LocTriggerData,
-									   i,
-									   relinfo->ri_TrigFunctions,
-									   relinfo->ri_TrigInstrument,
-									   GetPerTupleMemoryContext(estate));
-
-		if (newtuple)
-			ereport(ERROR,
-					(errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
-					 errmsg("INSTEAD STATEMENT trigger cannot return a value")));
-	}
-	return IOT_FIRED;
-}
-
-
 
 void
 ExecASDeleteTriggers(EState *estate, ResultRelInfo *relinfo,
@@ -4349,6 +4318,74 @@ ExecISInsertTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
     return IOT_FIRED;
 }
 
+IOTState
+ExecISDeleteTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureState *transition_capture)
+{
+	TriggerDesc *trigdesc;
+	int			i;
+	TriggerData LocTriggerData;
+	IOTState prevState;
+
+	trigdesc = relinfo->ri_TrigDesc;
+
+	if (trigdesc == NULL)
+		return IOT_NOT_REQUIRED;
+	if (!trigdesc->trig_delete_instead_statement) {
+		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_DELETE, IOT_NOT_REQUIRED);
+		return IOT_NOT_REQUIRED;
+	}
+	prevState = instead_stmt_triggers_fired(RelationGetRelid(relinfo->ri_RelationDesc), CMD_DELETE);
+	// if the trigger is already fired or not required
+	if (prevState != IOT_NOT_FIRED)
+		return prevState;
+
+	LocTriggerData.type = T_TriggerData;
+	LocTriggerData.tg_event = TRIGGER_EVENT_DELETE |
+		TRIGGER_EVENT_INSTEAD;
+	LocTriggerData.tg_relation = relinfo->ri_RelationDesc;
+	LocTriggerData.tg_trigtuple = NULL;
+	LocTriggerData.tg_newtuple = NULL;
+	LocTriggerData.tg_trigtuple = InvalidBuffer;
+	LocTriggerData.tg_newtuple = InvalidBuffer;
+	/*
+    * Set up the tuplestore information to let the trigger have access to
+    * transition tables.  When we first make a transition table available to
+    * a trigger, mark it "closed" so that it cannot change anymore.  If any
+    * additional events of the same type get queued in the current trigger
+    * query level, they'll go into new transition tables.
+    */
+    LocTriggerData.tg_oldtable = LocTriggerData.tg_newtable = NULL;
+	LocTriggerData.tg_oldtable = transition_capture->tcs_private->old_tuplestore;
+	LocTriggerData.tg_newtable = transition_capture->tcs_private->new_tuplestore;
+
+	for (i = 0; i < trigdesc->numtriggers; i++)
+	{
+		Trigger    *trigger = &trigdesc->triggers[i];
+		HeapTuple	newtuple;
+
+		if (!TRIGGER_TYPE_MATCHES(trigger->tgtype,
+								  TRIGGER_TYPE_STATEMENT,
+								  TRIGGER_TYPE_INSTEAD,
+								  TRIGGER_TYPE_DELETE))
+			continue;
+		if (!TriggerEnabled(estate, relinfo, trigger, LocTriggerData.tg_event,
+							NULL, NULL, NULL))
+			continue;
+
+		LocTriggerData.tg_trigger = trigger;
+		newtuple = ExecCallTriggerFunc(&LocTriggerData,
+									   i,
+									   relinfo->ri_TrigFunctions,
+									   relinfo->ri_TrigInstrument,
+									   GetPerTupleMemoryContext(estate));
+
+		if (newtuple)
+			ereport(ERROR,
+					(errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
+					 errmsg("INSTEAD STATEMENT trigger cannot return a value")));
+	}
+	return IOT_FIRED;
+}
 
 /*
  * afterTriggerMarkEvents()
@@ -4775,6 +4812,21 @@ MakeTransitionCaptureState(TriggerDesc *trigdesc, Oid relid, CmdType cmdType)
 	return state;
 }
 
+bool
+isTsqlInsteadofTriggerExecution(EState *estate, ResultRelInfo *relinfo, TriggerEvent event)
+{
+	TriggerDesc *trigdesc;
+	int i;
+	trigdesc = relinfo->ri_TrigDesc;
+	for (i = 0; i < trigdesc->numtriggers; i++)
+	{
+		Trigger *trigger = &trigdesc->triggers[i];
+		if (TriggerEnabled(estate, relinfo, trigger, event, NULL, NULL, NULL)){
+			return true;
+		}
+	}
+	return false;
+}
 
 /* ----------
  * AfterTriggerBeginXact()
