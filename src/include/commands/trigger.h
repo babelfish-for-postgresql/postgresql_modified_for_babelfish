@@ -207,6 +207,11 @@ extern void ExecIRInsertTriggersTSQL(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TupleTableSlot *slot, 
 								 TransitionCaptureState *transition_capture);
+extern void ExecIRDeleteTriggersTSQL(EState *estate,
+								 ResultRelInfo *relinfo,
+								 ItemPointer tupleid,
+								 HeapTuple fdw_trigtuple,
+								 TransitionCaptureState *transition_capture);
 extern bool ExecIRInsertTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TupleTableSlot *slot);
@@ -216,7 +221,8 @@ extern void ExecASDeleteTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TransitionCaptureState *transition_capture);
 extern IOTState ExecISDeleteTriggers(EState *estate,
-								ResultRelInfo *relinfo);
+								ResultRelInfo *relinfo,
+								TransitionCaptureState *transition_capture);
 extern bool ExecBRDeleteTriggers(EState *estate,
 								 EPQState *epqstate,
 								 ResultRelInfo *relinfo,
@@ -259,6 +265,8 @@ extern void ExecBSTruncateTriggers(EState *estate,
 								   ResultRelInfo *relinfo);
 extern void ExecASTruncateTriggers(EState *estate,
 								   ResultRelInfo *relinfo);
+
+extern bool isTsqlInsteadofTriggerExecution(EState *estate, ResultRelInfo *relinfo, TriggerEvent event);
 
 extern void AfterTriggerBeginXact(void);
 extern void AfterTriggerBeginQuery(void);
