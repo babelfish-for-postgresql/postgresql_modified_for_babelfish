@@ -64,6 +64,7 @@
 #include "funcapi.h"
 #include "lib/stringinfo.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "regex/regex.h"
 #include "utils/builtins.h"
 #include "utils/date.h"
@@ -723,6 +724,16 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 				int			size = JsonbArraySize(jb);
 				bool		singleton = size < 0;
 				bool		hasNext = jspGetNext(jsp, &elem);
+
+				if (JsonbType(jb) != jbvArray && sql_dialect == SQL_DIALECT_TSQL)
+				{
+					if (jspIgnoreStructuralErrors(cxt))
+						break;
+					else
+						RETURN_ERROR(ereport(ERROR,
+									(errcode(ERRCODE_SQL_JSON_ARRAY_NOT_FOUND),
+									errmsg("Property cannot be found on the specified JSON path"))));
+				}
 
 				if (singleton)
 					size = 1;
