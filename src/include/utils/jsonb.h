@@ -385,6 +385,9 @@ extern JsonbValue *findJsonbValueFromContainer(JsonbContainer *sheader,
 extern JsonbValue *getKeyJsonValueFromContainer(JsonbContainer *container,
 												const char *keyVal, int keyLen,
 												JsonbValue *res);
+extern JsonbValue *tsqlGetKeyJsonValueFromContainer(JsonbContainer *container,
+												const char *keyVal, int keyLen,
+												JsonbValue *res);
 extern JsonbValue *getIthJsonbValueFromContainer(JsonbContainer *sheader,
 												 uint32 i);
 extern JsonbValue *pushJsonbValue(JsonbParseState **pstate,
