@@ -548,8 +548,16 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 
 			if (tt->isNew)
 			{
-				if (!(TRIGGER_FOR_INSERT(tgtype) ||
-					  TRIGGER_FOR_UPDATE(tgtype)))
+				if (sql_dialect == SQL_DIALECT_TSQL){
+					if (!(TRIGGER_FOR_DELETE(tgtype) ||
+						TRIGGER_FOR_UPDATE(tgtype) ||
+						TRIGGER_FOR_INSERT(tgtype)))
+						ereport(ERROR,
+								(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+								 errmsg("OLD TABLE can only be specified for a INSERT or DELETE or UPDATE trigger")));
+				}
+				else if (!(TRIGGER_FOR_INSERT(tgtype) ||
+					TRIGGER_FOR_UPDATE(tgtype)))
 					ereport(ERROR,
 							(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 							 errmsg("NEW TABLE can only be specified for an INSERT or UPDATE trigger")));
@@ -574,7 +582,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 						TRIGGER_FOR_INSERT(tgtype)))
 						ereport(ERROR,
 								(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-								 errmsg("TSQL: OLD TABLE can only be specified for a INSERT or DELETE or UPDATE trigger")));
+								 errmsg("OLD TABLE can only be specified for a INSERT or DELETE or UPDATE trigger")));
 
 				if (oldtablename != NULL)
 					ereport(ERROR,
@@ -4843,6 +4851,19 @@ MakeTransitionCaptureState(TriggerDesc *trigdesc, Oid relid, CmdType cmdType)
 			need_old = need_new = false;	/* keep compiler quiet */
 			break;
 	}
+
+	/**
+	 * In Tsql for babelfish, it allows to use deleted in after/instead of 
+	 * insert statment, and it allows to use inserted in after/instead of
+	 * delete statment as well, so we'll init both old and new transition tables
+	 * for Tsql dialect
+	 * */
+	if (sql_dialect == SQL_DIALECT_TSQL && (need_old || need_new))
+	{
+		need_old = true;
+		need_new = true;
+	}
+
 	if (!need_old && !need_new)
 		return NULL;
 
