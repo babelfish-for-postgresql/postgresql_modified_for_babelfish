@@ -204,6 +204,13 @@ extern void ExecIRDeleteTriggersTSQL(EState *estate,
 								 ItemPointer tupleid,
 								 HeapTuple fdw_trigtuple,
 								 TransitionCaptureState *transition_capture);
+extern void ExecIRUpdateTriggersTSQL(EState *estate,
+								 ResultRelInfo *relinfo,
+								 ItemPointer tupleid,
+								 HeapTuple fdw_trigtuple,
+								 TupleTableSlot *newslot,
+					 			 List *recheckIndexes,
+								 TransitionCaptureState *transition_capture);
 extern bool ExecIRInsertTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TupleTableSlot *slot);
@@ -235,7 +242,8 @@ extern void ExecASUpdateTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TransitionCaptureState *transition_capture);
 extern IOTState ExecISUpdateTriggers(EState *estate,
-								ResultRelInfo *relinfo);
+								ResultRelInfo *relinfo,
+								TransitionCaptureState *transition_capture);
 extern bool ExecBRUpdateTriggers(EState *estate,
 								 EPQState *epqstate,
 								 ResultRelInfo *relinfo,
