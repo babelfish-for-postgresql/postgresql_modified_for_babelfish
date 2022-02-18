@@ -2434,6 +2434,47 @@ ExecIRDeleteTriggersTSQL(EState *estate, ResultRelInfo *relinfo,
 	}
 }
 
+void ExecIRUpdateTriggersTSQL(EState *estate,
+								 ResultRelInfo *relinfo,
+								 ItemPointer tupleid,
+								 HeapTuple fdw_trigtuple,
+								 TupleTableSlot *newslot,
+					 			 List *recheckIndexes,
+								 TransitionCaptureState *transition_capture)
+{
+	TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
+	TupleTableSlot *oldslot = ExecGetTriggerOldSlot(estate, relinfo);
+
+	ExecClearTuple(oldslot);
+	if ((trigdesc && trigdesc->trig_update_instead_statement) ||
+		(transition_capture &&
+		 (transition_capture->tcs_update_old_table ||
+		  transition_capture->tcs_update_new_table)))
+	{
+		/*
+		 * Note: if the UPDATE is converted into a DELETE+INSERT as part of
+		 * update-partition-key operation, then this function is also called
+		 * separately for DELETE and INSERT to capture transition table rows.
+		 * In such case, either old tuple or new tuple can be NULL.
+		 */
+		if (fdw_trigtuple == NULL && ItemPointerIsValid(tupleid))
+			GetTupleForTrigger(estate,
+							   NULL,
+							   relinfo,
+							   tupleid,
+							   LockTupleExclusive,
+							   oldslot,
+							   NULL);
+		else if (fdw_trigtuple != NULL)
+			ExecForceStoreHeapTuple(fdw_trigtuple, oldslot, false);
+
+		InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_UPDATE,
+							  true, oldslot, newslot, recheckIndexes,
+							  ExecGetAllUpdatedCols(relinfo, estate),
+							  transition_capture);
+	}
+}
+
 bool
 ExecIRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
 					 TupleTableSlot *slot)
@@ -2724,71 +2765,6 @@ ExecIRDeleteTriggers(EState *estate, ResultRelInfo *relinfo,
 			heap_freetuple(rettuple);
 	}
 	return true;
-}
-
-IOTState
-ExecISUpdateTriggers(EState *estate, ResultRelInfo *relinfo)
-{
-	TriggerDesc *trigdesc;
-	int			i;
-	TriggerData LocTriggerData;
-	Bitmapset  *updatedCols;
-	IOTState prevState;
-
-	trigdesc = relinfo->ri_TrigDesc;
-
-	if (trigdesc == NULL)
-		return IOT_NOT_REQUIRED;
-
-	if (!trigdesc->trig_update_instead_statement) {
-		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_UPDATE, IOT_NOT_REQUIRED);
-		return IOT_NOT_REQUIRED;
-	}
-
-	prevState = instead_stmt_triggers_fired(RelationGetRelid(relinfo->ri_RelationDesc), CMD_UPDATE);
-	// if the trigger is already fired or not required
-	if (prevState != IOT_NOT_FIRED)
-		return prevState;
-
-	updatedCols = ExecGetAllUpdatedCols(relinfo, estate);
-
-	LocTriggerData.type = T_TriggerData;
-	LocTriggerData.tg_event = TRIGGER_EVENT_UPDATE |
-		TRIGGER_EVENT_INSTEAD;
-	LocTriggerData.tg_relation = relinfo->ri_RelationDesc;
-	LocTriggerData.tg_trigtuple = NULL;
-	LocTriggerData.tg_newtuple = NULL;
-	LocTriggerData.tg_oldtable = NULL;
-	LocTriggerData.tg_newtable = NULL;
-	LocTriggerData.tg_trigtuple = InvalidBuffer;
-	LocTriggerData.tg_newtuple = InvalidBuffer;
-	for (i = 0; i < trigdesc->numtriggers; i++)
-	{
-		Trigger    *trigger = &trigdesc->triggers[i];
-		HeapTuple	newtuple;
-
-		if (!TRIGGER_TYPE_MATCHES(trigger->tgtype,
-								  TRIGGER_TYPE_STATEMENT,
-								  TRIGGER_TYPE_INSTEAD,
-								  TRIGGER_TYPE_UPDATE))
-			continue;
-		if (!TriggerEnabled(estate, relinfo, trigger, LocTriggerData.tg_event,
-							updatedCols, NULL, NULL))
-			continue;
-
-		LocTriggerData.tg_trigger = trigger;
-		newtuple = ExecCallTriggerFunc(&LocTriggerData,
-									   i,
-									   relinfo->ri_TrigFunctions,
-									   relinfo->ri_TrigInstrument,
-									   GetPerTupleMemoryContext(estate));
-
-		if (newtuple)
-			ereport(ERROR,
-					(errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
-					 errmsg("INSTEAD OF STATEMENT trigger cannot return a value")));
-	}
-	return IOT_FIRED;
 }
 
 void
@@ -4324,6 +4300,81 @@ ExecISInsertTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
                 errmsg("INSTEAD STATEMENT trigger cannot return a value")));
     }
     return IOT_FIRED;
+}
+
+IOTState
+ExecISUpdateTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureState *transition_capture)
+{
+	TriggerDesc *trigdesc;
+	int			i;
+	TriggerData LocTriggerData;
+	Bitmapset  *updatedCols;
+	IOTState prevState;
+
+	trigdesc = relinfo->ri_TrigDesc;
+
+	if (trigdesc == NULL)
+		return IOT_NOT_REQUIRED;
+
+	if (!trigdesc->trig_update_instead_statement) {
+		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_UPDATE, IOT_NOT_REQUIRED);
+		return IOT_NOT_REQUIRED;
+	}
+
+	prevState = instead_stmt_triggers_fired(RelationGetRelid(relinfo->ri_RelationDesc), CMD_UPDATE);
+	// if the trigger is already fired or not required
+	if (prevState != IOT_NOT_FIRED)
+		return prevState;
+
+	updatedCols = ExecGetAllUpdatedCols(relinfo, estate);
+
+	LocTriggerData.type = T_TriggerData;
+	LocTriggerData.tg_event = TRIGGER_EVENT_UPDATE |
+		TRIGGER_EVENT_INSTEAD;
+	LocTriggerData.tg_relation = relinfo->ri_RelationDesc;
+	LocTriggerData.tg_trigtuple = NULL;
+	LocTriggerData.tg_newtuple = NULL;
+	LocTriggerData.tg_trigtuple = InvalidBuffer;
+	LocTriggerData.tg_newtuple = InvalidBuffer;
+
+	/*
+    * Set up the tuplestore information to let the trigger have access to
+    * transition tables.  When we first make a transition table available to
+    * a trigger, mark it "closed" so that it cannot change anymore.  If any
+    * additional events of the same type get queued in the current trigger
+    * query level, they'll go into new transition tables.
+    */
+    LocTriggerData.tg_oldtable = LocTriggerData.tg_newtable = NULL;
+	LocTriggerData.tg_oldtable = transition_capture->tcs_private->old_tuplestore;
+	LocTriggerData.tg_newtable = transition_capture->tcs_private->new_tuplestore;
+
+	for (i = 0; i < trigdesc->numtriggers; i++)
+	{
+		Trigger    *trigger = &trigdesc->triggers[i];
+		HeapTuple	newtuple;
+
+		if (!TRIGGER_TYPE_MATCHES(trigger->tgtype,
+								  TRIGGER_TYPE_STATEMENT,
+								  TRIGGER_TYPE_INSTEAD,
+								  TRIGGER_TYPE_UPDATE))
+			continue;
+		if (!TriggerEnabled(estate, relinfo, trigger, LocTriggerData.tg_event,
+							updatedCols, NULL, NULL))
+			continue;
+
+		LocTriggerData.tg_trigger = trigger;
+		newtuple = ExecCallTriggerFunc(&LocTriggerData,
+									   i,
+									   relinfo->ri_TrigFunctions,
+									   relinfo->ri_TrigInstrument,
+									   GetPerTupleMemoryContext(estate));
+
+		if (newtuple)
+			ereport(ERROR,
+					(errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
+					 errmsg("INSTEAD OF STATEMENT trigger cannot return a value")));
+	}
+	return IOT_FIRED;
 }
 
 IOTState
