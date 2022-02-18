@@ -90,7 +90,6 @@ extern PGDLLIMPORT bool standard_conforming_strings;
 extern int sql_dialect;
 extern bool pltsql_case_insensitive_identifiers;
 
-extern int datefirst;
 extern char* pltsql_server_collation_name;
 
 /* Primary entry point for the raw parsing functions */
