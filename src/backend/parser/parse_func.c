@@ -1078,7 +1078,7 @@ func_select_candidate(int nargs,
 	    sql_dialect == SQL_DIALECT_TSQL &&
 	    func_select_candidate_hook != NULL)
 	{
-		last_candidate = func_select_candidate_hook(nargs, input_base_typeids, candidates, false);
+		last_candidate = func_select_candidate_hook(nargs, input_typeids, candidates, false);
 		if (last_candidate)
 			return last_candidate; /* last_candiate->next should be already NULL */
 	}
@@ -1269,7 +1269,7 @@ func_select_candidate(int nargs,
 		sql_dialect == SQL_DIALECT_TSQL &&
 		func_select_candidate_hook != NULL)
 	{
-		last_candidate = func_select_candidate_hook(nargs, input_base_typeids, candidates, true);
+		last_candidate = func_select_candidate_hook(nargs, input_typeids, candidates, true);
 		if (last_candidate)
 			return last_candidate; /* last_candiate->next should be already NULL */
 	}
