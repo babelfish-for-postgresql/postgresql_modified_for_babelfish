@@ -18,6 +18,7 @@
 
 #include "access/relation.h"
 #include "access/table.h"
+#include "commands/copy.h"
 #include "catalog/namespace.h"
 #include "catalog/pg_subscription_rel.h"
 #include "executor/executor.h"
@@ -309,7 +310,9 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 			int			attnum;
 			Form_pg_attribute attr = TupleDescAttr(desc, i);
 
-			if (attr->attisdropped || attr->attgenerated)
+			if (attr->attisdropped || attr->attgenerated ||
+				(is_tsql_rowversion_or_timestamp_datatype_hook &&
+				is_tsql_rowversion_or_timestamp_datatype_hook(attr->atttypid)))
 			{
 				entry->attrmap->attnums[i] = -1;
 				continue;

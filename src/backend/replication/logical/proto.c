@@ -13,6 +13,7 @@
 #include "postgres.h"
 
 #include "access/sysattr.h"
+#include "commands/copy.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_type.h"
 #include "libpq/pqformat.h"
@@ -451,6 +452,11 @@ logicalrep_write_tuple(StringInfo out, Relation rel, HeapTuple tuple)
 	{
 		if (TupleDescAttr(desc, i)->attisdropped || TupleDescAttr(desc, i)->attgenerated)
 			continue;
+
+		/* Skip TSQL ROWVERSION/TIMESTAMP column if it exists */
+		if (is_tsql_rowversion_or_timestamp_datatype_hook &&
+			is_tsql_rowversion_or_timestamp_datatype_hook(TupleDescAttr(desc, i)->atttypid))
+			continue;
 		nliveatts++;
 	}
 	pq_sendint16(out, nliveatts);
@@ -470,6 +476,11 @@ logicalrep_write_tuple(StringInfo out, Relation rel, HeapTuple tuple)
 		char	   *outputstr;
 
 		if (att->attisdropped || att->attgenerated)
+			continue;
+
+		/* Skip TSQL ROWVERSION/TIMESTAMP column if it exists */
+		if (is_tsql_rowversion_or_timestamp_datatype_hook &&
+			is_tsql_rowversion_or_timestamp_datatype_hook(att->atttypid))
 			continue;
 
 		if (isnull[i])
@@ -570,6 +581,11 @@ logicalrep_write_attrs(StringInfo out, Relation rel)
 	{
 		if (TupleDescAttr(desc, i)->attisdropped || TupleDescAttr(desc, i)->attgenerated)
 			continue;
+
+		/* Skip TSQL ROWVERSION/TIMESTAMP column if it exists */
+		if (is_tsql_rowversion_or_timestamp_datatype_hook &&
+			is_tsql_rowversion_or_timestamp_datatype_hook(TupleDescAttr(desc, i)->atttypid))
+			continue;
 		nliveatts++;
 	}
 	pq_sendint16(out, nliveatts);
@@ -587,6 +603,11 @@ logicalrep_write_attrs(StringInfo out, Relation rel)
 		uint8		flags = 0;
 
 		if (att->attisdropped || att->attgenerated)
+			continue;
+
+		/* Skip TSQL ROWVERSION/TIMESTAMP column if it exists */
+		if (is_tsql_rowversion_or_timestamp_datatype_hook &&
+			is_tsql_rowversion_or_timestamp_datatype_hook(att->atttypid))
 			continue;
 
 		/* REPLICA IDENTITY FULL means all columns are sent as part of key. */

@@ -11,8 +11,10 @@
 
 #include "access/xlog.h"
 #include "access/xlogreader.h"
+#include "nodes/execnodes.h"
 #include "replication/output_plugin.h"
 #include "replication/slot.h"
+#include "utils/relcache.h"
 
 struct LogicalDecodingContext;
 
@@ -116,5 +118,8 @@ extern void LogicalIncreaseRestartDecodingForSlot(XLogRecPtr current_lsn,
 extern void LogicalConfirmReceivedLocation(XLogRecPtr lsn);
 
 extern bool filter_by_origin_cb_wrapper(LogicalDecodingContext *ctx, RepOriginId origin_id);
+
+typedef void (*logicalrep_modify_slot_hook_type)(Relation rel, EState *estate, TupleTableSlot *slot);
+extern PGDLLIMPORT logicalrep_modify_slot_hook_type logicalrep_modify_slot_hook;
 
 #endif
