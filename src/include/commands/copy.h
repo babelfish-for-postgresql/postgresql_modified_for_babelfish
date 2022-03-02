@@ -41,4 +41,6 @@ extern uint64 CopyFrom(CopyState cstate);
 
 extern DestReceiver *CreateCopyDestReceiver(void);
 
+typedef bool (*is_tsql_rowversion_or_timestamp_datatype_hook_type)(Oid oid);
+extern PGDLLIMPORT is_tsql_rowversion_or_timestamp_datatype_hook_type is_tsql_rowversion_or_timestamp_datatype_hook;
 #endif							/* COPY_H */
