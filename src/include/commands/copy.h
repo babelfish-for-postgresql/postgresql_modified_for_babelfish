@@ -86,4 +86,6 @@ extern uint64 DoCopyTo(CopyToState cstate);
 extern List *CopyGetAttnums(TupleDesc tupDesc, Relation rel,
 							List *attnamelist);
 
+typedef bool (*is_tsql_rowversion_or_timestamp_datatype_hook_type)(Oid oid);
+extern PGDLLIMPORT is_tsql_rowversion_or_timestamp_datatype_hook_type is_tsql_rowversion_or_timestamp_datatype_hook;
 #endif							/* COPY_H */

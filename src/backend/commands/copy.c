@@ -41,6 +41,8 @@
 #include "utils/rel.h"
 #include "utils/rls.h"
 
+is_tsql_rowversion_or_timestamp_datatype_hook_type is_tsql_rowversion_or_timestamp_datatype_hook = NULL;
+
 /*
  *	 DoCopy executes the SQL COPY statement
  *
@@ -701,6 +703,10 @@ CopyGetAttnums(TupleDesc tupDesc, Relation rel, List *attnamelist)
 				continue;
 			if (TupleDescAttr(tupDesc, i)->attgenerated)
 				continue;
+			/* Skip TSQL ROWVERSION/TIMESTAMP column if it exists */
+			if (is_tsql_rowversion_or_timestamp_datatype_hook &&
+				is_tsql_rowversion_or_timestamp_datatype_hook(TupleDescAttr(tupDesc, i)->atttypid))
+				continue;
 			attnums = lappend_int(attnums, i + 1);
 		}
 	}
@@ -731,6 +737,13 @@ CopyGetAttnums(TupleDesc tupDesc, Relation rel, List *attnamelist)
 								 errmsg("column \"%s\" is a generated column",
 										name),
 								 errdetail("Generated columns cannot be used in COPY.")));
+					if (is_tsql_rowversion_or_timestamp_datatype_hook &&
+						is_tsql_rowversion_or_timestamp_datatype_hook(att->atttypid))
+						ereport(ERROR,
+								(errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
+								 errmsg("column \"%s\" is a ROWVERSION/TIMESTAMP column",
+								 		name),
+								 errdetail("ROWVERSION/TIMESTAMP columns cannot be used in COPY.")));
 					attnum = att->attnum;
 					break;
 				}
