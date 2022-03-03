@@ -699,6 +699,7 @@ DefineDomain(CreateDomainStmt *stmt)
 	char	   *domainName;
 	char	   *domainArrayName;
 	Oid			domainNamespace;
+	SQLDialect  dialect;
 	AclResult	aclresult;
 	int16		internalLength;
 	Oid			inputProcedure;
@@ -806,7 +807,29 @@ DefineDomain(CreateDomainStmt *stmt)
 	if (stmt->collClause)
 		domaincoll = get_collation_oid(stmt->collClause->collname, false);
 	else
-		domaincoll = baseColl;
+	{
+		/*
+		 * For Babelfish, if we're creating domains under the sys schema
+		 * grab the correct collation. Initially support just the sys.name type.
+		 */
+		if (strcmp(get_namespace_name(domainNamespace), "sys") == 0 && strcmp(domainName, "name") == 0)
+		{
+			/*
+			 * Since CREATE DOMAIN does not work in T-SQL, we should be in the
+			 * Postgres dialect here. To ensure we have the correct
+			 * server collation oid, temporarily set dialect to TSQL.
+			 */
+			Assert(sql_dialect == SQL_DIALECT_PG);
+			dialect = sql_dialect;
+			sql_dialect = SQL_DIALECT_TSQL;
+			domaincoll = CLUSTER_COLLATION_OID();
+			sql_dialect = dialect;
+		}
+		else
+		{
+			domaincoll = baseColl;
+		}
+	}
 
 	/* Complain if COLLATE is applied to an uncollatable type */
 	if (OidIsValid(domaincoll) && !OidIsValid(baseColl))
