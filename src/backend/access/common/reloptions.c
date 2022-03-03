@@ -1451,6 +1451,9 @@ parseRelOptionsInternal(Datum options, bool validate,
 			if (sql_dialect == SQL_DIALECT_TSQL)
 				continue;
 
+			if (strncmp(text_str, "bbf_original_rel_name", 21) == 0)
+				continue;
+
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 					 errmsg("unrecognized parameter \"%s\"", s)));
