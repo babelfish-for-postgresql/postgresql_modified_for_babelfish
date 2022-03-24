@@ -1301,7 +1301,7 @@ count_rowexpr_columns(ParseState *pstate, Node *expr)
  * see below for the other cases.
  */
 static Query *
-transformSelectStmt(ParseState *pstate, SelectStmt *stmt) ///
+transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 {
 	Query	   *qry = makeNode(Query);
 	Node	   *qual;
@@ -1332,7 +1332,7 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt) ///
 	pstate->p_windowdefs = stmt->windowClause;
 
 	/* process the FROM clause */
-	transformFromClause(pstate, stmt->fromClause); ///
+	transformFromClause(pstate, stmt->fromClause);
 
 	/* transform targetlist */
 	qry->targetList = transformTargetList(pstate, stmt->targetList,
@@ -2426,6 +2426,7 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 								EXPR_KIND_WHERE, "WHERE");
 
 	qry->returningList = transformReturningList(pstate, stmt->returningList);
+
 	/*
 	 * Now we are done with SELECT-like processing, and can get on with
 	 * transforming the target list to match the UPDATE target columns.
