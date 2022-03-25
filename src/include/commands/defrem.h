@@ -57,6 +57,7 @@ extern ObjectAddress CreateTransform(CreateTransformStmt *stmt);
 extern void IsThereFunctionInNamespace(const char *proname, int pronargs,
 									   oidvector *proargtypes, Oid nspOid);
 extern void ExecuteDoStmt(DoStmt *stmt, bool atomic);
+extern void ExecuteDoStmtInsertExec(DoStmt *stmt, bool atomic, DestReceiver *dest);
 extern void ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver *dest);
 extern TupleDesc CallStmtResultDesc(CallStmt *stmt);
 extern Oid	get_transform_oid(Oid type_id, Oid lang_id, bool missing_ok);
@@ -74,6 +75,10 @@ extern void interpret_function_parameter_list(ParseState *pstate,
 											  Oid *variadicArgType,
 											  Oid *requiredResultType);
 
+typedef bool (*check_lang_as_clause_hook_type)(const char *lang, List *as, char **prosrc_str_p, char **probin_str_p);
+typedef void (*write_stored_proc_probin_hook_type)(CreateFunctionStmt *stmt, Oid languageOid, char** probin_str_p);
+extern PGDLLIMPORT check_lang_as_clause_hook_type check_lang_as_clause_hook;
+extern PGDLLIMPORT write_stored_proc_probin_hook_type write_stored_proc_probin_hook;
 /* commands/operatorcmds.c */
 extern ObjectAddress DefineOperator(List *names, List *parameters);
 extern void RemoveOperatorById(Oid operOid);

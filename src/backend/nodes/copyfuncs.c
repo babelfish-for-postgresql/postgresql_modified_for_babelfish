@@ -221,6 +221,7 @@ _copyModifyTable(const ModifyTable *from)
 	COPY_NODE_FIELD(onConflictWhere);
 	COPY_SCALAR_FIELD(exclRelRTI);
 	COPY_NODE_FIELD(exclRelTlist);
+	COPY_NODE_FIELD(callStmt);
 
 	return newnode;
 }
@@ -2753,6 +2754,7 @@ _copyAConst(const A_Const *from)
 		case T_Float:
 		case T_String:
 		case T_BitString:
+		case T_TSQL_HexString:
 			COPY_STRING_FIELD(val.val.str);
 			break;
 		case T_Null:
@@ -2840,6 +2842,7 @@ _copyResTarget(const ResTarget *from)
 	COPY_NODE_FIELD(indirection);
 	COPY_NODE_FIELD(val);
 	COPY_LOCATION_FIELD(location);
+	COPY_LOCATION_FIELD(name_location);
 
 	return newnode;
 }
@@ -3228,6 +3231,7 @@ _copyInsertStmt(const InsertStmt *from)
 	COPY_NODE_FIELD(returningList);
 	COPY_NODE_FIELD(withClause);
 	COPY_SCALAR_FIELD(override);
+	COPY_NODE_FIELD(execStmt);
 
 	return newnode;
 }
@@ -3483,6 +3487,10 @@ _copyCallStmt(const CallStmt *from)
 	COPY_NODE_FIELD(funccall);
 	COPY_NODE_FIELD(funcexpr);
 	COPY_NODE_FIELD(outargs);
+	COPY_SCALAR_FIELD(relation);
+	COPY_NODE_FIELD(attrnos);
+	COPY_SCALAR_FIELD(retdesc);
+	COPY_SCALAR_FIELD(dest);
 
 	return newnode;
 }
@@ -3537,6 +3545,7 @@ CopyCreateStmtFields(const CreateStmt *from, CreateStmt *newnode)
 	COPY_STRING_FIELD(tablespacename);
 	COPY_STRING_FIELD(accessMethod);
 	COPY_SCALAR_FIELD(if_not_exists);
+	COPY_SCALAR_FIELD(tsql_tabletype);
 }
 
 static CreateStmt *
@@ -3748,6 +3757,8 @@ _copyDoStmt(const DoStmt *from)
 	DoStmt	   *newnode = makeNode(DoStmt);
 
 	COPY_NODE_FIELD(args);
+	COPY_SCALAR_FIELD(relation);
+	COPY_NODE_FIELD(attrnos);
 
 	return newnode;
 }
@@ -4604,6 +4615,7 @@ _copyCreateSchemaStmt(const CreateSchemaStmt *from)
 	COPY_NODE_FIELD(authrole);
 	COPY_NODE_FIELD(schemaElts);
 	COPY_SCALAR_FIELD(if_not_exists);
+	COPY_LOCATION_FIELD(location);
 
 	return newnode;
 }
@@ -4922,6 +4934,7 @@ _copyValue(const Value *from)
 		case T_Float:
 		case T_String:
 		case T_BitString:
+		case T_TSQL_HexString:
 			COPY_STRING_FIELD(val.str);
 			break;
 		case T_Null:
@@ -5322,6 +5335,7 @@ copyObjectImpl(const void *from)
 		case T_Float:
 		case T_String:
 		case T_BitString:
+		case T_TSQL_HexString:
 		case T_Null:
 			retval = _copyValue(from);
 			break;

@@ -47,6 +47,7 @@
 #include "commands/async.h"
 #include "commands/prepare.h"
 #include "commands/trigger.h"
+#include "commands/typecmds.h"
 #include "commands/user.h"
 #include "commands/vacuum.h"
 #include "commands/variable.h"
@@ -239,6 +240,8 @@ static bool check_default_with_oids(bool *newval, void **extra, GucSource source
 static ConfigVariable *ProcessConfigFileInternal(GucContext context,
 												 bool applySettings, int elevel);
 
+guc_push_old_value_hook_type guc_push_old_value_hook = NULL;
+validate_set_config_function_hook_type validate_set_config_function_hook = NULL;
 
 /*
  * Options for enum values defined in this module.
@@ -540,6 +543,13 @@ static struct config_enum_entry default_toast_compression_options[] = {
 	{NULL, 0, false}
 };
 
+const struct config_enum_entry sql_dialect_options[] = {
+	{"postgres", SQL_DIALECT_PG, false},
+	{"tsql", SQL_DIALECT_TSQL, false},
+	{"pg", SQL_DIALECT_PG, true},
+	{NULL, 0, false}
+};
+
 /*
  * Options for enum values stored in other modules
  */
@@ -603,6 +613,7 @@ char	   *external_pid_file;
 char	   *pgstat_temp_directory;
 
 char	   *application_name;
+char 	   *pltsql_database_name;
 
 int			tcp_keepalives_idle;
 int			tcp_keepalives_interval;
@@ -1129,6 +1140,16 @@ static struct config_bool ConfigureNamesBool[] =
 		},
 		&enable_parallel_hash,
 		true,
+		NULL, NULL, NULL
+	},
+	{
+		{"enable_domain_typmod", PGC_SUSET, COMPAT_OPTIONS_PREVIOUS,
+			gettext_noop("Allow type modifer to be used on a domain."),
+			NULL,
+			GUC_NO_SHOW_ALL | GUC_NOT_IN_SAMPLE | GUC_DISALLOW_IN_FILE | GUC_DISALLOW_IN_AUTO_FILE
+		},
+		&enable_domain_typmod,
+		false,
 		NULL, NULL, NULL
 	},
 	{
@@ -4954,6 +4975,17 @@ static struct config_enum ConfigureNamesEnum[] =
 		NULL, NULL, NULL
 	},
 
+	{
+		{"babelfishpg_tsql.sql_dialect", PGC_USERSET, COMPAT_OPTIONS_PREVIOUS,
+			gettext_noop("Sets the dialect for SQL commands."),
+			NULL,
+			GUC_NO_SHOW_ALL | GUC_NOT_IN_SAMPLE | GUC_DISALLOW_IN_FILE | GUC_DISALLOW_IN_AUTO_FILE
+		},
+		&sql_dialect,
+		SQL_DIALECT_PG, sql_dialect_options,
+		NULL, assign_sql_dialect, NULL
+	},
+
 	/* End-of-list marker */
 	{
 		{NULL, 0, 0, NULL, NULL}, NULL, 0, NULL, NULL, NULL, NULL
@@ -6087,6 +6119,12 @@ static void
 push_old_value(struct config_generic *gconf, GucAction action)
 {
 	GucStack   *stack;
+
+	if (guc_push_old_value_hook && strncmp(gconf->name, "babelfishpg_tsql", strlen("babelfishpg_tsql")) == 0)
+	{
+		guc_push_old_value_hook(gconf, action);
+		return;
+	}
 
 	/* If we're not inside a nest level, do nothing */
 	if (GUCNestLevel == 0)
@@ -8869,6 +8907,9 @@ set_config_by_name(PG_FUNCTION_ARGS)
 		is_local = false;
 	else
 		is_local = PG_GETARG_BOOL(2);
+
+	if (validate_set_config_function_hook)
+		validate_set_config_function_hook(name, value);
 
 	/* Note SET DEFAULT (argstring == NULL) is equivalent to RESET */
 	(void) set_config_option(name,
@@ -12414,6 +12455,7 @@ check_recovery_target_time(char **newval, void **extra, GucSource source)
 			}
 		}
 	}
+	
 	return true;
 }
 
@@ -12518,6 +12560,24 @@ check_default_with_oids(bool *newval, void **extra, GucSource source)
 	}
 
 	return true;
+}
+
+void
+guc_set_extra_field(struct config_generic *gconf, void **field, void *newval)
+{
+	set_extra_field(gconf, field, newval);
+}
+
+void
+guc_set_string_field(struct config_string *conf, char **field, char *newval)
+{
+	set_string_field(conf, field, newval);
+}
+
+void
+guc_set_stack_value(struct config_generic *gconf, config_var_value *val)
+{
+	set_stack_value(gconf,  val);
 }
 
 #include "guc-file.c"

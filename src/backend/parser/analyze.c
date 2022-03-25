@@ -57,6 +57,21 @@
 /* Hook for plugins to get control at end of parse analysis */
 post_parse_analyze_hook_type post_parse_analyze_hook = NULL;
 
+/* Hook for plugins to get control with raw parse tree */
+pre_parse_analyze_hook_type pre_parse_analyze_hook = NULL;
+
+/* Hook to handle qualifiers in returning list for output clause */
+pre_transform_returning_hook_type pre_transform_returning_hook = NULL;
+
+/* Hook to read a global variable with info on output clause */
+get_output_clause_status_hook_type get_output_clause_status_hook = NULL;
+
+/* Hook to perform self-join transformation on UpdateStmt in output clause */
+pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook = NULL;
+
+/* Hook for plugins to get control after an insert row transform */
+post_transform_insert_row_hook_type post_transform_insert_row_hook = NULL;
+
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
 static Query *transformInsertStmt(ParseState *pstate, InsertStmt *stmt);
@@ -124,6 +139,9 @@ parse_analyze(RawStmt *parseTree, const char *sourceText,
 
 	pstate->p_queryEnv = queryEnv;
 
+	if (pre_parse_analyze_hook)
+		(*pre_parse_analyze_hook) (pstate, parseTree);
+
 	query = transformTopLevelStmt(pstate, parseTree);
 
 	if (IsQueryIdEnabled())
@@ -159,6 +177,9 @@ parse_analyze_varparams(RawStmt *parseTree, const char *sourceText,
 	pstate->p_sourcetext = sourceText;
 
 	parse_variable_parameters(pstate, paramTypes, numParams);
+
+	if (pre_parse_analyze_hook)
+		(*pre_parse_analyze_hook) (pstate, parseTree);
 
 	query = transformTopLevelStmt(pstate, parseTree);
 
@@ -210,7 +231,7 @@ parse_sub_analyze(Node *parseTree, ParseState *parentParseState,
  * from the RawStmt into the finished Query.
  */
 Query *
-transformTopLevelStmt(ParseState *pstate, RawStmt *parseTree)
+transformTopLevelStmt(ParseState *pstate, RawStmt *parseTree) ///
 {
 	Query	   *result;
 
@@ -471,6 +492,9 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 	qual = transformWhereClause(pstate, stmt->whereClause,
 								EXPR_KIND_WHERE, "WHERE");
 
+	if (pre_transform_returning_hook)
+			(*pre_transform_returning_hook) (qry->commandType, stmt->returningList, pstate);
+	
 	qry->returningList = transformReturningList(pstate, stmt->returningList);
 
 	/* done building the range table and jointree */
@@ -586,6 +610,39 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 	/* Validate stmt->cols list, or build default list if no list given */
 	icolumns = checkInsertTargets(pstate, stmt->cols, &attrnos);
 	Assert(list_length(icolumns) == list_length(attrnos));
+
+	/*
+	 * For INSERT ... EXECUTE, transform the CallStmt/DoStmt, and attach it to
+	 * the Query's utilityStmt.
+	 */
+	if (stmt->execStmt)
+	{
+		switch (nodeTag(stmt->execStmt))
+		{
+			case T_CallStmt:
+				{
+					Query *callStmtQry = transformCallStmt(pstate, (CallStmt *)stmt->execStmt);
+					((CallStmt *) stmt->execStmt)->relation = pstate->p_target_relation->rd_id;
+					((CallStmt *) stmt->execStmt)->attrnos = attrnos;
+					((CallStmt *) stmt->execStmt)->retdesc = NULL;
+					((CallStmt *) stmt->execStmt)->dest = NULL;
+					qry->utilityStmt = callStmtQry->utilityStmt;
+				}
+				break;
+			case T_DoStmt:
+				((DoStmt *) stmt->execStmt)->relation = pstate->p_target_relation->rd_id;
+				((DoStmt *) stmt->execStmt)->attrnos = attrnos;
+				qry->utilityStmt = stmt->execStmt;
+				break;
+			default:
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("Unrecognized stmt in INSERT EXEC"),
+						 parser_errposition(pstate,
+											exprLocation((Node *) stmt->execStmt))));
+				break;
+		}
+	}
 
 	/*
 	 * Determine which variant of INSERT we have.
@@ -847,6 +904,9 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 									  false);
 	}
 
+	if (post_transform_insert_row_hook)
+		(*post_transform_insert_row_hook) (icolumns, exprList);
+
 	/*
 	 * Generate query's target list using the computed list of expressions.
 	 * Also, mark all the target columns as needing insert permissions.
@@ -890,8 +950,13 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 
 	/* Process RETURNING, if any. */
 	if (stmt->returningList)
+	{
+		if (pre_transform_returning_hook)
+			(*pre_transform_returning_hook) (qry->commandType, stmt->returningList, pstate);
+		
 		qry->returningList = transformReturningList(pstate,
 													stmt->returningList);
+	}
 
 	/* done building the range table and jointree */
 	qry->rtable = pstate->p_rtable;
@@ -2353,7 +2418,11 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 	nsitem->p_lateral_only = false;
 	nsitem->p_lateral_ok = true;
 
-	qual = transformWhereClause(pstate, stmt->whereClause,
+	/* Check if self-join transformation is needed for update satatement with output clause */
+	if (pre_output_clause_transformation_hook)
+		qual = (*pre_output_clause_transformation_hook) (pstate, stmt, qry->commandType);
+	else
+		qual = transformWhereClause(pstate, stmt->whereClause,
 								EXPR_KIND_WHERE, "WHERE");
 
 	qry->returningList = transformReturningList(pstate, stmt->returningList);

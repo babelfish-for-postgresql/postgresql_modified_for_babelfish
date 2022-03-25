@@ -37,6 +37,7 @@
 #include "catalog/pg_type.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
+#include "parser/parser.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/catcache.h"
@@ -2503,9 +2504,22 @@ getBaseTypeAndTypmod(Oid typid, int32 *typmod)
 			break;
 		}
 
-		Assert(*typmod == -1);
 		typid = typTup->typbasetype;
-		*typmod = typTup->typtypmod;
+
+		/*
+		 * Usually typmod is not allowed for domain. But
+		 * enable_domain_typmod enables typmod to be used with
+		 * domains. So if typmod is specified for such a domain, we don't
+		 * look up the base typmod in typTup->typtypmod.
+		 * Only lookup typtypmod (the original typmod in create domain, e.g. create
+		 * domain varchar10 as varchar(10), 10 is typtypmod) if typmod is not
+		 * specified.
+		 * Typmod is allowed for domain only when enable_domain_typmod
+		 * is enabled when executing the CREATE DOMAIN Statement,
+		 * see DefineDomain for details.
+		 */
+		if (*typmod == -1)
+			*typmod = typTup->typtypmod;
 
 		ReleaseSysCache(tup);
 	}

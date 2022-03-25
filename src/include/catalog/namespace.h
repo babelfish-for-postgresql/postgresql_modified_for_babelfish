@@ -76,6 +76,12 @@ typedef enum RVROption
 typedef void (*RangeVarGetRelidCallback) (const RangeVar *relation, Oid relId,
 										  Oid oldRelId, void *callback_arg);
 
+/*
+ * Hook for additional temporary relation lookup
+ */
+typedef Oid (*relname_lookup_hook_type) (const char *relname, Oid relnamespace);
+extern PGDLLIMPORT relname_lookup_hook_type relname_lookup_hook;
+
 #define RangeVarGetRelid(relation, lockmode, missing_ok) \
 	RangeVarGetRelidExtended(relation, lockmode, \
 							 (missing_ok) ? RVR_MISSING_OK : 0, NULL, NULL)
@@ -94,6 +100,7 @@ extern bool RelationIsVisible(Oid relid);
 
 extern Oid	TypenameGetTypid(const char *typname);
 extern Oid	TypenameGetTypidExtended(const char *typname, bool temp_ok);
+extern Oid	typenameGetSchemaOID(const char *typname, bool temp_ok);
 extern bool TypeIsVisible(Oid typid);
 
 extern FuncCandidateList FuncnameGetCandidates(List *names,

@@ -64,6 +64,7 @@
 #include "utils/guc.h"
 #include "utils/inval.h"
 #include "utils/memutils.h"
+#include "utils/queryenvironment.h"
 #include "utils/relmapper.h"
 #include "utils/snapmgr.h"
 #include "utils/timeout.h"
@@ -400,7 +401,6 @@ IsAbortedTransactionBlockState(void)
 	return false;
 }
 
-
 /*
  *	GetTopTransactionId
  *
@@ -576,6 +576,13 @@ AssignTransactionId(TransactionState s)
 	/* Assert that caller didn't screw up */
 	Assert(!FullTransactionIdIsValid(s->fullTransactionId));
 	Assert(s->state == TRANS_INPROGRESS);
+
+	if (AbortCurTransaction)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_TRANSACTION_ROLLBACK),
+				 errmsg("The current transaction cannot be committed and cannot support operations that write to the log file. Roll back the transaction.")));
+	}
 
 	/*
 	 * Workers synchronize transaction state at the beginning of each parallel
@@ -6152,4 +6159,103 @@ MarkSubTransactionAssigned(void)
 	Assert(IsSubTransactionAssignmentPending());
 
 	CurrentTransactionState->assigned = true;
+}
+
+uint32	NestedTranCount = 0;
+bool	AbortCurTransaction = false;
+
+/*
+ *	IsTopTransactionName
+ *	Transaction name is stored in savepoint field.
+ *	Returns true either if given name is NULL or
+ *	it only matches with root transaction name
+ *
+ */
+bool
+IsTopTransactionName(const char *name)
+{
+	TransactionState target;
+	TransactionState s = CurrentTransactionState;
+
+	if (name == NULL)
+		return true;
+
+	for (target = s; PointerIsValid(target); target = target->parent)
+	{
+		if (PointerIsValid(target->name) && strcmp(target->name, name) == 0)
+			break;
+	}
+
+	if (PointerIsValid(target) && target->nestingLevel == 1)
+		return true;
+
+	return false;
+}
+
+/*
+ *	SetTopTransactionName
+ *	For top transaction, set transaction name.
+ *
+ */
+void
+SetTopTransactionName(const char *name)
+{
+	TransactionState s = CurrentTransactionState;
+	Assert(name != NULL);
+	s->name = MemoryContextStrdup(TopTransactionContext, name);
+}
+
+/*
+ * IsTrasactionBlockActive
+ * If a transaction block is already in progress
+ *
+ */
+bool
+IsTransactionBlockActive(void)
+{
+	TransactionState s = CurrentTransactionState;
+	return (s->blockState == TBLOCK_INPROGRESS ||
+			s->blockState == TBLOCK_PARALLEL_INPROGRESS ||
+			s->blockState == TBLOCK_SUBINPROGRESS);
+}
+
+/*
+ * RollbackAndReleaseSavepoint
+ * After rollback to savepoint, postgres
+ * keeps the savepoint in restart state
+ * to recreate it during commit command.
+ * TSQL will cleanup the savepoint instead
+ * to match rollback + release behavior
+ *
+ */
+void
+RollbackAndReleaseSavepoint(const char *name)
+{
+	TransactionState target;
+	TransactionState s = CurrentTransactionState;
+
+	if (name == NULL)
+		elog(FATAL, "RollbackAndReleaseSavepoint: NULL savepoint name");
+
+	for (target = s; PointerIsValid(target); target = target->parent)
+	{
+		if (PointerIsValid(target->name) && strcmp(target->name, name) == 0)
+			break;
+		if (target->blockState != TBLOCK_SUBABORT_PENDING &&
+			target->blockState != TBLOCK_SUBABORT_END)
+			elog(FATAL, "RollbackAndReleaseSavepoint: unexpected state %s",
+				 BlockStateAsString(target->blockState));
+	}
+
+	if (!PointerIsValid(target))
+		elog(FATAL, "RollbackAndReleaseSavepoint: savepoint %s not found",
+			 name);
+
+	if (target->blockState == TBLOCK_SUBRESTART)
+		target->blockState = TBLOCK_SUBABORT_PENDING;
+	else if (target->blockState == TBLOCK_SUBABORT_RESTART)
+		target->blockState = TBLOCK_SUBABORT_END;
+	else
+		elog(FATAL, "RollbackAndReleaseSavepoint: unexpected state %s",
+			 BlockStateAsString(target->blockState));
 }

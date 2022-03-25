@@ -2186,6 +2186,7 @@ _equalCreateSchemaStmt(const CreateSchemaStmt *a, const CreateSchemaStmt *b)
 	COMPARE_NODE_FIELD(authrole);
 	COMPARE_NODE_FIELD(schemaElts);
 	COMPARE_SCALAR_FIELD(if_not_exists);
+	COMPARE_LOCATION_FIELD(location);
 
 	return true;
 }
@@ -2469,6 +2470,7 @@ _equalResTarget(const ResTarget *a, const ResTarget *b)
 	COMPARE_NODE_FIELD(indirection);
 	COMPARE_NODE_FIELD(val);
 	COMPARE_LOCATION_FIELD(location);
+	COMPARE_LOCATION_FIELD(name_location);
 
 	return true;
 }
@@ -3095,6 +3097,7 @@ _equalValue(const Value *a, const Value *b)
 		case T_Float:
 		case T_String:
 		case T_BitString:
+		case T_TSQL_HexString:
 			COMPARE_STRING_FIELD(val.str);
 			break;
 		case T_Null:
@@ -3326,6 +3329,7 @@ equal(const void *a, const void *b)
 		case T_Float:
 		case T_String:
 		case T_BitString:
+		case T_TSQL_HexString:
 		case T_Null:
 			retval = _equalValue(a, b);
 			break;

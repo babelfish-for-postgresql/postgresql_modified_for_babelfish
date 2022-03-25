@@ -1,4 +1,4 @@
-/*-------------------------------------------------------------------------
+/*------------------------------------------------------------------------
  *
  * postgres.c
  *	  POSTGRES C Backend Interface
@@ -41,6 +41,7 @@
 #include "access/xact.h"
 #include "catalog/pg_type.h"
 #include "commands/async.h"
+#include "commands/extension.h"
 #include "commands/prepare.h"
 #include "executor/spi.h"
 #include "jit/jit.h"
@@ -78,9 +79,12 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/ps_status.h"
+#include "utils/queryenvironment.h"
 #include "utils/snapmgr.h"
 #include "utils/timeout.h"
 #include "utils/timestamp.h"
+
+#include "nodes/nodes.h"
 
 /* ----------------
  *		global variables
@@ -188,10 +192,8 @@ static StringInfoData row_description_buf;
  */
 static int	InteractiveBackend(StringInfo inBuf);
 static int	interactive_getc(void);
-static int	SocketBackend(StringInfo inBuf);
 static int	ReadCommand(StringInfo inBuf);
 static void forbidden_in_wal_sender(char firstchar);
-static bool check_log_statement(List *stmt_list);
 static int	errdetail_execute(List *raw_parsetree_list);
 static int	errdetail_params(ParamListInfo params);
 static int	errdetail_abort(void);
@@ -332,15 +334,15 @@ interactive_getc(void)
 }
 
 /* ----------------
- *	SocketBackend()		Is called for frontend-backend connections
+ *	SocketBackendReadCommand()	Is called for frontend-backend connections
  *
  *	Returns the message type code, and loads message body data into inBuf.
  *
  *	EOF is returned if the connection is lost.
  * ----------------
  */
-static int
-SocketBackend(StringInfo inBuf)
+int
+SocketBackendReadCommand(StringInfo inBuf)
 {
 	int			qtype;
 	int			maxmsglen;
@@ -473,7 +475,7 @@ ReadCommand(StringInfo inBuf)
 	int			result;
 
 	if (whereToSendOutput == DestRemote)
-		result = SocketBackend(inBuf);
+		result = MyProcPort->protocol_config->fn_read_command(inBuf);
 	else
 		result = InteractiveBackend(inBuf);
 	return result;
@@ -701,6 +703,9 @@ pg_analyze_and_rewrite_params(RawStmt *parsetree,
 	pstate->p_sourcetext = query_string;
 	pstate->p_queryEnv = queryEnv;
 	(*parserSetup) (pstate, parserSetupArg);
+
+	if (pre_parse_analyze_hook)
+		(*pre_parse_analyze_hook) (pstate, parsetree);
 
 	query = transformTopLevelStmt(pstate, parsetree);
 
@@ -1268,7 +1273,10 @@ exec_simple_query(const char *query_string)
 		 * command the client sent, regardless of rewriting. (But a command
 		 * aborted by error will not send an EndCommand report at all.)
 		 */
-		EndCommand(&qc, dest, false);
+		if (MyProcPort)
+			MyProcPort->protocol_config->fn_end_command(&qc, dest);
+		else
+			EndCommand(&qc, dest, false);
 
 		/* Now we may drop the per-parsetree context, if one was created. */
 		if (per_parsetree_context)
@@ -2233,7 +2241,10 @@ exec_execute_message(const char *portal_name, long max_rows)
 		}
 
 		/* Send appropriate CommandComplete to client */
-		EndCommand(&qc, dest, false);
+		if (MyProcPort)
+			MyProcPort->protocol_config->fn_end_command(&qc, dest);
+		else
+			EndCommand(&qc, dest, false);
 	}
 	else
 	{
@@ -2281,7 +2292,7 @@ exec_execute_message(const char *portal_name, long max_rows)
  * stmt_list can be either raw grammar output or a list of planned
  * statements
  */
-static bool
+bool
 check_log_statement(List *stmt_list)
 {
 	ListCell   *stmt_item;
@@ -3937,6 +3948,8 @@ PostgresMain(int argc, char *argv[],
 	volatile bool send_ready_for_query = true;
 	bool		idle_in_transaction_timeout_enabled = false;
 	bool		idle_session_timeout_enabled = false;
+	const char*	pgtsql_library_name = "babelfishpg_tsql";
+	const char*	pgtsql_common_library_name = "babelfishpg_common";
 
 	/* Initialize startup process environment if necessary. */
 	if (!IsUnderPostmaster)
@@ -4055,6 +4068,7 @@ PostgresMain(int argc, char *argv[],
 	/* Early initialization */
 	BaseInit();
 
+
 	/*
 	 * Create a per-backend PGPROC struct in shared memory, except in the
 	 * EXEC_BACKEND case where this was done in SubPostmasterMain. We must do
@@ -4123,15 +4137,12 @@ PostgresMain(int argc, char *argv[],
 	/*
 	 * Send this backend's cancellation info to the frontend.
 	 */
-	if (whereToSendOutput == DestRemote)
+	if (whereToSendOutput == DestRemote &&
+		PG_PROTOCOL_MAJOR(FrontendProtocol) >= 2)
 	{
-		StringInfoData buf;
-
-		pq_beginmessage(&buf, 'K');
-		pq_sendint32(&buf, (int32) MyProcPid);
-		pq_sendint32(&buf, (int32) MyCancelKey);
-		pq_endmessage(&buf);
-		/* Need not flush since ReadyForQuery will do it. */
+		if (MyProcPort && MyProcPort->protocol_config->fn_send_cancel_key)
+			MyProcPort->protocol_config->fn_send_cancel_key(MyProcPid,
+														 MyCancelKey);
 	}
 
 	/* Welcome banner for standalone case */
@@ -4166,6 +4177,36 @@ PostgresMain(int argc, char *argv[],
 	 */
 	if (!IsUnderPostmaster)
 		PgStartTime = GetCurrentTimestamp();
+
+	/*
+	 * We want to load babelfishpg_tsql library beforehand and make sure that the
+	 * queries it needs to run as part of its initializatin is properly
+	 * enclosed inside a transaction, with an active snapshot.
+	 *
+	 * This is intended as a temporary fix for BABEL-669.
+	 *
+	 * FIXME: ideally we should remove the SQL queries from the babelfishpg_tsql 
+	 * initialization function. Once we fix that, we can remove the below 
+	 * code, and just add 'babelfishpg_tsql' to the 'session_preload_libraries'
+	 * or 'local_preload_libraries' guc parameter. Or, we do not preload
+	 * babelfishpg_tsql at all, but just load when needed, as we did before.
+	 */
+	start_xact_command();
+	PushActiveSnapshot(GetTransactionSnapshot());
+	if (get_extension_oid(pgtsql_library_name, true) != InvalidOid)
+	{
+		/*
+		 * babelfishpg_tsql extension depends on babelfishpg_common, so
+		 * babelfishpg_common must be loaded first
+		 */
+		load_libraries(pgtsql_common_library_name, NULL, false);
+		load_libraries(pgtsql_library_name, NULL, false);
+	}
+	PopActiveSnapshot();
+	finish_xact_command();
+
+	/* create the top level query environment here */
+	create_queryEnv2(CacheMemoryContext, true);
 
 	/*
 	 * POSTGRES main processing loop begins here
@@ -4223,7 +4264,8 @@ PostgresMain(int argc, char *argv[],
 		DoingCommandRead = false;
 
 		/* Make sure libpq is in a good state */
-		pq_comm_reset();
+		if (MyProcPort && MyProcPort->protocol_config->fn_comm_reset)
+			MyProcPort->protocol_config->fn_comm_reset();
 
 		/* Report the error to the client and/or server log */
 		EmitErrorReport();
@@ -4286,7 +4328,8 @@ PostgresMain(int argc, char *argv[],
 		 * messages from the client, so there isn't much we can do with the
 		 * connection anymore.
 		 */
-		if (pq_is_reading_msg())
+		if (MyProcPort && MyProcPort->protocol_config->fn_is_reading_msg &&
+			MyProcPort->protocol_config->fn_is_reading_msg())
 			ereport(FATAL,
 					(errcode(ERRCODE_PROTOCOL_VIOLATION),
 					 errmsg("terminating connection because protocol synchronization was lost")));
@@ -4400,7 +4443,10 @@ PostgresMain(int argc, char *argv[],
 			/* Report any recently-changed GUC options */
 			ReportChangedGUCOptions();
 
-			ReadyForQuery(whereToSendOutput);
+			if (MyProcPort && MyProcPort->protocol_config->fn_send_ready_for_query)
+				MyProcPort->protocol_config->fn_send_ready_for_query(whereToSendOutput);
+			else
+				ReadyForQuery(whereToSendOutput);
 			send_ready_for_query = false;
 		}
 
@@ -4458,6 +4504,17 @@ PostgresMain(int argc, char *argv[],
 			ProcessConfigFile(PGC_SIGHUP);
 		}
 
+		/*
+		 * If firstchar is EOF, then we need to disconnect, ortherwise
+		 * call the protocol hook to process the request.
+		 */
+		if (firstchar != EOF && MyProcPort &&
+			MyProcPort->protocol_config->fn_process_command)
+		{
+			firstchar = MyProcPort->protocol_config->fn_process_command();
+			send_ready_for_query = true;
+			continue;
+		}
 		/*
 		 * (7) process the command.  But ignore it if we're skipping till
 		 * Sync.

@@ -39,4 +39,7 @@ extern Oid	GetNewOidWithIndex(Relation relation, Oid indexId,
 extern Oid	GetNewRelFileNode(Oid reltablespace, Relation pg_class,
 							  char relpersistence);
 
+typedef bool (*IsExtendedCatalogHookType) (Oid relationId);
+extern IsExtendedCatalogHookType IsExtendedCatalogHook;
+
 #endif							/* CATALOG_H */

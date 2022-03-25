@@ -67,6 +67,7 @@
 #include "utils/datum.h"
 #include "utils/inval.h"
 #include "utils/lsyscache.h"
+#include "utils/queryenvironment.h"
 #include "utils/relcache.h"
 #include "utils/snapmgr.h"
 #include "utils/spccache.h"
@@ -6017,6 +6018,10 @@ heap_inplace_update(Relation relation, HeapTuple tuple)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_TRANSACTION_STATE),
 				 errmsg("cannot update tuples during a parallel operation")));
+
+	/* Don't proceed further if the tuple is for an ENR. We just update there.*/
+	if (ENRupdateTuple(relation, tuple))
+		return;
 
 	buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(&(tuple->t_self)));
 	LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);

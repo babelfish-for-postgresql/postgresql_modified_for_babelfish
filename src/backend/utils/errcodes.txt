@@ -494,3 +494,10 @@ Section: Class XX - Internal Error
 XX000    E    ERRCODE_INTERNAL_ERROR                                         internal_error
 XX001    E    ERRCODE_DATA_CORRUPTED                                         data_corrupted
 XX002    E    ERRCODE_INDEX_CORRUPTED                                        index_corrupted
+
+Section: Class YY - PLtsql Error
+
+# (PLtsql-specific error class)
+YY000    E    ERRCODE_PLTSQL_RAISERROR                                       pltsql_raiserror
+YY001    E    ERRCODE_PLTSQL_THROW                                           pltsql_throw
+YY002    E    ERRCODE_PLTSQL_ERROR_NOT_MAPPED                                pltsql_error_not_mapped

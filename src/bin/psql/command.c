@@ -128,6 +128,7 @@ static backslashResult exec_command_sf_sv(PsqlScanState scan_state, bool active_
 static backslashResult exec_command_t(PsqlScanState scan_state, bool active_branch);
 static backslashResult exec_command_T(PsqlScanState scan_state, bool active_branch);
 static backslashResult exec_command_timing(PsqlScanState scan_state, bool active_branch);
+static backslashResult exec_command_tsql(PsqlScanState scan_state, bool active_branch);
 static backslashResult exec_command_unset(PsqlScanState scan_state, bool active_branch,
 										  const char *cmd);
 static backslashResult exec_command_write(PsqlScanState scan_state, bool active_branch,
@@ -396,6 +397,8 @@ exec_command(const char *cmd,
 		status = exec_command_T(scan_state, active_branch);
 	else if (strcmp(cmd, "timing") == 0)
 		status = exec_command_timing(scan_state, active_branch);
+	else if (strcmp(cmd, "tsql") == 0)
+		status = exec_command_tsql(scan_state, active_branch);
 	else if (strcmp(cmd, "unset") == 0)
 		status = exec_command_unset(scan_state, active_branch, cmd);
 	else if (strcmp(cmd, "w") == 0 || strcmp(cmd, "write") == 0)
@@ -2549,6 +2552,40 @@ exec_command_timing(PsqlScanState scan_state, bool active_branch)
 				puts(_("Timing is on."));
 			else
 				puts(_("Timing is off."));
+		}
+		free(opt);
+	}
+	else
+		ignore_slash_options(scan_state);
+
+	return success ? PSQL_CMD_SKIP_LINE : PSQL_CMD_ERROR;
+}
+
+/*
+ * \tsql - enable/disable TSQL features (currently changes
+ * end-of-batch indicator from ';' to GO)
+ */
+static backslashResult
+exec_command_tsql(PsqlScanState scan_state, bool active_branch)
+{
+	bool		success = true;
+
+	if (active_branch)
+	{
+		char	   *opt = psql_scan_slash_option(scan_state,
+												 OT_NORMAL, NULL, false);
+
+		if (opt)
+			success = ParseVariableBool(opt, "\\tsql", &pset.tsql);
+		else
+			pset.tsql = !pset.tsql;
+
+		if (!pset.quiet)
+		{
+			if (pset.tsql)
+				puts(_("TSQL features are enabled."));
+			else
+				puts(_("TSQL features are disabled."));
 		}
 		free(opt);
 	}

@@ -100,6 +100,25 @@ pg_bswap64(uint64 x)
 }
 #endif							/* HAVE__BUILTIN_BSWAP64 */
 
+union num128as32
+{
+	uint128 v;
+	uint32 d[4];
+};
+
+static inline uint128
+pg_bswap128(uint128 num)
+{
+	union num128as32 u1, u2;
+	u1.v = num;
+
+	u2.d[3] = pg_bswap32(u1.d[0]);
+	u2.d[2] = pg_bswap32(u1.d[1]);
+	u2.d[1] = pg_bswap32(u1.d[2]);
+	u2.d[0] = pg_bswap32(u1.d[3]);
+
+	return u2.v;
+}
 
 /*
  * Portable and fast equivalents for ntohs, ntohl, htons, htonl,
@@ -110,20 +129,24 @@ pg_bswap64(uint64 x)
 #define pg_hton16(x)		(x)
 #define pg_hton32(x)		(x)
 #define pg_hton64(x)		(x)
+#define pg_hton128(x)		(x)
 
 #define pg_ntoh16(x)		(x)
 #define pg_ntoh32(x)		(x)
 #define pg_ntoh64(x)		(x)
+#define pg_ntoh128(x)		(x)
 
 #else
 
 #define pg_hton16(x)		pg_bswap16(x)
 #define pg_hton32(x)		pg_bswap32(x)
 #define pg_hton64(x)		pg_bswap64(x)
+#define pg_hton128(x)		pg_bswap128(x)
 
 #define pg_ntoh16(x)		pg_bswap16(x)
 #define pg_ntoh32(x)		pg_bswap32(x)
 #define pg_ntoh64(x)		pg_bswap64(x)
+#define pg_ntoh128(x)		pg_bswap128(x)
 
 #endif							/* WORDS_BIGENDIAN */
 

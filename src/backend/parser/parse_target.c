@@ -20,6 +20,7 @@
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
+#include "parser/parser.h" /* needed for sql_dialect */
 #include "parser/parse_coerce.h"
 #include "parser/parse_expr.h"
 #include "parser/parse_func.h"
@@ -31,6 +32,12 @@
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/typcache.h"
+
+pre_transform_target_entry_hook_type pre_transform_target_entry_hook = NULL;
+resolve_target_list_unknowns_hook_type resolve_target_list_unknowns_hook = NULL;
+
+/* These parameters are set by GUC */
+bool ansi_qualified_update_set_target;
 
 static void markTargetListOrigin(ParseState *pstate, TargetEntry *tle,
 								 Var *var, int levelsup);
@@ -175,6 +182,9 @@ transformTargetList(ParseState *pstate, List *targetlist,
 			}
 		}
 
+		if (pre_transform_target_entry_hook)
+			(*pre_transform_target_entry_hook)(res, pstate, exprKind);
+
 		/*
 		 * Not "something.*", or we want to treat that as a plain whole-row
 		 * variable, so transform as a single expression
@@ -203,7 +213,6 @@ transformTargetList(ParseState *pstate, List *targetlist,
 
 	return p_target;
 }
-
 
 /*
  * transformExpressionList()
@@ -290,6 +299,9 @@ void
 resolveTargetListUnknowns(ParseState *pstate, List *targetlist)
 {
 	ListCell   *l;
+
+	if (resolve_target_list_unknowns_hook)
+		(*resolve_target_list_unknowns_hook)(pstate, targetlist);
 
 	foreach(l, targetlist)
 	{
@@ -1031,8 +1043,15 @@ checkInsertTargets(ParseState *pstate, List *cols, List **attrnos)
 			if (attr->attisdropped)
 				continue;
 
+			if (sql_dialect == SQL_DIALECT_TSQL)
+			{
+				if (attr->attgenerated || attr->attidentity == ATTRIBUTE_IDENTITY_ALWAYS)
+					continue;
+			}
+
 			col = makeNode(ResTarget);
 			col->name = pstrdup(NameStr(attr->attname));
+			col->name_location = -1;
 			col->indirection = NIL;
 			col->val = NULL;
 			col->location = -1;

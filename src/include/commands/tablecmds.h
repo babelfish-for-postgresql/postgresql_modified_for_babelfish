@@ -20,6 +20,7 @@
 #include "nodes/parsenodes.h"
 #include "storage/lock.h"
 #include "utils/relcache.h"
+#include "parser/parse_node.h"
 
 struct AlterTableUtilityContext;	/* avoid including tcop/utility.h here */
 
@@ -102,5 +103,14 @@ extern void RangeVarCallbackOwnsRelation(const RangeVar *relation,
 										 Oid relId, Oid oldRelId, void *arg);
 extern bool PartConstraintImpliedByRelConstraint(Relation scanrel,
 												 List *partConstraint);
+
+typedef void (*InvokePreDropColumnHook_type) (Relation rel, AttrNumber attnum);
+extern PGDLLIMPORT InvokePreDropColumnHook_type InvokePreDropColumnHook;
+
+typedef void (*InvokePreAddConstraintsHook_type) (Relation rel, ParseState *pstate,
+												  List *newColDefaults);
+extern PGDLLIMPORT InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook;
+typedef bool (*check_extended_attoptions_hook_type) (Node *options);
+extern check_extended_attoptions_hook_type check_extended_attoptions_hook;
 
 #endif							/* TABLECMDS_H */

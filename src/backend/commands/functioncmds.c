@@ -51,6 +51,8 @@
 #include "commands/defrem.h"
 #include "commands/extension.h"
 #include "commands/proclang.h"
+#include "commands/trigger.h"
+#include "commands/tablecmds.h"
 #include "executor/execdesc.h"
 #include "executor/executor.h"
 #include "executor/functions.h"
@@ -58,6 +60,7 @@
 #include "miscadmin.h"
 #include "optimizer/optimizer.h"
 #include "parser/analyze.h"
+#include "parser/parser.h"
 #include "parser/parse_coerce.h"
 #include "parser/parse_collate.h"
 #include "parser/parse_expr.h"
@@ -76,6 +79,9 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 #include "utils/typcache.h"
+
+check_lang_as_clause_hook_type check_lang_as_clause_hook = NULL;
+write_stored_proc_probin_hook_type write_stored_proc_probin_hook = NULL;
 
 /*
  *	 Examine the RETURNS clause of the CREATE FUNCTION statement
@@ -804,6 +810,24 @@ compute_function_attributes(ParseState *pstate,
 						 parser_errposition(pstate, defel->location)));
 			windowfunc_item = defel;
 		}
+		else if (strcmp(defel->defname, "trigStmt") == 0)
+		{
+			/*
+			 * trigStmt is an implicit option in tsql dialect, we use this
+			 * mechanism to create tsql style function and trigger in one
+			 * statement.
+			 */
+			continue;
+		}
+		else if (strcmp(defel->defname, "tbltypStmt") == 0)
+		{
+			/*
+			 * tbltypStmt an implicit option in tsql dialect, that is already
+			 * handled in ProcessUtilitySlow(). So, here we just skip it without
+			 * throwing error.
+			 */
+			continue;
+		}
 		else if (compute_common_attribute(pstate,
 										  is_procedure,
 										  defel,
@@ -899,6 +923,11 @@ interpret_AS_clause(Oid languageOid, const char *languageName,
 				 errmsg("inline SQL function body only valid for language SQL")));
 
 	*sql_body_out = NULL;
+
+	/* Allow extension language to process the clause itself. */
+	if (check_lang_as_clause_hook && 
+			(*check_lang_as_clause_hook)(languageName, as, prosrc_str_p, probin_str_p))
+		return;
 
 	if (languageOid == ClanguageId)
 	{
@@ -1074,6 +1103,7 @@ CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
 	Form_pg_language languageStruct;
 	List	   *as_clause;
 	char		parallel;
+	ObjectAddress objAddr;
 
 	/* Convert list of names to a name and namespace */
 	namespaceId = QualifiedNameGetCreationNamespace(stmt->funcname,
@@ -1255,6 +1285,10 @@ CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
 						&prosrc_str, &probin_str, &prosqlbody,
 						pstate->p_sourcetext);
 
+	if (write_stored_proc_probin_hook)
+	{
+		(*write_stored_proc_probin_hook)(stmt, languageOid, &probin_str);
+	}
 	/*
 	 * Set default values for COST and ROWS depending on other parameters;
 	 * reject ROWS if it's not returnsSet.  NB: pg_dump knows these default
@@ -1285,7 +1319,7 @@ CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
 	 * And now that we have all the parameters, and know we're permitted to do
 	 * so, go ahead and create the function.
 	 */
-	return ProcedureCreate(funcname,
+	objAddr = ProcedureCreate(funcname,
 						   namespaceId,
 						   stmt->replace,
 						   returnsSet,
@@ -1312,6 +1346,8 @@ CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
 						   prosupport,
 						   procost,
 						   prorows);
+
+	return objAddr;
 }
 
 /*
@@ -2169,6 +2205,115 @@ ExecuteDoStmt(DoStmt *stmt, bool atomic)
 }
 
 /*
+ * ExecuteDoStmtInsertExec
+ *		Execute inline procedural-language code for INSERT EXEC
+ *
+ * Similar to ExecuteDoStmt(), but adjusted to work for INSERT EXEC
+ */
+void
+ExecuteDoStmtInsertExec(DoStmt *stmt, bool atomic, DestReceiver *dest)
+{
+	InlineCodeBlock *codeblock = makeNode(InlineCodeBlock);
+	ListCell   *arg;
+	DefElem    *as_item = NULL;
+	DefElem    *language_item = NULL;
+	char	   *language;
+	Oid			laninline;
+	HeapTuple	languageTuple;
+	Form_pg_language languageStruct;
+
+	/* Process options we got from gram.y */
+	foreach(arg, stmt->args)
+	{
+		DefElem    *defel = (DefElem *) lfirst(arg);
+
+		if (strcmp(defel->defname, "as") == 0)
+		{
+			if (as_item)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			as_item = defel;
+		}
+		else if (strcmp(defel->defname, "language") == 0)
+		{
+			if (language_item)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			language_item = defel;
+		}
+		else
+			elog(ERROR, "option \"%s\" not recognized",
+				 defel->defname);
+	}
+
+	if (as_item)
+		codeblock->source_text = strVal(as_item->arg);
+	else
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("no inline code specified")));
+
+	/* if LANGUAGE option wasn't specified, use the default (pltsql) */
+	if (language_item)
+		language = strVal(language_item->arg);
+	else
+		language = "pltsql";
+
+	/* Look up the language and validate permissions */
+	languageTuple = SearchSysCache1(LANGNAME, PointerGetDatum(language));
+	if (!HeapTupleIsValid(languageTuple))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("language \"%s\" does not exist", language),
+				 (extension_file_exists(language) ?
+				  errhint("Use CREATE EXTENSION to load the language into the database.") : 0)));
+
+	languageStruct = (Form_pg_language) GETSTRUCT(languageTuple);
+	codeblock->langOid = languageStruct->oid;
+	codeblock->langIsTrusted = languageStruct->lanpltrusted;
+	codeblock->atomic = atomic;
+
+	if (languageStruct->lanpltrusted)
+	{
+		/* if trusted language, need USAGE privilege */
+		AclResult	aclresult;
+
+		aclresult = pg_language_aclcheck(codeblock->langOid, GetUserId(),
+										 ACL_USAGE);
+		if (aclresult != ACLCHECK_OK)
+			aclcheck_error(aclresult, OBJECT_LANGUAGE,
+						   NameStr(languageStruct->lanname));
+	}
+	else
+	{
+		/* if untrusted language, must be superuser */
+		if (!superuser())
+			aclcheck_error(ACLCHECK_NO_PRIV, OBJECT_LANGUAGE,
+						   NameStr(languageStruct->lanname));
+	}
+
+	/* get the handler function's OID */
+	laninline = languageStruct->laninline;
+	if (!OidIsValid(laninline))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("language \"%s\" does not support inline code execution",
+						NameStr(languageStruct->lanname))));
+
+	ReleaseSysCache(languageTuple);
+
+	/* for INSERT EXEC */
+	codeblock->relation = stmt->relation;
+	codeblock->attrnos = stmt->attrnos;
+	codeblock->dest = (Node *) dest;
+
+	/* execute the inline handler */
+	OidFunctionCall1(laninline, PointerGetDatum(codeblock));
+}
+
+/*
  * Execute CALL statement
  *
  * Inside a top-level CALL statement, transaction-terminating commands such as
@@ -2212,6 +2357,7 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 	HeapTuple	tp;
 	PgStat_FunctionCallUsage fcusage;
 	Datum		retval;
+	ReturnSetInfo rsinfo; /* for INSERT ... EXECUTE */
 
 	fexpr = stmt->funcexpr;
 	Assert(fexpr);
@@ -2301,6 +2447,65 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 		i++;
 	}
 
+	/*
+	 * If we are here for INSERT ... EXECUTE, prepare a resultinfo node for
+	 * communication before invoking the function, which can accumulate the
+	 * result sets.
+	 */
+	if (stmt->relation && stmt->attrnos)
+	{
+		/*
+		 * If CallStmt->relation and stmt->attrnos are provided, then we need to
+		 * build a TupleDesc for the ReturnSetInfo.
+		 */
+		Oid reltypeid;
+		TupleDesc reldesc;
+		TupleDesc retdesc;
+		int natts = 0;
+		ListCell *lc;
+		ListCell *next;
+
+		/* look up the INSERT target relation rowtype's tupdesc */
+		reltypeid = get_rel_type_id(stmt->relation);
+		reldesc = lookup_rowtype_tupdesc(reltypeid, -1);
+
+		/* build a tupdesc that only contains relevant INSERT columns */
+		retdesc = CreateTemplateTupleDesc(list_length(stmt->attrnos));
+		for (lc = list_head(stmt->attrnos); lc != NULL; lc = next)
+		{
+			natts += 1;
+			TupleDescCopyEntry(retdesc, natts, reldesc, lfirst_int(lc));
+			next = lnext(stmt->attrnos, lc);
+		}
+
+		fcinfo->resultinfo = (Node *) &rsinfo;
+		rsinfo.type = T_ReturnSetInfo;
+		rsinfo.econtext = econtext;
+		rsinfo.expectedDesc = retdesc;
+		rsinfo.allowedModes = (int) (SFRM_ValuePerCall | SFRM_Materialize);
+		/* note we do not set SFRM_Materialize_Random or _Preferred */
+		rsinfo.returnMode = SFRM_ValuePerCall;
+		rsinfo.isDone = ExprSingleResult;
+		rsinfo.setResult = NULL;
+		rsinfo.setDesc = NULL;
+	}
+	else if (stmt->retdesc && stmt->dest)
+	{
+		/*
+		 * If CallStmt->retdesc is provided, use it for the ReturnSetInfo.
+		 */
+		fcinfo->resultinfo = (Node *) &rsinfo;
+		rsinfo.type = T_ReturnSetInfo;
+		rsinfo.econtext = econtext;
+		rsinfo.expectedDesc = (TupleDesc) stmt->retdesc;
+		rsinfo.allowedModes = (int) (SFRM_ValuePerCall | SFRM_Materialize);
+		/* note we do not set SFRM_Materialize_Random or _Preferred */
+		rsinfo.returnMode = SFRM_ValuePerCall;
+		rsinfo.isDone = ExprSingleResult;
+		rsinfo.setResult = NULL;
+		rsinfo.setDesc = NULL;
+	}
+
 	/* Get rid of temporary snapshot for arguments, if we made one */
 	if (!atomic)
 		PopActiveSnapshot();
@@ -2310,8 +2515,29 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 	retval = FunctionCallInvoke(fcinfo);
 	pgstat_end_function_usage(&fcusage, true);
 
-	/* Handle the procedure's outputs */
-	if (fexpr->funcresulttype == VOIDOID)
+	if (((stmt->relation && stmt->attrnos) || (stmt->retdesc && stmt->dest)) &&
+		rsinfo.setDesc && rsinfo.setResult)
+	{
+		/*
+		 * If we are here for INSERT ... EXECUTE, send all tuples accumulated in
+		 * resultinfo to the DestReceiver, which will later be consumed by the
+		 * INSERT execution.
+		 */
+		TupleTableSlot *slot = MakeSingleTupleTableSlot(rsinfo.expectedDesc,
+														&TTSOpsMinimalTuple);
+		for (;;)
+		{
+			if (!tuplestore_gettupleslot(rsinfo.setResult, true, false, slot))
+				break;
+			if (stmt->dest)
+				((DestReceiver *)stmt->dest)->receiveSlot(slot, (DestReceiver *)stmt->dest);
+			else
+				dest->receiveSlot(slot, dest);
+			ExecClearTuple(slot);
+		}
+		ExecDropSingleTupleTableSlot(slot);
+	}
+	else if (fexpr->funcresulttype == VOIDOID)
 	{
 		/* do nothing */
 	}

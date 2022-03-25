@@ -739,7 +739,8 @@ RemoveStatisticsById(Oid statsOid)
 	if (!HeapTupleIsValid(tup)) /* should not happen */
 		elog(ERROR, "cache lookup failed for statistics data %u", statsOid);
 
-	CatalogTupleDelete(relation, &tup->t_self);
+	if (!ENRdropTuple(relation, tup))
+		CatalogTupleDelete(relation, &tup->t_self);
 
 	ReleaseSysCache(tup);
 
@@ -761,7 +762,8 @@ RemoveStatisticsById(Oid statsOid)
 
 	CacheInvalidateRelcacheByRelid(relid);
 
-	CatalogTupleDelete(relation, &tup->t_self);
+	if (!ENRdropTuple(relation, tup))
+		CatalogTupleDelete(relation, &tup->t_self);
 
 	ReleaseSysCache(tup);
 

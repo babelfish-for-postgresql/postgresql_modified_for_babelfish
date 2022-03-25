@@ -55,4 +55,10 @@ extern TupleDesc expandRecordVariable(ParseState *pstate, Var *var,
 extern char *FigureColname(Node *node);
 extern char *FigureIndexColname(Node *node);
 
+typedef void (*pre_transform_target_entry_hook_type)(ResTarget *res, ParseState *pstate, ParseExprKind exprKind);
+extern PGDLLIMPORT pre_transform_target_entry_hook_type pre_transform_target_entry_hook;
+
+typedef void (*resolve_target_list_unknowns_hook_type)(ParseState *pstate, List *targetlist);
+extern PGDLLIMPORT resolve_target_list_unknowns_hook_type resolve_target_list_unknowns_hook;
+
 #endif							/* PARSE_TARGET_H */

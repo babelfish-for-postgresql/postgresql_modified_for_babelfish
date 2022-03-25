@@ -436,6 +436,7 @@ extern void assign_temp_tablespaces(const char *newval, void *extra);
 /* in catalog/namespace.c */
 extern bool check_search_path(char **newval, void **extra, GucSource source);
 extern void assign_search_path(const char *newval, void *extra);
+extern void assign_sql_dialect(int newval, void *extra);
 
 /* in access/transam/xlog.c */
 extern bool check_wal_buffers(int *newval, void **extra, GucSource source);

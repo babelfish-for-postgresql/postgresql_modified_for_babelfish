@@ -16,6 +16,7 @@
 
 #include "access/htup_details.h"
 #include "catalog/namespace.h"
+#include "catalog/pg_collation.h"
 #include "catalog/pg_type.h"
 #include "lib/stringinfo.h"
 #include "nodes/makefuncs.h"
@@ -29,6 +30,7 @@
 static int32 typenameTypeMod(ParseState *pstate, const TypeName *typeName,
 							 Type typ);
 
+check_or_set_default_typmod_hook_type check_or_set_default_typmod_hook = NULL;
 
 /*
  * LookupTypeName
@@ -555,8 +557,15 @@ GetColumnDefCollation(ParseState *pstate, ColumnDef *coldef, Oid typeOid)
 	}
 	else
 	{
-		/* Use the type's default collation if any */
-		result = typcollation;
+		if(sql_dialect == SQL_DIALECT_TSQL && OidIsValid(typcollation))
+		{
+			result = CLUSTER_COLLATION_OID();
+		}
+		else
+		{
+			/* Use the type's default collation if any */
+			result = typcollation;
+		}
 	}
 
 	/* Complain if COLLATE is applied to an uncollatable type */

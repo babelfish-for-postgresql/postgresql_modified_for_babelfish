@@ -1951,7 +1951,7 @@ include_dir 'conf.d'
         reducing the amount of decoded changes written to disk.
        </para>
       </listitem>
-     </varlistentry>
+     </varlistentry>     
 
      <varlistentry id="guc-max-stack-depth" xreflabel="max_stack_depth">
       <term><varname>max_stack_depth</varname> (<type>integer</type>)

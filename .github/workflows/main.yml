@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - 13_4
+  pull_request:
+    branches:
+      - 13_4
+
+jobs:
+  build-and-run-tests:
+    name: Build and run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: clone-repository
+        uses: actions/checkout@v2
+      - name: build-postgres
+        run: |
+          ./configure
+          make world-bin -j8
+      - name: run-tests
+        run: |
+          make check -j8
+      - name: upload-test-summary
+        if: failure()
+        uses: actions/upload-artifact@v2
+        with:
+          name: regression-summary
+          path: src/test/regress/regression.out
+      - name: upload-test-differences
+        if: failure()
+        uses: actions/upload-artifact@v2
+        with:
+          name: regression-differences
+          path: src/test/regress/regression.diffs

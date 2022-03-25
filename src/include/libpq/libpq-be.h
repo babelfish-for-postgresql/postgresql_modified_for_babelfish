@@ -64,8 +64,10 @@ typedef struct
 #endif							/* ENABLE_SSPI */
 
 #include "datatype/timestamp.h"
+#include "lib/stringinfo.h"
 #include "libpq/hba.h"
 #include "libpq/pqcomm.h"
+#include "tcop/dest.h"
 
 
 typedef enum CAC_state
@@ -98,6 +100,34 @@ typedef struct
 #endif
 } pg_gssinfo;
 #endif
+
+/*
+ * ProtocolExtensionConfig
+ *
+ * 	All the callbacks implementing a specific wire protocol
+ */
+typedef struct ProtocolExtensionConfig {
+	int		(*fn_accept)(pgsocket server_fd, struct Port *port);
+	void	(*fn_close)(pgsocket server_fd);
+	void	(*fn_init)(void);
+	int		(*fn_start)(struct Port *port);
+	void	(*fn_authenticate)(struct Port *port, const char **username);
+	void	(*fn_mainfunc)(struct Port *port,
+						   int argc, char *argv[]) pg_attribute_noreturn();
+	void	(*fn_send_message)(ErrorData *edata);
+	void	(*fn_send_cancel_key)(int pid, int32 key);
+	void	(*fn_comm_reset)(void);
+	bool	(*fn_is_reading_msg)(void);
+	void	(*fn_send_ready_for_query)(CommandDest dest);
+	int		(*fn_read_command)(StringInfo inBuf);
+	void	(*fn_end_command)(QueryCompletion *qc, CommandDest dest);
+	bool	(*fn_printtup)(TupleTableSlot *slot, DestReceiver *self);
+	void	(*fn_printtup_startup)(DestReceiver *self, int operation,
+								   TupleDesc typeinfo);
+	void	(*fn_printtup_shutdown)(DestReceiver *self);
+	void	(*fn_printtup_destroy)(DestReceiver *self);
+	int		(*fn_process_command)(void);
+} ProtocolExtensionConfig;
 
 /*
  * This is used by the postmaster in its communication with frontends.  It
@@ -136,6 +166,8 @@ typedef struct Port
 	int			remote_hostname_errcode;	/* see above */
 	char	   *remote_port;	/* text rep of remote port */
 	CAC_state	canAcceptConnections;	/* postmaster connection status */
+
+	ProtocolExtensionConfig *protocol_config;	/* wire protocol functions */
 
 	/*
 	 * Information that needs to be saved from the startup packet and passed

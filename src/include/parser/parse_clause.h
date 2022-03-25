@@ -51,4 +51,7 @@ extern List *addTargetToSortList(ParseState *pstate, TargetEntry *tle,
 extern Index assignSortGroupRef(TargetEntry *tle, List *tlist);
 extern bool targetIsInSortList(TargetEntry *tle, Oid sortop, List *sortList);
 
+typedef bool (*tle_name_comparison_hook_type)(const char *tlename, const char *identifier);
+extern PGDLLIMPORT tle_name_comparison_hook_type tle_name_comparison_hook;
+
 #endif							/* PARSE_CLAUSE_H */
