@@ -9,6 +9,10 @@ SUBDIRS = \
 		amcheck		\
 		auth_delay	\
 		auto_explain	\
+		babelfishpg_common \
+		babelfishpg_money \
+		babelfishpg_tds \
+		babelfishpg_tsql \
 		bloom		\
 		btree_gin	\
 		btree_gist	\
@@ -50,6 +54,8 @@ SUBDIRS = \
 		unaccent	\
 		vacuumlo
 
+SUBDIRS += babelfishpg_tsql 
+
 ifeq ($(with_openssl),yes)
 SUBDIRS += sslinfo
 else
@@ -89,6 +95,14 @@ endif
 # Missing:
 #		start-scripts	\ (does not have a makefile)
 
-
 $(recurse)
 $(recurse_always)
+
+
+# all: $(SUBDIRS)
+# $(SUBDIRS):
+# 	$(MAKE) -C $@
+
+# .PHONY: all $(SUBDIRS)
+
+

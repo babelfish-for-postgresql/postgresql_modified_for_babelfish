@@ -1,0 +1,112 @@
+# Babelfish distribution compilation and installation
+
+### NOTE: these directions assume you are running from the directory that you
+### uncompressed the Babelfish source code into.
+### By default that would be babel_1.0.0__pg_13.4
+
+export MAX_JOBS=2 # Or any other value suitable for your CPU capacity
+
+export PREFIX=/opt/target/babelfishpg
+export ANTLR4_VERSION=4.9.3
+
+export PG_CONFIG=${PREFIX}/bin/pg_config
+export PG_SRC=$(pwd)
+
+export ANTLR4_RUNTIME_INCLUDE_DIR=/usr/local/include/antlr4-runtime/
+
+export ANTLR4_JAVA_BIN=/usr/bin/java
+
+
+## Prerequisites
+
+apt update
+
+apt install -y --no-install-recommends \
+    build-essential flex libxml2-dev libxml2-utils\
+    libxslt-dev libssl-dev \
+    libreadline-dev zlib1g-dev libldap2-dev libpam0g-dev gettext  \
+    uuid uuid-dev cmake lld apt-utils pkg-config libossp-uuid-dev gnulib bison git
+
+apt install -y --no-install-recommends \
+    xsltproc icu-devtools libicu66 libicu-dev gawk curl
+
+apt install -y openjdk-8-jre openssl \
+    libssl-dev python-dev libpq-dev \
+    pkgconf unzip libutfcpp-dev gnupg
+
+## Antlr compilation
+
+Compiling and installing antlr runtime
+
+ANTLR_EXECUTABLE=/usr/local/lib/antlr-${ANTLR4_VERSION}-complete.jar
+
+curl https://www.antlr.org/download/antlr-${ANTLR4_VERSION}-complete.jar \
+        --output ${ANTLR_EXECUTABLE} && chmod +x ${ANTLR_EXECUTABLE}
+
+mkdir -p antlr_runtime
+
+curl https://www.antlr.org/download/antlr4-cpp-runtime-${ANTLR4_VERSION}-source.zip \
+        --output /opt/antlr4-cpp-runtime-${ANTLR4_VERSION}-source.zip && \
+        unzip -d antlr_runtime /opt/antlr4-cpp-runtime-${ANTLR4_VERSION}-source.zip
+
+cd antlr_runtime
+mkdir build && cd build && \
+    cmake .. -D ANTLR_JAR_LOCATION=${ANTLR_EXECUTABLE} \
+        -DCMAKE_INSTALL_PREFIX=/usr/local -DWITH_DEMO=True && \
+    make && make install
+
+## Compiling Babelfish
+
+
+./configure CFLAGS="${CFLAGS:--Wall -Wmissing-prototypes -Wpointer-arith -Wdeclaration-after-statement -Wendif-labels -Wmissing-format-attribute -Wformat-security -fno-strict-aliasing -fwrapv -fexcess-precision=standard -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector-strong --param=ssp-buffer-size=4 -grecord-gcc-switches -m64 -mtune=generic}" \
+  --prefix=${PREFIX} \
+  --enable-debug \
+  --with-ldap \
+  --with-libxml \
+  --with-pam \
+  --with-uuid=ossp \
+  --enable-nls \
+  --with-libxslt \
+  --with-icu \
+  --with-extra-version=" Babelfish for PostgreSQL"
+
+# Compilation
+
+make clean && make DESTDIR=${PREFIX} -j ${MAX_JOBS} 
+
+#world-bin
+
+# Install core
+
+make install
+
+# Compile ANTLR shared object
+
+cp /usr/local/lib/libantlr4-runtime.so.${ANTLR4_VERSION} ${PREFIX}/lib
+
+cmake=$(which cmake) ANTLR4_RUNTIME_LIBRARIES=/usr/include/antlr4-runtime 
+cd contrib/babelfishpg_tsql/antlr
+cmake .
+
+# Build all the extensions
+cd ../.. && make && make install && cd ..
+
+
+
+## Starting Babelfish
+
+### For starting and initiating Babelfish, follow up the instructions at
+### https://babelfishpg.org/docs/installation/compiling-babelfish-from-source/#additional-installation-steps).
+
+
+## Clients
+
+### SQL Server Tooling dependencies
+# Reference: https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-setup-tools?view=sql-server-ver15#ubuntu
+# mssql-cli on arm currently isn't supported https://github.com/dbcli/mssql-cli/issues/152#issuecomment-446311124
+# For arm platform, you may find useful: pip install --upgrade mssql-cli
+curl -L https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
+curl -L https://packages.microsoft.com/config/ubuntu/20.04/prod.list | tee /etc/apt/sources.list.d/msprod.list && \
+apt update && ACCEPT_EULA=Y apt install -y mssql-tools unixodbc-dev
+
+PATH="${PREFIX}/bin:/opt/mssql-tools/bin/:${PATH}"
