@@ -1,0 +1,3 @@
+[submodule "babelfish_extensions"]
+	path = babelfish_extensions
+	url = https://github.com/wieck/babelfish_extensions.git
