@@ -241,8 +241,9 @@ static ProtocolExtensionConfig default_protocol_config = {
 	libpq_send_ready_for_query,
 	libpq_read_command,
 	libpq_end_command,
-	NULL, NULL, NULL, NULL,			/* use libpq defaults for printtup*() */
-	NULL
+	NULL, NULL, NULL, NULL,		/* use libpq defaults for printtup*() */
+	NULL,
+	libpq_report_param_status
 };
 
 /*
@@ -1509,6 +1510,17 @@ libpq_send_cancel_key(int pid, int32 key)
 	pq_endmessage(&buf);
 	/* Need not flush since ReadyForQuery will do it. */
 
+}
+
+void
+libpq_report_param_status(const char *name, char *val)
+{
+	StringInfoData msgbuf;
+
+	pq_beginmessage(&msgbuf, 'S');
+	pq_sendstring(&msgbuf, name);
+	pq_sendstring(&msgbuf, val);
+	pq_endmessage(&msgbuf);
 }
 
 void

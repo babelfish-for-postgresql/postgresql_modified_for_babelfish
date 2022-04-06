@@ -101,7 +101,7 @@ extern TypeName *SystemTypeName(char *name);
 
 
 /* Hook to extend backend parser */
-typedef List * (*raw_parser_hook_type) (const char *str);
+typedef List * (*raw_parser_hook_type) (const char *str, RawParseMode mode);
 extern PGDLLIMPORT raw_parser_hook_type raw_parser_hook;
 
 /* Hooks needed in grammar rule in gram.y */

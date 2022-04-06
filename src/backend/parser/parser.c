@@ -47,7 +47,7 @@ raw_parser(const char *str, RawParseMode mode)
 	int			yyresult;
 
 	if (raw_parser_hook && sql_dialect == SQL_DIALECT_TSQL) /* TODO: dialect condition should be improved */
-		return (*raw_parser_hook) (str);
+		return (*raw_parser_hook) (str, mode);
 
 	/* initialize the flex scanner */
 	yyscanner = scanner_init(str, &yyextra.core_yy_extra,

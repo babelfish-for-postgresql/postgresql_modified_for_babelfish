@@ -6623,12 +6623,8 @@ ReportGUCOption(struct config_generic *record)
 	if (record->last_reported == NULL ||
 		strcmp(val, record->last_reported) != 0)
 	{
-		StringInfoData msgbuf;
-
-		pq_beginmessage(&msgbuf, 'S');
-		pq_sendstring(&msgbuf, record->name);
-		pq_sendstring(&msgbuf, val);
-		pq_endmessage(&msgbuf);
+		if (MyProcPort && MyProcPort->protocol_config->fn_report_param_status)
+			(MyProcPort->protocol_config->fn_report_param_status)(record->name, val);
 
 		/*
 		 * We need a long-lifespan copy.  If strdup() fails due to OOM, we'll

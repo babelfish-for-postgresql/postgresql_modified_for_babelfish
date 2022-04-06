@@ -127,6 +127,7 @@ typedef struct ProtocolExtensionConfig {
 	void	(*fn_printtup_shutdown)(DestReceiver *self);
 	void	(*fn_printtup_destroy)(DestReceiver *self);
 	int		(*fn_process_command)(void);
+	void	(*fn_report_param_status)(const char *name, char *val);
 } ProtocolExtensionConfig;
 
 /*

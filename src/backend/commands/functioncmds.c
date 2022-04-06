@@ -2447,10 +2447,6 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 		i++;
 	}
 
-	/* Get rid of temporary snapshot for arguments, if we made one */
-	if (!atomic)
-		PopActiveSnapshot();
-
 	/* BABELFISH
 	 * If we are here for INSERT ... EXECUTE, prepare a resultinfo node for
 	 * communication before invoking the function, which can accumulate the
