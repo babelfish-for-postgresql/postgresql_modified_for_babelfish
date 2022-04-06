@@ -1785,6 +1785,13 @@ transformLimitClause(ParseState *pstate, Node *clause,
 				(errcode(ERRCODE_INVALID_ROW_COUNT_IN_LIMIT_CLAUSE),
 				 errmsg("row count cannot be null in FETCH FIRST ... WITH TIES clause")));
 
+	/* TOP (NULL) in TSQL mode should throw error */
+	if (sql_dialect == SQL_DIALECT_TSQL && exprKind == EXPR_KIND_LIMIT &&
+		IsA(clause, A_Const) && castNode(A_Const, clause)->isnull)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_ROW_COUNT_IN_LIMIT_CLAUSE),
+				 errmsg("A TOP or FETCH clause contains an invalid value.")));
+
 	return qual;
 }
 

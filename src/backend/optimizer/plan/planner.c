@@ -56,6 +56,7 @@
 #include "optimizer/tlist.h"
 #include "parser/analyze.h"
 #include "parser/parse_agg.h"
+#include "parser/parser.h"      /* only needed for GUC variables */
 #include "parser/parsetree.h"
 #include "partitioning/partdesc.h"
 #include "rewrite/rewriteManip.h"
@@ -2576,6 +2577,12 @@ limit_needed(Query *parse)
 			/* NULL indicates LIMIT ALL, ie, no limit */
 			if (!((Const *) node)->constisnull)
 				return true;	/* LIMIT with a constant value */
+
+			/* TOP (NULL) in TSQL mode should throw error */
+			if (sql_dialect == SQL_DIALECT_TSQL)
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_ROW_COUNT_IN_LIMIT_CLAUSE),
+						 errmsg("A TOP or FETCH clause contains an invalid value.")));
 		}
 		else
 			return true;		/* non-constant LIMIT */
