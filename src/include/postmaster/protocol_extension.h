@@ -41,5 +41,6 @@ extern bool	libpq_is_reading_msg(void);
 extern void	libpq_send_ready_for_query(CommandDest dest);
 extern int	libpq_read_command(StringInfo inBuf);
 extern void	libpq_end_command(QueryCompletion *qc, CommandDest dest);
+extern void	libpq_report_param_status(const char *name, char *val);
 
 #endif							/* _PROTOCOL_EXTENSION_H */

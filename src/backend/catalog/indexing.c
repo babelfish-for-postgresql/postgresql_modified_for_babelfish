@@ -24,6 +24,7 @@
 #include "catalog/pg_subscription.h"
 #include "catalog/pg_subscription_rel.h"
 #include "executor/executor.h"
+#include "parser/parser.h"      /* only needed for GUC variables */
 #include "utils/rel.h"
 
 
@@ -271,6 +272,30 @@ void
 CatalogTuplesMultiInsertWithInfo(Relation heapRel, TupleTableSlot **slot,
 								 int ntuples, CatalogIndexState indstate)
 {
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		/*
+		 * TODO
+		 * Move out all TSQL-related ENR tuple operations
+		 * in indexing.c and queryenvironment.c to the extension package
+		 * and introduce proper hooks.
+		 */
+		for (int i = 0; i < ntuples; i++)
+		{
+			bool		should_free;
+			HeapTuple	tuple;
+
+			tuple = ExecFetchSlotHeapTuple(slot[i], true, &should_free);
+			tuple->t_tableOid = slot[i]->tts_tableOid;
+
+			CatalogTupleInsertWithInfo(heapRel, tuple, indstate);
+
+			if (should_free)
+				heap_freetuple(tuple);
+		}
+		return;
+	}
+
 	/* Nothing to do */
 	if (ntuples <= 0)
 		return;
