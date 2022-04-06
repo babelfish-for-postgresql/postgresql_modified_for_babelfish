@@ -812,7 +812,7 @@ DefineDomain(CreateDomainStmt *stmt)
 		 * For Babelfish, if we're creating domains under the sys schema
 		 * grab the correct collation. Initially support just the sys.name type.
 		 */
-		if (strcmp(get_namespace_name(domainNamespace), "sys") == 0 && strcmp(domainName, "name") == 0)
+		if (strcmp(get_namespace_name(domainNamespace), "sys") == 0 && strcmp(domainName, "_ci_sysname") == 0)
 		{
 			/*
 			 * Since CREATE DOMAIN does not work in T-SQL, we should be in the
