@@ -64,6 +64,9 @@ pre_parse_analyze_hook_type pre_parse_analyze_hook = NULL;
 /* Hook to handle qualifiers in returning list for output clause */
 pre_transform_returning_hook_type pre_transform_returning_hook = NULL;
 
+/* Hook to modify insert statement in output clause */
+pre_transform_insert_hook_type pre_transform_insert_hook = NULL;
+
 /* Hook to read a global variable with info on output clause */
 get_output_clause_status_hook_type get_output_clause_status_hook = NULL;
 
@@ -650,6 +653,9 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 	qry->resultRelation = setTargetTable(pstate, stmt->relation,
 										 false, false, targetPerms);
 
+	if (pre_transform_insert_hook && stmt->withClause)
+		(*pre_transform_insert_hook) (stmt, RelationGetRelid(pstate->p_target_relation));
+	
 	/* Validate stmt->cols list, or build default list if no list given */
 	icolumns = checkInsertTargets(pstate, stmt->cols, &attrnos);
 	Assert(list_length(icolumns) == list_length(attrnos));
@@ -949,7 +955,7 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 
 	if (post_transform_insert_row_hook)
 		(*post_transform_insert_row_hook) (icolumns, exprList, 
-						RelationGetRelid(pstate->p_target_relation));
+								RelationGetRelid(pstate->p_target_relation));
 
 	/*
 	 * Generate query's target list using the computed list of expressions.
