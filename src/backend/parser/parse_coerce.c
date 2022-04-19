@@ -719,6 +719,11 @@ coerce_to_domain(Node *arg, Oid baseTypeId, int32 baseTypeMod, Oid typeId,
 				 bool hideInputCoercion)
 {
 	CoerceToDomain *result;
+	HeapTuple      tuple;
+	Form_pg_type   type_tuple;
+	char           *type_name,
+		       *type_nsp;
+
 
 	/* Get the base type if it hasn't been supplied */
 	if (baseTypeId == InvalidOid)
@@ -766,15 +771,22 @@ coerce_to_domain(Node *arg, Oid baseTypeId, int32 baseTypeMod, Oid typeId,
 	 * tdsprotocol.c requires the correct typmod (instead of -1) for
 	 * sys domains to be passed down. See PrepareRowDescription for deails.
 	 * These sys domains are allowed to have typmod:
-	 * sys.varchar, sys.nvarchar, sys.nchar, sys.datetime2, sys.smalldatetime,
-	 * sys.varbinary, sys.binary
-	 *
-	 * Ideally we should be checking typeId matches one of the above types
-	 * but there is no quick way to do it atm (typcache doesn't have the typename).
-	 * However I don't think this change will cause PG regression since we
-	 * only do it in tsql dialect.
+	 * sys.nvarchar, sys.nchar, sys.varbinary, sys.binary, sys.decimal
 	 */
-	if (sql_dialect == SQL_DIALECT_TSQL)
+	tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typeId));
+	if (!HeapTupleIsValid(tuple))
+		elog(ERROR, "cache lookup failed for type %u", typeId);
+	type_tuple = (Form_pg_type) GETSTRUCT(tuple);
+	type_name = NameStr(type_tuple->typname);
+	type_nsp = get_namespace_name(type_tuple->typnamespace);
+	ReleaseSysCache(tuple);
+
+	if (strcmp(type_nsp, "sys") == 0 &&
+		(strcmp(type_name, "nvarchar") == 0 ||
+		 strcmp(type_name, "nchar") == 0 ||
+		 strcmp(type_name, "varbinary") == 0 ||
+		 strcmp(type_name, "binary") == 0 ||
+		 strcmp(type_name, "decimal") == 0))
 		result->resulttypmod = baseTypeMod;
 
 	return (Node *) result;

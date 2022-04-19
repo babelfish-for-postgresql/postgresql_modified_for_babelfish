@@ -868,7 +868,13 @@ DefineDomain(CreateDomainStmt *stmt)
 	/* Domains never accept typmods, so no typmodin/typmodout needed */
 
 	/* Only allow typmods if GUC is set, used by babelfishpg_tsql extension */
-	if (enable_domain_typmod)
+	if (enable_domain_typmod ||
+		(strcmp(get_namespace_name(domainNamespace), "sys") == 0 &&
+		 (strcmp(domainName, "nvarchar") == 0 ||
+		  strcmp(domainName, "nchar") == 0 ||
+		  strcmp(domainName, "varbinary") == 0 ||
+		  strcmp(domainName, "binary") == 0 ||
+		  strcmp(domainName, "decimal") == 0)))
 	{
 		typmodinOid = baseType->typmodin;
 		typmodoutOid = baseType->typmodout;
