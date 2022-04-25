@@ -22,4 +22,7 @@ extern ObjectAddress DefineView(ViewStmt *stmt, const char *queryString,
 
 extern void StoreViewQuery(Oid viewOid, Query *viewParse, bool replace);
 
+typedef void (*store_view_definition_hook_type) (const char *queryString, ObjectAddress address);
+extern PGDLLIMPORT store_view_definition_hook_type	store_view_definition_hook;
+
 #endif							/* VIEW_H */

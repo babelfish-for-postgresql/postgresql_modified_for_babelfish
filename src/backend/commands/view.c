@@ -25,6 +25,7 @@
 #include "nodes/nodeFuncs.h"
 #include "parser/analyze.h"
 #include "parser/parse_relation.h"
+#include "parser/parser.h"      /* only needed for GUC variables */
 #include "rewrite/rewriteDefine.h"
 #include "rewrite/rewriteHandler.h"
 #include "rewrite/rewriteManip.h"
@@ -34,6 +35,8 @@
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
+
+store_view_definition_hook_type store_view_definition_hook = NULL;
 
 static void checkViewTupleDesc(TupleDesc newdesc, TupleDesc olddesc);
 
@@ -551,6 +554,9 @@ DefineView(ViewStmt *stmt, const char *queryString,
 	 */
 	address = DefineVirtualRelation(view, viewParse->targetList,
 									stmt->replace, stmt->options, viewParse);
+
+	if (sql_dialect == SQL_DIALECT_TSQL && store_view_definition_hook)
+			store_view_definition_hook(queryString, address);
 
 	return address;
 }
