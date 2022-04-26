@@ -11384,7 +11384,7 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 
 	if (typsupporttypmod)
 		appendPQExpBuffer(q,
-						"SET enable_domain_typmod = FALSE;\n");
+						"RESET enable_domain_typmod;\n");
 
 	appendPQExpBuffer(delq, "DROP DOMAIN %s;\n", qualtypname);
 
