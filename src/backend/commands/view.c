@@ -555,7 +555,7 @@ DefineView(ViewStmt *stmt, const char *queryString,
 	address = DefineVirtualRelation(view, viewParse->targetList,
 									stmt->replace, stmt->options, viewParse);
 
-	if (sql_dialect == SQL_DIALECT_TSQL && store_view_definition_hook)
+	if (sql_dialect == SQL_DIALECT_TSQL && store_view_definition_hook && !(stmt->replace))
 			store_view_definition_hook(queryString, address);
 
 	return address;
