@@ -45,6 +45,7 @@
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/parse_collate.h"
+#include "parser/parser.h"      /* only needed for GUC variables */
 #include "utils/lsyscache.h"
 
 
@@ -88,6 +89,7 @@ static void assign_ordered_set_collations(Aggref *aggref,
 static void assign_hypothetical_collations(Aggref *aggref,
 										   assign_collations_context *loccontext);
 
+avoid_collation_override_hook_type avoid_collation_override_hook = NULL;
 
 /*
  * assign_query_collations()
@@ -748,7 +750,19 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 				 */
 				if (strength == COLLATE_CONFLICT)
 					exprSetCollation(node, InvalidOid);
-				else
+				/*
+				 * If target datatype is sys."varchar" or sys."bpchar" and if we have already set the collation then 
+				 * we do not want to override the collation info.
+				 * We need to do this because 1. we check chars length of input string in database encoding for 
+				 * pg_catalog."varchar" or pg_catalog."bpchar" and 2. we need to check byte length of input string for 
+				 * sys."varchar" or sys."bpchar".
+				 * Now, we need to be aware of the collation in order to calculate the byte length
+				 * so we are preserving details of the collation here.
+				 */
+				else if (!(nodeTag(node) == T_FuncExpr && 
+						 OidIsValid(((FuncExpr *) node)->funccollid) &&
+						 avoid_collation_override_hook &&
+						 avoid_collation_override_hook(((FuncExpr *) node)->funcid)))
 					exprSetCollation(node, collation);
 
 				/*
