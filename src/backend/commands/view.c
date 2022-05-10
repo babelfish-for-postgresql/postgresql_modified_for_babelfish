@@ -38,6 +38,8 @@
 
 static void checkViewTupleDesc(TupleDesc newdesc, TupleDesc olddesc);
 
+inherit_view_constraints_from_table_hook_type inherit_view_constraints_from_table_hook = NULL;
+
 /*---------------------------------------------------------------------
  * DefineVirtualRelation
  *
@@ -75,24 +77,8 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 			/*
 			 * If the dialect is TSQL then preserve the constraints.
 			 */
-			if (sql_dialect == SQL_DIALECT_TSQL)
-			{
-				HeapTuple	  tp;
-				Form_pg_attribute att_tup;
-
-				tp = SearchSysCache2(ATTNUM, 
-							ObjectIdGetDatum(tle->resorigtbl),
-							Int16GetDatum(tle->resorigcol));
-
-				if (HeapTupleIsValid(tp))
-				{
-					att_tup = (Form_pg_attribute) GETSTRUCT(tp);
-					def->is_not_null = att_tup->attnotnull;
-					def->identity 	 = att_tup->attidentity;
-					def->generated 	 = att_tup->attgenerated;
-					ReleaseSysCache(tp);
-				}
-			}
+			if (sql_dialect == SQL_DIALECT_TSQL && inherit_view_constraints_from_table_hook)
+				(*inherit_view_constraints_from_table_hook) (def, tle->resorigtbl, tle->resorigcol);
 
 			/*
 			 * It's possible that the column is of a collatable type but the
