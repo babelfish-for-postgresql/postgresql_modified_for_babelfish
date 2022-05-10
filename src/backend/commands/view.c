@@ -24,6 +24,7 @@
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/analyze.h"
+#include "parser/parser.h"
 #include "parser/parse_relation.h"
 #include "rewrite/rewriteDefine.h"
 #include "rewrite/rewriteHandler.h"
@@ -71,6 +72,27 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 											exprType((Node *) tle->expr),
 											exprTypmod((Node *) tle->expr),
 											exprCollation((Node *) tle->expr));
+			/*
+			 * If the dialect is TSQL then preserve the constraints.
+			 */
+			if (sql_dialect == SQL_DIALECT_TSQL)
+			{
+				HeapTuple	  tp;
+				Form_pg_attribute att_tup;
+
+				tp = SearchSysCache2(ATTNUM, 
+							ObjectIdGetDatum(tle->resorigtbl),
+							Int16GetDatum(tle->resorigcol));
+
+				if (HeapTupleIsValid(tp))
+				{
+					att_tup = (Form_pg_attribute) GETSTRUCT(tp);
+					def->is_not_null = att_tup->attnotnull;
+					def->identity 	 = att_tup->attidentity;
+					def->generated 	 = att_tup->attgenerated;
+					ReleaseSysCache(tp);
+				}
+			}
 
 			/*
 			 * It's possible that the column is of a collatable type but the
