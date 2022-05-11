@@ -21,6 +21,7 @@
 #include "catalog/namespace.h"
 #include "catalog/pg_type.h"
 #include "mb/pg_wchar.h"
+#include "parser/parser.h"      /* only needed for GUC variable sql_dialect */
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
@@ -29,6 +30,7 @@
 
 static char *printTypmod(const char *typname, int32 typmod, Oid typmodout);
 
+tsql_format_type_extended_hook_type tsql_format_type_extended_hook = NULL ;
 
 /*
  * SQL function: format_type(type_oid, typemod)
@@ -125,6 +127,9 @@ format_type_extended(Oid type_oid, int32 typemod, bits16 flags)
 		else if ((flags & FORMAT_TYPE_ALLOW_INVALID) != 0)
 			return pstrdup("-");
 	}
+
+	if (sql_dialect == SQL_DIALECT_TSQL)
+		return tsql_format_type_extended_hook(type_oid, typemod, flags);
 
 	tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(type_oid));
 	if (!HeapTupleIsValid(tuple))

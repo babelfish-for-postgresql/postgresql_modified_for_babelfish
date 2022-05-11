@@ -123,6 +123,9 @@ extern char *format_type_with_typemod(Oid type_oid, int32 typemod);
 
 extern int32 type_maximum_size(Oid type_oid, int32 typemod);
 
+typedef char *(*tsql_format_type_extended_hook_type)(Oid type_oid, int32 typemod, bits16 flags);
+extern PGDLLIMPORT tsql_format_type_extended_hook_type tsql_format_type_extended_hook;
+
 /* quote.c */
 extern char *quote_literal_cstr(const char *rawstr);
 
