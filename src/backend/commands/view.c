@@ -24,7 +24,6 @@
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/analyze.h"
-#include "parser/parser.h"
 #include "parser/parse_relation.h"
 #include "rewrite/rewriteDefine.h"
 #include "rewrite/rewriteHandler.h"
@@ -74,10 +73,8 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 											exprType((Node *) tle->expr),
 											exprTypmod((Node *) tle->expr),
 											exprCollation((Node *) tle->expr));
-			/*
-			 * If the dialect is TSQL then preserve the constraints.
-			 */
-			if (sql_dialect == SQL_DIALECT_TSQL && inherit_view_constraints_from_table_hook)
+
+			if (inherit_view_constraints_from_table_hook)
 				(*inherit_view_constraints_from_table_hook) (def, tle->resorigtbl, tle->resorigcol);
 
 			/*
