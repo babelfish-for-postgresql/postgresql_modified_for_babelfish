@@ -261,6 +261,8 @@ extern double log_xact_sample_rate;
 extern char *backtrace_functions;
 extern char *backtrace_symbol_list;
 
+extern bool pltsql_recursive_triggers;
+
 extern int	temp_file_limit;
 
 extern int	num_temp_buffers;
