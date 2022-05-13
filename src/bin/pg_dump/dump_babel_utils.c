@@ -207,31 +207,80 @@ isTsqlTableType(Archive *fout, const TableInfo *tbinfo)
 }
 
 /*
- * isTsqlMstvf:
- * Returns true if given function is T-SQL multi-statement
- * table valued function (MS-TVF), false otherwise.
- * A function is MS-TVF if it returns set (TABLE) and it's
- * return type is composite type.
+ * getTsqlTvfType:
+ * Returns one of the type of PL/tsql table valued function:
+ * 1. PLTSQL_TVFTYPE_NONE : not a PL/tsql table valued function.
+ * 2. PLTSQL_TVFTYPE_MSTVF: PL/tsql multi-statement table valued
+ *                          function. A function is MS-TVF if it
+ *                          returns set (TABLE) and return type
+ *                          is composite type.
+ * 3. PLTSQL_TVFTYPE_ITVF : PL/tsql inline table valued function.
+ *                          A function is ITVF if it returns set
+ *                          (TABLE) but return type is not composite
+ *                          type.
  */
-bool
-isTsqlMstvf(Archive *fout, const FuncInfo *finfo, char prokind, bool proretset)
+int
+getTsqlTvfType(Archive *fout, const FuncInfo *finfo, char prokind, bool proretset)
 {
 	TypeInfo *rettype;
 	char	 *lanname;
 
 	if (!isBabelfishDatabase(fout) || prokind == PROKIND_PROCEDURE || !proretset)
-		return false;
+		return PLTSQL_TVFTYPE_NONE;
 
 	rettype = findTypeByOid(finfo->prorettype);
 	lanname = getLanguageName(fout, finfo->lang);
 
-	if (rettype->typtype == TYPTYPE_COMPOSITE &&
+	if (rettype && lanname &&
 		strcmp(lanname, "pltsql") == 0)
 	{
 		free(lanname);
-		return true;
+
+		if (rettype->typtype == TYPTYPE_COMPOSITE)
+			return PLTSQL_TVFTYPE_MSTVF;
+		else
+			return PLTSQL_TVFTYPE_ITVF;
 	}
 
 	free(lanname);
-	return false;
+	return PLTSQL_TVFTYPE_NONE;
+}
+
+/*
+ * setOrResetPltsqlFuncRestoreGUCs:
+ * sets/resets GUCs required to properly restore
+ * PL/tsql functions/procedures depending upon
+ * the value of is_set boolean.
+ */
+void
+setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *finfo, char prokind, bool proretset, bool is_set)
+{
+	int pltsql_tvf_type = getTsqlTvfType(fout, finfo, prokind, proretset);
+
+	/* GUCs required for PL/tsql TVFs */
+	switch (pltsql_tvf_type)
+	{
+		case PLTSQL_TVFTYPE_MSTVF:
+		{
+			if (is_set)
+				appendPQExpBufferStr(q,
+								 "SET babelfishpg_tsql.restore_tsql_tabletype = TRUE;\n");
+			else
+				appendPQExpBufferStr(q,
+								 "RESET babelfishpg_tsql.restore_tsql_tabletype;\n");
+			break;
+		}
+		case PLTSQL_TVFTYPE_ITVF:
+		{
+			if (is_set)
+				appendPQExpBufferStr(q,
+								 "SET babelfishpg_tsql.dump_restore = TRUE;\n");
+			else
+				appendPQExpBufferStr(q,
+								 "RESET babelfishpg_tsql.dump_restore;\n");
+			break;
+		}
+		default:
+			break;
+	}
 }

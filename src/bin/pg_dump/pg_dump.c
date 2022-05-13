@@ -12178,7 +12178,6 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 	int			nconfigitems = 0;
 	const char *keyword;
 	int			i;
-	bool		is_tsql_mstvf = false;
 
 	/* Skip if not to be dumped */
 	if (!finfo->dobj.dump || dopt->dataOnly)
@@ -12443,12 +12442,9 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 		keyword = "PROCEDURE";
 	else
 		keyword = "FUNCTION";	/* works for window functions too */
-	
-	is_tsql_mstvf = isTsqlMstvf(fout, finfo, prokind[0], proretset[0] == 't');
 
-	if (is_tsql_mstvf)
-		appendPQExpBufferStr(q,
-							 "SET babelfishpg_tsql.restore_tsql_tabletype = TRUE;\n");
+	/* set PL/tsql specific GUCs */
+	setOrResetPltsqlFuncRestoreGUCs(fout, q, finfo, prokind[0], proretset[0] == 't', true);
 
 	appendPQExpBuffer(delqry, "DROP %s %s.%s;\n",
 					  keyword,
@@ -12604,9 +12600,8 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 
 	appendPQExpBuffer(q, "\n    %s;\n", asPart->data);
 
-	if (is_tsql_mstvf)
-		appendPQExpBufferStr(q,
-							 "RESET babelfishpg_tsql.restore_tsql_tabletype;\n");
+	/* reset the settings of PL/tsql GUCs */
+	setOrResetPltsqlFuncRestoreGUCs(fout, q, finfo, prokind[0], proretset[0] == 't', false);
 
 	append_depends_on_extension(fout, q, &finfo->dobj,
 								"pg_catalog.pg_proc", keyword,
