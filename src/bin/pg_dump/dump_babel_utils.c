@@ -41,7 +41,7 @@ getLanguageName(Archive *fout, Oid langid)
  * returns true if current database has "babelfishpg_tsql"
  * extension installed, false otherwise.
  */
-static bool
+bool
 isBabelfishDatabase(Archive *fout)
 {
 	PGresult *res;
@@ -268,16 +268,6 @@ setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *fi
 			else
 				appendPQExpBufferStr(q,
 								 "RESET babelfishpg_tsql.restore_tsql_tabletype;\n");
-			break;
-		}
-		case PLTSQL_TVFTYPE_ITVF:
-		{
-			if (is_set)
-				appendPQExpBufferStr(q,
-								 "SET babelfishpg_tsql.dump_restore = TRUE;\n");
-			else
-				appendPQExpBufferStr(q,
-								 "RESET babelfishpg_tsql.dump_restore;\n");
 			break;
 		}
 		default:
