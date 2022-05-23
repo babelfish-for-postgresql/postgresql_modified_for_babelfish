@@ -32,6 +32,7 @@
 #include "parser/parse_type.h"
 #include "parser/parser.h"  /* SQL_DIALECT_TSQL */
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
 
@@ -1032,6 +1033,7 @@ func_select_candidate(int nargs,
 	bool		current_is_preferred;
 	bool		slot_has_preferred_type[FUNC_MAX_ARGS];
 	bool		resolved_unknowns;
+	const char	*dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
 	/* protect local fixed-size arrays */
 	if (nargs > FUNC_MAX_ARGS)
@@ -1075,7 +1077,8 @@ func_select_candidate(int nargs,
 	 * let's try to choose the best candidate by T-SQL precedence rule.
 	 */
 	if (nunknowns == 0 &&
-	    sql_dialect == SQL_DIALECT_TSQL &&
+	    (sql_dialect == SQL_DIALECT_TSQL ||
+	    (dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 	    func_select_candidate_hook != NULL)
 	{
 		last_candidate = func_select_candidate_hook(nargs, input_typeids, candidates, false);

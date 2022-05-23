@@ -27,6 +27,7 @@
 #include "parser/parse_type.h"
 #include "utils/builtins.h"
 #include "utils/datum.h"		/* needed for datumIsEqual() */
+#include "utils/guc.h"
 #include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
@@ -1380,6 +1381,7 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 	TYPCATEGORY pcategory;
 	bool		pispreferred;
 	ListCell   *lc;
+	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
 	Assert(exprs != NIL);
 	pexpr = (Node *) linitial(exprs);
@@ -1437,8 +1439,9 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 				pcategory = ncategory;
 				pispreferred = nispreferred;
 			}
-			else if (ncategory != pcategory
-				&& sql_dialect != SQL_DIALECT_TSQL) /* T-SQL allows to select common datatype between different categories */
+			else if (ncategory != pcategory &&
+				sql_dialect != SQL_DIALECT_TSQL && /* T-SQL allows to select common datatype between different categories */
+				(!dump_restore || (dump_restore && strcmp(dump_restore, "on") != 0))) /* allow common datatype between different categories while restoring babelfish database */
 			{
 				/*
 				 * both types in different categories? then not much hope...
@@ -1468,7 +1471,8 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 				pcategory = ncategory;
 				pispreferred = nispreferred;
 			}
-			else if (sql_dialect == SQL_DIALECT_TSQL &&
+			else if ((sql_dialect == SQL_DIALECT_TSQL ||
+					 (dump_restore && strcmp(dump_restore, "on") == 0)) &&
 					 determine_datatype_precedence_hook != NULL &&
 					 !pispreferred &&
 					 can_coerce_type(1, &ptype, &ntype, COERCION_IMPLICIT) &&
@@ -3202,6 +3206,7 @@ find_coercion_pathway(Oid targetTypeId, Oid sourceTypeId,
 {
 	CoercionPathType result = COERCION_PATH_NONE;
 	HeapTuple	tuple;
+	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
 	*funcid = InvalidOid;
 
@@ -3209,7 +3214,8 @@ find_coercion_pathway(Oid targetTypeId, Oid sourceTypeId,
 	 * T-SQL allows more implicit casting in general.
 	 * check if rules (defiend with "assignment" property) is supported in T-SQL
 	 */
-	if (sql_dialect == SQL_DIALECT_TSQL &&
+	if ((sql_dialect == SQL_DIALECT_TSQL ||
+	    (dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 	    find_coercion_pathway_hook != NULL)
 	{
 		result = find_coercion_pathway_hook(sourceTypeId, targetTypeId, ccontext, funcid);
