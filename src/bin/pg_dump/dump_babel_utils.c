@@ -14,6 +14,7 @@
 #include "catalog/pg_class_d.h"
 #include "catalog/pg_proc_d.h"
 #include "catalog/pg_type_d.h"
+#include "common/logging.h"
 #include "dump_babel_utils.h"
 #include "pg_backup_db.h"
 #include "pg_dump.h"
@@ -279,6 +280,40 @@ getTsqlTvfType(Archive *fout, const FuncInfo *finfo, char prokind, bool proretse
 
 	free(lanname);
 	return PLTSQL_TVFTYPE_NONE;
+}
+
+void fixAttoptionsBbfOriginalName(Archive *fout, char **attoptions)
+{
+	PGresult *res;
+	PQExpBuffer q;
+
+	if (!isBabelfishDatabase(fout))
+		return;
+
+	q = createPQExpBuffer();
+
+	/*
+	 * As attoptions can be a list of options,
+	 * we will split options first, make them as an array, find an option starting with 'bbf_original_name',
+	 * enclose its value with single quotes, and aggregate all array elements into a single string.
+	 */
+	appendPQExpBuffer(q,
+		"SELECT substring(options, 2, length(options)-2) as new_options FROM ( "
+		"SELECT array_agg( "
+		"CASE "
+		"WHEN option LIKE 'bbf_original_name=%%' "
+		"THEN 'bbf_original_name=' || '\'\'' || substring(option, length('bbf_original_name=')+1) || '\'\'' "
+		"ELSE option "
+		"END)::text as options "
+		"FROM unnest(string_to_array('%s',',')) AS option "
+		") T;",
+		*attoptions);
+
+	res = ExecuteSqlQueryForSingleRow(fout, q->data);
+	*attoptions = pg_strdup(PQgetvalue(res, 0, 0));
+
+	destroyPQExpBuffer(q);
+	PQclear(res);
 }
 
 /*

@@ -16540,10 +16540,14 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 			 * Dump per-column attributes.
 			 */
 			if (tbinfo->attoptions[j][0] != '\0')
+			{
+				fixAttoptionsBbfOriginalName(fout, &tbinfo->attoptions[j]);
+
 				appendPQExpBuffer(q, "ALTER %sTABLE ONLY %s ALTER COLUMN %s SET (%s);\n",
 								  foreign, qualrelname,
 								  fmtId(tbinfo->attnames[j]),
 								  tbinfo->attoptions[j]);
+			}
 
 			/*
 			 * Dump per-column fdw options.

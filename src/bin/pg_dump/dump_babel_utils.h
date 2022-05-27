@@ -27,6 +27,7 @@ extern bool isBabelfishDatabase(Archive *fout);
 extern void fixTsqlTableTypeDependency(Archive *fout, DumpableObject *func, DumpableObject *tabletype, char deptype);
 extern bool isTsqlTableType(Archive *fout, const TableInfo *tbinfo);
 extern int getTsqlTvfType(Archive *fout, const FuncInfo *finfo, char prokind, bool proretset);
+extern void fixAttoptionsBbfOriginalName(Archive *fout, char **attoptions);
 extern void setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *finfo, char prokind, bool proretset, bool is_set);
 
 #endif
