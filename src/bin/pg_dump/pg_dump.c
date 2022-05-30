@@ -12288,6 +12288,9 @@ dumpOpr(Archive *fout, const OprInfo *oprinfo)
 	oprregproc = convertRegProcReference(oprcode);
 	if (oprregproc)
 	{
+		/* Special handling for Babelfish */
+		fixOprRegProc(fout, oprinfo, oprleft, oprright, &oprregproc);
+
 		appendPQExpBuffer(details, "    FUNCTION = %s", oprregproc);
 		free(oprregproc);
 	}
