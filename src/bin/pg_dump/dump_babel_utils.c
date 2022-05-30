@@ -192,6 +192,57 @@ fixTsqlTableTypeDependency(Archive *fout, DumpableObject *dobj, DumpableObject *
 }
 
 /*
+ * In Babelfish v1.2, we redefined some operators to fix issues.
+ * However, we cannot replace those operators using upgrade scripts
+ * because customer-defined objects can depend on the operators.
+ * This function will do in-place substitutions as a part of pg_dump.
+ */
+void
+fixOprRegProc(Archive *fout,
+			  const OprInfo *oprinfo,
+			  const char *oprleft,
+			  const char *oprright,
+			  char **oprregproc)
+{
+	const char *nsname;
+	const char *oprname;
+
+	if (!isBabelfishDatabase(fout) || fout->remoteVersion >= 140000)
+		return;
+
+	nsname = oprinfo->dobj.namespace->dobj.name;
+	if (strcmp(nsname, "sys") != 0)
+		return;
+
+	oprname = oprinfo->dobj.name;
+	if (strcmp(oprname, "+") == 0 &&
+		strcmp(oprleft, "\"text\"") == 0 &&
+		strcmp(oprright, "\"text\"") == 0)
+	{
+		free(*oprregproc);
+		*oprregproc = pg_strdup("\"sys\".\"babelfish_concat_wrapper_outer\"");
+	}
+	else if (strcmp(oprname, "/") == 0 && strcmp(oprright, "\"sys\".\"fixeddecimal\"") == 0)
+	{
+		if (strcmp(oprleft, "bigint") == 0)
+		{
+			free(*oprregproc);
+			*oprregproc = pg_strdup("\"sys\".\"int8fixeddecimaldiv_money\"");
+		}
+		else if (strcmp(oprleft, "integer") == 0)
+		{
+			free(*oprregproc);
+			*oprregproc = pg_strdup("\"sys\".\"int4fixeddecimaldiv_money\"");
+		}
+		else if (strcmp(oprleft, "smallint") == 0)
+		{
+			free(*oprregproc);
+			*oprregproc = pg_strdup("\"sys\".\"int2fixeddecimaldiv_money\"");
+		}
+	}
+}
+
+/*
  * isTsqlTableType:
  * Returns true if given table is a template table for
  * underlying T-SQL table-type, false otherwise.
