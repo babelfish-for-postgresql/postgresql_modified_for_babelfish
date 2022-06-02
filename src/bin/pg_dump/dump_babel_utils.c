@@ -337,9 +337,14 @@ void fixAttoptionsBbfOriginalName(Archive *fout, char **attoptions)
 {
 	PGresult *res;
 	PQExpBuffer q;
+	char *escaped_attoptions;
 
 	if (!isBabelfishDatabase(fout))
 		return;
+
+	/* 2*strlen+1 bytes are required for PQescapeString according to the documentation */
+	escaped_attoptions = pg_malloc(2 * strlen(*attoptions) + 1);
+	PQescapeString(escaped_attoptions, *attoptions, strlen(*attoptions));
 
 	q = createPQExpBuffer();
 
@@ -349,18 +354,20 @@ void fixAttoptionsBbfOriginalName(Archive *fout, char **attoptions)
 	 * enclose its value with single quotes, and aggregate all array elements into a single string.
 	 */
 	appendPQExpBuffer(q,
-		"SELECT substring(options, 2, length(options)-2) as new_options FROM ( "
-		"SELECT array_agg( "
+		"SELECT string_agg( "
 		"CASE "
 		"WHEN option LIKE 'bbf_original_name=%%' "
-		"THEN 'bbf_original_name=' || '\'\'' || substring(option, length('bbf_original_name=')+1) || '\'\'' "
+		"THEN 'bbf_original_name=' || quote_literal(substring(option, length('bbf_original_name=')+1)) "
 		"ELSE option "
-		"END)::text as options "
-		"FROM unnest(string_to_array('%s',',')) AS option "
-		") T;",
-		*attoptions);
+		"END, ',')::text as options "
+		"FROM unnest(string_to_array('%s',',')) AS option;",
+		escaped_attoptions);
 
 	res = ExecuteSqlQueryForSingleRow(fout, q->data);
+
+	free(escaped_attoptions);
+	PQfreemem(*attoptions);
+
 	*attoptions = pg_strdup(PQgetvalue(res, 0, 0));
 
 	destroyPQExpBuffer(q);
