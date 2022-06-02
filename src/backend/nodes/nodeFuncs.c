@@ -20,6 +20,7 @@
 #include "nodes/execnodes.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
+#include "parser/parser.h"
 #include "nodes/pathnodes.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
@@ -1021,6 +1022,12 @@ exprCollation(const Node *expr)
 			coll = InvalidOid;	/* keep compiler quiet */
 			break;
 	}
+
+	if (sql_dialect == SQL_DIALECT_TSQL &&
+		coll == DEFAULT_COLLATION_OID &&
+		(nodeTag(expr) == T_Const || nodeTag(expr) == T_Param) )
+		coll = CLUSTER_COLLATION_OID();
+
 	return coll;
 }
 

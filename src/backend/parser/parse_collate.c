@@ -400,6 +400,9 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 				CoerceToDomain *expr = (CoerceToDomain *) node;
 				Oid			typcollation = get_typcollation(expr->resulttype);
 
+				if (typcollation == DEFAULT_COLLATION_OID)
+					typcollation = CLUSTER_COLLATION_OID();
+
 				/* ... but first, recurse */
 				(void) expression_tree_walker(node,
 											  assign_collations_walker,
@@ -408,7 +411,7 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 				if (OidIsValid(typcollation))
 				{
 					/* Node's result type is collatable. */
-					if (typcollation == DEFAULT_COLLATION_OID)
+					if (typcollation == CLUSTER_COLLATION_OID())
 					{
 						/* Collation state bubbles up from child. */
 						collation = loccontext.collation;
@@ -714,6 +717,7 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 				 * Now figure out what collation to assign to this node.
 				 */
 				typcollation = get_typcollation(exprType(node));
+
 				if (OidIsValid(typcollation))
 				{
 					/* Node's result is collatable; what about its input? */
@@ -729,7 +733,7 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 						/*
 						 * Collatable output produced without any collatable
 						 * input.  Use the type's collation (which is usually
-						 * DEFAULT_COLLATION_OID, but might be different for a
+						 * CLUSTER_COLLATION_OID(), but might be different for a
 						 * domain).
 						 */
 						collation = typcollation;
@@ -823,14 +827,14 @@ merge_collation_state(Oid collation,
 					/*
 					 * Non-default implicit collation always beats default.
 					 */
-					if (context->collation == DEFAULT_COLLATION_OID)
+					if (context->collation == CLUSTER_COLLATION_OID())
 					{
 						/* Override previous parent state */
 						context->collation = collation;
 						context->strength = strength;
 						context->location = location;
 					}
-					else if (collation != DEFAULT_COLLATION_OID)
+					else if (collation != CLUSTER_COLLATION_OID())
 					{
 						/*
 						 * Oops, we have a conflict.  We cannot throw error
