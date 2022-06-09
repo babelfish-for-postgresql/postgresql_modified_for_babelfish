@@ -32,6 +32,11 @@ typedef void (*pre_transform_returning_hook_type) (CmdType command,
 
 extern PGDLLIMPORT pre_transform_returning_hook_type pre_transform_returning_hook;
 
+/* Hook to modify insert statement in output clause */
+typedef void (*pre_transform_insert_hook_type) (InsertStmt *stmt, Oid relid);
+
+extern PGDLLIMPORT pre_transform_insert_hook_type pre_transform_insert_hook;
+
 /* Hook to perform self-join transformation on UpdateStmt in output clause */
 typedef Node* (*pre_output_clause_transformation_hook_type) (ParseState *pstate, UpdateStmt *stmt, CmdType command);
 extern PGDLLIMPORT pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook;
