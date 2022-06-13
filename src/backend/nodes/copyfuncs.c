@@ -2023,6 +2023,7 @@ _copyCoalesceExpr(const CoalesceExpr *from)
 	COPY_SCALAR_FIELD(coalescecollid);
 	COPY_NODE_FIELD(args);
 	COPY_LOCATION_FIELD(location);
+	COPY_SCALAR_FIELD(tsql_is_null);
 
 	return newnode;
 }
