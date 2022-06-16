@@ -5529,8 +5529,7 @@ build_guc_variables(void)
 	for (i = 0; ConfigureNamesEnum[i].gen.name; i++)
 		guc_vars[num_vars++] = &ConfigureNamesEnum[i].gen;
 
-	if (guc_variables)
-		free(guc_variables);
+	free(guc_variables);
 	guc_variables = guc_vars;
 	num_guc_variables = num_vars;
 	size_guc_variables = size_vars;
@@ -6939,8 +6938,7 @@ ReportGUCOption(struct config_generic *record)
 		 * set last_reported to NULL and thereby possibly make a duplicate
 		 * report later.
 		 */
-		if (record->last_reported)
-			free(record->last_reported);
+		free(record->last_reported);
 		record->last_reported = strdup(val);
 	}
 
@@ -8475,8 +8473,7 @@ set_config_sourcefile(const char *name, char *sourcefile, int sourceline)
 		return;
 
 	sourcefile = guc_strdup(elevel, sourcefile);
-	if (record->sourcefile)
-		free(record->sourcefile);
+	free(record->sourcefile);
 	record->sourcefile = sourcefile;
 	record->sourceline = sourceline;
 }
@@ -8996,8 +8993,7 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 
 			if (record->vartype == PGC_STRING && newval.stringval != NULL)
 				free(newval.stringval);
-			if (newextra)
-				free(newextra);
+			free(newextra);
 
 			/*
 			 * We must also reject values containing newlines, because the
@@ -11362,12 +11358,9 @@ RestoreGUCState(void *gucstate)
 		 * pointers.
 		 */
 		Assert(gconf->stack == NULL);
-		if (gconf->extra)
-			free(gconf->extra);
-		if (gconf->last_reported)	/* probably can't happen */
-			free(gconf->last_reported);
-		if (gconf->sourcefile)
-			free(gconf->sourcefile);
+		free(gconf->extra);
+		free(gconf->last_reported);
+		free(gconf->sourcefile);
 		switch (gconf->vartype)
 		{
 			case PGC_BOOL:
@@ -11398,8 +11391,7 @@ RestoreGUCState(void *gucstate)
 				{
 					struct config_string *conf = (struct config_string *) gconf;
 
-					if (*conf->variable)
-						free(*conf->variable);
+					free(*conf->variable);
 					if (conf->reset_val && conf->reset_val != *conf->variable)
 						free(conf->reset_val);
 					if (conf->reset_extra && conf->reset_extra != gconf->extra)

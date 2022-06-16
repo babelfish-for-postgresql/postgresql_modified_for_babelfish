@@ -3407,8 +3407,7 @@ dumpSearchPath(Archive *AH)
 	/* Also save it in AH->searchpath, in case we're doing plain text dump */
 	AH->searchpath = pg_strdup(qry->data);
 
-	if (schemanames)
-		free(schemanames);
+	free(schemanames);
 	PQclear(res);
 	destroyPQExpBuffer(qry);
 	destroyPQExpBuffer(path);
@@ -4682,8 +4681,7 @@ dumpSubscription(Archive *fout, const SubscriptionInfo *subinfo)
 					 subinfo->dobj.catId, 0, subinfo->dobj.dumpId);
 
 	destroyPQExpBuffer(publications);
-	if (pubnames)
-		free(pubnames);
+	free(pubnames);
 
 	destroyPQExpBuffer(delq);
 	destroyPQExpBuffer(query);
@@ -12003,12 +12001,10 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 	destroyPQExpBuffer(delqry);
 	destroyPQExpBuffer(asPart);
 	free(funcsig);
-	if (funcfullsig)
-		free(funcfullsig);
+	free(funcfullsig);
 	free(funcsig_tag);
 	free(qual_funcsig);
-	if (configitems)
-		free(configitems);
+	free(configitems);
 }
 
 
@@ -13756,8 +13752,7 @@ dumpAgg(Archive *fout, const AggInfo *agginfo)
 				agginfo->aggfn.rolname, &agginfo->aggfn.dacl);
 
 	free(aggsig);
-	if (aggfullsig)
-		free(aggfullsig);
+	free(aggfullsig);
 	free(aggsig_tag);
 
 	PQclear(res);
@@ -15824,12 +15819,9 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 								  tbinfo->attfdwoptions[j]);
 		}						/* end loop over columns */
 
-		if (partkeydef)
-			free(partkeydef);
-		if (ftoptions)
-			free(ftoptions);
-		if (srvname)
-			free(srvname);
+		free(partkeydef);
+		free(ftoptions);
+		free(srvname);
 	}
 
 	/*
@@ -16216,10 +16208,8 @@ dumpIndex(Archive *fout, const IndxInfo *indxinfo)
 									  .createStmt = q->data,
 									  .dropStmt = delq->data));
 
-		if (indstatcolsarray)
-			free(indstatcolsarray);
-		if (indstatvalsarray)
-			free(indstatvalsarray);
+		free(indstatcolsarray);
+		free(indstatvalsarray);
 	}
 
 	/* Dump Index Comments */

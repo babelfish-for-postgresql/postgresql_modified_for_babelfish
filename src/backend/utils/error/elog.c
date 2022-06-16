@@ -1989,8 +1989,7 @@ set_syslog_parameters(const char *ident, int facility)
 			closelog();
 			openlog_done = false;
 		}
-		if (syslog_ident)
-			free(syslog_ident);
+		free(syslog_ident);
 		syslog_ident = strdup(ident);
 		/* if the strdup fails, we will cope in write_syslog() */
 		syslog_facility = facility;
