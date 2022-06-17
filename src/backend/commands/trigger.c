@@ -1180,6 +1180,15 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	referenced.objectSubId = 0;
 	recordDependencyOn(&myself, &referenced, DEPENDENCY_NORMAL);
 
+	/*
+	 * For composite triggers, add dependency from trigger function
+	 * to trigger so that a drop trigger will result in cascade drop
+	 * for function as well. Trigger functions are created as part of
+	 * create trigger for composite triggers.
+	 */
+	if (is_composite_trigger)
+		recordDependencyOn(&referenced, &myself, DEPENDENCY_NORMAL);
+
 	if (isInternal && OidIsValid(constraintOid))
 	{
 		/*
