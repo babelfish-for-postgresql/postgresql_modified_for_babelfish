@@ -214,7 +214,7 @@ static void RemoveTempRelationsCallback(int code, Datum arg);
 static void NamespaceCallback(Datum arg, int cacheid, uint32 hashvalue);
 static bool MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
 						   bool include_out_arguments, int pronargs,
-						   int **argnumbers);
+						   int **argnumbers, List **defaults);
 
 
 /*
@@ -1044,6 +1044,7 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 		bool		use_defaults;
 		Oid			va_elem_type;
 		int		   *argnumbers = NULL;
+		List	   *defaults = NIL;
 		FuncCandidateList newResult;
 
 		if (OidIsValid(namespaceId))
@@ -1136,7 +1137,7 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 			/* Check for argument name match, generate positional mapping */
 			if (!MatchNamedCall(proctup, nargs, argnames,
 								include_out_arguments, pronargs,
-								&argnumbers))
+								&argnumbers, &defaults))
 				continue;
 
 			/* Named argument matching is always "special" */
@@ -1180,6 +1181,42 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 			/* Ignore if it doesn't match requested argument count */
 			if (nargs >= 0 && pronargs != nargs && !variadic && !use_defaults)
 				continue;
+
+			if (use_defaults)
+			{
+				Datum		proargdefaults;
+				char		*str;
+				List		*argdefaults = NIL;
+				bool		isnull;
+				ListCell	*def_item = NULL;
+
+				proargdefaults = SysCacheGetAttr(PROCOID, proctup,
+												 Anum_pg_proc_proargdefaults,
+												 &isnull);
+
+				if (isnull)
+					continue;
+				str = TextDatumGetCString(proargdefaults);
+				argdefaults = castNode(List, stringToNode(str));
+				pfree(str);
+
+				if (IsA(lfirst(list_head(argdefaults)), FuncDefault))
+				{
+					int idx = pronargs - nargs;
+					foreach(def_item, argdefaults)
+					{
+						FuncDefault *node;
+
+						Assert(IsA(lfirst(def_item), FuncDefault));
+						node = (FuncDefault *) lfirst(def_item);
+
+						if (node->position == idx)
+							idx++;
+					}
+					if (idx < pronargs)
+						continue;
+				}
+			}
 		}
 
 		/*
@@ -1204,11 +1241,14 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 
 			for (i = 0; i < pronargs; i++)
 				newResult->args[i] = proargtypes[argnumbers[i]];
+
+			newResult->argdefaults = defaults;
 		}
 		else
 		{
 			/* Simple positional case, just copy proargtypes as-is */
 			memcpy(newResult->args, proargtypes, pronargs * sizeof(Oid));
+			newResult->argdefaults = NIL;
 		}
 		if (variadic)
 		{
@@ -1396,7 +1436,7 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 static bool
 MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
 			   bool include_out_arguments, int pronargs,
-			   int **argnumbers)
+			   int **argnumbers, List **defaults)
 {
 	Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(proctup);
 	int			numposargs = nargs - list_length(argnames);
@@ -1478,14 +1518,61 @@ MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
 	Assert(ap == nargs);		/* processed all actual parameters */
 
 	/* Check for default arguments */
+	*defaults = NIL;
 	if (nargs < pronargs)
 	{
 		int			first_arg_with_default = pronargs - procform->pronargdefaults;
+		Datum		proargdefaults;
+		char		*str;
+		List		*argdefaults = NIL;
+		bool		isnull;
+		bool		special = false;
+		ListCell	*def_item = NULL;
 
+		proargdefaults = SysCacheGetAttr(PROCOID, proctup,
+										 Anum_pg_proc_proargdefaults,
+										 &isnull);
+
+		if (!isnull)
+		{
+			str = TextDatumGetCString(proargdefaults);
+			argdefaults = castNode(List, stringToNode(str));
+			def_item = list_head(argdefaults);
+			special = IsA(lfirst(def_item), FuncDefault) ? true : false;
+			pfree(str);
+		}
 		for (pp = numposargs; pp < pronargs; pp++)
 		{
 			if (arggiven[pp])
 				continue;
+
+			if (special)
+			{
+				bool found = false;
+
+				while (def_item != NULL)
+				{
+					FuncDefault *node;
+
+					Assert(IsA(lfirst(def_item), FuncDefault));
+					node = (FuncDefault *) lfirst(def_item);
+					if (node->position == pp)
+					{
+						found = true;
+						*defaults = lappend(*defaults, lfirst(def_item));
+						def_item = lnext(argdefaults, def_item);
+						break;
+					}
+					else if (node->position > pp)
+						break;
+					def_item = lnext(argdefaults, def_item);
+				}
+
+				if (!found)
+					return false;
+				(*argnumbers)[ap++] = pp;
+				continue;
+			} 
 			/* fail if arg not given and no default available */
 			if (pp < first_arg_with_default)
 				return false;
@@ -2096,15 +2183,7 @@ lookup_collation(const char *collname, Oid collnamespace, int32 encoding)
 									  ObjectIdGetDatum(collnamespace));
 			
 			if (!HeapTupleIsValid(colltup))
-			{
-				/* Check for encoding-specific entry (exact match) */
-				colltup = SearchSysCache3(COLLNAMEENCNSP,
-										  PointerGetDatum(xlatedCollname),
-										  Int32GetDatum(encoding),
-										  ObjectIdGetDatum(collnamespace));
-				if (!HeapTupleIsValid(colltup))
-					return InvalidOid;
-			}
+				return InvalidOid;
 		}
 		else
 			return InvalidOid;
@@ -4394,11 +4473,9 @@ RemoveTempRelationsCallback(int code, Datum arg)
 		/* Need to ensure we have a usable transaction. */
 		AbortOutOfAnyTransaction();
 		StartTransactionCommand();
-		PushActiveSnapshot(GetTransactionSnapshot());
 
 		RemoveTempRelations(myTempNamespace);
 
-		PopActiveSnapshot();
 		CommitTransactionCommand();
 	}
 }

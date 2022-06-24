@@ -504,6 +504,13 @@ typedef struct FuncExpr
 	int			location;		/* token location, or -1 if unknown */
 } FuncExpr;
 
+typedef struct FuncDefault
+{
+	Expr		xpr;
+	int			position;
+	Node		*actualexpr;
+} FuncDefault;
+
 /*
  * NamedArgExpr - a named argument of a function
  *

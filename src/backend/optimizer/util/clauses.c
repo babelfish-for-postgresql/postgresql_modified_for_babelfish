@@ -4052,12 +4052,28 @@ reorder_function_arguments(List *args, int pronargs, HeapTuple func_tuple)
 	{
 		List	   *defaults = fetch_function_defaults(func_tuple);
 
-		i = pronargs - funcform->pronargdefaults;
-		foreach(lc, defaults)
+		if (IsA(lfirst(list_head(defaults)), FuncDefault))
 		{
-			if (argarray[i] == NULL)
-				argarray[i] = (Node *) lfirst(lc);
-			i++;
+			FuncDefault *node;
+
+			foreach(lc, defaults)
+			{
+				Assert(IsA(lfirst(lc), FuncDefault));
+				node = (FuncDefault *) lfirst(lc);
+
+				if (argarray[node->position] == NULL)
+					argarray[node->position] = node->actualexpr;
+			}
+		}
+		else
+		{
+			i = pronargs - funcform->pronargdefaults;
+			foreach(lc, defaults)
+			{
+				if (argarray[i] == NULL)
+					argarray[i] = (Node *) lfirst(lc);
+				i++;
+			}
 		}
 	}
 
@@ -4094,6 +4110,21 @@ add_function_defaults(List *args, int pronargs, HeapTuple func_tuple)
 		elog(ERROR, "not enough default arguments");
 	if (ndelete > 0)
 		defaults = list_delete_first_n(defaults, ndelete);
+
+	if (defaults != NIL && IsA(lfirst(list_head(defaults)), FuncDefault))
+	{
+		FuncDefault *node;
+		ListCell	*lc;
+		List		*newdefaults = NIL;
+
+		foreach(lc, defaults)
+		{
+			Assert(IsA(lfirst(lc), FuncDefault));
+			node = (FuncDefault *) lfirst(lc);
+			newdefaults = lappend(newdefaults, node->actualexpr);
+		}
+		return list_concat_copy(args, newdefaults);
+	}
 
 	/* And form the combined argument list, not modifying the input list */
 	return list_concat_copy(args, defaults);

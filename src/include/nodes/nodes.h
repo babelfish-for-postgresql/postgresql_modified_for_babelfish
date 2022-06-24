@@ -162,6 +162,7 @@ typedef enum NodeTag
 	T_WindowFunc,
 	T_SubscriptingRef,
 	T_FuncExpr,
+	T_FuncDefault,
 	T_NamedArgExpr,
 	T_OpExpr,
 	T_DistinctExpr,
