@@ -664,9 +664,11 @@ ExecInsert(ModifyTableState *mtstate,
 			return NULL;		/* "do nothing" */
 	}
 	else if (sql_dialect == SQL_DIALECT_TSQL && resultRelInfo->ri_TrigDesc &&
-		resultRelInfo->ri_TrigDesc->trig_insert_instead_statement){
+		resultRelInfo->ri_TrigDesc->trig_insert_instead_statement && !TsqlRecuresiveCheck(resultRelInfo)){
 		ExecIRInsertTriggersTSQL(estate, resultRelInfo, slot, mtstate->mt_transition_capture);
 		// if it's a statement level IOT trigger, only get the transition table
+		if (canSetTag)
+			(estate->es_processed)++;
 		return NULL;
 	}
 	else if (resultRelInfo->ri_FdwRoutine)
@@ -1170,6 +1172,8 @@ ExecDelete(ModifyTableState *mtstate,
 		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_DELETE))
 	{
 		ExecIRDeleteTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, mtstate->mt_transition_capture);
+		if (canSetTag)
+			(estate->es_processed)++;
 		return NULL;
 	}
 
@@ -1712,6 +1716,8 @@ ExecUpdate(ModifyTableState *mtstate,
 		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_INSTEAD))
 	{
 		ExecIRUpdateTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, slot, recheckIndexes, mtstate->mt_transition_capture);
+		if (canSetTag)
+			(estate->es_processed)++;
 		return NULL;
 	}
 
