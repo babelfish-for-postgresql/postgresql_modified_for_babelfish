@@ -241,7 +241,7 @@ hex_decode_allow_odd_digits(const char *src, unsigned len, char *dst)
 	{
 		/* If input has odd number of hex digits, add a 0 to the front to make it even */
 		v1 = '\0';
-		v2 = get_hex(*s++);
+		v2 = get_hex(s++);
 		*p++ = v1 | v2;
 	}
 	/* The rest of the input must have even number of digits*/
@@ -252,8 +252,8 @@ hex_decode_allow_odd_digits(const char *src, unsigned len, char *dst)
 			s++;
 			continue;
 		}
-		v1 = get_hex(*s++) << 4;
-		v2 = get_hex(*s++);
+		v1 = get_hex(s++) << 4;
+		v2 = get_hex(s++);
 		*p++ = v1 | v2;
 	}
 
