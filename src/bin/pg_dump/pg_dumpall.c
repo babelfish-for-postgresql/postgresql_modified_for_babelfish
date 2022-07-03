@@ -1561,8 +1561,7 @@ connectDatabase(const char *dbname, const char *connection_string,
 
 		free(keywords);
 		free(values);
-		if (conn_opts)
-			PQconninfoFree(conn_opts);
+		PQconninfoFree(conn_opts);
 
 		/*
 		 * Merge the connection info inputs given in form of connection string
