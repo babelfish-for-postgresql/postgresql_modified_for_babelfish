@@ -449,6 +449,10 @@ interpret_function_parameter_list(ParseState *pstate,
 
 			if (is_pltsql_func)
 			{
+				/*
+				 * If it is a PL/tsql function, store the default argument index
+				 * as well (FuncDefault node).
+				 */
 				FuncDefault *node = makeNode(FuncDefault);
 				node->position = i;
 				node->actualexpr = def;

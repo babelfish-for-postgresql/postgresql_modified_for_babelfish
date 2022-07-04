@@ -1182,6 +1182,10 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 			if (nargs >= 0 && pronargs != nargs && !variadic && !use_defaults)
 				continue;
 
+			/*
+			 * If call uses all positional arguments, then validate if all
+			 * the remaining arguments have defaults.
+			 */
 			if (use_defaults)
 			{
 				Datum		proargdefaults;
@@ -1213,6 +1217,7 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 						if (node->position == idx)
 							idx++;
 					}
+					/* Ignore if could find defaults for some arguments. */
 					if (idx < pronargs)
 						continue;
 				}
@@ -1546,10 +1551,19 @@ MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
 			if (arggiven[pp])
 				continue;
 
+			/*
+			 * If the argdefaults consist of FuncDefault nodes then we need
+			 * special handling. Look into FuncDefault into node to find out
+			 * the default expression for pp'th argument.
+			 */
 			if (special)
 			{
 				bool found = false;
 
+				/*
+				 * Iterate over argdefaults list to find out the default expression
+				 * for current argument.
+				 */
 				while (def_item != NULL)
 				{
 					FuncDefault *node;
@@ -2183,7 +2197,15 @@ lookup_collation(const char *collname, Oid collnamespace, int32 encoding)
 									  ObjectIdGetDatum(collnamespace));
 			
 			if (!HeapTupleIsValid(colltup))
-				return InvalidOid;
+			{
+				/* Check for encoding-specific entry (exact match) */
+				colltup = SearchSysCache3(COLLNAMEENCNSP,
+										  PointerGetDatum(xlatedCollname),
+										  Int32GetDatum(encoding),
+										  ObjectIdGetDatum(collnamespace));
+				if (!HeapTupleIsValid(colltup))
+					return InvalidOid;
+			}
 		}
 		else
 			return InvalidOid;
@@ -4473,9 +4495,11 @@ RemoveTempRelationsCallback(int code, Datum arg)
 		/* Need to ensure we have a usable transaction. */
 		AbortOutOfAnyTransaction();
 		StartTransactionCommand();
+		PushActiveSnapshot(GetTransactionSnapshot());
 
 		RemoveTempRelations(myTempNamespace);
 
+		PopActiveSnapshot();
 		CommitTransactionCommand();
 	}
 }

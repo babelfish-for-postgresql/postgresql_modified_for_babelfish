@@ -4052,6 +4052,7 @@ reorder_function_arguments(List *args, int pronargs, HeapTuple func_tuple)
 	{
 		List	   *defaults = fetch_function_defaults(func_tuple);
 
+		/* If defaults consist of FuncDefault nodes, then fetch the actaul default expr. */
 		if (IsA(lfirst(list_head(defaults)), FuncDefault))
 		{
 			FuncDefault *node;
@@ -4111,6 +4112,7 @@ add_function_defaults(List *args, int pronargs, HeapTuple func_tuple)
 	if (ndelete > 0)
 		defaults = list_delete_first_n(defaults, ndelete);
 
+	/* If defaults consist of FuncDefault nodes, then fetch the actaul default expr. */
 	if (defaults != NIL && IsA(lfirst(list_head(defaults)), FuncDefault))
 	{
 		FuncDefault *node;
