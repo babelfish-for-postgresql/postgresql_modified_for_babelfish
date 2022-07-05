@@ -35,6 +35,7 @@
 
 pre_transform_target_entry_hook_type pre_transform_target_entry_hook = NULL;
 resolve_target_list_unknowns_hook_type resolve_target_list_unknowns_hook = NULL;
+handle_type_and_collation_hook_type handle_type_and_collation_hook = NULL;
 
 /* These parameters are set by GUC */
 bool ansi_qualified_update_set_target;
@@ -605,6 +606,9 @@ transformAssignedExpr(ParseState *pstate,
 							format_type_be(type_id)),
 					 errhint("You will need to rewrite or cast the expression."),
 					 parser_errposition(pstate, exprLocation(orig_expr))));
+
+		if (handle_type_and_collation_hook)
+			handle_type_and_collation_hook((Node *)expr, attrtype, attrcollation);
 	}
 
 	pstate->p_expr_kind = sv_expr_kind;
