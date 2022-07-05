@@ -2705,7 +2705,8 @@ _copyJsonTable(const JsonTable *from)
 	COPY_NODE_FIELD(plan);
 	COPY_NODE_FIELD(on_error);
 	COPY_NODE_FIELD(alias);
-	COPY_SCALAR_FIELD(location);
+	COPY_SCALAR_FIELD(lateral);
+	COPY_LOCATION_FIELD(location);
 
 	return newnode;
 }
@@ -2723,13 +2724,13 @@ _copyJsonTableColumn(const JsonTableColumn *from)
 	COPY_NODE_FIELD(typeName);
 	COPY_STRING_FIELD(pathspec);
 	COPY_STRING_FIELD(pathname);
-	COPY_SCALAR_FIELD(format);
+	COPY_NODE_FIELD(format);
 	COPY_SCALAR_FIELD(wrapper);
 	COPY_SCALAR_FIELD(omit_quotes);
 	COPY_NODE_FIELD(columns);
 	COPY_NODE_FIELD(on_empty);
 	COPY_NODE_FIELD(on_error);
-	COPY_SCALAR_FIELD(location);
+	COPY_LOCATION_FIELD(location);
 
 	return newnode;
 }
@@ -2744,10 +2745,10 @@ _copyJsonTablePlan(const JsonTablePlan *from)
 
 	COPY_SCALAR_FIELD(plan_type);
 	COPY_SCALAR_FIELD(join_type);
-	COPY_STRING_FIELD(pathname);
 	COPY_NODE_FIELD(plan1);
 	COPY_NODE_FIELD(plan2);
-	COPY_SCALAR_FIELD(location);
+	COPY_STRING_FIELD(pathname);
+	COPY_LOCATION_FIELD(location);
 
 	return newnode;
 }
