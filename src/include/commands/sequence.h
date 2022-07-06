@@ -19,7 +19,7 @@
 #include "lib/stringinfo.h"
 #include "nodes/parsenodes.h"
 #include "parser/parse_node.h"
-#include "storage/relfilenode.h"
+#include "storage/relfilelocator.h"
 
 
 /* Sequence validate increment hook */
@@ -74,7 +74,7 @@ typedef FormData_pg_sequence_data *Form_pg_sequence_data;
 
 typedef struct xl_seq_rec
 {
-	RelFileNode node;
+	RelFileLocator locator;
 	/* SEQUENCE TUPLE DATA FOLLOWS AT THE END */
 } xl_seq_rec;
 

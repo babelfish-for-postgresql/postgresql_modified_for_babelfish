@@ -1289,7 +1289,7 @@ RecordTransactionCommit(void)
 	bool		markXidCommitted = TransactionIdIsValid(xid);
 	TransactionId latestXid = InvalidTransactionId;
 	int			nrels;
-	RelFileNode *rels;
+	RelFileLocator *rels;
 	int			nchildren;
 	TransactionId *children;
 	int			ndroppedstats = 0;
@@ -1712,7 +1712,7 @@ RecordTransactionAbort(bool isSubXact)
 	TransactionId xid = GetCurrentTransactionIdIfAny();
 	TransactionId latestXid;
 	int			nrels;
-	RelFileNode *rels;
+	RelFileLocator *rels;
 	int			ndroppedstats = 0;
 	xl_xact_stats_item *droppedstats = NULL;
 	int			nchildren;
@@ -5593,7 +5593,7 @@ xactGetCommittedChildren(TransactionId **ptr)
 XLogRecPtr
 XactLogCommitRecord(TimestampTz commit_time,
 					int nsubxacts, TransactionId *subxacts,
-					int nrels, RelFileNode *rels,
+					int nrels, RelFileLocator *rels,
 					int ndroppedstats, xl_xact_stats_item *droppedstats,
 					int nmsgs, SharedInvalidationMessage *msgs,
 					bool relcacheInval,
@@ -5604,7 +5604,7 @@ XactLogCommitRecord(TimestampTz commit_time,
 	xl_xact_xinfo xl_xinfo;
 	xl_xact_dbinfo xl_dbinfo;
 	xl_xact_subxacts xl_subxacts;
-	xl_xact_relfilenodes xl_relfilenodes;
+	xl_xact_relfilelocators xl_relfilelocators;
 	xl_xact_stats_items xl_dropped_stats;
 	xl_xact_invals xl_invals;
 	xl_xact_twophase xl_twophase;
@@ -5658,8 +5658,8 @@ XactLogCommitRecord(TimestampTz commit_time,
 
 	if (nrels > 0)
 	{
-		xl_xinfo.xinfo |= XACT_XINFO_HAS_RELFILENODES;
-		xl_relfilenodes.nrels = nrels;
+		xl_xinfo.xinfo |= XACT_XINFO_HAS_RELFILELOCATORS;
+		xl_relfilelocators.nrels = nrels;
 		info |= XLR_SPECIAL_REL_UPDATE;
 	}
 
@@ -5717,12 +5717,12 @@ XactLogCommitRecord(TimestampTz commit_time,
 						 nsubxacts * sizeof(TransactionId));
 	}
 
-	if (xl_xinfo.xinfo & XACT_XINFO_HAS_RELFILENODES)
+	if (xl_xinfo.xinfo & XACT_XINFO_HAS_RELFILELOCATORS)
 	{
-		XLogRegisterData((char *) (&xl_relfilenodes),
-						 MinSizeOfXactRelfilenodes);
+		XLogRegisterData((char *) (&xl_relfilelocators),
+						 MinSizeOfXactRelfileLocators);
 		XLogRegisterData((char *) rels,
-						 nrels * sizeof(RelFileNode));
+						 nrels * sizeof(RelFileLocator));
 	}
 
 	if (xl_xinfo.xinfo & XACT_XINFO_HAS_DROPPED_STATS)
@@ -5765,7 +5765,7 @@ XactLogCommitRecord(TimestampTz commit_time,
 XLogRecPtr
 XactLogAbortRecord(TimestampTz abort_time,
 				   int nsubxacts, TransactionId *subxacts,
-				   int nrels, RelFileNode *rels,
+				   int nrels, RelFileLocator *rels,
 				   int ndroppedstats, xl_xact_stats_item *droppedstats,
 				   int xactflags, TransactionId twophase_xid,
 				   const char *twophase_gid)
@@ -5773,7 +5773,7 @@ XactLogAbortRecord(TimestampTz abort_time,
 	xl_xact_abort xlrec;
 	xl_xact_xinfo xl_xinfo;
 	xl_xact_subxacts xl_subxacts;
-	xl_xact_relfilenodes xl_relfilenodes;
+	xl_xact_relfilelocators xl_relfilelocators;
 	xl_xact_stats_items xl_dropped_stats;
 	xl_xact_twophase xl_twophase;
 	xl_xact_dbinfo xl_dbinfo;
@@ -5807,8 +5807,8 @@ XactLogAbortRecord(TimestampTz abort_time,
 
 	if (nrels > 0)
 	{
-		xl_xinfo.xinfo |= XACT_XINFO_HAS_RELFILENODES;
-		xl_relfilenodes.nrels = nrels;
+		xl_xinfo.xinfo |= XACT_XINFO_HAS_RELFILELOCATORS;
+		xl_relfilelocators.nrels = nrels;
 		info |= XLR_SPECIAL_REL_UPDATE;
 	}
 
@@ -5871,12 +5871,12 @@ XactLogAbortRecord(TimestampTz abort_time,
 						 nsubxacts * sizeof(TransactionId));
 	}
 
-	if (xl_xinfo.xinfo & XACT_XINFO_HAS_RELFILENODES)
+	if (xl_xinfo.xinfo & XACT_XINFO_HAS_RELFILELOCATORS)
 	{
-		XLogRegisterData((char *) (&xl_relfilenodes),
-						 MinSizeOfXactRelfilenodes);
+		XLogRegisterData((char *) (&xl_relfilelocators),
+						 MinSizeOfXactRelfileLocators);
 		XLogRegisterData((char *) rels,
-						 nrels * sizeof(RelFileNode));
+						 nrels * sizeof(RelFileLocator));
 	}
 
 	if (xl_xinfo.xinfo & XACT_XINFO_HAS_DROPPED_STATS)
@@ -6017,7 +6017,7 @@ xact_redo_commit(xl_xact_parsed_commit *parsed,
 		XLogFlush(lsn);
 
 		/* Make sure files supposed to be dropped are dropped */
-		DropRelationFiles(parsed->xnodes, parsed->nrels, true);
+		DropRelationFiles(parsed->xlocators, parsed->nrels, true);
 	}
 
 	if (parsed->nstats > 0)
@@ -6128,7 +6128,7 @@ xact_redo_abort(xl_xact_parsed_abort *parsed, TransactionId xid,
 		 */
 		XLogFlush(lsn);
 
-		DropRelationFiles(parsed->xnodes, parsed->nrels, true);
+		DropRelationFiles(parsed->xlocators, parsed->nrels, true);
 	}
 
 	if (parsed->nstats > 0)
