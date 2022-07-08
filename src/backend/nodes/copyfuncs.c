@@ -139,23 +139,6 @@ CopyPlanFields(const Plan *from, Plan *newnode)
 }
 
 /*
- * _copyPlan
- */
-static Plan *
-_copyPlan(const Plan *from)
-{
-	Plan	   *newnode = makeNode(Plan);
-
-	/*
-	 * copy node superclass fields
-	 */
-	CopyPlanFields(from, newnode);
-
-	return newnode;
-}
-
-
-/*
  * _copyResult
  */
 static Result *
@@ -842,23 +825,6 @@ CopyJoinFields(const Join *from, Join *newnode)
 	COPY_SCALAR_FIELD(jointype);
 	COPY_SCALAR_FIELD(inner_unique);
 	COPY_NODE_FIELD(joinqual);
-}
-
-
-/*
- * _copyJoin
- */
-static Join *
-_copyJoin(const Join *from)
-{
-	Join	   *newnode = makeNode(Join);
-
-	/*
-	 * copy node superclass fields
-	 */
-	CopyJoinFields(from, newnode);
-
-	return newnode;
 }
 
 
@@ -5599,9 +5565,6 @@ copyObjectImpl(const void *from)
 		case T_PlannedStmt:
 			retval = _copyPlannedStmt(from);
 			break;
-		case T_Plan:
-			retval = _copyPlan(from);
-			break;
 		case T_Result:
 			retval = _copyResult(from);
 			break;
@@ -5685,9 +5648,6 @@ copyObjectImpl(const void *from)
 			break;
 		case T_CustomScan:
 			retval = _copyCustomScan(from);
-			break;
-		case T_Join:
-			retval = _copyJoin(from);
 			break;
 		case T_NestLoop:
 			retval = _copyNestLoop(from);
