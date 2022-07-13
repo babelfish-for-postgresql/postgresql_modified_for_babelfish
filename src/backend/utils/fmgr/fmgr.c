@@ -41,6 +41,7 @@
 PGDLLIMPORT needs_fmgr_hook_type needs_fmgr_hook = NULL;
 PGDLLIMPORT fmgr_hook_type fmgr_hook = NULL;
 PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook = NULL;
+PGDLLIMPORT get_func_language_oids_hook_type get_func_language_oids_hook = NULL;
 
 /*
  * Hashtable for fast lookup of external C functions
@@ -213,7 +214,7 @@ fmgr_info_cxt_security(Oid functionId, FmgrInfo *finfo, MemoryContext mcxt,
 		  * to have sql_dialect be either postgres or tsql according to
 		  * their language.
 		  */
-		 (*find_rendezvous_variable("PLtsql_config") != NULL) ||
+		 (get_func_language_oids_hook != NULL) ||
 		 FmgrHookIsNeeded(functionId)))
 	{
 		finfo->fn_addr = fmgr_security_definer;
@@ -754,40 +755,13 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	else
 		fcache = fcinfo->flinfo->fn_extra;
 
-	/*
-	 * If babelfishpg_tsql extension is installed, set proconfig of sql_dialect
-	 */
+	if (get_func_language_oids_hook)
+		get_func_language_oids_hook(&pltsql_lang_oid, &pltsql_validator_oid);
+	else
 	{
-		/*
-		 * FIXME: the following typedef (PLtsql_config) describes a 
-		 * structure shared with PLtsql.  Since the type is shared, 
-		 * we should find a header file that is properly shared and
-		 * move this typedef
-		 *
-		 * This typedef *must* be kept in-synch with the PLtsql_config
-		 * type declaration found in contrib/babelfishpg_tsql/src/pgtsql.h
-		 */
-		typedef struct PLtsql_config
-		{
-			char	*version;         /* Extension version info */
-			Oid		 handler_oid;     /* Oid of language handler function */
-			Oid		 validator_oid;   /* Oid of language validator function */
-		} PLtsql_config;
-		
-		PLtsql_config **config = (PLtsql_config **) find_rendezvous_variable("PLtsql_config");
-
-		if (*config)
-		{
-			pltsql_lang_oid = (*config)->handler_oid;
-			pltsql_validator_oid = (*config)->validator_oid;
-		}
-		else
-		{
-			pltsql_lang_oid = InvalidOid;
-			pltsql_validator_oid = InvalidOid;
-		}
+		pltsql_lang_oid = InvalidOid;
+		pltsql_validator_oid = InvalidOid;
 	}
-	
 
 	// get_language_procs("pltsql", &pltsql_lang_oid, &pltsql_validator_oid);
 	set_sql_dialect = pltsql_lang_oid != InvalidOid;

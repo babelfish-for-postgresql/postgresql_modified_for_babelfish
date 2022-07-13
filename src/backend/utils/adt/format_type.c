@@ -360,6 +360,14 @@ format_type_with_typemod(Oid type_oid, int32 typemod)
 	return format_type_extended(type_oid, typemod, FORMAT_TYPE_TYPEMOD_GIVEN);
 }
 
+static void
+removeTimeZoneStrFromTypmod(const char *tmstr, const char *tzstr)
+{
+	char *substr = strstr(tmstr, tzstr);
+	if (substr)
+		memmove(substr, substr + strlen(tzstr), strlen(substr + strlen(tzstr)) + 1);
+}
+
 /*
  * Add typmod decoration to the basic type name
  */
@@ -383,6 +391,21 @@ printTypmod(const char *typname, int32 typmod, Oid typmodout)
 
 		tmstr = DatumGetCString(OidFunctionCall1(typmodout,
 												 Int32GetDatum(typmod)));
+
+		/* Remove "with/without time zone" string from T-SQL's
+		 * sys.datetime2, sys.smalldatetime, and sys.datetimeoffset types.
+		 *
+		 * This special handling can be removed once
+		 * 1. those types use their own typmod in/out functions, and
+		 * 2. there are no user objects using the old
+		 *    typmod in/out functions, i.e., in PG15.
+		 */
+		if (strcmp("sys.datetime2", typname) == 0 ||
+			strcmp("sys.smalldatetime", typname) == 0)
+			removeTimeZoneStrFromTypmod(tmstr, " without time zone");
+		else if (strcmp("sys.datetimeoffset", typname) == 0)
+			removeTimeZoneStrFromTypmod(tmstr, " with time zone");
+
 		res = psprintf("%s%s", typname, tmstr);
 	}
 

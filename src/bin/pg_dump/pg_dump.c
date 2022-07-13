@@ -53,6 +53,7 @@
 #include "catalog/pg_trigger_d.h"
 #include "catalog/pg_type_d.h"
 #include "common/connect.h"
+#include "dump_babel_utils.h"
 #include "dumputils.h"
 #include "fe_utils/string_utils.h"
 #include "getopt_long.h"
@@ -8617,6 +8618,7 @@ getCasts(Archive *fout, int *numCasts)
 
 		/* Decide whether we want to dump it */
 		selectDumpableCast(&(castinfo[i]), fout);
+		bbf_selectDumpableCast(&(castinfo[i]));
 
 		/* Casts do not currently have ACLs. */
 		castinfo[i].dobj.dump &= ~DUMP_COMPONENT_ACL;
@@ -8978,6 +8980,9 @@ getTableAttrs(Archive *fout, TableInfo *tblinfo, int numTables)
 				attrdefs[j].adtable = tbinfo;
 				attrdefs[j].adnum = adnum;
 				attrdefs[j].adef_expr = pg_strdup(PQgetvalue(res, j, 3));
+
+				/* Babelfish-specific logic for default expr */
+				fixTsqlDefaultExpr(fout, &attrdefs[j]);
 
 				attrdefs[j].dobj.name = pg_strdup(tbinfo->dobj.name);
 				attrdefs[j].dobj.namespace = tbinfo->dobj.namespace;
@@ -10575,6 +10580,9 @@ dumpExtension(Archive *fout, const ExtensionInfo *extinfo)
 
 	qextname = pg_strdup(fmtId(extinfo->dobj.name));
 
+	if (strstr(qextname, "babelfishpg_common") && isBabelfishDatabase(fout))
+		appendPQExpBuffer(q, "SET babelfishpg_tsql.dump_restore = TRUE;\n");
+
 	appendPQExpBuffer(delq, "DROP EXTENSION %s;\n", qextname);
 
 	if (!dopt->binary_upgrade)
@@ -11333,6 +11341,7 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 	char	   *typdefault;
 	Oid			typcollation;
 	bool		typdefault_is_literal = false;
+	bool		typsupporttypmod = false;
 
 	/* Fetch domain specific details */
 	if (fout->remoteVersion >= 90100)
@@ -11342,6 +11351,8 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 						  "pg_catalog.format_type(t.typbasetype, t.typtypmod) AS typdefn, "
 						  "pg_catalog.pg_get_expr(t.typdefaultbin, 'pg_catalog.pg_type'::pg_catalog.regclass) AS typdefaultbin, "
 						  "t.typdefault, "
+						  "CASE WHEN t.typmodin <> 0::pg_catalog.regproc "
+						  "THEN TRUE ELSE FALSE END AS typsupporttypmod, "
 						  "CASE WHEN t.typcollation <> u.typcollation "
 						  "THEN t.typcollation ELSE 0 END AS typcollation "
 						  "FROM pg_catalog.pg_type t "
@@ -11354,7 +11365,10 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 		appendPQExpBuffer(query, "SELECT typnotnull, "
 						  "pg_catalog.format_type(typbasetype, typtypmod) AS typdefn, "
 						  "pg_catalog.pg_get_expr(typdefaultbin, 'pg_catalog.pg_type'::pg_catalog.regclass) AS typdefaultbin, "
-						  "typdefault, 0 AS typcollation "
+						  "typdefault, "
+						  "CASE WHEN typmodin <> 0::pg_catalog.regproc "
+						  "THEN TRUE ELSE FALSE END AS typsupporttypmod, "
+						  "0 AS typcollation "
 						  "FROM pg_catalog.pg_type "
 						  "WHERE oid = '%u'::pg_catalog.oid",
 						  tyinfo->dobj.catId.oid);
@@ -11363,6 +11377,7 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 	res = ExecuteSqlQueryForSingleRow(fout, query->data);
 
 	typnotnull = PQgetvalue(res, 0, PQfnumber(res, "typnotnull"));
+	typsupporttypmod = (PQgetvalue(res, 0, PQfnumber(res, "typsupporttypmod"))[0] == 't');
 	typdefn = PQgetvalue(res, 0, PQfnumber(res, "typdefn"));
 	if (!PQgetisnull(res, 0, PQfnumber(res, "typdefaultbin")))
 		typdefault = PQgetvalue(res, 0, PQfnumber(res, "typdefaultbin"));
@@ -11380,6 +11395,10 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 												 tyinfo->dobj.catId.oid,
 												 true,	/* force array type */
 												 false);	/* force multirange type */
+
+	if (typsupporttypmod)
+		appendPQExpBuffer(q,
+						"SET enable_domain_typmod = TRUE;\n");
 
 	qtypname = pg_strdup(fmtId(tyinfo->dobj.name));
 	qualtypname = pg_strdup(fmtQualifiedDumpable(tyinfo));
@@ -11426,6 +11445,10 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 	}
 
 	appendPQExpBufferStr(q, ";\n");
+
+	if (typsupporttypmod)
+		appendPQExpBuffer(q,
+						"RESET enable_domain_typmod;\n");
 
 	appendPQExpBuffer(delq, "DROP DOMAIN %s;\n", qualtypname);
 
@@ -12426,6 +12449,9 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 	else
 		keyword = "FUNCTION";	/* works for window functions too */
 
+	/* set PL/tsql specific GUCs */
+	setOrResetPltsqlFuncRestoreGUCs(fout, q, finfo, prokind[0], proretset[0] == 't', true);
+
 	appendPQExpBuffer(delqry, "DROP %s %s.%s;\n",
 					  keyword,
 					  fmtId(finfo->dobj.namespace->dobj.name),
@@ -12579,6 +12605,9 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 	}
 
 	appendPQExpBuffer(q, "\n    %s;\n", asPart->data);
+
+	/* reset the settings of PL/tsql GUCs */
+	setOrResetPltsqlFuncRestoreGUCs(fout, q, finfo, prokind[0], proretset[0] == 't', false);
 
 	append_depends_on_extension(fout, q, &finfo->dobj,
 								"pg_catalog.pg_proc", keyword,
@@ -12991,6 +13020,9 @@ dumpOpr(Archive *fout, const OprInfo *oprinfo)
 	oprregproc = convertRegProcReference(oprcode);
 	if (oprregproc)
 	{
+		/* Special handling for Babelfish */
+		fixOprRegProc(fout, oprinfo, oprleft, oprright, &oprregproc);
+
 		appendPQExpBuffer(details, "    FUNCTION = %s", oprregproc);
 		free(oprregproc);
 	}
@@ -15933,6 +15965,7 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 		char	   *ftoptions = NULL;
 		char	   *srvname = NULL;
 		char	   *foreign = "";
+		bool	   tsql_tabletype = isTsqlTableType(fout, tbinfo);
 
 		switch (tbinfo->relkind)
 		{
@@ -15985,6 +16018,10 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 		if (dopt->binary_upgrade)
 			binary_upgrade_set_pg_class_oids(fout, q,
 											 tbinfo->dobj.catId.oid, false);
+
+		if (tsql_tabletype)
+			appendPQExpBufferStr(q,
+								 "SET babelfishpg_tsql.restore_tsql_tabletype = TRUE;\n");
 
 		appendPQExpBuffer(q, "CREATE %s%s %s",
 						  tbinfo->relpersistence == RELPERSISTENCE_UNLOGGED ?
@@ -16206,6 +16243,10 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 		}
 		else
 			appendPQExpBufferStr(q, ";\n");
+
+		if (tsql_tabletype)
+			appendPQExpBufferStr(q,
+								 "RESET babelfishpg_tsql.restore_tsql_tabletype;\n");
 
 		/* Materialized views can depend on extensions */
 		if (tbinfo->relkind == RELKIND_MATVIEW)
@@ -16502,10 +16543,14 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 			 * Dump per-column attributes.
 			 */
 			if (tbinfo->attoptions[j][0] != '\0')
+			{
+				fixAttoptionsBbfOriginalName(fout, &tbinfo->attoptions[j]);
+
 				appendPQExpBuffer(q, "ALTER %sTABLE ONLY %s ALTER COLUMN %s SET (%s);\n",
 								  foreign, qualrelname,
 								  fmtId(tbinfo->attnames[j]),
 								  tbinfo->attoptions[j]);
+			}
 
 			/*
 			 * Dump per-column fdw options.
@@ -18589,6 +18634,9 @@ getDependencies(Archive *fout)
 		else
 			/* normal case */
 			addObjectDependency(dobj, refdobj->dumpId);
+
+		/* Standalone T-SQL table-type as a function's argument or multi-statement TVF */
+		fixTsqlTableTypeDependency(fout, dobj, refdobj, deptype);
 	}
 
 	PQclear(res);

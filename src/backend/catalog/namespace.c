@@ -2096,7 +2096,15 @@ lookup_collation(const char *collname, Oid collnamespace, int32 encoding)
 									  ObjectIdGetDatum(collnamespace));
 			
 			if (!HeapTupleIsValid(colltup))
-				return InvalidOid;
+			{
+				/* Check for encoding-specific entry (exact match) */
+				colltup = SearchSysCache3(COLLNAMEENCNSP,
+										  PointerGetDatum(xlatedCollname),
+										  Int32GetDatum(encoding),
+										  ObjectIdGetDatum(collnamespace));
+				if (!HeapTupleIsValid(colltup))
+					return InvalidOid;
+			}
 		}
 		else
 			return InvalidOid;

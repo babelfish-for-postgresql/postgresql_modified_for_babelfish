@@ -521,11 +521,14 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 						ListCell *type_lc;
         
 						tmp_enr = (EphemeralNamedRelation) lfirst(curlc);
-						type_lc = list_head(tmp_enr->md.cattups[ENR_CATTUP_TYPE]);
-						if (type_lc && ((Form_pg_type) GETSTRUCT((HeapTuple)lfirst(type_lc)))->oid 
-										== ((Form_pg_type) GETSTRUCT(tup))->typelem) {
-							enr = tmp_enr;
-							break;
+						if (tmp_enr->md.enrtype == ENR_TSQL_TEMP){
+							// inserted & delted are special tmp enr 
+							type_lc = list_head(tmp_enr->md.cattups[ENR_CATTUP_TYPE]);
+							if (type_lc && ((Form_pg_type) GETSTRUCT((HeapTuple)lfirst(type_lc)))->oid 
+											== ((Form_pg_type) GETSTRUCT(tup))->typelem) {
+								enr = tmp_enr;
+								break;
+							}
 						}
 					}
 					if (enr) {

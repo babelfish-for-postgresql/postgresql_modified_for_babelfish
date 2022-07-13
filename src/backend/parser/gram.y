@@ -174,6 +174,8 @@ static RoleSpec *makeRoleSpec(RoleSpecType type, int location);
 static void check_qualified_name(List *names, core_yyscan_t yyscanner);
 static List *check_func_name(List *names, core_yyscan_t yyscanner);
 static List *check_indirection(List *indirection, core_yyscan_t yyscanner);
+static bool check_generic_type_with_or_without_time_zone(const TypeName *typname,
+														 bool with_time_zone);
 static List *extractArgTypes(List *parameters);
 static List *extractAggrArgTypes(List *aggrargs);
 static List *makeOrderedSetArgs(List *directargs, List *orderedargs,
@@ -12939,6 +12941,48 @@ GenericType:
 					$$->typmods = $3;
 					$$->location = @1;
 				}
+			| type_function_name attrs opt_type_modifiers WITHOUT TIME ZONE
+				{
+					/*
+					 * This gram rule should only be allowed when we restore
+					 * T-SQL objects from dumped PG SQLs.
+					 *
+					 * Because we have another special handling in printTypmod(),
+					 * this rule can be removed in PG15.
+					 */
+					TypeName *typname = makeTypeNameFromNameList(lcons(makeString($1), $2));
+
+					if (!check_generic_type_with_or_without_time_zone(typname, false /* without time zone */))
+						ereport(ERROR,
+								(errcode(ERRCODE_SYNTAX_ERROR),
+									errmsg("syntax error at or near \"without\""),
+									parser_errposition(@4)));
+
+					$$ = typname;
+					$$->typmods = $3;
+					$$->location = @1;
+				}
+			| type_function_name attrs opt_type_modifiers WITH_LA TIME ZONE
+				{
+					/*
+					 * This gram rule should only be allowed when we restore
+					 * T-SQL objects from dumped PG SQLs.
+					 *
+					 * Because we have another special handling in printTypmod(),
+					 * this rule can be removed in PG15.
+					 */
+					TypeName *typname = makeTypeNameFromNameList(lcons(makeString($1), $2));
+
+					if (!check_generic_type_with_or_without_time_zone(typname, true /* with time zone */))
+						ereport(ERROR,
+								(errcode(ERRCODE_SYNTAX_ERROR),
+									errmsg("syntax error at or near \"with\""),
+									parser_errposition(@4)));
+
+					$$ = typname;
+					$$->typmods = $3;
+					$$->location = @1;
+				}
 		;
 
 opt_type_modifiers: '(' expr_list ')'
@@ -16883,6 +16927,36 @@ check_indirection(List *indirection, core_yyscan_t yyscanner)
 		}
 	}
 	return indirection;
+}
+
+/*
+ * Generic Type with/without time zone syntax should be allowed
+ * only for certain T-SQL datatypes during dump and restore.
+ */
+static bool
+check_generic_type_with_or_without_time_zone(const TypeName *typname, bool with_time_zone)
+{
+	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+
+	if (!dump_restore || strcmp(dump_restore, "on") != 0)
+		return false; /* not allowed */
+
+	if (strcmp(strVal(linitial(typname->names)), "sys") != 0)
+		return false; /* not allowed */
+
+	if (with_time_zone)
+	{
+		if (strcmp(strVal(lsecond(typname->names)), "datetimeoffset") == 0)
+			return true; /* allowed */
+	}
+	else
+	{
+		if (strcmp(strVal(lsecond(typname->names)), "datetime2") == 0 ||
+			strcmp(strVal(lsecond(typname->names)), "smalldatetime") == 0)
+			return true; /* allowed */
+	}
+
+	return false; /* not allowed */
 }
 
 /* extractArgTypes()
