@@ -156,8 +156,7 @@ owningrel_does_not_exist_skipping(List *object, const char **msg, char **name)
 	List	   *parent_object;
 	RangeVar   *parent_rel;
 
-	parent_object = list_truncate(list_copy(object),
-								  list_length(object) - 1);
+	parent_object = list_copy_head(object, list_length(object) - 1);
 
 	if (schema_does_not_exist_skipping(parent_object, msg, name))
 		return true;
@@ -457,8 +456,8 @@ does_not_exist_skipping(ObjectType objtype, Node *object, Relation relation)
 			{
 				msg = gettext_noop("trigger \"%s\" for relation \"%s\" does not exist, skipping");
 				name = strVal(llast(castNode(List, object)));
-				args = NameListToString(list_truncate(list_copy(castNode(List, object)),
-													  list_length(castNode(List, object)) - 1));
+				args = NameListToString(list_copy_head(castNode(List, object),
+													   list_length(castNode(List, object)) - 1));
 			}
 			break;
 		case OBJECT_POLICY:
@@ -466,8 +465,8 @@ does_not_exist_skipping(ObjectType objtype, Node *object, Relation relation)
 			{
 				msg = gettext_noop("policy \"%s\" for relation \"%s\" does not exist, skipping");
 				name = strVal(llast(castNode(List, object)));
-				args = NameListToString(list_truncate(list_copy(castNode(List, object)),
-													  list_length(castNode(List, object)) - 1));
+				args = NameListToString(list_copy_head(castNode(List, object),
+													   list_length(castNode(List, object)) - 1));
 			}
 			break;
 		case OBJECT_EVENT_TRIGGER:
@@ -479,8 +478,8 @@ does_not_exist_skipping(ObjectType objtype, Node *object, Relation relation)
 			{
 				msg = gettext_noop("rule \"%s\" for relation \"%s\" does not exist, skipping");
 				name = strVal(llast(castNode(List, object)));
-				args = NameListToString(list_truncate(list_copy(castNode(List, object)),
-													  list_length(castNode(List, object)) - 1));
+				args = NameListToString(list_copy_head(castNode(List, object),
+													   list_length(castNode(List, object)) - 1));
 			}
 			break;
 		case OBJECT_FDW:
