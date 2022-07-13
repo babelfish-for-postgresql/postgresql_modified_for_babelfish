@@ -609,7 +609,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 
 %type <node>	TableConstraint TableLikeClause
 %type <ival>	TableLikeOptionList TableLikeOption
-%type <str>		column_compression opt_column_compression
+%type <str>		column_compression opt_column_compression column_storage opt_column_storage
 %type <list>	ColQualList
 %type <node>	ColConstraint ColConstraintElem ConstraintAttr
 %type <ival>	key_match
@@ -2566,13 +2566,13 @@ alter_table_cmd:
 					$$ = (Node *) n;
 				}
 			/* ALTER TABLE <name> ALTER [COLUMN] <colname> SET STORAGE <storagemode> */
-			| ALTER opt_column ColId SET STORAGE ColId
+			| ALTER opt_column ColId SET column_storage
 				{
 					AlterTableCmd *n = makeNode(AlterTableCmd);
 
 					n->subtype = AT_SetStorage;
 					n->name = $3;
-					n->def = (Node *) makeString($6);
+					n->def = (Node *) makeString($5);
 					$$ = (Node *) n;
 				}
 			/* ALTER TABLE <name> ALTER [COLUMN] <colname> SET COMPRESSION <cm> */
@@ -3807,13 +3807,14 @@ TypedTableElement:
 			| TableConstraint					{ $$ = $1; }
 		;
 
-columnDef:	ColId Typename opt_column_compression create_generic_options ColQualList
+columnDef:	ColId Typename opt_column_storage opt_column_compression create_generic_options ColQualList
 				{
 					ColumnDef *n = makeNode(ColumnDef);
 
 					n->colname = $1;
 					n->typeName = $2;
-					n->compression = $3;
+					n->storage_name = $3;
+					n->compression = $4;
 					n->inhcount = 0;
 					n->is_local = true;
 					n->is_not_null = false;
@@ -3822,8 +3823,8 @@ columnDef:	ColId Typename opt_column_compression create_generic_options ColQualL
 					n->raw_default = NULL;
 					n->cooked_default = NULL;
 					n->collOid = InvalidOid;
-					n->fdwoptions = $4;
-					SplitColQualList($5, &n->constraints, &n->collClause,
+					n->fdwoptions = $5;
+					SplitColQualList($6, &n->constraints, &n->collClause,
 									 yyscanner);
 					n->location = @1;
 					$$ = (Node *) n;
@@ -3877,6 +3878,15 @@ column_compression:
 
 opt_column_compression:
 			column_compression						{ $$ = $1; }
+			| /*EMPTY*/								{ $$ = NULL; }
+		;
+
+column_storage:
+			STORAGE ColId							{ $$ = $2; }
+		;
+
+opt_column_storage:
+			column_storage							{ $$ = $1; }
 			| /*EMPTY*/								{ $$ = NULL; }
 		;
 
