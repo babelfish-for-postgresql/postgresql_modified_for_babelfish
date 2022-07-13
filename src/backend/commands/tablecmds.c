@@ -8343,7 +8343,6 @@ ATExecSetStorage(Relation rel, const char *colName, Node *newValue, LOCKMODE loc
 	AttrNumber	attnum;
 	ObjectAddress address;
 
-	Assert(IsA(newValue, String));
 	storagemode = strVal(newValue);
 
 	if (pg_strcasecmp(storagemode, "plain") == 0)
@@ -16253,7 +16252,6 @@ ATExecSetCompression(AlteredTableInfo *tab,
 	char		cmethod;
 	ObjectAddress address;
 
-	Assert(IsA(newValue, String));
 	compression = strVal(newValue);
 
 	attrel = table_open(AttributeRelationId, RowExclusiveLock);
