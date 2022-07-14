@@ -2750,6 +2750,9 @@ transformTypeCast(ParseState *pstate, TypeCast *tc)
 						format_type_be(targetType)),
 				 parser_coercion_errposition(pstate, location, expr)));
 
+	if (handle_type_and_collation_hook)
+		handle_type_and_collation_hook(result, targetType, InvalidOid);
+
 	return result;
 }
 

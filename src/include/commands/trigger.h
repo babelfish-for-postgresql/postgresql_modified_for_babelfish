@@ -301,4 +301,6 @@ extern int	RI_FKey_trigger_type(Oid tgfoid);
 extern void BeginCompositeTriggers(MemoryContext curCxt);
 extern void EndCompositeTriggers(bool error);
 
+extern bool TsqlRecuresiveCheck(ResultRelInfo *resultRelInfo);
+
 #endif							/* TRIGGER_H */
