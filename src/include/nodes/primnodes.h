@@ -1121,6 +1121,7 @@ typedef struct CoalesceExpr
 	Oid			coalescecollid; /* OID of collation, or InvalidOid if none */
 	List	   *args;			/* the arguments */
 	int			location;		/* token location, or -1 if unknown */
+	bool			tsql_is_null;	/* whether the calling function is T-SQL ISNULL() */
 } CoalesceExpr;
 
 /*

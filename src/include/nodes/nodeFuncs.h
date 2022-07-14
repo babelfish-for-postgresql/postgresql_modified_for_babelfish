@@ -159,4 +159,7 @@ struct PlanState;
 extern bool planstate_tree_walker(struct PlanState *planstate, bool (*walker) (),
 								  void *context);
 
+typedef int32 (*coalesce_typmod_hook_type) (CoalesceExpr *cexpr);
+extern PGDLLIMPORT coalesce_typmod_hook_type coalesce_typmod_hook;
+
 #endif							/* NODEFUNCS_H */

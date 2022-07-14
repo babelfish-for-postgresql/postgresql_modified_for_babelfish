@@ -33,6 +33,7 @@ static bool planstate_walk_subplans(List *plans, bool (*walker) (),
 static bool planstate_walk_members(PlanState **planstates, int nplans,
 								   bool (*walker) (), void *context);
 
+coalesce_typmod_hook_type coalesce_typmod_hook = NULL;
 
 /*
  *	exprType -
@@ -427,6 +428,9 @@ exprTypmod(const Node *expr)
 				Oid			coalescetype = cexpr->coalescetype;
 				int32		typmod;
 				ListCell   *arg;
+
+				if (coalesce_typmod_hook && cexpr->tsql_is_null)
+					return (*coalesce_typmod_hook)(cexpr);
 
 				if (exprType((Node *) linitial(cexpr->args)) != coalescetype)
 					return -1;
