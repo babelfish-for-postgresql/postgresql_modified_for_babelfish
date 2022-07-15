@@ -32,12 +32,14 @@
 
 #include <math.h>
 
+#include "catalog/pg_collation.h"
 #include "fmgr.h"
 #include "miscadmin.h"
 #include "nodes/extensible.h"
 #include "nodes/parsenodes.h"
 #include "nodes/plannodes.h"
 #include "nodes/readfuncs.h"
+#include "parser/parser.h"	/* For sql_dialect */
 #include "utils/builtins.h"
 
 
@@ -611,6 +613,9 @@ _readConst(void)
 		token = pg_strtok(&length); /* skip "<>" */
 	else
 		local_node->constvalue = readDatum(local_node->constbyval);
+	
+	if (local_node->constcollid == DEFAULT_COLLATION_OID)
+		local_node->constcollid = CLUSTER_COLLATION_OID();
 
 	READ_DONE();
 }
@@ -629,6 +634,9 @@ _readParam(void)
 	READ_INT_FIELD(paramtypmod);
 	READ_OID_FIELD(paramcollid);
 	READ_LOCATION_FIELD(location);
+
+	if (local_node->paramcollid == DEFAULT_COLLATION_OID)
+	local_node->paramcollid = CLUSTER_COLLATION_OID();
 
 	READ_DONE();
 }

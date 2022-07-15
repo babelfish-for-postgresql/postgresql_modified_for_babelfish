@@ -455,8 +455,34 @@ DefineType(ParseState *pstate, List *names, List *parameters)
 					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 					 errmsg("storage \"%s\" not recognized", a)));
 	}
-	if (collatableEl)
-		collation = defGetBoolean(collatableEl) ? DEFAULT_COLLATION_OID : InvalidOid;
+	if (collatableEl && defGetBoolean(collatableEl))
+	{
+		/*
+		 * For Babelfish, we are creating new type duting create extension time under sys schema,
+		 * We want these datatype being created under sys schema to have the correct collation.
+		 */
+		if (strcmp(get_namespace_name(typeNamespace), "sys") == 0)
+		{
+			SQLDialect	dialect;
+			/*
+			 * Given that we would be in SQL_DIALECT_PG dialect at this point, set dialect to SQL_DIALECT_TSQL 
+			 * temporarily and set the correct collation to datatype.
+			 */
+			Assert(sql_dialect == SQL_DIALECT_PG);
+			dialect = sql_dialect;
+			sql_dialect = SQL_DIALECT_TSQL;
+			collation = CLUSTER_COLLATION_OID();
+			sql_dialect = dialect;
+		}
+		else
+		{
+			collation = DEFAULT_COLLATION_OID;
+		}
+	}
+	else
+	{
+		collation = InvalidOid;
+	}
 
 	/*
 	 * make sure we have our required definitions
