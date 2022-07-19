@@ -561,7 +561,7 @@ DefineView(ViewStmt *stmt, const char *queryString,
 									stmt->replace, stmt->options, viewParse);
 
 	if (sql_dialect == SQL_DIALECT_TSQL && store_view_definition_hook && !(stmt->replace))
-			store_view_definition_hook(queryString, address);
+			(*store_view_definition_hook)(queryString, address);
 
 	return address;
 }
