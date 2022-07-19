@@ -574,7 +574,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %type <defelt>	generic_option_elem alter_generic_option_elem
 %type <list>	generic_option_list alter_generic_option_list
 
-%type <ival>	reindex_target_type reindex_target_multitable
+%type <ival>	reindex_target_type reindex_target_multitable reindex_name_optional
 
 %type <node>	copy_generic_opt_arg copy_generic_opt_arg_list_item
 %type <defelt>	copy_generic_opt_elem
@@ -9172,6 +9172,24 @@ ReindexStmt:
 											makeDefElem("concurrently", NULL, @3));
 					$$ = (Node *) n;
 				}
+			| REINDEX reindex_name_optional
+				{
+					ReindexStmt *n = makeNode(ReindexStmt);
+					n->kind = $2;
+					n->name = NULL;
+					n->relation = NULL;
+					n->params = NIL;
+					$$ = (Node *)n;
+				}
+			| REINDEX '(' utility_option_list ')' reindex_name_optional
+				{
+					ReindexStmt *n = makeNode(ReindexStmt);
+					n->kind = $5;
+					n->name = NULL;
+					n->relation = NULL;
+					n->params = $3;
+					$$ = (Node *)n;
+				}
 			| REINDEX '(' utility_option_list ')' reindex_target_type opt_concurrently qualified_name
 				{
 					ReindexStmt *n = makeNode(ReindexStmt);
@@ -9206,6 +9224,11 @@ reindex_target_type:
 reindex_target_multitable:
 			SCHEMA					{ $$ = REINDEX_OBJECT_SCHEMA; }
 			| SYSTEM_P				{ $$ = REINDEX_OBJECT_SYSTEM; }
+			| DATABASE				{ $$ = REINDEX_OBJECT_DATABASE; }
+		;
+/* For these options the name is optional */
+reindex_name_optional:
+			SYSTEM_P				{ $$ = REINDEX_OBJECT_SYSTEM; }
 			| DATABASE				{ $$ = REINDEX_OBJECT_DATABASE; }
 		;
 
