@@ -745,6 +745,17 @@ _readFuncExpr(void)
 	READ_DONE();
 }
 
+static FuncDefault *
+_readFuncDefault(void)
+{
+	READ_LOCALS(FuncDefault);
+
+	READ_INT_FIELD(position);
+	READ_NODE_FIELD(actualexpr);
+
+	READ_DONE();
+}
+
 /*
  * _readNamedArgExpr
  */
@@ -2771,6 +2782,8 @@ parseNodeString(void)
 		return_value = _readSubscriptingRef();
 	else if (MATCH("FUNCEXPR", 8))
 		return_value = _readFuncExpr();
+	else if (MATCH("FUNCDEFAULT", 11))
+		return_value = _readFuncDefault();
 	else if (MATCH("NAMEDARGEXPR", 12))
 		return_value = _readNamedArgExpr();
 	else if (MATCH("OPEXPR", 6))

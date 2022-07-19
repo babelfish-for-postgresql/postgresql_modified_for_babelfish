@@ -251,6 +251,9 @@ exprType(const Node *expr)
 		case T_PlaceHolderVar:
 			type = exprType((Node *) ((const PlaceHolderVar *) expr)->phexpr);
 			break;
+		case T_FuncDefault:
+			type = exprType((Node *) ((const FuncDefault *) expr)->actualexpr);
+			break;
 		default:
 			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(expr));
 			type = InvalidOid;	/* keep compiler quiet */
@@ -483,6 +486,8 @@ exprTypmod(const Node *expr)
 			return ((const SetToDefault *) expr)->typeMod;
 		case T_PlaceHolderVar:
 			return exprTypmod((Node *) ((const PlaceHolderVar *) expr)->phexpr);
+		case T_FuncDefault:
+			return exprTypmod((Node *) ((const FuncDefault *) expr)->actualexpr);
 		default:
 			break;
 	}
@@ -958,6 +963,9 @@ exprCollation(const Node *expr)
 			break;
 		case T_PlaceHolderVar:
 			coll = exprCollation((Node *) ((const PlaceHolderVar *) expr)->phexpr);
+			break;
+		case T_FuncDefault:
+			coll = exprCollation((Node *) ((const FuncDefault *) expr)->actualexpr);
 			break;
 		default:
 			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(expr));
@@ -2014,6 +2022,15 @@ expression_tree_walker(Node *node,
 				FuncExpr   *expr = (FuncExpr *) node;
 
 				if (expression_tree_walker((Node *) expr->args,
+										   walker, context))
+					return true;
+			}
+			break;
+		case T_FuncDefault:
+			{
+				FuncDefault		*expr = (FuncDefault *)node;
+
+				if (expression_tree_walker((Node *) expr->actualexpr,
 										   walker, context))
 					return true;
 			}

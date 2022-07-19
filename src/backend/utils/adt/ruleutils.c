@@ -8446,6 +8446,14 @@ get_rule_expr(Node *node, deparse_context *context,
 			get_func_expr((FuncExpr *) node, context, showimplicit);
 			break;
 
+		case T_FuncDefault:
+			{
+				FuncDefault *fd = (FuncDefault *) node;
+
+				get_rule_expr((Node *) fd->actualexpr, context, showimplicit);
+			}
+			break;
+
 		case T_NamedArgExpr:
 			{
 				NamedArgExpr *na = (NamedArgExpr *) node;

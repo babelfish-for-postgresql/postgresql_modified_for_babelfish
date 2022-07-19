@@ -504,6 +504,17 @@ typedef struct FuncExpr
 	int			location;		/* token location, or -1 if unknown */
 } FuncExpr;
 
+
+/*
+ * FuncDefault - expression node for a function's  default argument
+ */
+typedef struct FuncDefault
+{
+	Expr		xpr;
+	int			position;		/* Index or position of argument's default expression */
+	Node	   *actualexpr;	/* Actual default expression */
+} FuncDefault;
+
 /*
  * NamedArgExpr - a named argument of a function
  *

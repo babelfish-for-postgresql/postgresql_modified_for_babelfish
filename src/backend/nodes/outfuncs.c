@@ -1251,6 +1251,15 @@ _outFuncExpr(StringInfo str, const FuncExpr *node)
 }
 
 static void
+_outFuncDefault(StringInfo str, const FuncDefault *node)
+{
+	WRITE_NODE_TYPE("FUNCDEFAULT");
+
+	WRITE_INT_FIELD(position);
+	WRITE_NODE_FIELD(actualexpr);
+}
+
+static void
 _outNamedArgExpr(StringInfo str, const NamedArgExpr *node)
 {
 	WRITE_NODE_TYPE("NAMEDARGEXPR");
@@ -4050,6 +4059,9 @@ outNode(StringInfo str, const void *obj)
 				break;
 			case T_FuncExpr:
 				_outFuncExpr(str, obj);
+				break;
+			case T_FuncDefault:
+				_outFuncDefault(str, obj);
 				break;
 			case T_NamedArgExpr:
 				_outNamedArgExpr(str, obj);

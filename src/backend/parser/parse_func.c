@@ -1688,7 +1688,9 @@ func_get_detail(List *funcname,
 			pfree(str);
 
 			/* Delete any unused defaults from the returned list */
-			if (best_candidate->argnumbers != NULL)
+			if (best_candidate->argnumbers != NULL && best_candidate->tsql_argdefaults != NIL)
+				*argdefaults = best_candidate->tsql_argdefaults;
+			else if (best_candidate->argnumbers != NULL)
 			{
 				/*
 				 * This is a bit tricky in named notation, since the supplied
