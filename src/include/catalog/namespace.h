@@ -35,7 +35,7 @@ typedef struct _FuncCandidateList
 	int			nvargs;			/* number of args to become variadic array */
 	int			ndargs;			/* number of defaulted args */
 	int		   *argnumbers;		/* args' positional indexes, if named call */
-	List	   *argdefaults;    /* list of default args, only set for PL/tsql function */
+	List	   *tsql_argdefaults;    /* list of default args, only set for PL/tsql function */
 	Oid			args[FLEXIBLE_ARRAY_MEMBER];	/* arg types */
 }		   *FuncCandidateList;
 

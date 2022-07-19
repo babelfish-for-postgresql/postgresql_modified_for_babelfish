@@ -3273,18 +3273,7 @@ print_function_arguments(StringInfo buf, HeapTuple proctup,
 		if (argname && argname[0])
 			appendStringInfo(buf, "%s ", quote_identifier(argname));
 		appendStringInfoString(buf, format_type_be(argtype));
-
-		if (nextargdefault != NULL && IsA(lfirst(nextargdefault), FuncDefault))
-		{
-			FuncDefault *fd = (FuncDefault *) lfirst(nextargdefault);
-			if (print_defaults && isinput && fd->position == (inputargno - 1))
-			{
-				nextargdefault = lnext(argdefaults, nextargdefault);
-				appendStringInfo(buf, " DEFAULT %s",
-								 deparse_expression(fd->actualexpr, NIL, false, false));
-			}
-		}
-		else if (print_defaults && isinput && inputargno > nlackdefaults)
+		if (print_defaults && isinput && inputargno > nlackdefaults)
 		{
 			Node	   *expr;
 

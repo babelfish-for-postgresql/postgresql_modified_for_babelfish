@@ -1247,13 +1247,13 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 			for (i = 0; i < pronargs; i++)
 				newResult->args[i] = proargtypes[argnumbers[i]];
 
-			newResult->argdefaults = defaults;
+			newResult->tsql_argdefaults = defaults;
 		}
 		else
 		{
 			/* Simple positional case, just copy proargtypes as-is */
 			memcpy(newResult->args, proargtypes, pronargs * sizeof(Oid));
-			newResult->argdefaults = NIL;
+			newResult->tsql_argdefaults = NIL;
 		}
 		if (variadic)
 		{
@@ -1531,7 +1531,7 @@ MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
 		char		*str;
 		List		*argdefaults = NIL;
 		bool		isnull;
-		bool		special = false;
+		bool		tsql_funcdefault_node = false;
 		ListCell	*def_item = NULL;
 
 		proargdefaults = SysCacheGetAttr(PROCOID, proctup,
@@ -1543,7 +1543,7 @@ MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
 			str = TextDatumGetCString(proargdefaults);
 			argdefaults = castNode(List, stringToNode(str));
 			def_item = list_head(argdefaults);
-			special = IsA(lfirst(def_item), FuncDefault) ? true : false;
+			tsql_funcdefault_node = IsA(lfirst(def_item), FuncDefault) ? true : false;
 			pfree(str);
 		}
 		for (pp = numposargs; pp < pronargs; pp++)
@@ -1556,7 +1556,7 @@ MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
 			 * special handling. Look into FuncDefault into node to find out
 			 * the default expression for pp'th argument.
 			 */
-			if (special)
+			if (tsql_funcdefault_node)
 			{
 				bool found = false;
 
