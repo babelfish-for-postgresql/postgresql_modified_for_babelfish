@@ -1605,7 +1605,11 @@ addRangeTableEntryForRelation(ParseState *pstate,
  * Then, construct and return a ParseNamespaceItem for the new RTE.
  *
  * This is much like addRangeTableEntry() except that it makes a subquery RTE.
- * Note that an alias clause *must* be supplied.
+ *
+ * If the subquery does not have an alias, the auto-generated relation name in
+ * the returned ParseNamespaceItem will be marked as not visible, and so only
+ * unqualified references to the subquery columns will be allowed, and the
+ * relation name will not conflict with others in the pstate's namespace list.
  */
 ParseNamespaceItem *
 addRangeTableEntryForSubquery(ParseState *pstate,
@@ -1615,7 +1619,6 @@ addRangeTableEntryForSubquery(ParseState *pstate,
 							  bool inFromCl)
 {
 	RangeTblEntry *rte = makeNode(RangeTblEntry);
-	char	   *refname = alias->aliasname;
 	Alias	   *eref;
 	int			numaliases;
 	List	   *coltypes,
@@ -1623,6 +1626,7 @@ addRangeTableEntryForSubquery(ParseState *pstate,
 			   *colcollations;
 	int			varattno;
 	ListCell   *tlistitem;
+	ParseNamespaceItem *nsitem;
 
 	Assert(pstate != NULL);
 
@@ -1630,7 +1634,7 @@ addRangeTableEntryForSubquery(ParseState *pstate,
 	rte->subquery = subquery;
 	rte->alias = alias;
 
-	eref = copyObject(alias);
+	eref = alias ? copyObject(alias) : makeAlias("unnamed_subquery", NIL);
 	numaliases = list_length(eref->colnames);
 
 	/* fill in any unspecified alias columns, and extract column type info */
@@ -1662,7 +1666,7 @@ addRangeTableEntryForSubquery(ParseState *pstate,
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
 				 errmsg("table \"%s\" has %d columns available but %d columns specified",
-						refname, varattno, numaliases)));
+						eref->aliasname, varattno, numaliases)));
 
 	rte->eref = eref;
 
@@ -1693,8 +1697,15 @@ addRangeTableEntryForSubquery(ParseState *pstate,
 	 * Build a ParseNamespaceItem, but don't add it to the pstate's namespace
 	 * list --- caller must do that if appropriate.
 	 */
-	return buildNSItemFromLists(rte, list_length(pstate->p_rtable),
-								coltypes, coltypmods, colcollations);
+	nsitem = buildNSItemFromLists(rte, list_length(pstate->p_rtable),
+								  coltypes, coltypmods, colcollations);
+
+	/*
+	 * Mark it visible as a relation name only if it had a user-written alias.
+	 */
+	nsitem->p_rel_visible = (alias != NULL);
+
+	return nsitem;
 }
 
 /*
@@ -2558,6 +2569,10 @@ addRangeTableEntryForENR(ParseState *pstate,
  * This is used when we have not yet done transformLockingClause, but need
  * to know the correct lock to take during initial opening of relations.
  *
+ * Note that refname may be NULL (for a subquery without an alias), in which
+ * case the relation can't be locked by name, but it might still be locked if
+ * a locking clause requests that all tables be locked.
+ *
  * Note: we pay no attention to whether it's FOR UPDATE vs FOR SHARE,
  * since the table-level lock is the same either way.
  */
@@ -2582,7 +2597,7 @@ isLockedRefname(ParseState *pstate, const char *refname)
 			/* all tables used in query */
 			return true;
 		}
-		else
+		else if (refname != NULL)
 		{
 			/* just the named tables */
 			ListCell   *l2;
