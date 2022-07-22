@@ -333,19 +333,19 @@ getTsqlTvfType(Archive *fout, const FuncInfo *finfo, char prokind, bool proretse
 	return PLTSQL_TVFTYPE_NONE;
 }
 
-char *fixAttoptionsBbfOriginalName(Archive *fout, Oid relOid, char *attName)
+void fixAttoptionsBbfOriginalName(Archive *fout, Oid relOid, const TableInfo *tbinfo, int idx)
 {
 	PGresult *res;
 	PQExpBuffer q;
 	char *escapedAttname;
-	char *ret;
+	char *attname = tbinfo->attnames[idx];
 
 	if (!isBabelfishDatabase(fout))
-		return NULL;
+		return;
 
 	/* 2*strlen+1 bytes are required for PQescapeString according to the documentation */
-	escapedAttname = pg_malloc(2 * strlen(attName) + 1);
-	PQescapeString(escapedAttname, attName, strlen(attName));
+	escapedAttname = pg_malloc(2 * strlen(attname) + 1);
+	PQescapeString(escapedAttname, attname, strlen(attname));
 
 	q = createPQExpBuffer();
 
@@ -371,13 +371,12 @@ char *fixAttoptionsBbfOriginalName(Archive *fout, Oid relOid, char *attName)
 	res = ExecuteSqlQueryForSingleRow(fout, q->data);
 
 	free(escapedAttname);
+	PQfreemem(tbinfo->attoptions[idx]);
 
-	ret = pg_strdup(PQgetvalue(res, 0, 0));
+	tbinfo->attoptions[idx] = pg_strdup(PQgetvalue(res, 0, 0));
 
 	destroyPQExpBuffer(q);
 	PQclear(res);
-
-	return ret;
 }
 
 /*
