@@ -16544,7 +16544,7 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 			 */
 			if (tbinfo->attoptions[j][0] != '\0')
 			{
-				fixAttoptionsBbfOriginalName(fout, &tbinfo->attoptions[j]);
+				fixAttoptionsBbfOriginalName(fout, tbinfo->dobj.catId.oid, tbinfo, j);
 
 				appendPQExpBuffer(q, "ALTER %sTABLE ONLY %s ALTER COLUMN %s SET (%s);\n",
 								  foreign, qualrelname,
