@@ -348,6 +348,11 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 				simple_select values_clause
 				PLpgSQL_Expr PLAssignStmt
 
+%type <str>			opt_single_name
+%type <list>		opt_qualified_name
+%type <boolean> 	opt_concurrently
+%type <dbehavior>	opt_drop_behavior
+
 %type <node>	alter_column_default opclass_item opclass_drop alter_using
 %type <ival>	add_drop opt_asc_desc opt_nulls_order
 
@@ -356,8 +361,6 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %type <list>	alter_table_cmds alter_type_cmds
 %type <list>    alter_identity_column_option_list
 %type <defelt>  alter_identity_column_option
-
-%type <dbehavior>	opt_drop_behavior
 
 %type <list>	createdb_opt_list createdb_opt_items copy_opt_list
 				transaction_mode_list
@@ -385,7 +388,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %type <str>		foreign_server_version opt_foreign_server_version
 %type <str>		opt_in_database
 
-%type <str>		OptSchemaName parameter_name
+%type <str>		parameter_name
 %type <list>	OptSchemaEltList parameter_name_list
 
 %type <chr>		am_type
@@ -406,10 +409,10 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %type <str>		copy_file_name
 				access_method_clause attr_name
 				table_access_method_clause name cursor_name file_name
-				opt_index_name cluster_index_specification
+				cluster_index_specification
 
 %type <list>	func_name handler_name qual_Op qual_all_Op subquery_Op
-				opt_class opt_inline_handler opt_validator validator_clause
+				opt_inline_handler opt_validator validator_clause
 				opt_collate
 
 %type <range>	qualified_name insert_target OptConstrFromTable
@@ -449,7 +452,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 				oper_argtypes RuleActionList RuleActionMulti
 				opt_column_list columnList opt_name_list
 				sort_clause opt_sort_clause sortby_list index_params
-				opt_stats_name stats_params
+				stats_params
 				opt_include opt_c_include index_including_params
 				name_list role_list from_clause from_list opt_array_bounds
 				qualified_name_list any_name any_name_list type_name_list
@@ -509,7 +512,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %type <str>		unicode_normal_form
 
 %type <boolean> opt_instead
-%type <boolean> opt_unique opt_concurrently opt_verbose opt_full
+%type <boolean> opt_unique opt_verbose opt_full
 %type <boolean> opt_freeze opt_analyze opt_default opt_recheck
 %type <defelt>	opt_binary copy_delimiter
 
@@ -1204,6 +1207,30 @@ stmt:
 				{ $$ = NULL; }
 		;
 
+/*
+ * Generic supporting productions for DDL
+ */
+opt_single_name:
+			ColId							{ $$ = $1; }
+			| /* EMPTY */					{ $$ = NULL; }
+		;
+
+opt_qualified_name:
+			any_name						{ $$ = $1; }
+			| /*EMPTY*/						{ $$ = NIL; }
+		;
+
+opt_concurrently:
+			CONCURRENTLY					{ $$ = true; }
+			| /*EMPTY*/						{ $$ = false; }
+		;
+
+opt_drop_behavior:
+			CASCADE							{ $$ = DROP_CASCADE; }
+			| RESTRICT						{ $$ = DROP_RESTRICT; }
+			| /* EMPTY */					{ $$ = DROP_RESTRICT; /* default */ }
+		;
+
 /*****************************************************************************
  *
  * CALL statement
@@ -1579,7 +1606,7 @@ add_drop:	ADD_P									{ $$ = +1; }
  *****************************************************************************/
 
 CreateSchemaStmt:
-			CREATE SCHEMA OptSchemaName AUTHORIZATION RoleSpec OptSchemaEltList
+			CREATE SCHEMA opt_single_name AUTHORIZATION RoleSpec OptSchemaEltList
 				{
 					CreateSchemaStmt *n = makeNode(CreateSchemaStmt);
 
@@ -1603,7 +1630,7 @@ CreateSchemaStmt:
 					n->location = @3;
 					$$ = (Node *)n;
 				}
-			| CREATE SCHEMA IF_P NOT EXISTS OptSchemaName AUTHORIZATION RoleSpec OptSchemaEltList
+			| CREATE SCHEMA IF_P NOT EXISTS opt_single_name AUTHORIZATION RoleSpec OptSchemaEltList
 				{
 					CreateSchemaStmt *n = makeNode(CreateSchemaStmt);
 
@@ -1637,11 +1664,6 @@ CreateSchemaStmt:
 					n->location = @6;
 					$$ = (Node *)n;
 				}
-		;
-
-OptSchemaName:
-			ColId									{ $$ = $1; }
-			| /* EMPTY */							{ $$ = NULL; }
 		;
 
 OptSchemaEltList:
@@ -3022,12 +3044,6 @@ alter_table_cmd:
 alter_column_default:
 			SET DEFAULT a_expr			{ $$ = $3; }
 			| DROP DEFAULT				{ $$ = NULL; }
-		;
-
-opt_drop_behavior:
-			CASCADE						{ $$ = DROP_CASCADE; }
-			| RESTRICT					{ $$ = DROP_RESTRICT; }
-			| /* EMPTY */				{ $$ = DROP_RESTRICT; /* default */ }
 		;
 
 opt_collate_clause:
@@ -4502,7 +4518,7 @@ part_params:	part_elem						{ $$ = list_make1($1); }
 			| part_params ',' part_elem			{ $$ = lappend($1, $3); }
 		;
 
-part_elem: ColId opt_collate opt_class
+part_elem: ColId opt_collate opt_qualified_name
 				{
 					PartitionElem *n = makeNode(PartitionElem);
 
@@ -4513,7 +4529,7 @@ part_elem: ColId opt_collate opt_class
 					n->location = @1;
 					$$ = n;
 				}
-			| func_expr_windowless opt_collate opt_class
+			| func_expr_windowless opt_collate opt_qualified_name
 				{
 					PartitionElem *n = makeNode(PartitionElem);
 
@@ -4524,7 +4540,7 @@ part_elem: ColId opt_collate opt_class
 					n->location = @1;
 					$$ = n;
 				}
-			| '(' a_expr ')' opt_collate opt_class
+			| '(' a_expr ')' opt_collate opt_qualified_name
 				{
 					PartitionElem *n = makeNode(PartitionElem);
 
@@ -4578,10 +4594,12 @@ ExistingIndex:   USING INDEX name					{ $$ = $3; }
  * but the grammar accepts it and then we'll throw FEATURE_NOT_SUPPORTED
  * errors as necessary at execution.
  *
+ * Statistics name is optional unless IF NOT EXISTS is specified.
+ *
  *****************************************************************************/
 
 CreateStatsStmt:
-			CREATE STATISTICS opt_stats_name
+			CREATE STATISTICS opt_qualified_name
 			opt_name_list ON stats_params FROM from_list
 				{
 					CreateStatsStmt *n = makeNode(CreateStatsStmt);
@@ -4608,12 +4626,6 @@ CreateStatsStmt:
 					$$ = (Node *) n;
 				}
 			;
-
-/* Statistics name is optional unless IF NOT EXISTS is specified */
-opt_stats_name:
-			any_name								{ $$ = $1; }
-			| /*EMPTY*/								{ $$ = NULL; }
-		;
 
 /*
  * Statistics attributes can be either simple column references, or arbitrary
@@ -8044,7 +8056,7 @@ defacl_privilege_target:
  * willing to make TABLESPACE a fully reserved word.
  *****************************************************************************/
 
-IndexStmt:	CREATE opt_unique INDEX opt_concurrently opt_index_name
+IndexStmt:	CREATE opt_unique INDEX opt_concurrently opt_single_name
 			ON relation_expr access_method_clause '(' index_params ')'
 			opt_include opt_unique_null_treatment opt_reloptions OptTableSpace where_clause
 				{
@@ -8115,16 +8127,6 @@ opt_unique:
 			| /*EMPTY*/								{ $$ = false; }
 		;
 
-opt_concurrently:
-			CONCURRENTLY							{ $$ = true; }
-			| /*EMPTY*/								{ $$ = false; }
-		;
-
-opt_index_name:
-			name									{ $$ = $1; }
-			| /*EMPTY*/								{ $$ = NULL; }
-		;
-
 access_method_clause:
 			USING name								{ $$ = $2; }
 			| /*EMPTY*/								{ $$ = DEFAULT_INDEX_TYPE; }
@@ -8136,7 +8138,7 @@ index_params:	index_elem							{ $$ = list_make1($1); }
 
 
 index_elem_options:
-	opt_collate opt_class opt_asc_desc opt_nulls_order
+	opt_collate opt_qualified_name opt_asc_desc opt_nulls_order
 		{
 			$$ = makeNode(IndexElem);
 			$$->name = NULL;
@@ -8196,9 +8198,6 @@ opt_collate: COLLATE any_name						{ $$ = $2; }
 			| /*EMPTY*/								{ $$ = NIL; }
 		;
 
-opt_class:	any_name								{ $$ = $1; }
-			| /*EMPTY*/								{ $$ = NIL; }
-		;
 
 opt_asc_desc: ASC							{ $$ = SORTBY_ASC; }
 			| DESC							{ $$ = SORTBY_DESC; }
