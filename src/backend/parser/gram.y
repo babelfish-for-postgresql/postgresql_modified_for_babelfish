@@ -12940,6 +12940,11 @@ GenericType:
 					$$ = makeTypeNameFromNameList(lcons(makeString($1), $2));
 					$$->typmods = $3;
 					$$->location = @1;
+
+					const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+					if (dump_restore && strcmp(dump_restore, "on") == 0 &&
+						strcmp(TypeNameToString($$), "sys.sysname") == 0)
+						$$->typmods = NIL;
 				}
 			| type_function_name attrs opt_type_modifiers WITHOUT TIME ZONE
 				{

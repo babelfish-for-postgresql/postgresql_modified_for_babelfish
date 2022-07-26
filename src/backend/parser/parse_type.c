@@ -361,10 +361,13 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 
 	if (typmodin == InvalidOid)
 	{
-		const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
-		if (dump_restore && strcmp(dump_restore, "on") == 0 &&
-			strcmp(TypeNameToString(typeName), "sys.sysname") == 0)
-			return 132;
+		// const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+		// if (dump_restore && strcmp(dump_restore, "on") == 0 &&
+		// 	strcmp(TypeNameToString(typeName), "sys.sysname") == 0)
+		// {
+		// 	typeName->typmods = NIL;
+		// 	return 132;
+		// }
 
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
