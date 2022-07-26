@@ -364,7 +364,10 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 		const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 		if (dump_restore && strcmp(dump_restore, "on") == 0 &&
 			strcmp(TypeNameToString(typeName), "sys.sysname") == 0)
-			return typeName->typemod;
+		{
+			// return typeName->typemod;
+			return 132;
+		}
 
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
