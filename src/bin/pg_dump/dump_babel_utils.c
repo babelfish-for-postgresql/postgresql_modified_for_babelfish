@@ -333,18 +333,19 @@ getTsqlTvfType(Archive *fout, const FuncInfo *finfo, char prokind, bool proretse
 	return PLTSQL_TVFTYPE_NONE;
 }
 
-void fixAttoptionsBbfOriginalName(Archive *fout, char **attoptions)
+void fixAttoptionsBbfOriginalName(Archive *fout, Oid relOid, const TableInfo *tbinfo, int idx)
 {
 	PGresult *res;
 	PQExpBuffer q;
-	char *escaped_attoptions;
+	char *escapedAttname;
+	char *attname = tbinfo->attnames[idx];
 
 	if (!isBabelfishDatabase(fout))
 		return;
 
 	/* 2*strlen+1 bytes are required for PQescapeString according to the documentation */
-	escaped_attoptions = pg_malloc(2 * strlen(*attoptions) + 1);
-	PQescapeString(escaped_attoptions, *attoptions, strlen(*attoptions));
+	escapedAttname = pg_malloc(2 * strlen(attname) + 1);
+	PQescapeString(escapedAttname, attname, strlen(attname));
 
 	q = createPQExpBuffer();
 
@@ -360,15 +361,19 @@ void fixAttoptionsBbfOriginalName(Archive *fout, char **attoptions)
 		"THEN 'bbf_original_name=' || quote_literal(substring(option, length('bbf_original_name=')+1)) "
 		"ELSE option "
 		"END, ',')::text as options "
-		"FROM unnest(string_to_array('%s',',')) AS option;",
-		escaped_attoptions);
+		"FROM ( "
+		"SELECT UNNEST(attoptions) as option FROM pg_attribute where attrelid = %d and attname = '%s' "
+		") option",
+		relOid,
+		escapedAttname
+		);
 
 	res = ExecuteSqlQueryForSingleRow(fout, q->data);
 
-	free(escaped_attoptions);
-	PQfreemem(*attoptions);
+	free(escapedAttname);
+	PQfreemem(tbinfo->attoptions[idx]);
 
-	*attoptions = pg_strdup(PQgetvalue(res, 0, 0));
+	tbinfo->attoptions[idx] = pg_strdup(PQgetvalue(res, 0, 0));
 
 	destroyPQExpBuffer(q);
 	PQclear(res);
