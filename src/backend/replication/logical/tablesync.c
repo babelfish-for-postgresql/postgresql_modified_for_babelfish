@@ -1483,7 +1483,7 @@ FetchTableStates(bool *started_tx)
 		}
 
 		/* Fetch all non-ready tables. */
-		rstates = GetSubscriptionNotReadyRelations(MySubscription->oid);
+		rstates = GetSubscriptionRelations(MySubscription->oid, true);
 
 		/* Allocate the tracking info in a permanent memory context. */
 		oldctx = MemoryContextSwitchTo(CacheMemoryContext);
