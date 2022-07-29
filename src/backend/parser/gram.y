@@ -12943,8 +12943,10 @@ GenericType:
 
 					const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 					if (dump_restore && strcmp(dump_restore, "on") == 0 &&
-						strcmp(TypeNameToString($$), "sys.sysname") == 0)
-						$$->typmods = $3;
+						strcmp(strVal(linitial($$->names)), "sys") == 0 &&
+						strcmp(strVal(lsecond($$->names)), "sysname") == 0)
+						// strcmp(TypeNameToString($$), "sys.sysname") == 0)
+						$$->typmods = NIL;
 				}
 			| type_function_name attrs opt_type_modifiers WITHOUT TIME ZONE
 				{
