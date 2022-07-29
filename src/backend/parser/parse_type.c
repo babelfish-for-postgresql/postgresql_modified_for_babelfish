@@ -360,21 +360,11 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 	typmodin = ((Form_pg_type) GETSTRUCT(typ))->typmodin;
 
 	if (typmodin == InvalidOid)
-	{
-		// const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
-		// if (dump_restore && strcmp(dump_restore, "on") == 0 &&
-		// 	strcmp(TypeNameToString(typeName), "sys.sysname") == 0)
-		// {
-		// 	typeName->typmods = NIL;
-		// 	return 132;
-		// }
-
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
 				 errmsg("type modifier is not allowed for type \"%s\"",
 						TypeNameToString(typeName)),
 				 parser_errposition(pstate, typeName->location)));
-	}
 
 	/*
 	 * Convert the list of raw-grammar-output expressions to a cstring array.
