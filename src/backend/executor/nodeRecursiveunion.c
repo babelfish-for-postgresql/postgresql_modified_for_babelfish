@@ -22,8 +22,9 @@
 #include "executor/nodeRecursiveunion.h"
 #include "miscadmin.h"
 #include "utils/memutils.h"
+#include "parser/parser.h"
 
-
+int num_of_tuples_processed_before_recursive_term;
 
 /*
  * Initialize the hash table to empty.
@@ -106,12 +107,29 @@ ExecRecursiveUnion(PlanState *pstate)
 			/* ... and to the caller */
 			return slot;
 		}
+		num_of_tuples_processed_before_recursive_term = innerPlan -> state -> es_processed;
 		node->recursing = true;
 	}
 
 	/* 2. Execute recursive term */
 	for (;;)
 	{
+		if (sql_dialect == SQL_DIALECT_TSQL)
+		{
+			int max_recursion_depth_value = atoi(GetConfigOption("babelfishpg_tsql.max_recursion_depth", true, false));
+			int num_of_tuples_processed = innerPlan -> state -> es_processed;
+			int tuples_per_recursion = tuplestore_tuple_count(node->working_table);
+			if (max_recursion_depth_value > 0 && num_of_tuples_processed - num_of_tuples_processed_before_recursive_term > (max_recursion_depth_value - 1) * tuples_per_recursion)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_STATEMENT_TOO_COMPLEX),
+						errmsg("The statement terminated. The maximum recursion %d has been exhausted before statement completion.", max_recursion_depth_value),
+						errhint("Increase the configuration parameter \"max_recursion_depth\" (currently %d), "
+								"after ensuring the platform's stack depth limit is adequate.",
+								max_recursion_depth_value)));
+			}
+		}
+
 		slot = ExecProcNode(innerPlan);
 		if (TupIsNull(slot))
 		{

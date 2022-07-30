@@ -19,5 +19,6 @@
 extern RecursiveUnionState *ExecInitRecursiveUnion(RecursiveUnion *node, EState *estate, int eflags);
 extern void ExecEndRecursiveUnion(RecursiveUnionState *node);
 extern void ExecReScanRecursiveUnion(RecursiveUnionState *node);
+extern int num_of_tuples_processed_before_recursive_term;
 
 #endif							/* NODERECURSIVEUNION_H */
