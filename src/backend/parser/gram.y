@@ -176,7 +176,6 @@ static List *check_func_name(List *names, core_yyscan_t yyscanner);
 static List *check_indirection(List *indirection, core_yyscan_t yyscanner);
 static bool check_generic_type_with_or_without_time_zone(const TypeName *typname,
 														 bool with_time_zone);
-static void fix_tsql_domain_typmods(TypeName *typname);
 static List *extractArgTypes(List *parameters);
 static List *extractAggrArgTypes(List *aggrargs);
 static List *makeOrderedSetArgs(List *directargs, List *orderedargs,
@@ -217,6 +216,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 rewrite_typmod_expr_hook_type rewrite_typmod_expr_hook = NULL;
 validate_numeric_typmods_hook_type validate_numeric_typmods_hook = NULL;
 check_recursive_cte_hook_type check_recursive_cte_hook = NULL;
+fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %}
 
 %pure-parser
@@ -12942,7 +12942,8 @@ GenericType:
 					$$->typmods = $3;
 					$$->location = @1;
 
-					fix_tsql_domain_typmods($$);
+					if (fix_domain_typmods_hook)
+						(*fix_domain_typmods_hook)($$);
 				}
 			| type_function_name attrs opt_type_modifiers WITHOUT TIME ZONE
 				{
@@ -16960,23 +16961,6 @@ check_generic_type_with_or_without_time_zone(const TypeName *typname, bool with_
 	}
 
 	return false; /* not allowed */
-}
-
-/*
- * Some T-SQL domain types, e.g., sys.sysname from PG13, can have wrong typmods
- * so that it can cause a failure during dump and restore. This function detects
- * problematic cases and fixes it.
- */
-static void
-fix_tsql_domain_typmods(TypeName *typname)
-{
-	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
-	if (!dump_restore || strcmp(dump_restore, "on") != 0)
-		return;
-
-	if (strcmp(strVal(linitial(typname->names)), "sys") == 0 &&
-		strcmp(strVal(lsecond(typname->names)), "sysname") == 0)
-		typname->typmods = NIL; /* sys.sysname should not have typmods */
 }
 
 /* extractArgTypes()
