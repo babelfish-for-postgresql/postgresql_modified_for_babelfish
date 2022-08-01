@@ -2244,6 +2244,7 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 
 	newc->args = newcoercedargs;
 	newc->location = c->location;
+	newc->tsql_is_null = c->tsql_is_null;
 	return (Node *) newc;
 }
 
