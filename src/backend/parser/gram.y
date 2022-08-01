@@ -234,6 +234,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 rewrite_typmod_expr_hook_type rewrite_typmod_expr_hook = NULL;
 validate_numeric_typmods_hook_type validate_numeric_typmods_hook = NULL;
 check_recursive_cte_hook_type check_recursive_cte_hook = NULL;
+fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %}
 
 %pure-parser
@@ -14202,6 +14203,9 @@ GenericType:
 					$$ = makeTypeNameFromNameList(lcons(makeString($1), $2));
 					$$->typmods = $3;
 					$$->location = @1;
+
+					if (fix_domain_typmods_hook)
+						(*fix_domain_typmods_hook)($$);
 				}
 			| type_function_name attrs opt_type_modifiers WITHOUT_LA TIME ZONE
 				{

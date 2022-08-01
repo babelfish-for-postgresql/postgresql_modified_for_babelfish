@@ -114,6 +114,9 @@ extern PGDLLIMPORT validate_numeric_typmods_hook_type validate_numeric_typmods_h
 typedef bool (*check_recursive_cte_hook_type) (WithClause *with_clause);
 extern PGDLLIMPORT check_recursive_cte_hook_type check_recursive_cte_hook;
 
+typedef void (*fix_domain_typmods_hook_type) (TypeName *typname);
+extern PGDLLIMPORT fix_domain_typmods_hook_type fix_domain_typmods_hook;
+
 #define TSQLMaxTypmod -8000
 #define TSQLMaxNumPrecision 38
 #define TSQLHexConstTypmod -16
