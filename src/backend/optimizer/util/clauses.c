@@ -3201,6 +3201,7 @@ eval_const_expressions_mutator(Node *node,
 				newcoalesce->coalescecollid = coalesceexpr->coalescecollid;
 				newcoalesce->args = newargs;
 				newcoalesce->location = coalesceexpr->location;
+				newcoalesce->tsql_is_null = coalesceexpr->tsql_is_null;
 				return (Node *) newcoalesce;
 			}
 		case T_SQLValueFunction:
