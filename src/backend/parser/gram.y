@@ -12942,8 +12942,6 @@ GenericType:
 					$$->typmods = $3;
 					$$->location = @1;
 
-				ereport(LOG, (errmsg("fix_domain_typmods_hook: \"%s\"", fix_domain_typmods_hook)));
-
 					if (fix_domain_typmods_hook)
 						(*fix_domain_typmods_hook)($$);
 				}
