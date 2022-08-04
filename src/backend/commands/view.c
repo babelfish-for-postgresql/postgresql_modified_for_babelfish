@@ -35,6 +35,8 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
+store_view_definition_hook_type store_view_definition_hook = NULL;
+
 static void checkViewTupleDesc(TupleDesc newdesc, TupleDesc olddesc);
 
 inherit_view_constraints_from_table_hook_type inherit_view_constraints_from_table_hook = NULL;
@@ -556,6 +558,9 @@ DefineView(ViewStmt *stmt, const char *queryString,
 	 */
 	address = DefineVirtualRelation(view, viewParse->targetList,
 									stmt->replace, stmt->options, viewParse);
+
+	if (store_view_definition_hook && !(stmt->replace))
+			(*store_view_definition_hook)(queryString, address);
 
 	return address;
 }
