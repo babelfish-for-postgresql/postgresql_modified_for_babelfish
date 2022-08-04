@@ -2344,6 +2344,7 @@ typedef struct AlterTableCmd	/* one subcommand of an ALTER TABLE */
 	DropBehavior behavior;		/* RESTRICT or CASCADE for DROP cases */
 	bool		missing_ok;		/* skip error if missing? */
 	char	   *schemaname;
+	bool		recurse;		/* exec-time recursion */
 } AlterTableCmd;
 
 
