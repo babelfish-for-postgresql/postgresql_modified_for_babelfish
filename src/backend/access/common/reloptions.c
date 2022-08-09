@@ -1459,13 +1459,15 @@ parseRelOptionsInternal(Datum options, bool validate,
 		{
 			char	   *s;
 			char	   *p;
+			const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
 			s = TextDatumGetCString(optiondatums[i]);
 			p = strchr(s, '=');
 			if (p)
 				*p = '\0';
 
-			if (sql_dialect == SQL_DIALECT_TSQL)
+			if (sql_dialect == SQL_DIALECT_TSQL ||
+				(dump_restore && strcmp(dump_restore, "on") == 0))
 				continue;
 
 			if (strncmp(text_str, "bbf_original_rel_name", 21) == 0)
