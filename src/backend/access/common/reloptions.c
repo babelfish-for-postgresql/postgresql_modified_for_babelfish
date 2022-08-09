@@ -1452,8 +1452,8 @@ parseRelOptionsInternal(Datum options, bool validate,
 		}
 
 		/*
-		 * We are ignoring unrecognized parameters in TSQL
-		 * dialect without raising error
+		 * Ignore unrecognized parameters in TSQL dialect and as well
+		 * as while restoring babelfish database without raising error.
 		 */
 		if (j >= numoptions && validate)
 		{
@@ -1467,7 +1467,7 @@ parseRelOptionsInternal(Datum options, bool validate,
 				*p = '\0';
 
 			if (sql_dialect == SQL_DIALECT_TSQL ||
-				(dump_restore && strcmp(dump_restore, "on") == 0))
+				(dump_restore && strcmp(dump_restore, "on") == 0)) /* allow unrecognized parameters while restoring babelfish database */
 				continue;
 
 			if (strncmp(text_str, "bbf_original_rel_name", 21) == 0)
