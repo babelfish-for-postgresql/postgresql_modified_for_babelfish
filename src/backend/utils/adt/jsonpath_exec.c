@@ -2764,7 +2764,7 @@ JsonValueListLength(const JsonValueList *jvl)
 static bool
 JsonValueListIsEmpty(JsonValueList *jvl)
 {
-	return !jvl->singleton && list_length(jvl->list) <= 0;
+	return !jvl->singleton && (jvl->list == NIL);
 }
 
 static JsonbValue *

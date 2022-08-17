@@ -8121,7 +8121,7 @@ get_parameter(Param *param, deparse_context *context)
 				{
 					deparse_namespace *dpns = lfirst(lc);
 
-					if (list_length(dpns->rtable_names) > 0)
+					if (dpns->rtable_names != NIL)
 					{
 						should_qualify = true;
 						break;
