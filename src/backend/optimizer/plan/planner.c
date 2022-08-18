@@ -1813,8 +1813,8 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 							withCheckOptions = (List *)
 								adjust_appendrel_attrs_multilevel(root,
 																  (Node *) withCheckOptions,
-																  this_result_rel->relids,
-																  top_result_rel->relids);
+																  this_result_rel,
+																  top_result_rel);
 						withCheckOptionLists = lappend(withCheckOptionLists,
 													   withCheckOptions);
 					}
@@ -1826,8 +1826,8 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 							returningList = (List *)
 								adjust_appendrel_attrs_multilevel(root,
 																  (Node *) returningList,
-																  this_result_rel->relids,
-																  top_result_rel->relids);
+																  this_result_rel,
+																  top_result_rel);
 						returningLists = lappend(returningLists,
 												 returningList);
 					}
@@ -1848,13 +1848,13 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 							leaf_action->qual =
 								adjust_appendrel_attrs_multilevel(root,
 																  (Node *) action->qual,
-																  this_result_rel->relids,
-																  top_result_rel->relids);
+																  this_result_rel,
+																  top_result_rel);
 							leaf_action->targetList = (List *)
 								adjust_appendrel_attrs_multilevel(root,
 																  (Node *) action->targetList,
-																  this_result_rel->relids,
-																  top_result_rel->relids);
+																  this_result_rel,
+																  top_result_rel);
 							if (leaf_action->commandType == CMD_UPDATE)
 								leaf_action->updateColnos =
 									adjust_inherited_attnums_multilevel(root,
