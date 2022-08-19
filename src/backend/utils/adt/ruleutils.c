@@ -3166,6 +3166,7 @@ print_function_arguments(StringInfo buf, HeapTuple proctup,
 	List	   *argdefaults = NIL;
 	ListCell   *nextargdefault = NULL;
 	int			i;
+	bool		has_funcdefault_nodes = false;
 
 	numargs = get_func_arg_info(proctup,
 								&argtypes, &argnames, &argmodes);
@@ -3189,6 +3190,7 @@ print_function_arguments(StringInfo buf, HeapTuple proctup,
 			nextargdefault = list_head(argdefaults);
 			/* nlackdefaults counts only *input* arguments lacking defaults */
 			nlackdefaults = proc->pronargs - list_length(argdefaults);
+			has_funcdefault_nodes = IsA(lfirst(nextargdefault), FuncDefault) ? true : false;
 		}
 	}
 
@@ -3273,7 +3275,21 @@ print_function_arguments(StringInfo buf, HeapTuple proctup,
 		if (argname && argname[0])
 			appendStringInfo(buf, "%s ", quote_identifier(argname));
 		appendStringInfoString(buf, format_type_be(argtype));
-		if (print_defaults && isinput && inputargno > nlackdefaults)
+		if (print_defaults && isinput && has_funcdefault_nodes)
+		{
+			if (nextargdefault != NULL)
+			{
+				FuncDefault *node = (FuncDefault *) lfirst(nextargdefault);
+
+				if (node->position == (inputargno - 1))
+				{
+					appendStringInfo(buf, " DEFAULT %s",
+									 deparse_expression(node->actualexpr, NIL, false, false));
+					nextargdefault = lnext(argdefaults, nextargdefault);
+				}
+			}
+		}
+		else if (print_defaults && isinput && inputargno > nlackdefaults)
 		{
 			Node	   *expr;
 
@@ -3386,6 +3402,27 @@ pg_get_function_arg_default(PG_FUNCTION_ARGS)
 	str = TextDatumGetCString(proargdefaults);
 	argdefaults = castNode(List, stringToNode(str));
 	pfree(str);
+
+	if (IsA(lfirst(list_head(argdefaults)), FuncDefault))
+	{
+		ListCell *lc;
+
+		foreach(lc, argdefaults)
+		{
+			FuncDefault *fd = (FuncDefault *) lfirst(lc);
+
+			if (fd->position == (nth_arg - 1))
+			{
+				str = deparse_expression(fd->actualexpr, NIL, false, false);
+
+				ReleaseSysCache(proctup);
+				PG_RETURN_TEXT_P(string_to_text(str));
+			}
+		}
+
+		ReleaseSysCache(proctup);
+		PG_RETURN_NULL();
+	}
 
 	proc = (Form_pg_proc) GETSTRUCT(proctup);
 
