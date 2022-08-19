@@ -14,6 +14,7 @@
 #ifndef NAMESPACE_H
 #define NAMESPACE_H
 
+#include "access/htup.h"
 #include "nodes/primnodes.h"
 #include "storage/lock.h"
 
