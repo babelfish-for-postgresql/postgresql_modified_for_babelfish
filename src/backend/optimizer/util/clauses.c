@@ -91,6 +91,8 @@ typedef struct
 	List	   *safe_param_ids; /* PARAM_EXEC Param IDs to treat as safe */
 } max_parallel_hazard_context;
 
+insert_pltsql_function_defaults_hook_type insert_pltsql_function_defaults_hook = NULL;
+
 static bool contain_agg_clause_walker(Node *node, void *context);
 static bool find_window_functions_walker(Node *node, WindowFuncLists *lists);
 static bool contain_subplans_walker(Node *node, void *context);
@@ -4052,13 +4054,21 @@ reorder_function_arguments(List *args, int pronargs, HeapTuple func_tuple)
 	if (nargsprovided < pronargs)
 	{
 		List	   *defaults = fetch_function_defaults(func_tuple);
+		char	   *langname;
 
-		i = pronargs - funcform->pronargdefaults;
-		foreach(lc, defaults)
+		langname = get_language_name(funcform->prolang, true);
+		if (langname && pg_strcasecmp("pltsql", langname) == 0 &&
+			insert_pltsql_function_defaults_hook)
+			insert_pltsql_function_defaults_hook(func_tuple, defaults, argarray);
+		else
 		{
-			if (argarray[i] == NULL)
-				argarray[i] = (Node *) lfirst(lc);
-			i++;
+			i = pronargs - funcform->pronargdefaults;
+			foreach(lc, defaults)
+			{
+				if (argarray[i] == NULL)
+					argarray[i] = (Node *) lfirst(lc);
+				i++;
+			}
 		}
 	}
 

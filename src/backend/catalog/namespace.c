@@ -203,6 +203,8 @@ char	   *namespace_search_path = NULL;
 char *SYS_NAMESPACE_NAME = "sys";
 
 relname_lookup_hook_type relname_lookup_hook = NULL;
+MatchNamedCallHookType MatchNamedCallHook = NULL;
+MatchUnNamedCallHookType MatchUnNamedCallHook = NULL;
 
 
 /* Local functions */
@@ -1044,6 +1046,8 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 		bool		use_defaults;
 		Oid			va_elem_type;
 		int		   *argnumbers = NULL;
+		List	   *defaults = NIL;
+		char	   *langname = get_language_name(procform->prolang, true);
 		FuncCandidateList newResult;
 
 		if (OidIsValid(namespaceId))
@@ -1134,7 +1138,14 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 				continue;
 
 			/* Check for argument name match, generate positional mapping */
-			if (!MatchNamedCall(proctup, nargs, argnames,
+			if (langname && pg_strcasecmp("pltsql", langname) == 0)
+			{
+				if (MatchNamedCallHook && !MatchNamedCallHook(proctup, nargs, argnames,
+														include_out_arguments, pronargs,
+														&argnumbers, &defaults))
+					continue;
+			}
+			else if (!MatchNamedCall(proctup, nargs, argnames,
 								include_out_arguments, pronargs,
 								&argnumbers))
 				continue;
@@ -1179,6 +1190,15 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 
 			/* Ignore if it doesn't match requested argument count */
 			if (nargs >= 0 && pronargs != nargs && !variadic && !use_defaults)
+				continue;
+
+			/*
+			 * If call uses all positional arguments, then validate if all
+			 * the remaining arguments have defaults.
+			 */
+			if (use_defaults &&
+				(langname && pg_strcasecmp("pltsql", langname) == 0) &&
+				MatchUnNamedCallHook && !MatchUnNamedCallHook(proctup, nargs, pronargs))
 				continue;
 		}
 

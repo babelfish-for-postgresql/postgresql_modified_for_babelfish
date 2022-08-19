@@ -35,6 +35,7 @@ typedef struct _FuncCandidateList
 	int			nvargs;			/* number of args to become variadic array */
 	int			ndargs;			/* number of defaulted args */
 	int		   *argnumbers;		/* args' positional indexes, if named call */
+	List	   *tsql_argdefaults;    /* list of default args, only set for PL/tsql function */
 	Oid			args[FLEXIBLE_ARRAY_MEMBER];	/* arg types */
 }		   *FuncCandidateList;
 
@@ -81,6 +82,12 @@ typedef void (*RangeVarGetRelidCallback) (const RangeVar *relation, Oid relId,
  */
 typedef Oid (*relname_lookup_hook_type) (const char *relname, Oid relnamespace);
 extern PGDLLIMPORT relname_lookup_hook_type relname_lookup_hook;
+typedef bool (*MatchNamedCallHookType) (HeapTuple proctup, int nargs, List *argnames,
+										 bool include_out_arguments, int pronargs,
+										 int **argnumbers, List **defaults);
+extern PGDLLIMPORT MatchNamedCallHookType MatchNamedCallHook;
+typedef bool (*MatchUnNamedCallHookType) (HeapTuple proctup, int nargs, int pronargs);
+extern PGDLLIMPORT MatchUnNamedCallHookType MatchUnNamedCallHook;
 
 #define RangeVarGetRelid(relation, lockmode, missing_ok) \
 	RangeVarGetRelidExtended(relation, lockmode, \
