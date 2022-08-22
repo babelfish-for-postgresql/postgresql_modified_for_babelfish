@@ -1224,11 +1224,14 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 
 			for (i = 0; i < pronargs; i++)
 				newResult->args[i] = proargtypes[argnumbers[i]];
+
+			newResult->tsql_argdefaults = defaults;
 		}
 		else
 		{
 			/* Simple positional case, just copy proargtypes as-is */
 			memcpy(newResult->args, proargtypes, pronargs * sizeof(Oid));
+			newResult->tsql_argdefaults = NIL;
 		}
 		if (variadic)
 		{
