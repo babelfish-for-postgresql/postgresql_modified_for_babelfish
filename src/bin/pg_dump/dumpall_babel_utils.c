@@ -308,14 +308,15 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 					  "bbf_roles AS (SELECT rc.* FROM %s rc INNER JOIN bbf_catalog bcat "
 					  "ON rc.rolname = bcat.rolname) ", role_catalog);
 
-	appendPQExpBufferStr(buf, "SELECT ur.rolname AS roleid, "
+	appendPQExpBufferStr(buf, "SELECT ur.rolname AS role, "
 						 "um.rolname AS member, "
-						 "a.admin_option, "
-						 "ug.rolname AS grantor "
+						 "ug.oid AS grantorid, "
+						 "ug.rolname AS grantor, "
+						 "a.admin_option "
 						 "FROM pg_auth_members a "
 						 "INNER JOIN bbf_roles ur on ur.oid = a.roleid "
 						 "INNER JOIN bbf_roles um on um.oid = a.member "
 						 "LEFT JOIN bbf_roles ug on ug.oid = a.grantor "
 						 "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_') "
-						 "ORDER BY 1,2,3");
+						 "ORDER BY 1,2,4");
 }
