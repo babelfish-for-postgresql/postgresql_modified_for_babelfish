@@ -317,6 +317,8 @@ static const char *query_getviewrule = "SELECT * FROM pg_catalog.pg_rewrite WHER
 /* GUC parameters */
 bool		quote_all_identifiers = false;
 
+print_pltsql_function_arguments_hook_type print_pltsql_function_arguments_hook = NULL;
+
 
 /* ----------
  * Local functions
@@ -3175,6 +3177,11 @@ print_function_arguments(StringInfo buf, HeapTuple proctup,
 	{
 		Datum		proargdefaults;
 		bool		isnull;
+		char		*langname = get_language_name(proc->prolang, true);
+
+		if (langname && pg_strcasecmp("pltsql", langname) == 0 &&
+			print_pltsql_function_arguments_hook)
+			return print_pltsql_function_arguments_hook(buf, proctup, print_table_args);
 
 		proargdefaults = SysCacheGetAttr(PROCOID, proctup,
 										 Anum_pg_proc_proargdefaults,
