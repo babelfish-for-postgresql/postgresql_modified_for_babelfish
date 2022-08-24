@@ -1283,7 +1283,6 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 		PartitionDesc partdesc = RelationGetPartitionDesc(rel, true);
 		List	   *idxs = NIL;
 		List	   *childTbls = NIL;
-		ListCell   *l;
 		int			i;
 		MemoryContext oldcxt,
 					perChildCxt;
@@ -1315,6 +1314,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 		for (i = 0; i < partdesc->nparts; i++)
 		{
 			Oid			indexOnChild = InvalidOid;
+			ListCell   *l;
 			ListCell   *l2;
 			CreateTrigStmt *childStmt;
 			Relation	childTbl;
