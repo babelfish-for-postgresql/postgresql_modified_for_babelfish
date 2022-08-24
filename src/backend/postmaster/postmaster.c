@@ -4478,6 +4478,7 @@ BackendInitialize(Port *port)
 
 	/* Save port etc. for ps status */
 	MyProcPort = port;
+	memset(&MyClientConnectionInfo, 0, sizeof(MyClientConnectionInfo));
 
 	/* Tell fd.c about the long-lived FD associated with the port */
 	ReserveExternalFD();
