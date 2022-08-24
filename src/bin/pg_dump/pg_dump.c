@@ -11665,7 +11665,6 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 	char	  **configitems = NULL;
 	int			nconfigitems = 0;
 	const char *keyword;
-	int			i;
 
 	/* Do nothing in data-only dump */
 	if (dopt->dataOnly)
@@ -11945,7 +11944,7 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 					 finfo->dobj.name);
 	}
 
-	for (i = 0; i < nconfigitems; i++)
+	for (int i = 0; i < nconfigitems; i++)
 	{
 		/* we feel free to scribble on configitems[] here */
 		char	   *configitem = configitems[i];
