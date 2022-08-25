@@ -116,10 +116,11 @@ enum SysCacheIdentifier
 	 * the IDs to conflict.
 	 */
 	SYSDATABASEOID,
-	SYSDATABASENAME
+	SYSDATABASENAME,
+	SYSDATABASEOIDNSPPROCSIGNATURE
 
 #define SysCacheNoExtensionSize (USERMAPPINGUSERSERVER+ 1)
-#define SysCacheSize (SYSDATABASENAME + 1)
+#define SysCacheSize (SYSDATABASEOIDNSPPROCSIGNATURE + 1)
 };
 
 /*
