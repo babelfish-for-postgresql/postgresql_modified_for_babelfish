@@ -1305,7 +1305,6 @@ pg_get_indexdef_worker(Oid indexrelid, int colno,
 	if (!heap_attisnull(ht_idx, Anum_pg_index_indexprs, NULL))
 	{
 		Datum		exprsDatum;
-		bool		isnull;
 		char	   *exprsString;
 
 		exprsDatum = SysCacheGetAttr(INDEXRELID, ht_idx,
@@ -1502,7 +1501,6 @@ pg_get_indexdef_worker(Oid indexrelid, int colno,
 		{
 			Node	   *node;
 			Datum		predDatum;
-			bool		isnull;
 			char	   *predString;
 
 			/* Convert text string to node tree */
@@ -1947,7 +1945,6 @@ pg_get_partkeydef_worker(Oid relid, int prettyFlags,
 	if (!heap_attisnull(tuple, Anum_pg_partitioned_table_partexprs, NULL))
 	{
 		Datum		exprsDatum;
-		bool		isnull;
 		char	   *exprsString;
 
 		exprsDatum = SysCacheGetAttr(PARTRELID, tuple,

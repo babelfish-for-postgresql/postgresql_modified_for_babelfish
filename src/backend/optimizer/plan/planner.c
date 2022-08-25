@@ -3510,8 +3510,6 @@ get_number_of_groups(PlannerInfo *root,
 
 			if (gd->hash_sets_idx)
 			{
-				ListCell   *lc;
-
 				gd->dNumHashGroups = 0;
 
 				groupExprs = get_sortgrouplist_exprs(parse->groupClause,
@@ -4746,8 +4744,6 @@ create_final_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	Path	   *cheapest_input_path = input_rel->cheapest_total_path;
 	double		numDistinctRows;
 	bool		allow_hash;
-	Path	   *path;
-	ListCell   *lc;
 
 	/* Estimate number of distinct rows there will be */
 	if (parse->groupClause || parse->groupingSets || parse->hasAggs ||
@@ -4792,6 +4788,8 @@ create_final_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 		 * the other.)
 		 */
 		List	   *needed_pathkeys;
+		Path	   *path;
+		ListCell   *lc;
 
 		if (parse->hasDistinctOn &&
 			list_length(root->distinct_pathkeys) <
@@ -4802,7 +4800,7 @@ create_final_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 
 		foreach(lc, input_rel->pathlist)
 		{
-			Path	   *path = (Path *) lfirst(lc);
+			path = (Path *) lfirst(lc);
 
 			if (pathkeys_contained_in(needed_pathkeys, path->pathkeys))
 			{
@@ -5060,8 +5058,6 @@ create_ordered_paths(PlannerInfo *root,
 		 */
 		if (enable_incremental_sort && list_length(root->sort_pathkeys) > 1)
 		{
-			ListCell   *lc;
-
 			foreach(lc, input_rel->partial_pathlist)
 			{
 				Path	   *input_path = (Path *) lfirst(lc);
@@ -7633,7 +7629,6 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
 			AppendRelInfo **appinfos;
 			int			nappinfos;
 			List	   *child_scanjoin_targets = NIL;
-			ListCell   *lc;
 
 			Assert(child_rel != NULL);
 
