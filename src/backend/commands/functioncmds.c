@@ -1350,7 +1350,7 @@ CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
 						   procost,
 						   prorows);
 
-		if (store_func_default_positions_hook && !(stmt->replace))
+		if (store_func_default_positions_hook)
 			(*store_func_default_positions_hook)(objAddr, stmt->parameters);
 
 	return objAddr;
