@@ -1639,8 +1639,7 @@ runPgDump(const char *dbname, const char *create_opts)
 
 	pg_log_info("running \"%s\"", cmd->data);
 
-	fflush(stdout);
-	fflush(stderr);
+	fflush(NULL);
 
 	ret = system(cmd->data);
 
