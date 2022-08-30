@@ -84,8 +84,8 @@ typedef void (*RangeVarGetRelidCallback) (const RangeVar *relation, Oid relId,
 typedef Oid (*relname_lookup_hook_type) (const char *relname, Oid relnamespace);
 extern PGDLLIMPORT relname_lookup_hook_type relname_lookup_hook;
 typedef bool (*MatchNamedCallHookType) (HeapTuple proctup, int nargs, List *argnames,
-										 bool include_out_arguments, int pronargs,
-										 int **argnumbers, List **defaults);
+										bool include_out_arguments, int pronargs,
+										int **argnumbers, List **defaults);
 extern PGDLLIMPORT MatchNamedCallHookType MatchNamedCallHook;
 typedef bool (*MatchUnNamedCallHookType) (HeapTuple proctup, int nargs, int pronargs);
 extern PGDLLIMPORT MatchUnNamedCallHookType MatchUnNamedCallHook;
