@@ -51,9 +51,6 @@ extern List *addTargetToSortList(ParseState *pstate, TargetEntry *tle,
 extern Index assignSortGroupRef(TargetEntry *tle, List *tlist);
 extern bool targetIsInSortList(TargetEntry *tle, Oid sortop, List *sortList);
 
-/* functions in parse_jsontable.c */
-extern ParseNamespaceItem *transformJsonTable(ParseState *pstate, JsonTable *jt);
-
 typedef bool (*tle_name_comparison_hook_type)(const char *tlename, const char *identifier);
 extern PGDLLIMPORT tle_name_comparison_hook_type tle_name_comparison_hook;
 
