@@ -45,7 +45,8 @@ extern char *pg_get_statisticsobjdef_string(Oid statextid);
 
 typedef int (*print_pltsql_function_arguments_hook_type) (StringInfo buf,
 														  HeapTuple proctup,
-														  bool print_table_args);
+														  bool print_table_args,
+														  bool print_defaults);
 extern PGDLLIMPORT print_pltsql_function_arguments_hook_type print_pltsql_function_arguments_hook;
 
 #endif							/* RULEUTILS_H */

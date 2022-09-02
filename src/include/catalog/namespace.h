@@ -83,12 +83,12 @@ typedef void (*RangeVarGetRelidCallback) (const RangeVar *relation, Oid relId,
  */
 typedef Oid (*relname_lookup_hook_type) (const char *relname, Oid relnamespace);
 extern PGDLLIMPORT relname_lookup_hook_type relname_lookup_hook;
-typedef bool (*MatchNamedCallHookType) (HeapTuple proctup, int nargs, List *argnames,
-										bool include_out_arguments, int pronargs,
-										int **argnumbers, List **defaults);
-extern PGDLLIMPORT MatchNamedCallHookType MatchNamedCallHook;
-typedef bool (*MatchUnNamedCallHookType) (HeapTuple proctup, int nargs, int pronargs);
-extern PGDLLIMPORT MatchUnNamedCallHookType MatchUnNamedCallHook;
+typedef bool (*match_pltsql_func_call_hook_type) (HeapTuple proctup, int nargs, List *argnames,
+												  bool include_out_arguments, int **argnumbers,
+												  List **defaults, bool expand_defaults, bool expand_variadic,
+												  bool *use_defaults, bool *any_special,
+												  bool *variadic, Oid *va_elem_type);
+extern PGDLLIMPORT match_pltsql_func_call_hook_type match_pltsql_func_call_hook;
 
 #define RangeVarGetRelid(relation, lockmode, missing_ok) \
 	RangeVarGetRelidExtended(relation, lockmode, \

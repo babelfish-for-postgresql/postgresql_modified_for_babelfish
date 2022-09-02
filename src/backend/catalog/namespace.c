@@ -203,8 +203,7 @@ char	   *namespace_search_path = NULL;
 char *SYS_NAMESPACE_NAME = "sys";
 
 relname_lookup_hook_type relname_lookup_hook = NULL;
-MatchNamedCallHookType MatchNamedCallHook = NULL;
-MatchUnNamedCallHookType MatchUnNamedCallHook = NULL;
+match_pltsql_func_call_hook_type match_pltsql_func_call_hook = NULL;
 
 
 /* Local functions */
@@ -1104,7 +1103,18 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 			}
 		}
 
-		if (argnames != NIL)
+		if (langname && pg_strcasecmp("pltsql", langname) == 0 &&
+			match_pltsql_func_call_hook)
+		{
+			if (!match_pltsql_func_call_hook(proctup, nargs, argnames,
+											 include_out_arguments,
+											 &argnumbers, &defaults,
+											 expand_defaults, expand_variadic,
+											 &use_defaults, &any_special,
+											 &variadic, &va_elem_type))
+				continue;
+		}
+		else if (argnames != NIL)
 		{
 			/*
 			 * Call uses named or mixed notation
@@ -1137,15 +1147,7 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 			if (pronargs != nargs && !use_defaults)
 				continue;
 
-			/* Check for argument name match, generate positional mapping */
-			if (langname && pg_strcasecmp("pltsql", langname) == 0)
-			{
-				if (MatchNamedCallHook && !MatchNamedCallHook(proctup, nargs, argnames,
-														include_out_arguments, pronargs,
-														&argnumbers, &defaults))
-					continue;
-			}
-			else if (!MatchNamedCall(proctup, nargs, argnames,
+			if (!MatchNamedCall(proctup, nargs, argnames,
 								include_out_arguments, pronargs,
 								&argnumbers))
 				continue;
@@ -1190,15 +1192,6 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 
 			/* Ignore if it doesn't match requested argument count */
 			if (nargs >= 0 && pronargs != nargs && !variadic && !use_defaults)
-				continue;
-
-			/*
-			 * If call uses all positional arguments, then validate if all
-			 * the remaining arguments have defaults.
-			 */
-			if (use_defaults &&
-				(langname && pg_strcasecmp("pltsql", langname) == 0) &&
-				MatchUnNamedCallHook && !MatchUnNamedCallHook(proctup, nargs, pronargs))
 				continue;
 		}
 

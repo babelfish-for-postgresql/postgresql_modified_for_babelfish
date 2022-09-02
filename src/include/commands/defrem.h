@@ -77,10 +77,8 @@ extern void interpret_function_parameter_list(ParseState *pstate,
 
 typedef bool (*check_lang_as_clause_hook_type)(const char *lang, List *as, char **prosrc_str_p, char **probin_str_p);
 typedef void (*write_stored_proc_probin_hook_type)(CreateFunctionStmt *stmt, Oid languageOid, char** probin_str_p);
-typedef void (*store_func_default_positions_hook_type)(ObjectAddress address, List *parameters);
 extern PGDLLIMPORT check_lang_as_clause_hook_type check_lang_as_clause_hook;
 extern PGDLLIMPORT write_stored_proc_probin_hook_type write_stored_proc_probin_hook;
-extern PGDLLIMPORT store_func_default_positions_hook_type store_func_default_positions_hook;
 /* commands/operatorcmds.c */
 extern ObjectAddress DefineOperator(List *names, List *parameters);
 extern void RemoveOperatorById(Oid operOid);

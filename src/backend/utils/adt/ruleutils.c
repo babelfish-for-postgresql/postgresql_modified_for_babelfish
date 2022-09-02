@@ -3168,6 +3168,12 @@ print_function_arguments(StringInfo buf, HeapTuple proctup,
 	List	   *argdefaults = NIL;
 	ListCell   *nextargdefault = NULL;
 	int			i;
+	char	   *langname = get_language_name(proc->prolang, true);
+
+	if (langname && pg_strcasecmp("pltsql", langname) == 0 &&
+		print_pltsql_function_arguments_hook)
+		return print_pltsql_function_arguments_hook(buf, proctup,
+								print_table_args, print_defaults);
 
 	numargs = get_func_arg_info(proctup,
 								&argtypes, &argnames, &argmodes);
@@ -3177,11 +3183,6 @@ print_function_arguments(StringInfo buf, HeapTuple proctup,
 	{
 		Datum		proargdefaults;
 		bool		isnull;
-		char		*langname = get_language_name(proc->prolang, true);
-
-		if (langname && pg_strcasecmp("pltsql", langname) == 0 &&
-			print_pltsql_function_arguments_hook)
-			return print_pltsql_function_arguments_hook(buf, proctup, print_table_args);
 
 		proargdefaults = SysCacheGetAttr(PROCOID, proctup,
 										 Anum_pg_proc_proargdefaults,

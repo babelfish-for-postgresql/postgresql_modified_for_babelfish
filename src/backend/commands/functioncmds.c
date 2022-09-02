@@ -82,7 +82,6 @@
 
 check_lang_as_clause_hook_type check_lang_as_clause_hook = NULL;
 write_stored_proc_probin_hook_type write_stored_proc_probin_hook = NULL;
-store_func_default_positions_hook_type store_func_default_positions_hook = NULL;
 
 /*
  *	 Examine the RETURNS clause of the CREATE FUNCTION statement
@@ -1349,9 +1348,6 @@ CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
 						   prosupport,
 						   procost,
 						   prorows);
-
-		if (store_func_default_positions_hook)
-			(*store_func_default_positions_hook)(objAddr, stmt->parameters);
 
 	return objAddr;
 }
