@@ -13416,5 +13416,3 @@ guc_set_stack_value(struct config_generic *gconf, config_var_value *val)
 {
 	set_stack_value(gconf,  val);
 }
-
-#include "guc-file.c"
