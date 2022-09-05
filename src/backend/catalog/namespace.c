@@ -1046,7 +1046,6 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 		Oid			va_elem_type;
 		int		   *argnumbers = NULL;
 		List	   *defaults = NIL;
-		char	   *langname = get_language_name(procform->prolang, true);
 		FuncCandidateList newResult;
 
 		if (OidIsValid(namespaceId))
@@ -1103,7 +1102,7 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 			}
 		}
 
-		if (langname && pg_strcasecmp("pltsql", langname) == 0 &&
+		if (is_pltsql_language_oid(procform->prolang) &&
 			match_pltsql_func_call_hook)
 		{
 			if (!match_pltsql_func_call_hook(proctup, nargs, argnames,

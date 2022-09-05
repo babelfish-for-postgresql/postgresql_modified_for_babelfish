@@ -4054,10 +4054,8 @@ reorder_function_arguments(List *args, int pronargs, HeapTuple func_tuple)
 	if (nargsprovided < pronargs)
 	{
 		List	   *defaults = fetch_function_defaults(func_tuple);
-		char	   *langname;
 
-		langname = get_language_name(funcform->prolang, true);
-		if (langname && pg_strcasecmp("pltsql", langname) == 0 &&
+		if (is_pltsql_language_oid(funcform->prolang) &&
 			insert_pltsql_function_defaults_hook)
 			insert_pltsql_function_defaults_hook(func_tuple, defaults, argarray);
 		else

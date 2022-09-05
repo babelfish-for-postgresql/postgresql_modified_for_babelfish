@@ -3168,9 +3168,8 @@ print_function_arguments(StringInfo buf, HeapTuple proctup,
 	List	   *argdefaults = NIL;
 	ListCell   *nextargdefault = NULL;
 	int			i;
-	char	   *langname = get_language_name(proc->prolang, true);
 
-	if (langname && pg_strcasecmp("pltsql", langname) == 0 &&
+	if (is_pltsql_language_oid(proc->prolang) &&
 		print_pltsql_function_arguments_hook)
 		return print_pltsql_function_arguments_hook(buf, proctup,
 								print_table_args, print_defaults);

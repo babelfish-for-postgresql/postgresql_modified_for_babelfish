@@ -218,8 +218,6 @@ interpret_function_parameter_list(ParseState *pstate,
 	bool		have_defaults = false;
 	ListCell   *x;
 	int			i;
-	char	   *langname = get_language_name(languageOid, true);
-	bool		is_pltsql_func = langname && pg_strcasecmp("pltsql", langname) == 0 ? true : false;
 
 	*variadicArgType = InvalidOid;	/* default result */
 	*requiredResultType = InvalidOid;	/* default result */
@@ -452,7 +450,7 @@ interpret_function_parameter_list(ParseState *pstate,
 		}
 		else
 		{
-			if (isinput && have_defaults && !is_pltsql_func)
+			if (isinput && have_defaults && !is_pltsql_language_oid(languageOid))
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
 						 errmsg("input parameters after one with a default value must also have defaults")));
@@ -462,7 +460,7 @@ interpret_function_parameter_list(ParseState *pstate,
 			 * with a default, because the same sort of confusion arises in a
 			 * CALL statement.
 			 */
-			if (objtype == OBJECT_PROCEDURE && have_defaults && !is_pltsql_func)
+			if (objtype == OBJECT_PROCEDURE && have_defaults && !is_pltsql_language_oid(languageOid))
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
 						 errmsg("procedure OUT parameters cannot appear after one with a default value")));
