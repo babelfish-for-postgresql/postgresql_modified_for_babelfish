@@ -1455,7 +1455,7 @@ pg_get_indexdef_worker(Oid indexrelid, int colno,
 		appendStringInfoChar(&buf, ')');
 
 		if (idxrec->indnullsnotdistinct)
-			appendStringInfo(&buf, " NULLS NOT DISTINCT");
+			appendStringInfoString(&buf, " NULLS NOT DISTINCT");
 
 		/*
 		 * If it has options, append "WITH (options)"
@@ -2334,9 +2334,9 @@ pg_get_constraintdef_worker(Oid constraintId, bool fullCommand,
 									  Anum_pg_constraint_confdelsetcols, &isnull);
 				if (!isnull)
 				{
-					appendStringInfo(&buf, " (");
+					appendStringInfoString(&buf, " (");
 					decompile_column_index_array(val, conForm->conrelid, &buf);
-					appendStringInfo(&buf, ")");
+					appendStringInfoChar(&buf, ')');
 				}
 
 				break;
@@ -2365,7 +2365,7 @@ pg_get_constraintdef_worker(Oid constraintId, bool fullCommand,
 					((Form_pg_index) GETSTRUCT(indtup))->indnullsnotdistinct)
 					appendStringInfoString(&buf, "NULLS NOT DISTINCT ");
 
-				appendStringInfoString(&buf, "(");
+				appendStringInfoChar(&buf, '(');
 
 				/* Fetch and build target column list */
 				val = SysCacheGetAttr(CONSTROID, tup,
@@ -3590,7 +3590,7 @@ pg_get_function_sqlbody(PG_FUNCTION_ARGS)
 
 	ReleaseSysCache(proctup);
 
-	PG_RETURN_TEXT_P(cstring_to_text(buf.data));
+	PG_RETURN_TEXT_P(cstring_to_text_with_len(buf.data, buf.len));
 }
 
 
