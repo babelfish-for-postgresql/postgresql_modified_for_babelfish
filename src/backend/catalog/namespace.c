@@ -1146,6 +1146,7 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 			if (pronargs != nargs && !use_defaults)
 				continue;
 
+			/* Check for argument name match, generate positional mapping */
 			if (!MatchNamedCall(proctup, nargs, argnames,
 								include_out_arguments, pronargs,
 								&argnumbers))
