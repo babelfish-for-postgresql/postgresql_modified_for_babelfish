@@ -178,7 +178,6 @@ static void pgstat_build_snapshot_fixed(PgStat_Kind kind);
 static inline bool pgstat_is_kind_valid(int ikind);
 
 invalidate_stat_table_hook_type invalidate_stat_table_hook = NULL;
-guc_newval_hook_type guc_newval_hook = NULL;
 
 
 /* ----------

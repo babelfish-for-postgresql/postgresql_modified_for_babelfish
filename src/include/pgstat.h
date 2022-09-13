@@ -710,9 +710,6 @@ extern PGDLLEXPORT pre_function_call_hook_type pre_function_call_hook;
 typedef void (*invalidate_stat_table_hook_type) (void);
 extern PGDLLEXPORT invalidate_stat_table_hook_type invalidate_stat_table_hook;
 
-typedef void (*guc_newval_hook_type) (const char *guc, bool boolVal, const char *strVal, int intVal);
-extern PGDLLEXPORT guc_newval_hook_type guc_newval_hook;
-
 typedef bool (*tsql_has_pgstat_permissions_hook_type) (Oid role);
 extern PGDLLEXPORT tsql_has_pgstat_permissions_hook_type tsql_has_pgstat_permissions_hook;
 

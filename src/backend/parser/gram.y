@@ -63,6 +63,7 @@
 #include "storage/lmgr.h"
 #include "utils/date.h"
 #include "utils/datetime.h"
+#include "utils/guc.h"
 #include "utils/numeric.h"
 #include "utils/xml.h"
 
