@@ -55,9 +55,9 @@
 #include "catalog/pg_trigger.h"
 #include "commands/defrem.h"
 #include "commands/trigger.h"
+#include "gramparse.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
-#include "parser/gramparse.h"
 #include "parser/parser.h"
 #include "parser/scansup.h"  /* downcase_identifier */
 #include "storage/lmgr.h"
