@@ -2034,7 +2034,7 @@ addRangeTableEntryForTableFunc(ParseState *pstate,
 							   bool inFromCl)
 {
 	RangeTblEntry *rte = makeNode(RangeTblEntry);
-	char	   *refname = alias ? alias->aliasname : pstrdup("xmltable");
+	char	   *refname;
 	Alias	   *eref;
 	int			numaliases;
 
@@ -2052,7 +2052,7 @@ addRangeTableEntryForTableFunc(ParseState *pstate,
 	Assert(list_length(tf->coltypmods) == list_length(tf->colnames));
 	Assert(list_length(tf->colcollations) == list_length(tf->colnames));
 
-	refname = alias ? alias->aliasname :  pstrdup("xmltable");
+	refname = alias ? alias->aliasname : pstrdup("xmltable");
 
 	rte->rtekind = RTE_TABLEFUNC;
 	rte->relid = InvalidOid;
