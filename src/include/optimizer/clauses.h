@@ -14,6 +14,7 @@
 #ifndef CLAUSES_H
 #define CLAUSES_H
 
+#include "access/htup.h"
 #include "nodes/pathnodes.h"
 
 typedef struct
@@ -54,5 +55,8 @@ extern Query *inline_set_returning_function(PlannerInfo *root,
 											RangeTblEntry *rte);
 
 extern Bitmapset *pull_paramids(Expr *expr);
+
+typedef void (*insert_pltsql_function_defaults_hook_type)(HeapTuple func_tuple, List *defaults, Node **argarray);
+extern PGDLLIMPORT insert_pltsql_function_defaults_hook_type insert_pltsql_function_defaults_hook;
 
 #endif							/* CLAUSES_H */
