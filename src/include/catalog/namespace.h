@@ -14,6 +14,7 @@
 #ifndef NAMESPACE_H
 #define NAMESPACE_H
 
+#include "access/htup.h"
 #include "nodes/primnodes.h"
 #include "storage/lock.h"
 
@@ -35,6 +36,7 @@ typedef struct _FuncCandidateList
 	int			nvargs;			/* number of args to become variadic array */
 	int			ndargs;			/* number of defaulted args */
 	int		   *argnumbers;		/* args' positional indexes, if named call */
+	List	   *tsql_argdefaults;    /* list of default args, only set for PL/tsql function */
 	Oid			args[FLEXIBLE_ARRAY_MEMBER];	/* arg types */
 }		   *FuncCandidateList;
 
@@ -81,6 +83,12 @@ typedef void (*RangeVarGetRelidCallback) (const RangeVar *relation, Oid relId,
  */
 typedef Oid (*relname_lookup_hook_type) (const char *relname, Oid relnamespace);
 extern PGDLLIMPORT relname_lookup_hook_type relname_lookup_hook;
+typedef bool (*match_pltsql_func_call_hook_type) (HeapTuple proctup, int nargs, List *argnames,
+												  bool include_out_arguments, int **argnumbers,
+												  List **defaults, bool expand_defaults, bool expand_variadic,
+												  bool *use_defaults, bool *any_special,
+												  bool *variadic, Oid *va_elem_type);
+extern PGDLLIMPORT match_pltsql_func_call_hook_type match_pltsql_func_call_hook;
 
 #define RangeVarGetRelid(relation, lockmode, missing_ok) \
 	RangeVarGetRelidExtended(relation, lockmode, \

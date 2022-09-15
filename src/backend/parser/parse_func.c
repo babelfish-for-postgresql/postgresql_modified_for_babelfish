@@ -1687,8 +1687,11 @@ func_get_detail(List *funcname,
 			defaults = castNode(List, stringToNode(str));
 			pfree(str);
 
+			/* Use tsql_argdefaults directly if it is not NIL */
+			if (best_candidate->argnumbers != NULL && best_candidate->tsql_argdefaults != NIL)
+				*argdefaults = best_candidate->tsql_argdefaults;
 			/* Delete any unused defaults from the returned list */
-			if (best_candidate->argnumbers != NULL)
+			else if (best_candidate->argnumbers != NULL)
 			{
 				/*
 				 * This is a bit tricky in named notation, since the supplied

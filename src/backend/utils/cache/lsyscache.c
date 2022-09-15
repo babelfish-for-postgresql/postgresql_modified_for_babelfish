@@ -1183,6 +1183,21 @@ get_language_name(Oid langoid, bool missing_ok)
 	return NULL;
 }
 
+bool
+is_pltsql_language_oid(Oid langoid)
+{
+	Oid		pltsql_lang_oid = InvalidOid;
+	Oid		pltsql_validator_oid = InvalidOid;
+
+	if (get_func_language_oids_hook)
+		get_func_language_oids_hook(&pltsql_lang_oid, &pltsql_validator_oid);
+
+	if (OidIsValid(pltsql_lang_oid) && langoid == pltsql_lang_oid)
+		return true;
+
+	return false;
+}
+
 /*				---------- OPCLASS CACHE ----------						 */
 
 /*
