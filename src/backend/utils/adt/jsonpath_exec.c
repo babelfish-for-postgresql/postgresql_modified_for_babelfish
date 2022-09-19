@@ -550,16 +550,6 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 		}
 	}
 
-	if (strict)
-	{
-		char *tmp;
-		int len;
-		/* Since jsonb_path_query already can interpret strict/lax keywords, just put 'strict' back into the path */
-		len = 7 + strlen(col_path) + 1;
-		tmp = palloc0(len);
-		snprintf(tmp, len, "strict %s", col_path);
-		col_path = tmp;
-	}
 	if (JB_ROOT_IS_ARRAY(jb))
 	{
 		char *tmp;
@@ -568,6 +558,16 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 		len = 4 + strlen(col_path) + 1;
 		tmp = palloc0(len);
 		snprintf(tmp, len, "$[*]%s", &(col_path[1]));
+		col_path = tmp;
+	}
+	if (strict)
+	{
+		char *tmp;
+		int len;
+		/* Since jsonb_path_query already can interpret strict/lax keywords, just put 'strict' back into the path */
+		len = 7 + strlen(col_path) + 1;
+		tmp = palloc0(len);
+		snprintf(tmp, len, "strict %s", col_path);
 		col_path = tmp;
 	}
 
