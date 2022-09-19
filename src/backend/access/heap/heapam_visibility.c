@@ -1780,37 +1780,37 @@ HeapTupleSatisfiesHistoricMVCC(HeapTuple htup, Snapshot snapshot,
  *	if so, the indicated buffer is marked dirty.
  */
 bool
-HeapTupleSatisfiesVisibility(Relation relation, HeapTuple tup, Snapshot snapshot, Buffer buffer)
+HeapTupleSatisfiesVisibility(Relation relation, HeapTuple htup, Snapshot snapshot, Buffer buffer)
 {
 	/*
 	* Babelfish extension has a different type of heap table but non-transactional.
 	* It is not worth introducing a new table AM because the new table still uses heap format.
 	*/
 	if (sql_dialect == SQL_DIALECT_TSQL && relation && RelationIsBBFTableVariable(relation))
-		return table_variable_satisfies_visibility_hook(tup, snapshot, buffer);
+		return table_variable_satisfies_visibility_hook(htup, snapshot, buffer);
 
 	switch (snapshot->snapshot_type)
 	{
 		case SNAPSHOT_MVCC:
-			return HeapTupleSatisfiesMVCC(tup, snapshot, buffer);
+			return HeapTupleSatisfiesMVCC(htup, snapshot, buffer);
 			break;
 		case SNAPSHOT_SELF:
-			return HeapTupleSatisfiesSelf(tup, snapshot, buffer);
+			return HeapTupleSatisfiesSelf(htup, snapshot, buffer);
 			break;
 		case SNAPSHOT_ANY:
-			return HeapTupleSatisfiesAny(tup, snapshot, buffer);
+			return HeapTupleSatisfiesAny(htup, snapshot, buffer);
 			break;
 		case SNAPSHOT_TOAST:
-			return HeapTupleSatisfiesToast(tup, snapshot, buffer);
+			return HeapTupleSatisfiesToast(htup, snapshot, buffer);
 			break;
 		case SNAPSHOT_DIRTY:
-			return HeapTupleSatisfiesDirty(tup, snapshot, buffer);
+			return HeapTupleSatisfiesDirty(htup, snapshot, buffer);
 			break;
 		case SNAPSHOT_HISTORIC_MVCC:
-			return HeapTupleSatisfiesHistoricMVCC(tup, snapshot, buffer);
+			return HeapTupleSatisfiesHistoricMVCC(htup, snapshot, buffer);
 			break;
 		case SNAPSHOT_NON_VACUUMABLE:
-			return HeapTupleSatisfiesNonVacuumable(tup, snapshot, buffer);
+			return HeapTupleSatisfiesNonVacuumable(htup, snapshot, buffer);
 			break;
 	}
 

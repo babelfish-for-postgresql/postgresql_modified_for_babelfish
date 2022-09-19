@@ -134,13 +134,13 @@ extern TableScanDesc heap_beginscan(Relation relation, Snapshot snapshot,
 									int nkeys, ScanKey key,
 									ParallelTableScanDesc parallel_scan,
 									uint32 flags);
-extern void heap_setscanlimits(TableScanDesc scan, BlockNumber startBlk,
+extern void heap_setscanlimits(TableScanDesc sscan, BlockNumber startBlk,
 							   BlockNumber numBlks);
-extern void heapgetpage(TableScanDesc scan, BlockNumber page);
-extern void heap_rescan(TableScanDesc scan, ScanKey key, bool set_params,
+extern void heapgetpage(TableScanDesc sscan, BlockNumber page);
+extern void heap_rescan(TableScanDesc sscan, ScanKey key, bool set_params,
 						bool allow_strat, bool allow_sync, bool allow_pagemode);
-extern void heap_endscan(TableScanDesc scan);
-extern HeapTuple heap_getnext(TableScanDesc scan, ScanDirection direction);
+extern void heap_endscan(TableScanDesc sscan);
+extern HeapTuple heap_getnext(TableScanDesc sscan, ScanDirection direction);
 extern bool heap_getnextslot(TableScanDesc sscan,
 							 ScanDirection direction, struct TupleTableSlot *slot);
 extern void heap_set_tidrange(TableScanDesc sscan, ItemPointer mintid,
@@ -154,7 +154,7 @@ extern bool heap_hot_search_buffer(ItemPointer tid, Relation relation,
 								   Buffer buffer, Snapshot snapshot, HeapTuple heapTuple,
 								   bool *all_dead, bool first_call);
 
-extern void heap_get_latest_tid(TableScanDesc scan, ItemPointer tid);
+extern void heap_get_latest_tid(TableScanDesc sscan, ItemPointer tid);
 
 extern BulkInsertState GetBulkInsertState(void);
 extern void FreeBulkInsertState(BulkInsertState);
@@ -176,7 +176,7 @@ extern TM_Result heap_update(Relation relation, ItemPointer otid,
 							 struct TM_FailureData *tmfd, LockTupleMode *lockmode);
 extern TM_Result heap_lock_tuple(Relation relation, HeapTuple tuple,
 								 CommandId cid, LockTupleMode mode, LockWaitPolicy wait_policy,
-								 bool follow_update,
+								 bool follow_updates,
 								 Buffer *buffer, struct TM_FailureData *tmfd);
 
 extern void heap_inplace_update(Relation relation, HeapTuple tuple);
@@ -203,7 +203,7 @@ extern void heap_page_prune_opt(Relation relation, Buffer buffer);
 extern int	heap_page_prune(Relation relation, Buffer buffer,
 							struct GlobalVisState *vistest,
 							TransactionId old_snap_xmin,
-							TimestampTz old_snap_ts_ts,
+							TimestampTz old_snap_ts,
 							int *nnewlpdead,
 							OffsetNumber *off_loc);
 extern void heap_page_prune_execute(Buffer buffer,
@@ -218,13 +218,13 @@ extern void heap_vacuum_rel(Relation rel,
 							struct VacuumParams *params, BufferAccessStrategy bstrategy);
 
 /* in heap/heapam_visibility.c */
-extern bool HeapTupleSatisfiesVisibility(Relation relation, HeapTuple stup, Snapshot snapshot,
+extern bool HeapTupleSatisfiesVisibility(Relation relation, HeapTuple htup, Snapshot snapshot,
 										 Buffer buffer);
-extern TM_Result HeapTupleSatisfiesUpdate(Relation relation, HeapTuple stup, CommandId curcid,
+extern TM_Result HeapTupleSatisfiesUpdate(Relation relation, HeapTuple htup, CommandId curcid,
 										  Buffer buffer);
-extern HTSV_Result HeapTupleSatisfiesVacuum(Relation relation, HeapTuple stup, TransactionId OldestXmin,
+extern HTSV_Result HeapTupleSatisfiesVacuum(Relation relation, HeapTuple htup, TransactionId OldestXmin,
 											Buffer buffer);
-extern HTSV_Result HeapTupleSatisfiesVacuumHorizon(Relation relation, HeapTuple stup, Buffer buffer,
+extern HTSV_Result HeapTupleSatisfiesVacuumHorizon(Relation relation, HeapTuple htup, Buffer buffer,
 												   TransactionId *dead_after);
 extern void HeapTupleSetHintBits(HeapTupleHeader tuple, Buffer buffer,
 								 uint16 infomask, TransactionId xid);
@@ -243,6 +243,6 @@ extern bool ResolveCminCmaxDuringDecoding(struct HTAB *tuplecid_data,
 										  HeapTuple htup,
 										  Buffer buffer,
 										  CommandId *cmin, CommandId *cmax);
-extern void HeapCheckForSerializableConflictOut(bool valid, Relation relation, HeapTuple tuple,
+extern void HeapCheckForSerializableConflictOut(bool visible, Relation relation, HeapTuple tuple,
 												Buffer buffer, Snapshot snapshot);
 #endif							/* HEAPAM_H */
