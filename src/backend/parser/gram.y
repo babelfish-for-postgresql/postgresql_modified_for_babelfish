@@ -825,6 +825,7 @@ check_recursive_cte_hook_type check_recursive_cte_hook = NULL;
 stmtblock:	stmtmulti
 			{
 				pg_yyget_extra(yyscanner)->parsetree = $1;
+				(void) yynerrs;		/* suppress compiler warning */
 			}
 		;
 
