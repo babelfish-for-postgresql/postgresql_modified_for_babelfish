@@ -91,7 +91,7 @@ typedef struct TSQL_HexString
 
 extern Integer *makeInteger(int i);
 extern Float *makeFloat(char *numericStr);
-extern Boolean *makeBoolean(bool var);
+extern Boolean *makeBoolean(bool val);
 extern String *makeString(char *str);
 extern BitString *makeBitString(char *str);
 extern PGDLLEXPORT TSQL_HexString *makeTSQLHexString(char *str);

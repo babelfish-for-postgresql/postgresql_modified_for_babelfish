@@ -91,7 +91,7 @@ extern Numeric numeric_div_opt_error(Numeric num1, Numeric num2,
 									 bool *have_error);
 extern Numeric numeric_mod_opt_error(Numeric num1, Numeric num2,
 									 bool *have_error);
-extern int32 numeric_int4_opt_error(Numeric num, bool *error);
+extern int32 numeric_int4_opt_error(Numeric num, bool *have_error);
 
 extern Datum bigint_poly_aggr_final(FunctionCallInfo fcinfo, tsqlAggType aggType);
 
