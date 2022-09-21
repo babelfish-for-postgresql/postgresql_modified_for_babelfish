@@ -5907,6 +5907,53 @@ numeric_poly_sum(PG_FUNCTION_ARGS)
 }
 
 Datum
+bigint_poly_sum(PG_FUNCTION_ARGS)
+{
+
+	PolyNumAggState		*state;
+	#ifdef HAVE_INT128
+		int128		result;
+	#else
+		Datum temp;
+		bool is_overflow;
+		int64 result;
+		NumericVar nvar;
+	#endif
+
+	state = PG_ARGISNULL(0) ? NULL : (PolyNumAggState *) PG_GETARG_POINTER(0);
+	/* If there were no non-null inputs, return NULL */
+	if (state == NULL || state->N == 0)
+		PG_RETURN_NULL();
+
+	#ifdef HAVE_INT128
+		result = state->sumX;
+
+		if (unlikely(result < PG_INT64_MIN) || unlikely(result > PG_INT64_MAX))
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+						errmsg("Arithmetic overflow error converting expression to data type bigint.")));
+		}
+		else
+			PG_RETURN_INT64((int64) result);
+	#else
+		temp = numeric_sum(fcinfo);
+		init_var(&nvar);
+		set_var_from_num(DatumGetNumeric(temp), &nvar);
+		is_overflow = !(numericvar_to_int64(&nvar, &result));
+		free_var(&nvar);
+
+		if (is_overflow)
+			ereport(ERROR,
+					(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+					errmsg("Arithmetic overflow error converting expression to data type bigint.")));
+		else
+			PG_RETURN_INT64(result);
+
+	#endif
+}
+
+Datum
 numeric_poly_avg(PG_FUNCTION_ARGS)
 {
 #ifdef HAVE_INT128
