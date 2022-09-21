@@ -55,6 +55,8 @@ static bool resolve_polymorphic_tupdesc(TupleDesc tupdesc,
 										Node *call_expr);
 static TypeFuncClass get_type_func_class(Oid typid, Oid *base_typeid);
 
+modify_RangeTblFunction_tupdesc_hook_type
+	modify_RangeTblFunction_tupdesc_hook = NULL;
 
 /*
  * SetSingleFuncCall
@@ -409,6 +411,16 @@ internal_get_result_type(Oid funcid,
 
 	/* Check for OUT parameters defining a RECORD result */
 	tupdesc = build_function_result_tupdesc_t(tp);
+
+	/*
+	 * Override tupdesc for T-SQL OPENQUERY
+	 */
+	if (modify_RangeTblFunction_tupdesc_hook)
+	{
+		if (strcmp(NameStr(procform->proname), "openquery") == 0)
+			(*modify_RangeTblFunction_tupdesc_hook)(call_expr, &tupdesc);
+	}
+
 	if (tupdesc)
 	{
 		/*
