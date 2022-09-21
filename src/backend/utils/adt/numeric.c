@@ -5939,7 +5939,7 @@ bigint_poly_sum(PG_FUNCTION_ARGS)
 		int64 result;
 		NumericVar nvar;
 
-		temp = numeric_sum(fcinfo)
+		temp = numeric_sum(fcinfo);
 		init_var(&nvar);
 		set_var_from_num(DatumGetNumeric(temp), &nvar);
 		is_overflow = !(numericvar_to_int64(&nvar, &result));
