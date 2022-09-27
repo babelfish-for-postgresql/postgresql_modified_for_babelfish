@@ -988,7 +988,7 @@ smgr_redo(XLogReaderState *record)
 		SMgrRelation reln;
 
 		if (xlrec->rlocator.relNumber > ShmemVariableCache->nextRelFileNumber)
-			elog(ERROR, "unexpected relnumber " UINT64_FORMAT " that is bigger than nextRelFileNumber " UINT64_FORMAT,
+			elog(ERROR, "unexpected relnumber " UINT64_FORMAT " is bigger than nextRelFileNumber " UINT64_FORMAT,
 				 xlrec->rlocator.relNumber, ShmemVariableCache->nextRelFileNumber);
 
 		reln = smgropen(xlrec->rlocator, InvalidBackendId);
@@ -1005,7 +1005,7 @@ smgr_redo(XLogReaderState *record)
 		bool		need_fsm_vacuum = false;
 
 		if (xlrec->rlocator.relNumber > ShmemVariableCache->nextRelFileNumber)
-			elog(ERROR, "unexpected relnumber " UINT64_FORMAT "that is bigger than nextRelFileNumber " UINT64_FORMAT,
+			elog(ERROR, "unexpected relnumber " UINT64_FORMAT " is bigger than nextRelFileNumber " UINT64_FORMAT,
 				 xlrec->rlocator.relNumber, ShmemVariableCache->nextRelFileNumber);
 
 		reln = smgropen(xlrec->rlocator, InvalidBackendId);
