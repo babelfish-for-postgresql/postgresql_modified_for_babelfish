@@ -3663,9 +3663,14 @@ static void
 CallXactCallbacks(XactEvent event)
 {
 	XactCallbackItem *item;
+	XactCallbackItem *next;
 
-	for (item = Xact_callbacks; item; item = item->next)
+	for (item = Xact_callbacks; item; item = next)
+	{
+		/* allow callbacks to unregister themselves when called */
+		next = item->next;
 		item->callback(event, item->arg);
+	}
 }
 
 
@@ -3720,9 +3725,14 @@ CallSubXactCallbacks(SubXactEvent event,
 					 SubTransactionId parentSubid)
 {
 	SubXactCallbackItem *item;
+	SubXactCallbackItem *next;
 
-	for (item = SubXact_callbacks; item; item = item->next)
+	for (item = SubXact_callbacks; item; item = next)
+	{
+		/* allow callbacks to unregister themselves when called */
+		next = item->next;
 		item->callback(event, mySubid, parentSubid, item->arg);
+	}
 }
 
 
