@@ -911,7 +911,12 @@ index_create(Relation heapRelation,
 											collationObjectId,
 											classObjectId);
 
-	/* Allocate an OID for the index, unless we were told what to use. */
+	/*
+	 * Allocate an OID for the index, unless we were told what to use.
+	 *
+	 * The OID will be the relfilenumber as well, so make sure it doesn't
+	 * collide with either pg_class OIDs or existing physical files.
+	 */
 	if (!OidIsValid(indexRelationId))
 	{
 		/* Use binary-upgrade override for pg_class.oid and relfilenumber */
@@ -943,8 +948,8 @@ index_create(Relation heapRelation,
 		}
 		else
 		{
-			indexRelationId = GetNewOidWithIndex(pg_class, ClassOidIndexId,
-												 Anum_pg_class_oid);
+			indexRelationId =
+				GetNewRelFileNumber(tableSpaceId, pg_class, relpersistence);
 		}
 	}
 

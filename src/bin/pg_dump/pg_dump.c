@@ -3248,15 +3248,15 @@ dumpDatabase(Archive *fout)
 							  atooid(PQgetvalue(lo_res, i, ii_oid)));
 
 			oid = atooid(PQgetvalue(lo_res, i, ii_oid));
-			relfilenumber = atorelnumber(PQgetvalue(lo_res, i, ii_relfilenode));
+			relfilenumber = atooid(PQgetvalue(lo_res, i, ii_relfilenode));
 
 			if (oid == LargeObjectRelationId)
 				appendPQExpBuffer(loOutQry,
-								  "SELECT pg_catalog.binary_upgrade_set_next_heap_relfilenode('" UINT64_FORMAT "'::pg_catalog.int8);\n",
+								  "SELECT pg_catalog.binary_upgrade_set_next_heap_relfilenode('%u'::pg_catalog.oid);\n",
 								  relfilenumber);
 			else if (oid == LargeObjectLOidPNIndexId)
 				appendPQExpBuffer(loOutQry,
-								  "SELECT pg_catalog.binary_upgrade_set_next_index_relfilenode('" UINT64_FORMAT "'::pg_catalog.int8);\n",
+								  "SELECT pg_catalog.binary_upgrade_set_next_index_relfilenode('%u'::pg_catalog.oid);\n",
 								  relfilenumber);
 		}
 
@@ -4945,16 +4945,16 @@ binary_upgrade_set_pg_class_oids(Archive *fout,
 
 	relkind = *PQgetvalue(upgrade_res, 0, PQfnumber(upgrade_res, "relkind"));
 
-	relfilenumber = atorelnumber(PQgetvalue(upgrade_res, 0,
-											PQfnumber(upgrade_res, "relfilenode")));
+	relfilenumber = atooid(PQgetvalue(upgrade_res, 0,
+									  PQfnumber(upgrade_res, "relfilenode")));
 	toast_oid = atooid(PQgetvalue(upgrade_res, 0,
 								  PQfnumber(upgrade_res, "reltoastrelid")));
-	toast_relfilenumber = atorelnumber(PQgetvalue(upgrade_res, 0,
-												  PQfnumber(upgrade_res, "toast_relfilenode")));
+	toast_relfilenumber = atooid(PQgetvalue(upgrade_res, 0,
+											PQfnumber(upgrade_res, "toast_relfilenode")));
 	toast_index_oid = atooid(PQgetvalue(upgrade_res, 0,
 										PQfnumber(upgrade_res, "indexrelid")));
-	toast_index_relfilenumber = atorelnumber(PQgetvalue(upgrade_res, 0,
-														PQfnumber(upgrade_res, "toast_index_relfilenode")));
+	toast_index_relfilenumber = atooid(PQgetvalue(upgrade_res, 0,
+												  PQfnumber(upgrade_res, "toast_index_relfilenode")));
 
 	appendPQExpBufferStr(upgrade_buffer,
 						 "\n-- For binary upgrade, must preserve pg_class oids and relfilenodes\n");
@@ -4972,7 +4972,7 @@ binary_upgrade_set_pg_class_oids(Archive *fout,
 		 */
 		if (RelFileNumberIsValid(relfilenumber) && relkind != RELKIND_PARTITIONED_TABLE)
 			appendPQExpBuffer(upgrade_buffer,
-							  "SELECT pg_catalog.binary_upgrade_set_next_heap_relfilenode('" UINT64_FORMAT "'::pg_catalog.int8);\n",
+							  "SELECT pg_catalog.binary_upgrade_set_next_heap_relfilenode('%u'::pg_catalog.oid);\n",
 							  relfilenumber);
 
 		/*
@@ -4986,7 +4986,7 @@ binary_upgrade_set_pg_class_oids(Archive *fout,
 							  "SELECT pg_catalog.binary_upgrade_set_next_toast_pg_class_oid('%u'::pg_catalog.oid);\n",
 							  toast_oid);
 			appendPQExpBuffer(upgrade_buffer,
-							  "SELECT pg_catalog.binary_upgrade_set_next_toast_relfilenode('" UINT64_FORMAT "'::pg_catalog.int8);\n",
+							  "SELECT pg_catalog.binary_upgrade_set_next_toast_relfilenode('%u'::pg_catalog.oid);\n",
 							  toast_relfilenumber);
 
 			/* every toast table has an index */
@@ -4994,7 +4994,7 @@ binary_upgrade_set_pg_class_oids(Archive *fout,
 							  "SELECT pg_catalog.binary_upgrade_set_next_index_pg_class_oid('%u'::pg_catalog.oid);\n",
 							  toast_index_oid);
 			appendPQExpBuffer(upgrade_buffer,
-							  "SELECT pg_catalog.binary_upgrade_set_next_index_relfilenode('" UINT64_FORMAT "'::pg_catalog.int8);\n",
+							  "SELECT pg_catalog.binary_upgrade_set_next_index_relfilenode('%u'::pg_catalog.oid);\n",
 							  toast_index_relfilenumber);
 		}
 
@@ -5007,7 +5007,7 @@ binary_upgrade_set_pg_class_oids(Archive *fout,
 						  "SELECT pg_catalog.binary_upgrade_set_next_index_pg_class_oid('%u'::pg_catalog.oid);\n",
 						  pg_class_oid);
 		appendPQExpBuffer(upgrade_buffer,
-						  "SELECT pg_catalog.binary_upgrade_set_next_index_relfilenode('" UINT64_FORMAT "'::pg_catalog.int8);\n",
+						  "SELECT pg_catalog.binary_upgrade_set_next_index_relfilenode('%u'::pg_catalog.oid);\n",
 						  relfilenumber);
 	}
 
