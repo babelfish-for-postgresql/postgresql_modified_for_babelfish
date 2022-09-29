@@ -450,7 +450,7 @@ interpret_function_parameter_list(ParseState *pstate,
 		}
 		else
 		{
-			if (isinput && have_defaults)
+			if (isinput && have_defaults && !is_pltsql_language_oid(languageOid))
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
 						 errmsg("input parameters after one with a default value must also have defaults")));
@@ -460,7 +460,7 @@ interpret_function_parameter_list(ParseState *pstate,
 			 * with a default, because the same sort of confusion arises in a
 			 * CALL statement.
 			 */
-			if (objtype == OBJECT_PROCEDURE && have_defaults)
+			if (objtype == OBJECT_PROCEDURE && have_defaults && !is_pltsql_language_oid(languageOid))
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
 						 errmsg("procedure OUT parameters cannot appear after one with a default value")));
