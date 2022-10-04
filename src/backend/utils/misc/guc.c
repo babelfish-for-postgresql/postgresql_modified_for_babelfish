@@ -5279,12 +5279,10 @@ read_nondefault_variables(void)
 
 	for (;;)
 	{
-		struct config_generic *record;
-
 		if ((varname = read_string_with_null(fp)) == NULL)
 			break;
 
-		if ((record = find_option(varname, true, false, FATAL)) == NULL)
+		if (find_option(varname, true, false, FATAL) == NULL)
 			elog(FATAL, "failed to locate variable \"%s\" in exec config params file", varname);
 
 		if ((varvalue = read_string_with_null(fp)) == NULL)
