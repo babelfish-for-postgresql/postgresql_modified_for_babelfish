@@ -894,7 +894,8 @@ static void getOpFamilyIdentity(StringInfo buffer, Oid opfid, List **object,
 								bool missing_ok);
 static void getRelationIdentity(StringInfo buffer, Oid relid, List **object,
 								bool missing_ok);
-
+								
+get_trigger_object_address_hook_type  get_trigger_object_address_hook = NULL;
 /*
  * Translate an object name and arguments (as passed by the parser) to an
  * ObjectAddress.
@@ -978,9 +979,9 @@ get_object_address(ObjectType objtype, Node *object,
 													   &relation, missing_ok);
 				break;
 			case OBJECT_TRIGGER:
-				if(sql_dialect == SQL_DIALECT_TSQL)
-					address = get_object_address_trigger_tsql(castNode(List, object),
-													   	&relation, missing_ok);
+				if(sql_dialect == SQL_DIALECT_TSQL && get_trigger_object_address_hook)
+					address = (*get_trigger_object_address_hook)(castNode(List, object),
+															&relation, missing_ok);
 				else
 					address = get_object_address_relobject(objtype, castNode(List, object),
 													   &relation, missing_ok);
@@ -1496,89 +1497,6 @@ get_object_address_relobject(ObjectType objtype, List *object,
 	*relp = relation;
 	return address;
 }
-
-/*
-* A special case of the get_object_address_relobject() function, specifically
-* for the case of triggers in tsql dialect. We add a pg_trigger lookup to search
-* for the relation that the trigger is associated with, since the relation name
-* is not supplied by the user, and thus not a part of the *object list.
-* TODO: we can use a new hook and use this function for triggers or expand it
-* for all objects in tsql dialect case.
-*/
-ObjectAddress
-get_object_address_trigger_tsql(List *object, Relation *relp,
-							 bool missing_ok)
-{
-	ObjectAddress address;
-	Relation	relation = NULL;
-	const char *depname;
-	Oid			reloid;
-	Relation	tgrel;
-	ScanKeyData		key;
-	SysScanDesc tgscan;
-	HeapTuple	tuple;
-
-	/* Extract name of dependent object. */
-	depname = strVal(llast(object));
-
-	/* 
-	* Get the table name of the trigger from pg_trigger. We know that
-	* trigger names are forced to be unique in the tsql dialect, so we
-	* can rely on searching for trigger name to find the corresponding
-	* relation name.
-	*/
-	tgrel = table_open(TriggerRelationId, AccessShareLock);
-
-	ScanKeyInit(&key,
-					Anum_pg_trigger_tgname,
-					BTEqualStrategyNumber, F_NAMEEQ,
-					CStringGetDatum(depname));
-
-	tgscan = systable_beginscan(tgrel, TriggerRelidNameIndexId, false,
-									NULL, 1, &key);
-
-	while (HeapTupleIsValid(tuple = systable_getnext(tgscan)))
-	{
-		Form_pg_trigger pg_trigger = (Form_pg_trigger) GETSTRUCT(tuple);
-
-		if (namestrcmp(&(pg_trigger->tgname), depname) == 0)
-		{
-			reloid = OidIsValid(pg_trigger->tgrelid) ? pg_trigger->tgrelid :
-						InvalidOid;
-			relation = RelationIdGetRelation(reloid); 
-			RelationClose(relation);
-		}
-	}
-	systable_endscan(tgscan);
-
-	table_close(tgrel, AccessShareLock);
-	address.classId = TriggerRelationId;
-	address.objectId = relation ?
-		get_trigger_oid(reloid, depname, missing_ok) : InvalidOid;
-	if (!relation && !missing_ok)
-	{
-		ereport(ERROR,
-				(errcode(ERRCODE_UNDEFINED_OBJECT),
-				errmsg("trigger \"%s\" does not exist",
-						depname)));
-	}
-	address.objectSubId = 0;
-
-	/* Avoid relcache leak when object not found. */
-	if (!OidIsValid(address.objectId))
-	{
-		if (relation != NULL)
-			table_close(relation, AccessShareLock);
-
-		relation = NULL;		/* department of accident prevention */
-		return address;
-	}
-
-	/* Done. */
-	*relp = relation;
-	return address;
-}
-
 /*
  * Find the ObjectAddress for an attribute.
  */
