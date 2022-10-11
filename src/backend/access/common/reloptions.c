@@ -1470,7 +1470,8 @@ parseRelOptionsInternal(Datum options, bool validate,
 				(dump_restore && strcmp(dump_restore, "on") == 0)) /* allow unrecognized parameters while restoring babelfish database */
 				continue;
 
-			if (strncmp(text_str, "bbf_original_rel_name", 21) == 0)
+			if (strncmp(text_str, "bbf_original_rel_name", 21) == 0 ||
+				strncmp(text_str, "bbf_rel_create_date", 19) == 0)
 				continue;
 
 			ereport(ERROR,
