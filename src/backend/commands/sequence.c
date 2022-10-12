@@ -46,6 +46,7 @@
 #include "utils/resowner.h"
 #include "utils/syscache.h"
 #include "utils/varlena.h"
+#include "parser/parser.h"
 
 
 /*
@@ -1395,7 +1396,7 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 	/* AS type */
 	if (as_type != NULL)
 	{
-		Oid			newtypid = typenameTypeId(pstate, defGetTypeName(as_type));
+		Oid			newtypid;
 
 		if (pltsql_sequence_datatype_hook)
 			(* pltsql_sequence_datatype_hook) (pstate,
@@ -1404,6 +1405,8 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 											   as_type,
 											   &max_value,
 											   &min_value);
+
+		else newtypid = typenameTypeId(pstate,defGetTypeName(as_type));
 
 		if (newtypid != INT2OID &&
 			newtypid != INT4OID &&
