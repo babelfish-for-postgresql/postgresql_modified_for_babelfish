@@ -576,6 +576,12 @@ ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)
 		RangeTblEntry *rte = (RangeTblEntry *) lfirst(l);
 
 		result = ExecCheckRTEPerms(rte);
+
+		if (!result &&
+			check_ownership_chaining_for_tsql_proc_hook &&
+			(*check_ownership_chaining_for_tsql_proc_hook)(get_relkind_objtype(get_rel_relkind(rte->relid)), rte->relid))
+			result = true;
+
 		if (!result)
 		{
 			Assert(rte->rtekind == RTE_RELATION);

@@ -50,6 +50,7 @@
 #include "utils/lsyscache.h"
 #include "utils/typcache.h"
 
+is_execstate_inside_tsql_proc_hook_type is_execstate_inside_tsql_proc_hook = NULL;
 
 typedef struct LastAttnumInfo
 {
@@ -2464,7 +2465,7 @@ ExecInitFunc(ExprEvalStep *scratch, Expr *node, List *args, Oid funcid,
 
 	/* Check permission to call function */
 	aclresult = pg_proc_aclcheck(funcid, GetUserId(), ACL_EXECUTE);
-	if (aclresult != ACLCHECK_OK)
+	if ((is_execstate_inside_tsql_proc_hook && !(*is_execstate_inside_tsql_proc_hook)(OBJECT_FUNCTION, funcid)) && aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_FUNCTION, get_func_name(funcid));
 	InvokeFunctionExecuteHook(funcid);
 
