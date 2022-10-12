@@ -82,6 +82,7 @@
 
 check_lang_as_clause_hook_type check_lang_as_clause_hook = NULL;
 write_stored_proc_probin_hook_type write_stored_proc_probin_hook = NULL;
+check_ownership_chaining_for_tsql_proc_hook_type check_ownership_chaining_for_tsql_proc_hook = NULL;
 
 /*
  *	 Examine the RETURNS clause of the CREATE FUNCTION statement
