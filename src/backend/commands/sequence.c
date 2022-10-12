@@ -46,7 +46,6 @@
 #include "utils/resowner.h"
 #include "utils/syscache.h"
 #include "utils/varlena.h"
-#include "parser/parser.h"
 
 
 /*
