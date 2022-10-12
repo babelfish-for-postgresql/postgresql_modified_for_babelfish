@@ -3236,7 +3236,7 @@ cookConstraint(ParseState *pstate,
 	 * been invoked, but the invoked function must take care of preventing any
 	 * duplicated transformations.
 	 */
-	if(transform_check_constraint_expr_hook)
+	if(sql_dialect == SQL_DIALECT_TSQL && transform_check_constraint_expr_hook)
 		expr = transform_check_constraint_expr_hook(expr);
 
 	/*
