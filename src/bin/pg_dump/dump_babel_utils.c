@@ -20,6 +20,24 @@
 #include "pg_dump.h"
 #include "pqexpbuffer.h"
 
+char *
+getMinOid(Archive *fout)
+{
+	PGresult *res;
+	PQExpBuffer query;
+	char *oid;
+
+	query = createPQExpBuffer();
+	appendPQExpBuffer(query, "SELECT next_oid FROM pg_control_checkpoint();");
+	res = ExecuteSqlQueryForSingleRow(fout, query->data);
+	oid = pg_strdup(PQgetvalue(res, 0, 0));
+
+	destroyPQExpBuffer(query);
+	PQclear(res);
+
+	return oid;
+}
+
 static char *
 getLanguageName(Archive *fout, Oid langid)
 {

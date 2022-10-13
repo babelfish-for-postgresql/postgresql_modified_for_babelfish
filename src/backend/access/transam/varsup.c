@@ -33,6 +33,7 @@
 /* pointer to "variable cache" in shared memory (set up by shmem.c) */
 VariableCache ShmemVariableCache = NULL;
 
+GetNewObjectId_hook_type GetNewObjectId_hook = NULL;
 
 /*
  * Allocate the next FullTransactionId for a new transaction or
@@ -568,6 +569,9 @@ GetNewObjectId(void)
 			}
 		}
 	}
+
+	if (GetNewObjectId_hook)
+		GetNewObjectId_hook(ShmemVariableCache);
 
 	/* If we run out of logged for use oids then we must log more */
 	if (ShmemVariableCache->oidCount == 0)

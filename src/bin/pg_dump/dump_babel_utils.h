@@ -21,6 +21,7 @@
 #define PLTSQL_TVFTYPE_ITVF  2
 
 
+extern char *getMinOid(Archive *fout);
 extern void bbf_selectDumpableCast(CastInfo *cast);
 extern void fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo);
 extern bool isBabelfishDatabase(Archive *fout);
