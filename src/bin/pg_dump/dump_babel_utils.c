@@ -28,7 +28,25 @@ getMinOid(Archive *fout)
 	char *oid;
 
 	query = createPQExpBuffer();
-	appendPQExpBuffer(query, "SELECT next_oid FROM pg_control_checkpoint();");
+
+	/*
+	 * Oids in the below 5 catalog tables are preserved during dump and restore.
+	 * To prevent duplicated object_ids in Babelfish, a new cluster should use
+	 * oids greate than the below maximum oid.
+	 */
+	appendPQExpBuffer(query,
+					 "select max(oid) from"
+					 "  (select max(oid) oid from pg_extension"
+					 "   union"
+					 "   select max(oid) oid from pg_authid"
+					 "   union"
+					 "   select max(oid) oid from pg_enum"
+					 "   union"
+					 "   select max(oid) oid from pg_class"
+					 "   union"
+					 "   select max(oid) from pg_type"
+					 "  ) t"
+					 );
 	res = ExecuteSqlQueryForSingleRow(fout, query->data);
 	oid = pg_strdup(PQgetvalue(res, 0, 0));
 
