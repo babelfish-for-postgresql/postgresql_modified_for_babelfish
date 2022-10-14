@@ -154,7 +154,7 @@ check_datestyle(char **newval, void **extra, GucSource source)
 			char	   *subval;
 			void	   *subextra = NULL;
 
-			subval = strdup(GetConfigOptionResetString("datestyle"));
+			subval = guc_strdup(LOG, GetConfigOptionResetString("datestyle"));
 			if (!subval)
 			{
 				ok = false;
@@ -162,7 +162,7 @@ check_datestyle(char **newval, void **extra, GucSource source)
 			}
 			if (!check_datestyle(&subval, &subextra, source))
 			{
-				free(subval);
+				guc_free(subval);
 				ok = false;
 				break;
 			}
@@ -171,8 +171,8 @@ check_datestyle(char **newval, void **extra, GucSource source)
 				newDateStyle = myextra[0];
 			if (!have_order)
 				newDateOrder = myextra[1];
-			free(subval);
-			free(subextra);
+			guc_free(subval);
+			guc_free(subextra);
 		}
 		else
 		{
@@ -193,9 +193,9 @@ check_datestyle(char **newval, void **extra, GucSource source)
 	}
 
 	/*
-	 * Prepare the canonical string to return.  GUC wants it malloc'd.
+	 * Prepare the canonical string to return.  GUC wants it guc_malloc'd.
 	 */
-	result = (char *) malloc(32);
+	result = (char *) guc_malloc(LOG, 32);
 	if (!result)
 		return false;
 
@@ -227,13 +227,13 @@ check_datestyle(char **newval, void **extra, GucSource source)
 			break;
 	}
 
-	free(*newval);
+	guc_free(*newval);
 	*newval = result;
 
 	/*
 	 * Set up the "extra" struct actually used by assign_datestyle.
 	 */
-	myextra = (int *) malloc(2 * sizeof(int));
+	myextra = (int *) guc_malloc(LOG, 2 * sizeof(int));
 	if (!myextra)
 		return false;
 	myextra[0] = newDateStyle;
@@ -372,7 +372,7 @@ check_timezone(char **newval, void **extra, GucSource source)
 	/*
 	 * Pass back data for assign_timezone to use
 	 */
-	*extra = malloc(sizeof(pg_tz *));
+	*extra = guc_malloc(LOG, sizeof(pg_tz *));
 	if (!*extra)
 		return false;
 	*((pg_tz **) *extra) = new_tz;
@@ -445,7 +445,7 @@ check_log_timezone(char **newval, void **extra, GucSource source)
 	/*
 	 * Pass back data for assign_log_timezone to use
 	 */
-	*extra = malloc(sizeof(pg_tz *));
+	*extra = guc_malloc(LOG, sizeof(pg_tz *));
 	if (!*extra)
 		return false;
 	*((pg_tz **) *extra) = new_tz;
@@ -506,7 +506,7 @@ check_timezone_abbreviations(char **newval, void **extra, GucSource source)
 		return true;
 	}
 
-	/* OK, load the file and produce a malloc'd TimeZoneAbbrevTable */
+	/* OK, load the file and produce a guc_malloc'd TimeZoneAbbrevTable */
 	*extra = load_tzoffsets(*newval);
 
 	/* tzparser.c returns NULL on failure, reporting via GUC_check_errmsg */
@@ -671,7 +671,7 @@ check_transaction_deferrable(bool *newval, void **extra, GucSource source)
 bool
 check_random_seed(double *newval, void **extra, GucSource source)
 {
-	*extra = malloc(sizeof(int));
+	*extra = guc_malloc(LOG, sizeof(int));
 	if (!*extra)
 		return false;
 	/* Arm the assign only if source of value is an interactive SET */
@@ -759,8 +759,8 @@ check_client_encoding(char **newval, void **extra, GucSource source)
 	if (strcmp(*newval, canonical_name) != 0 &&
 		strcmp(*newval, "UNICODE") != 0)
 	{
-		free(*newval);
-		*newval = strdup(canonical_name);
+		guc_free(*newval);
+		*newval = guc_strdup(LOG, canonical_name);
 		if (!*newval)
 			return false;
 	}
@@ -768,7 +768,7 @@ check_client_encoding(char **newval, void **extra, GucSource source)
 	/*
 	 * Save the encoding's ID in *extra, for use by assign_client_encoding.
 	 */
-	*extra = malloc(sizeof(int));
+	*extra = guc_malloc(LOG, sizeof(int));
 	if (!*extra)
 		return false;
 	*((int *) *extra) = encoding;
@@ -871,7 +871,7 @@ check_session_authorization(char **newval, void **extra, GucSource source)
 	ReleaseSysCache(roleTup);
 
 	/* Set up "extra" struct for assign_session_authorization to use */
-	myextra = (role_auth_extra *) malloc(sizeof(role_auth_extra));
+	myextra = (role_auth_extra *) guc_malloc(LOG, sizeof(role_auth_extra));
 	if (!myextra)
 		return false;
 	myextra->roleid = roleid;
@@ -981,7 +981,7 @@ check_role(char **newval, void **extra, GucSource source)
 	}
 
 	/* Set up "extra" struct for assign_role to use */
-	myextra = (role_auth_extra *) malloc(sizeof(role_auth_extra));
+	myextra = (role_auth_extra *) guc_malloc(LOG, sizeof(role_auth_extra));
 	if (!myextra)
 		return false;
 	myextra->roleid = roleid;
