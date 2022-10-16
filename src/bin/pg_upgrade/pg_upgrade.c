@@ -162,12 +162,12 @@ main(int argc, char **argv)
 	 * the old system, but we do it anyway just in case.  We do it late here
 	 * because there is no need to have the schema load use new oids.
 	 */
-	prep_status("Setting next OID for new cluster");
-	exec_prog(UTILITY_LOG_FILE, NULL, true, true,
-			  "\"%s/pg_resetwal\" -o %u \"%s\"",
-			  new_cluster.bindir, old_cluster.controldata.chkpnt_nxtoid,
-			  new_cluster.pgdata);
-	check_ok();
+	// prep_status("Setting next OID for new cluster");
+	// exec_prog(UTILITY_LOG_FILE, NULL, true, true,
+	// 		  "\"%s/pg_resetwal\" -o %u \"%s\"",
+	// 		  new_cluster.bindir, old_cluster.controldata.chkpnt_nxtoid,
+	// 		  new_cluster.pgdata);
+	// check_ok();
 
 	prep_status("Sync data directory to disk");
 	exec_prog(UTILITY_LOG_FILE, NULL, true, true,
