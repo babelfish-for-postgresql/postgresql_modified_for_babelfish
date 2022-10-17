@@ -981,7 +981,7 @@ get_object_address(ObjectType objtype, Node *object,
 			case OBJECT_TRIGGER:
 				if(get_trigger_object_address_hook){
 						address = (*get_trigger_object_address_hook)(castNode(List, object),
-															&relation, missing_ok);
+															&relation, missing_ok,false);
 				}
 				else
 					address = get_object_address_relobject(objtype, castNode(List, object),
