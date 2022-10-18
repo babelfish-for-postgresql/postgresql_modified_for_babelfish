@@ -1405,7 +1405,7 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 											   &max_value,
 											   &min_value);
 
-		else newtypid = typenameTypeId(pstate,defGetTypeName(as_type));
+		if(!newtypid) newtypid = typenameTypeId(pstate,defGetTypeName(as_type));
 
 		if (newtypid != INT2OID &&
 			newtypid != INT4OID &&
