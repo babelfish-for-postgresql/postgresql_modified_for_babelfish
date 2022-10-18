@@ -1395,7 +1395,7 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 	/* AS type */
 	if (as_type != NULL)
 	{
-		Oid			newtypid;
+		Oid			newtypid = 0;
 
 		if (pltsql_sequence_datatype_hook)
 			(* pltsql_sequence_datatype_hook) (pstate,
