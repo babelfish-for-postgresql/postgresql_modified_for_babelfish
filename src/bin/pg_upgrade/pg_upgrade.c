@@ -52,6 +52,7 @@ static void prepare_new_cluster(void);
 static void prepare_new_globals(void);
 static void create_new_objects(void);
 static void copy_xact_xlog_xid(void);
+static bool has_babelfish_db(ClusterInfo *cluster);
 static void set_frozenxids(bool minmxid_only);
 static void setup(char *argv0, bool *live_check);
 static void cleanup(void);
@@ -77,6 +78,7 @@ main(int argc, char **argv)
 {
 	char	   *deletion_script_file_name = NULL;
 	bool		live_check = false;
+	bool		has_bbf_db = false;
 
 	pg_logging_init(argv[0]);
 	set_pglocale_pgservice(argv[0], PG_TEXTDOMAIN("pg_upgrade"));
@@ -142,6 +144,8 @@ main(int argc, char **argv)
 
 	create_new_objects();
 
+	has_bbf_db = has_babelfish_db(&new_cluster);
+
 	stop_postmaster(false);
 
 	/*
@@ -162,12 +166,19 @@ main(int argc, char **argv)
 	 * the old system, but we do it anyway just in case.  We do it late here
 	 * because there is no need to have the schema load use new oids.
 	 */
-	// prep_status("Setting next OID for new cluster");
-	// exec_prog(UTILITY_LOG_FILE, NULL, true, true,
-	// 		  "\"%s/pg_resetwal\" -o %u \"%s\"",
-	// 		  new_cluster.bindir, old_cluster.controldata.chkpnt_nxtoid,
-	// 		  new_cluster.pgdata);
-	// check_ok();
+	if (!has_bbf_db)
+	{
+		/*
+		 * In Babelfish, if we transfer the old cluster's next OID to the new cluster,
+		 * it can make a duplicate OID that breaks a Babelfish's assumption.
+		 */
+		prep_status("Setting next OID for new cluster");
+		exec_prog(UTILITY_LOG_FILE, NULL, true, true,
+				"\"%s/pg_resetwal\" -o %u \"%s\"",
+				new_cluster.bindir, old_cluster.controldata.chkpnt_nxtoid,
+				new_cluster.pgdata);
+		check_ok();
+	}
 
 	prep_status("Sync data directory to disk");
 	exec_prog(UTILITY_LOG_FILE, NULL, true, true,
@@ -558,6 +569,41 @@ copy_xact_xlog_xid(void)
 	check_ok();
 }
 
+static bool
+has_babelfish_db(ClusterInfo *cluster)
+{
+	DbInfo *db;
+	const char *db_name;
+	PGconn *conn;
+	int ntups;
+
+	for (int dbnum = 0; dbnum < cluster->dbarr.ndbs; dbnum++)
+	{
+		PGresult *res;
+
+		db = &cluster->dbarr.dbs[dbnum];
+		db_name = db->db_name;
+		prep_status("Checking %s has a Babelfish Database\n", db_name);
+
+		conn = connectToServer(cluster, db_name);
+		res = executeQueryOrDie(conn, "SELECT extname FROM pg_extension WHERE extname = 'babelfishpg_tsql';");
+		ntups = PQntuples(res);
+
+		PQclear(res);
+		PQfinish(conn);
+
+		if (ntups != 0)
+		{
+			prep_status("There is a Babelfish Database in %s\n", db_name);
+			check_ok();
+			return true;
+		}
+	}
+
+	prep_status("There is no Babelfish Database\n");
+	check_ok();
+	return false;
+}
 
 /*
  *	set_frozenxids()
