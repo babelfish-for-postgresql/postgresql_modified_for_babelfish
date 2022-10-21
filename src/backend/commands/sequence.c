@@ -47,6 +47,7 @@
 #include "utils/syscache.h"
 #include "utils/varlena.h"
 
+#include "parser/parser.h"		/* only needed for GUC variables */
 
 /*
  * We don't want to log each fetching of a value from a sequence,
@@ -933,7 +934,8 @@ do_setval(Oid relid, int64 next, bool iscalled)
 	HeapTuple	pgstuple;
 	Form_pg_sequence pgsform;
 	int64		maxv,
-				minv;
+				minv,
+				seqincrement;
 
 	/* open and lock sequence */
 	init_sequence(relid, &elm, &seqrel);
@@ -950,6 +952,7 @@ do_setval(Oid relid, int64 next, bool iscalled)
 	pgsform = (Form_pg_sequence) GETSTRUCT(pgstuple);
 	maxv = pgsform->seqmax;
 	minv = pgsform->seqmin;
+	seqincrement = pgsform->seqincrement;
 	ReleaseSysCache(pgstuple);
 
 	/* read-only transactions may only modify temp sequences */
@@ -965,6 +968,23 @@ do_setval(Oid relid, int64 next, bool iscalled)
 
 	/* lock page' buffer and read tuple */
 	seq = read_seq_tuple(seqrel, &buf, &seqdatatuple);
+
+	/*
+	 * BABELFISH: In T-SQL, with identity_insert=on, sequence value is set as
+	 * max(value to be inserted, last used sequence value) when increment is
+	 * positive. Min value is set with a negative increment.
+	 * We need to calculate the max/min and set the value without releasing
+	 * the lock so that other backends can't overwrite the value concurrently.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		/* In T-SQL, iscalled should be true always */
+		Assert(iscalled);
+		if (seqincrement > 0)
+			next = next > seq->last_value ? next : seq->last_value;
+		else
+			next = next < seq->last_value ? next : seq->last_value;
+	}
 
 	if ((next < minv) || (next > maxv))
 	{
@@ -1985,4 +2005,13 @@ seq_mask(char *page, BlockNumber blkno)
 	mask_page_lsn_and_checksum(page);
 
 	mask_unused_space(page);
+}
+
+/*
+ * Wrapper of do_setval which can be called from the TSQL extension.
+ */
+void
+do_setval_tsql(Oid relid, int64 next, bool iscalled)
+{
+	do_setval(relid, next, iscalled);
 }

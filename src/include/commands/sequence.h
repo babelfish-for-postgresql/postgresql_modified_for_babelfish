@@ -89,4 +89,6 @@ extern void seq_desc(StringInfo buf, XLogReaderState *rptr);
 extern const char *seq_identify(uint8 info);
 extern void seq_mask(char *pagedata, BlockNumber blkno);
 
+/* BABELFISH */
+extern void do_setval_tsql(Oid relid, int64 next, bool iscalled);
 #endif							/* SEQUENCE_H */
