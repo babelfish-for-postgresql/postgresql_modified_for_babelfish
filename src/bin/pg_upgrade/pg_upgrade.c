@@ -161,16 +161,16 @@ main(int argc, char **argv)
 								 old_cluster.pgdata, new_cluster.pgdata);
 
 	/*
-	 * Assuming OIDs are only used in system tables, there is no need to
-	 * restore the OID counter because we have not transferred any OIDs from
-	 * the old system, but we do it anyway just in case.  We do it late here
-	 * because there is no need to have the schema load use new oids.
+	 * In Babelfish, if we transfer the old cluster's next OID to the new cluster,
+	 * it can make a duplicate OID that breaks a Babelfish's assumption.
 	 */
 	if (!has_bbf_db)
 	{
 		/*
-		 * In Babelfish, if we transfer the old cluster's next OID to the new cluster,
-		 * it can make a duplicate OID that breaks a Babelfish's assumption.
+		 * Assuming OIDs are only used in system tables, there is no need to
+		 * restore the OID counter because we have not transferred any OIDs from
+		 * the old system, but we do it anyway just in case.  We do it late here
+		 * because there is no need to have the schema load use new oids.
 		 */
 		prep_status("Setting next OID for new cluster");
 		exec_prog(UTILITY_LOG_FILE, NULL, true, true,
@@ -576,14 +576,15 @@ has_babelfish_db(ClusterInfo *cluster)
 	const char *db_name;
 	PGconn *conn;
 	int ntups;
+	bool ret = false;
 
+	prep_status("Checking if a Babelfish database exists\n");
 	for (int dbnum = 0; dbnum < cluster->dbarr.ndbs; dbnum++)
 	{
 		PGresult *res;
 
 		db = &cluster->dbarr.dbs[dbnum];
 		db_name = db->db_name;
-		prep_status("Checking %s has a Babelfish Database\n", db_name);
 
 		conn = connectToServer(cluster, db_name);
 		res = executeQueryOrDie(conn, "SELECT extname FROM pg_extension WHERE extname = 'babelfishpg_tsql';");
@@ -594,15 +595,14 @@ has_babelfish_db(ClusterInfo *cluster)
 
 		if (ntups != 0)
 		{
+			ret = true;
 			prep_status("There is a Babelfish Database in %s\n", db_name);
-			check_ok();
-			return true;
+			break;
 		}
 	}
 
-	prep_status("There is no Babelfish Database\n");
 	check_ok();
-	return false;
+	return ret;
 }
 
 /*

@@ -44,7 +44,7 @@ getMinOid(Archive *fout)
 					 "   union"
 					 "   select max(oid) oid from pg_class"
 					 "   union"
-					 "   select max(oid) from pg_type"
+					 "   select max(oid) oid from pg_type"
 					 "  ) t"
 					 );
 	res = ExecuteSqlQueryForSingleRow(fout, query->data);
