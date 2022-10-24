@@ -295,6 +295,9 @@ extern bool ForceTransactionIdLimitUpdate(void);
 extern Oid	GetNewObjectId(void);
 extern void StopGeneratingPinnedObjectIds(void);
 
+typedef void (*GetNewObjectId_hook_type) (VariableCache variableCache);
+extern PGDLLIMPORT GetNewObjectId_hook_type GetNewObjectId_hook;
+
 #ifdef USE_ASSERT_CHECKING
 extern void AssertTransactionIdInAllowableRange(TransactionId xid);
 #else
