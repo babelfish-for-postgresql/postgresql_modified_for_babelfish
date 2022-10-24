@@ -930,7 +930,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 				newtrigger_schema_name = get_namespace_name(get_rel_namespace(RelationGetRelid(rel)));
 				
 				if (namestrcmp(&(pg_trigger->tgname), trigname) == 0
-							&& namestrcmp(newtrigger_schema_name, pg_trigger_schema_name) == 0)
+							&& strcasecmp(newtrigger_schema_name, pg_trigger_schema_name) == 0)
 					ereport(ERROR,
 							(errcode(ERRCODE_DUPLICATE_OBJECT),
 							errmsg("trigger \"%s\" already exists in the database",
