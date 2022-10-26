@@ -2464,7 +2464,7 @@ ExecInitFunc(ExprEvalStep *scratch, Expr *node, List *args, Oid funcid,
 
 	/* Check permission to call function */
 	aclresult = pg_proc_aclcheck(funcid, GetUserId(), ACL_EXECUTE);
-	if (!(check_ownership_chaining_for_tsql_proc_hook && (*check_ownership_chaining_for_tsql_proc_hook)(OBJECT_FUNCTION, funcid)) && aclresult != ACLCHECK_OK)
+	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_FUNCTION, get_func_name(funcid));
 	InvokeFunctionExecuteHook(funcid);
 

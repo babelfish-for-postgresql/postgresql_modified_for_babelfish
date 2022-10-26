@@ -82,7 +82,6 @@
 
 check_lang_as_clause_hook_type check_lang_as_clause_hook = NULL;
 write_stored_proc_probin_hook_type write_stored_proc_probin_hook = NULL;
-check_ownership_chaining_for_tsql_proc_hook_type check_ownership_chaining_for_tsql_proc_hook = NULL;
 
 /*
  *	 Examine the RETURNS clause of the CREATE FUNCTION statement
@@ -2366,7 +2365,7 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 	Assert(IsA(fexpr, FuncExpr));
 
 	aclresult = pg_proc_aclcheck(fexpr->funcid, GetUserId(), ACL_EXECUTE);
-	if (!(check_ownership_chaining_for_tsql_proc_hook && (*check_ownership_chaining_for_tsql_proc_hook)(OBJECT_PROCEDURE, fexpr->funcid)) && aclresult != ACLCHECK_OK)
+	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_PROCEDURE, get_func_name(fexpr->funcid));
 
 	/* Prep the context object we'll pass to the procedure */

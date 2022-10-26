@@ -33,6 +33,7 @@
 #define ACL_H
 
 #include "access/htup.h"
+#include "catalog/pg_class.h"
 #include "nodes/parsenodes.h"
 #include "parser/parse_node.h"
 #include "utils/snapshot.h"
@@ -319,7 +320,10 @@ extern bool pg_statistics_object_ownercheck(Oid stat_oid, Oid roleid);
 extern bool has_createrole_privilege(Oid roleid);
 extern bool has_bypassrls_privilege(Oid roleid);
 
-typedef bool (*check_ownership_chaining_for_tsql_proc_hook_type) (ObjectType objtype, Oid objid);
-extern PGDLLIMPORT check_ownership_chaining_for_tsql_proc_hook_type check_ownership_chaining_for_tsql_proc_hook;
+typedef void (*pg_class_aclmask_hook_type) (Form_pg_class classForm, Oid table_oid, Oid roleid, bool *has_permission_via_hook, bool *read_write_all_data_safe);
+extern PGDLLIMPORT pg_class_aclmask_hook_type pg_class_aclmask_hook;
+
+typedef void (*pg_proc_aclchk_hook_type) (Oid proc_oid, Oid roleid, AclMode mode, bool *has_access);
+extern PGDLLIMPORT pg_proc_aclchk_hook_type pg_proc_aclchk_hook;
 
 #endif							/* ACL_H */
