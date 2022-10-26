@@ -45,6 +45,10 @@ extern PGDLLIMPORT pltsql_nextval_hook_type pltsql_nextval_hook;
 typedef void (*pltsql_resetcache_hook_type) ();
 extern PGDLLIMPORT pltsql_resetcache_hook_type pltsql_resetcache_hook;
 
+/* Sequence setval hook */
+typedef int64 (*pltsql_setval_hook_type) (Oid seqid, int64 val, int64 last_val);
+extern pltsql_setval_hook_type pltsql_setval_hook;
+
 typedef struct FormData_pg_sequence_data
 {
 	int64		last_value;
@@ -89,6 +93,4 @@ extern void seq_desc(StringInfo buf, XLogReaderState *rptr);
 extern const char *seq_identify(uint8 info);
 extern void seq_mask(char *pagedata, BlockNumber blkno);
 
-/* BABELFISH */
-extern void do_setval_tsql(Oid relid, int64 next, bool iscalled);
 #endif							/* SEQUENCE_H */
