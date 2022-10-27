@@ -102,6 +102,8 @@ bool		binary_upgrade_record_init_privs = false;
 
 pg_class_aclmask_hook_type pg_class_aclmask_hook = NULL;
 pg_proc_aclchk_hook_type pg_proc_aclchk_hook = NULL;
+pg_attribute_aclchk_hook_type pg_attribute_aclchk_hook = NULL;
+pg_attribute_aclchk_all_hook_type pg_attribute_aclchk_all_hook = NULL;
 
 static void ExecGrantStmt_oids(InternalGrant *istmt);
 static void ExecGrant_Relation(InternalGrant *grantStmt);
@@ -4590,8 +4592,16 @@ pg_attribute_aclcheck_ext(Oid table_oid, AttrNumber attnum,
 	if (pg_attribute_aclmask_ext(table_oid, attnum, roleid, mode,
 								 ACLMASK_ANY, is_missing) != 0)
 		return ACLCHECK_OK;
-	else
-		return ACLCHECK_NO_PRIV;
+	if (pg_attribute_aclchk_hook)
+	{
+		bool has_access_via_hook = false;
+		(*pg_attribute_aclchk_hook) (table_oid, attnum, roleid, mode, &has_access_via_hook);
+
+		if (has_access_via_hook)
+			return ACLCHECK_OK;
+	}
+
+	return ACLCHECK_NO_PRIV;
 }
 
 /*
@@ -4686,6 +4696,15 @@ pg_attribute_aclcheck_all(Oid table_oid, Oid roleid, AclMode mode,
 			if (how == ACLMASK_ALL)
 				break;			/* fail on any failure */
 		}
+	}
+
+	if (result == ACLCHECK_NO_PRIV && pg_attribute_aclchk_all_hook)
+	{
+		bool has_access_via_hook = false;
+		(*pg_attribute_aclchk_all_hook) (table_oid, roleid, mode, how, &has_access_via_hook);
+
+		if (has_access_via_hook)
+			return ACLCHECK_OK;
 	}
 
 	return result;

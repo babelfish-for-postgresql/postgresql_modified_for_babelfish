@@ -326,4 +326,9 @@ extern PGDLLIMPORT pg_class_aclmask_hook_type pg_class_aclmask_hook;
 typedef void (*pg_proc_aclchk_hook_type) (Oid proc_oid, Oid roleid, AclMode mode, bool *has_access);
 extern PGDLLIMPORT pg_proc_aclchk_hook_type pg_proc_aclchk_hook;
 
+typedef void (*pg_attribute_aclchk_hook_type) (Oid table_oid, AttrNumber attnum, Oid roleid, AclMode mode, bool *has_access);
+extern PGDLLIMPORT pg_attribute_aclchk_hook_type pg_attribute_aclchk_hook;
+typedef void (*pg_attribute_aclchk_all_hook_type) (Oid table_oid, Oid roleid, AclMode mode, AclMaskHow how, bool *has_access);
+extern PGDLLIMPORT pg_attribute_aclchk_all_hook_type pg_attribute_aclchk_all_hook;
+
 #endif							/* ACL_H */
