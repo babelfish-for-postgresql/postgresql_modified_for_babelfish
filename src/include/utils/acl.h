@@ -320,7 +320,7 @@ extern bool pg_statistics_object_ownercheck(Oid stat_oid, Oid roleid);
 extern bool has_createrole_privilege(Oid roleid);
 extern bool has_bypassrls_privilege(Oid roleid);
 
-typedef void (*pg_class_aclmask_hook_type) (Form_pg_class classForm, Oid table_oid, Oid roleid, bool *has_permission_via_hook, bool *read_write_all_data_safe);
+typedef void (*pg_class_aclmask_hook_type) (Form_pg_class classForm, Oid table_oid, Oid roleid, AclMode mask, bool *has_permission_via_hook, bool *read_write_all_data_safe);
 extern PGDLLIMPORT pg_class_aclmask_hook_type pg_class_aclmask_hook;
 
 typedef void (*pg_proc_aclchk_hook_type) (Oid proc_oid, Oid roleid, AclMode mode, bool *has_access);

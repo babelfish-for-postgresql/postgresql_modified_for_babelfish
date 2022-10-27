@@ -3900,7 +3900,7 @@ pg_class_aclmask_ext(Oid table_oid, Oid roleid, AclMode mask,
 		bool has_permission_via_hook = false;
 		bool read_write_all_data_safe = false;
 
-		(*pg_class_aclmask_hook) (classForm, table_oid, roleid, &has_permission_via_hook, &read_write_all_data_safe);
+		(*pg_class_aclmask_hook) (classForm, table_oid, roleid, mask, &has_permission_via_hook, &read_write_all_data_safe);
 
 		if (has_permission_via_hook)
 		{
