@@ -7137,10 +7137,20 @@ parse_and_validate_value(struct config_generic *record,
 
 				if (!parse_bool(value, &newval->boolval))
 				{
-					ereport(elevel,
+					if (strstr(name, "babelfishpg_tsql") != NULL) {
+						ereport(elevel,
 							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("parameter \"%s\" requires a Boolean value",
-									name)));
+							 errmsg("Cannot set \"%s\" to \"%s\" - ignoring",
+									name, value)));
+
+					}
+					else{
+
+						ereport(elevel,
+								(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+								errmsg("parameter \"%s\" requires a Boolean value",
+										name)));
+					}
 					return false;
 				}
 
@@ -7157,11 +7167,22 @@ parse_and_validate_value(struct config_generic *record,
 				if (!parse_int(value, &newval->intval,
 							   conf->gen.flags, &hintmsg))
 				{
-					ereport(elevel,
+					if (strstr(name, "babelfishpg_tsql") != NULL) {
+						ereport(elevel,
 							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("invalid value for parameter \"%s\": \"%s\"",
+							 errmsg("Cannot set \"%s\" to \"%s\" - ignoring",
 									name, value),
 							 hintmsg ? errhint("%s", _(hintmsg)) : 0));
+
+					}
+					else
+					{
+						ereport(elevel,
+								(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+								errmsg("invalid value for parameter \"%s\": \"%s\"",
+										name, value),
+								hintmsg ? errhint("%s", _(hintmsg)) : 0));
+					}
 					return false;
 				}
 
@@ -7193,11 +7214,22 @@ parse_and_validate_value(struct config_generic *record,
 				if (!parse_real(value, &newval->realval,
 								conf->gen.flags, &hintmsg))
 				{
-					ereport(elevel,
+					if (strstr(name, "babelfishpg_tsql") != NULL) {
+						ereport(elevel,
 							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("invalid value for parameter \"%s\": \"%s\"",
+							 errmsg("Cannot set \"%s\" to \"%s\" - ignoring",
 									name, value),
 							 hintmsg ? errhint("%s", _(hintmsg)) : 0));
+
+					}
+					else
+					{
+						ereport(elevel,
+								(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+								errmsg("invalid value for parameter \"%s\": \"%s\"",
+										name, value),
+								hintmsg ? errhint("%s", _(hintmsg)) : 0));
+					}
 					return false;
 				}
 
@@ -7262,13 +7294,22 @@ parse_and_validate_value(struct config_generic *record,
 					hintmsg = config_enum_get_options(conf,
 													  "Available values: ",
 													  ".", ", ");
-
-					ereport(elevel,
+					if (strstr(name, "babelfishpg_tsql") != NULL) {
+						ereport(elevel,
 							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("invalid value for parameter \"%s\": \"%s\"",
+							 errmsg("Cannot set \"%s\" to \"%s\" - ignoring",
 									name, value),
 							 hintmsg ? errhint("%s", _(hintmsg)) : 0));
 
+					}
+					else
+					{
+						ereport(elevel,
+								(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+								errmsg("invalid value for parameter \"%s\": \"%s\"",
+										name, value),
+								hintmsg ? errhint("%s", _(hintmsg)) : 0));
+					}
 					if (hintmsg)
 						pfree(hintmsg);
 					return false;
