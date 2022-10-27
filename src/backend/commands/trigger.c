@@ -233,6 +233,8 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	bool		existing_isInternal = false;
 	bool		existing_isClone = false;
 	bool		is_composite_trigger = false;
+	char		*pg_trigger_schema_name;
+	char		*newtrigger_schema_name;
 
 	is_composite_trigger = IsCompositeTrigger(funcoid, stmt->funcname);
 
@@ -940,8 +942,11 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 			while (HeapTupleIsValid(tuple = systable_getnext(tgscan)))
 			{
 				Form_pg_trigger pg_trigger = (Form_pg_trigger) GETSTRUCT(tuple);
-
-				if (namestrcmp(&(pg_trigger->tgname), trigname) == 0)
+				pg_trigger_schema_name = get_namespace_name(get_rel_namespace(pg_trigger->tgrelid));
+				newtrigger_schema_name = get_namespace_name(get_rel_namespace(RelationGetRelid(rel)));
+				
+				if (namestrcmp(&(pg_trigger->tgname), trigname) == 0
+							&& strcasecmp(newtrigger_schema_name, pg_trigger_schema_name) == 0)
 					ereport(ERROR,
 							(errcode(ERRCODE_DUPLICATE_OBJECT),
 							errmsg("trigger \"%s\" already exists in the database",
