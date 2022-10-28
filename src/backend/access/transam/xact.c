@@ -3257,7 +3257,7 @@ CommitTransactionCommand(void)
 				s->savepointLevel = savepointLevel;
 
 				/* This is the same as TBLOCK_SUBBEGIN case */
-				AssertState(s->blockState == TBLOCK_SUBBEGIN);
+				Assert(s->blockState == TBLOCK_SUBBEGIN);
 				StartSubTransaction();
 				s->blockState = TBLOCK_SUBINPROGRESS;
 			}
@@ -3285,7 +3285,7 @@ CommitTransactionCommand(void)
 				s->savepointLevel = savepointLevel;
 
 				/* This is the same as TBLOCK_SUBBEGIN case */
-				AssertState(s->blockState == TBLOCK_SUBBEGIN);
+				Assert(s->blockState == TBLOCK_SUBBEGIN);
 				StartSubTransaction();
 				s->blockState = TBLOCK_SUBINPROGRESS;
 			}
@@ -4674,7 +4674,7 @@ RollbackAndReleaseCurrentSubTransaction(void)
 	CleanupSubTransaction();
 
 	s = CurrentTransactionState;	/* changed by pop */
-	AssertState(s->blockState == TBLOCK_SUBINPROGRESS ||
+	Assert(s->blockState == TBLOCK_SUBINPROGRESS ||
 				s->blockState == TBLOCK_INPROGRESS ||
 				s->blockState == TBLOCK_IMPLICIT_INPROGRESS ||
 				s->blockState == TBLOCK_STARTED);

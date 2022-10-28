@@ -78,10 +78,10 @@ CollationCreate(const char *collname, Oid collnamespace,
 	ObjectAddress myself,
 				referenced;
 
-	AssertArg(collname);
-	AssertArg(collnamespace);
-	AssertArg(collowner);
-	AssertArg((collcollate && collctype) || colliculocale);
+	Assert(collname);
+	Assert(collnamespace);
+	Assert(collowner);
+	Assert((collcollate && collctype) || colliculocale);
 
 	/*
 	 * Make sure there is no existing collation of same name & encoding.

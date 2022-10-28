@@ -4061,8 +4061,8 @@ PostgresMain(const char *dbname, const char *username)
 	const char*	pgtsql_library_name = "babelfishpg_tsql";
 	const char*	pgtsql_common_library_name = "babelfishpg_common";
 
-	AssertArg(dbname != NULL);
-	AssertArg(username != NULL);
+	Assert(dbname != NULL);
+	Assert(username != NULL);
 
 	SetProcessingMode(InitProcessing);
 

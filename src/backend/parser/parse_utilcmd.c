@@ -1478,7 +1478,7 @@ transformOfType(CreateStmtContext *cxt, TypeName *ofTypename)
 	int			i;
 	Oid			ofTypeId;
 
-	AssertArg(ofTypename);
+	Assert(ofTypename);
 
 	tuple = typenameType(NULL, ofTypename, NULL);
 	check_of_type(tuple);
