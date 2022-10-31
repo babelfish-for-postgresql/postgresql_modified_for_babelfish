@@ -92,6 +92,7 @@ pltsql_sequence_validate_increment_hook_type pltsql_sequence_validate_increment_
 pltsql_sequence_datatype_hook_type pltsql_sequence_datatype_hook = NULL;
 pltsql_nextval_hook_type pltsql_nextval_hook = NULL;
 pltsql_resetcache_hook_type pltsql_resetcache_hook = NULL;
+pltsql_setval_hook_type pltsql_setval_hook = NULL;
 
 static HTAB *seqhashtab = NULL; /* hash table for SeqTable items */
 
@@ -991,6 +992,9 @@ do_setval(Oid relid, int64 next, bool iscalled)
 
 	/* lock page' buffer and read tuple */
 	seq = read_seq_tuple(seqrel, &buf, &seqdatatuple);
+
+	if (pltsql_setval_hook)
+		next = (* pltsql_setval_hook) (relid, next, seq->last_value);
 
 	if ((next < minv) || (next > maxv))
 		ereport(ERROR,
