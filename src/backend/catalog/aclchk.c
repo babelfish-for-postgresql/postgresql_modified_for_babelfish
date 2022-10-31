@@ -100,6 +100,11 @@ typedef struct
  */
 bool		binary_upgrade_record_init_privs = false;
 
+pg_class_aclmask_hook_type pg_class_aclmask_hook = NULL;
+pg_proc_aclchk_hook_type pg_proc_aclchk_hook = NULL;
+pg_attribute_aclchk_hook_type pg_attribute_aclchk_hook = NULL;
+pg_attribute_aclchk_all_hook_type pg_attribute_aclchk_all_hook = NULL;
+
 static void ExecGrantStmt_oids(InternalGrant *istmt);
 static void ExecGrant_Relation(InternalGrant *grantStmt);
 static void ExecGrant_Database(InternalGrant *grantStmt);
@@ -3890,6 +3895,20 @@ pg_class_aclmask_ext(Oid table_oid, Oid roleid, AclMode mask,
 		return mask;
 	}
 
+	if (pg_class_aclmask_hook)
+	{
+		bool has_permission_via_hook = false;
+		bool read_write_all_data_safe = false;
+
+		(*pg_class_aclmask_hook) (classForm, table_oid, roleid, mask, &has_permission_via_hook, &read_write_all_data_safe);
+
+		if (has_permission_via_hook)
+		{
+			ReleaseSysCache(tuple);
+			return mask;
+		}
+	}
+
 	/*
 	 * Normal case: get the relation's ACL from pg_class
 	 */
@@ -4573,8 +4592,16 @@ pg_attribute_aclcheck_ext(Oid table_oid, AttrNumber attnum,
 	if (pg_attribute_aclmask_ext(table_oid, attnum, roleid, mode,
 								 ACLMASK_ANY, is_missing) != 0)
 		return ACLCHECK_OK;
-	else
-		return ACLCHECK_NO_PRIV;
+	if (pg_attribute_aclchk_hook)
+	{
+		bool has_access_via_hook = false;
+		(*pg_attribute_aclchk_hook) (table_oid, attnum, roleid, mode, &has_access_via_hook);
+
+		if (has_access_via_hook)
+			return ACLCHECK_OK;
+	}
+
+	return ACLCHECK_NO_PRIV;
 }
 
 /*
@@ -4671,6 +4698,15 @@ pg_attribute_aclcheck_all(Oid table_oid, Oid roleid, AclMode mode,
 		}
 	}
 
+	if (result == ACLCHECK_NO_PRIV && pg_attribute_aclchk_all_hook)
+	{
+		bool has_access_via_hook = false;
+		(*pg_attribute_aclchk_all_hook) (table_oid, roleid, mode, how, &has_access_via_hook);
+
+		if (has_access_via_hook)
+			return ACLCHECK_OK;
+	}
+
 	return result;
 }
 
@@ -4724,8 +4760,17 @@ pg_proc_aclcheck(Oid proc_oid, Oid roleid, AclMode mode)
 {
 	if (pg_proc_aclmask(proc_oid, roleid, mode, ACLMASK_ANY) != 0)
 		return ACLCHECK_OK;
-	else
-		return ACLCHECK_NO_PRIV;
+
+	if (pg_proc_aclchk_hook)
+	{
+		bool has_access_via_hook = false;
+		(*pg_proc_aclchk_hook) (proc_oid, roleid, mode, &has_access_via_hook);
+
+		if (has_access_via_hook)
+			return ACLCHECK_OK;
+	}
+
+	return ACLCHECK_NO_PRIV;
 }
 
 /*
