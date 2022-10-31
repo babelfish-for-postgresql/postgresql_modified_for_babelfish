@@ -534,7 +534,7 @@ int			ssl_renegotiation_limit;
  * This really belongs in pg_shmem.c, but is defined here so that it doesn't
  * need to be duplicated in all the different implementations of pg_shmem.c.
  */
-int			huge_pages;
+int			huge_pages = HUGE_PAGES_TRY;
 int			huge_page_size;
 
 /*
@@ -551,7 +551,14 @@ static char *locale_ctype;
 static char *server_encoding_string;
 static char *server_version_string;
 static int	server_version_num;
-static int	syslog_facility;
+
+#ifdef HAVE_SYSLOG
+#define	DEFAULT_SYSLOG_FACILITY LOG_LOCAL0
+#else
+#define	DEFAULT_SYSLOG_FACILITY 0
+#endif
+static int	syslog_facility = DEFAULT_SYSLOG_FACILITY;
+
 static char *timezone_string;
 static char *log_timezone_string;
 static char *timezone_abbreviations_string;
@@ -567,7 +574,14 @@ static int	shared_memory_size_in_huge_pages;
 static int	wal_block_size;
 static bool data_checksums;
 static bool integer_datetimes;
-static bool assert_enabled;
+
+#ifdef USE_ASSERT_CHECKING
+#define DEFAULT_ASSERT_ENABLED true
+#else
+#define DEFAULT_ASSERT_ENABLED false
+#endif
+static bool assert_enabled = DEFAULT_ASSERT_ENABLED;
+
 static char *recovery_target_timeline_string;
 static char *recovery_target_string;
 static char *recovery_target_xid_string;
@@ -1199,11 +1213,7 @@ struct config_bool ConfigureNamesBool[] =
 			GUC_NOT_IN_SAMPLE | GUC_DISALLOW_IN_FILE
 		},
 		&assert_enabled,
-#ifdef USE_ASSERT_CHECKING
-		true,
-#else
-		false,
-#endif
+		DEFAULT_ASSERT_ENABLED,
 		NULL, NULL, NULL
 	},
 
@@ -1375,11 +1385,7 @@ struct config_bool ConfigureNamesBool[] =
 			gettext_noop("Enables updating of the process title every time a new SQL command is received by the server.")
 		},
 		&update_process_title,
-#ifdef WIN32
-		false,
-#else
-		true,
-#endif
+		DEFAULT_UPDATE_PROCESS_TITLE,
 		NULL, NULL, NULL
 	},
 
@@ -2906,11 +2912,7 @@ struct config_int ConfigureNamesInt[] =
 			GUC_EXPLAIN
 		},
 		&effective_io_concurrency,
-#ifdef USE_PREFETCH
-		1,
-#else
-		0,
-#endif
+		DEFAULT_EFFECTIVE_IO_CONCURRENCY,
 		0, MAX_IO_CONCURRENCY,
 		check_effective_io_concurrency, NULL, NULL
 	},
@@ -2924,11 +2926,7 @@ struct config_int ConfigureNamesInt[] =
 			GUC_EXPLAIN
 		},
 		&maintenance_io_concurrency,
-#ifdef USE_PREFETCH
-		10,
-#else
-		0,
-#endif
+		DEFAULT_MAINTENANCE_IO_CONCURRENCY,
 		0, MAX_IO_CONCURRENCY,
 		check_maintenance_io_concurrency, assign_maintenance_io_concurrency,
 		NULL
@@ -4631,11 +4629,7 @@ struct config_enum ConfigureNamesEnum[] =
 			NULL
 		},
 		&syslog_facility,
-#ifdef HAVE_SYSLOG
-		LOG_LOCAL0,
-#else
-		0,
-#endif
+		DEFAULT_SYSLOG_FACILITY,
 		syslog_facility_options,
 		NULL, assign_syslog_facility, NULL
 	},

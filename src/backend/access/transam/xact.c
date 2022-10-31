@@ -76,7 +76,7 @@
  *	User-tweakable parameters
  */
 int			DefaultXactIsoLevel = XACT_READ_COMMITTED;
-int			XactIsoLevel;
+int			XactIsoLevel = XACT_READ_COMMITTED;
 
 bool		DefaultXactReadOnly = false;
 bool		XactReadOnly;
