@@ -20,5 +20,6 @@
 extern void escape_json(StringInfo buf, const char *str);
 extern char *JsonEncodeDateTime(char *buf, Datum value, Oid typid,
 								const int *tzp);
+extern StringInfo tsql_json_build_object(Datum colname, Datum colval, Oid collation, bool is_null);
 
 #endif							/* JSON_H */
