@@ -1381,21 +1381,13 @@ json_typeof(PG_FUNCTION_ARGS)
  * 
  * Transform the input key,val into json key:val pair
  */
-StringInfo
-tsql_json_build_object(Datum colname, Datum colval, Oid collation, bool is_null)
-{
-	StringInfo	result;
-
-	result = makeStringInfo();
-	
+void
+tsql_json_build_object(StringInfo result,Datum colname, Datum colval, Oid collation, bool is_null)
+{	
 	add_json(colname, false, result, CSTRINGOID, true);
 
 	appendStringInfoString(result, ":");
-	if (is_null)
-		add_json(colval, true, result, collation, false);
-	else
-		add_json(colval, false, result, collation, false);
 	
-	return result;
+	add_json(colval, is_null, result, collation, false);
 }
 
