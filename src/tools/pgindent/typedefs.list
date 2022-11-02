@@ -1515,8 +1515,8 @@ MemoryContextCallback
 MemoryContextCallbackFunction
 MemoryContextCounters
 MemoryContextData
-MemoryContextMethods
 MemoryContextMethodID
+MemoryContextMethods
 MemoryStatsPrintFunc
 MergeAction
 MergeActionState
@@ -3195,6 +3195,7 @@ datapagemap_t
 dateKEY
 datetkn
 dce_uuid_t
+dclist_head
 decimal
 deparse_columns
 deparse_context
