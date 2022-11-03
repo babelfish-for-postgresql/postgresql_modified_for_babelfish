@@ -68,7 +68,6 @@
 #include "executor/spi.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
-#include "nodes/nodes.h"
 #include "optimizer/optimizer.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
 #include "parser/parse_coerce.h"
