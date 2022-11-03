@@ -68,7 +68,6 @@
 #include "executor/spi.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
-#include "nodes/nodes.h"
 #include "optimizer/optimizer.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
 #include "parser/parse_coerce.h"
@@ -3230,7 +3229,7 @@ cookConstraint(ParseState *pstate,
 	/* 
 	 * If there is a LIKE operation within CHECK constraint, then call the hook to 
 	 * transform like node into ilike node for tsql compatibility. Since utility 
-	 * statements do not get planned, we invoke a planner hook here to carry out the
+	 * statements do not get planned, we invoke a hook here to carry out the
 	 * transformation. 
 	 * Note that we cannot guarantee that this hook has not already
 	 * been invoked, but the invoked function must take care of preventing any
