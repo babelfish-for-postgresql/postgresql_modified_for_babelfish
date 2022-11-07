@@ -1374,3 +1374,20 @@ json_typeof(PG_FUNCTION_ARGS)
 
 	PG_RETURN_TEXT_P(cstring_to_text(type));
 }
+
+
+/*
+ * SQL function tsql_json_build_object()
+ * 
+ * Transform the input key,val into json key:val pair
+ */
+void
+tsql_json_build_object(StringInfo result,Datum colname, Datum colval, Oid collation, bool is_null)
+{	
+	add_json(colname, false, result, CSTRINGOID, true);
+
+	appendStringInfoString(result, ":");
+	
+	add_json(colval, is_null, result, collation, false);
+}
+
