@@ -1246,7 +1246,7 @@ SetDefaultACL(InternalDefaultACL *iacls)
 			break;
 
 		default:
-			elog(ERROR, "unrecognized objtype: %d",
+			elog(ERROR, "unrecognized object type: %d",
 				 (int) iacls->objtype);
 			objtype = 0;		/* keep compiler quiet */
 			break;
@@ -3591,7 +3591,7 @@ aclcheck_error(AclResult aclerr, ObjectType objtype,
 					case OBJECT_TSPARSER:
 					case OBJECT_TSTEMPLATE:
 					case OBJECT_USER_MAPPING:
-						elog(ERROR, "unsupported object type %d", objtype);
+						elog(ERROR, "unsupported object type: %d", objtype);
 				}
 
 				ereport(ERROR,
@@ -3729,7 +3729,7 @@ aclcheck_error(AclResult aclerr, ObjectType objtype,
 					case OBJECT_TSPARSER:
 					case OBJECT_TSTEMPLATE:
 					case OBJECT_USER_MAPPING:
-						elog(ERROR, "unsupported object type %d", objtype);
+						elog(ERROR, "unsupported object type: %d", objtype);
 				}
 
 				ereport(ERROR,
@@ -3829,7 +3829,7 @@ pg_aclmask(ObjectType objtype, Oid table_oid, AttrNumber attnum, Oid roleid,
 		case OBJECT_TYPE:
 			return pg_type_aclmask(table_oid, roleid, mask, how);
 		default:
-			elog(ERROR, "unrecognized objtype: %d",
+			elog(ERROR, "unrecognized object type: %d",
 				 (int) objtype);
 			/* not reached, but keep compiler quiet */
 			return ACL_NO_RIGHTS;
