@@ -229,7 +229,6 @@ extern HTSV_Result HeapTupleSatisfiesVacuumHorizon(Relation relation, HeapTuple 
 extern void HeapTupleSetHintBits(HeapTupleHeader tuple, Buffer buffer,
 								 uint16 infomask, TransactionId xid);
 extern bool HeapTupleHeaderIsOnlyLocked(HeapTupleHeader tuple);
-extern bool XidInMVCCSnapshot(TransactionId xid, Snapshot snapshot);
 extern bool HeapTupleIsSurelyDead(HeapTuple htup,
 								  struct GlobalVisState *vistest);
 
