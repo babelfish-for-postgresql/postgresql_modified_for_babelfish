@@ -314,6 +314,9 @@ _outList(StringInfo str, const List *node)
  *	   converts a bitmap set of integers
  *
  * Note: the output format is "(b int int ...)", similar to an integer List.
+ *
+ * We export this function for use by extensions that define extensible nodes.
+ * That's somewhat historical, though, because calling outNode() will work.
  */
 void
 outBitmapset(StringInfo str, const Bitmapset *bms)
@@ -853,6 +856,8 @@ outNode(StringInfo str, const void *obj)
 		_outBitString(str, (BitString *) obj);
 	else if (IsA(obj, TSQL_HexString))
 		_outTSQL_HexString(str, (TSQL_HexString *) obj);
+	else if (IsA(obj, Bitmapset))
+		outBitmapset(str, (Bitmapset *) obj);
 	else
 	{
 		appendStringInfoChar(str, '{');
