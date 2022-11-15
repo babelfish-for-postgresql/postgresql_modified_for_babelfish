@@ -91,6 +91,7 @@
 #include "utils/syscache.h"
 
 InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook = NULL;
+transform_check_constraint_expr_hook_type transform_check_constraint_expr_hook = NULL;
 
 /* Potentially set by pg_upgrade_support functions */
 Oid			binary_upgrade_next_heap_pg_class_oid = InvalidOid;
@@ -3224,6 +3225,18 @@ cookConstraint(ParseState *pstate,
 	 * Take care of collations.
 	 */
 	assign_expr_collations(pstate, expr);
+
+	/* 
+	 * If there is a LIKE operation within CHECK constraint, then call the hook to 
+	 * transform like node into ilike node for tsql compatibility. Since utility 
+	 * statements do not get planned, we invoke a hook here to carry out the
+	 * transformation. 
+	 * Note that we cannot guarantee that this hook has not already
+	 * been invoked, but the invoked function must take care of preventing any
+	 * duplicated transformations.
+	 */
+	if(transform_check_constraint_expr_hook)
+		expr = transform_check_constraint_expr_hook(expr);
 
 	/*
 	 * Make sure no outside relations are referred to (this is probably dead
