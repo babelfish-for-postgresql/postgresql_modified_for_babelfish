@@ -18,7 +18,6 @@
 #include "libpq/pqformat.h"
 #include "miscadmin.h"
 #include "parser/parse_coerce.h"
-#include "parser/parser.h"   /* SQL_DIALECT_TSQL */
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/date.h"
@@ -69,7 +68,6 @@ static void datum_to_json(Datum val, bool is_null, StringInfo result,
 static void add_json(Datum val, bool is_null, StringInfo result,
 					 Oid val_type, bool key_scalar);
 static text *catenate_stringinfo_string(StringInfo buffer, const char *addon);
-static void for_json_path_date_time_format(StringInfo format_output, char *outputstr, Oid outfuncoid);
 
 /*
  * Input.
@@ -152,20 +150,6 @@ json_categorize_type(Oid typoid,
 	/* Look through any domain */
 	typoid = getBaseType(typoid);
 
-	if (sql_dialect==SQL_DIALECT_TSQL)
-	{
-		switch (typoid)
-		{
-			/* 
-			 * These OID are specifically for babelfish and therefore no macro is defined.
-			 * This switch case is to handle Bit dataype, to convert the typoid to BOOLOID.
-			 */
-			case 17056:
-				typoid = BOOLOID;
-				break;
-		}		
-	}
-
 	*outfuncoid = InvalidOid;
 
 	/*
@@ -173,7 +157,6 @@ json_categorize_type(Oid typoid,
 	 * timestamp types, array and composite types, booleans, and non-builtin
 	 * types where there's a cast to json.
 	 */
-	
 	switch (typoid)
 	{
 		case BOOLOID:
@@ -354,63 +337,8 @@ datum_to_json(Datum val, bool is_null, StringInfo result,
 			break;
 		default:
 			outputstr = OidOutputFunctionCall(outfuncoid, val);
-			// The outfuncoid are specific to babelfish and therefore no macro is defined.
-			if ((sql_dialect==SQL_DIALECT_TSQL) && 
-				(outfuncoid==17325 ||
-				 outfuncoid==17430 ||
-				 outfuncoid==17504 ||
-				 outfuncoid==17639))
-			{
-				StringInfo format_output = makeStringInfo();
-				for_json_path_date_time_format(format_output,outputstr, outfuncoid);
-				outputstr = format_output->data;
-			}
 			escape_json(result, outputstr);
 			pfree(outputstr);
-			break;
-	}
-}
-
-/*
- * This funciton handles the format for date & time datatypes by converting the output
- * into required format for SELECT FOR JSON PATH. For example:
- * "2022-11-11 20:56:22.41" -> "2022-11-11T20:56:22.41" for datetime, datetime2 & smalldatetime
- * "2022-11-11 22:25:01.015 +00:00" -> "2022-11-11T22:25:01.015Z" for datetimeoffset
- */
-static void
-for_json_path_date_time_format(StringInfo format_output, char *outputstr, Oid outfuncoid)
-{
-	char *before_space;
-	char *before_utc;
-	char *end_str;
-	char *begin_space = strstr(outputstr, " ");
-	int begin_index;
-
-
-	begin_index = begin_space - outputstr;
-	before_space = palloc(begin_index + 1);
-	before_space = memcpy(before_space, outputstr, begin_index);
-	before_space[begin_index] = '\0';
-	appendStringInfoString(format_output,before_space);
-	appendStringInfoChar(format_output,'T');
-
-
-	switch (outfuncoid)
-	{
-		case 17325: // datetime
-		case 17430: // datetime2
-		case 17504: // smalldatetime
-			appendStringInfoString(format_output,++begin_space);
-			break;
-		case 17639: // datetimeoffset
-			end_str = ++begin_space;
-			begin_space = strstr(end_str, " ");
-			begin_index = begin_space - end_str;
-			before_utc = palloc(begin_index + 1);
-			before_utc = memcpy(before_utc, end_str, begin_index);
-			before_utc[begin_index] = '\0';
-			appendStringInfoString(format_output,before_utc);
-			appendStringInfoChar(format_output,'Z');
 			break;
 	}
 }
