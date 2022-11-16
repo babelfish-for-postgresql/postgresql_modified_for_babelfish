@@ -157,6 +157,7 @@ json_categorize_type(Oid typoid,
 	 * timestamp types, array and composite types, booleans, and non-builtin
 	 * types where there's a cast to json.
 	 */
+
 	switch (typoid)
 	{
 		case BOOLOID:
@@ -209,8 +210,8 @@ json_categorize_type(Oid typoid,
 					CoercionPathType ctype;
 
 					ctype = find_coercion_pathway(JSONOID, typoid,
-												COERCION_EXPLICIT,
-												&castfunc);
+												  COERCION_EXPLICIT,
+												  &castfunc);
 					if (ctype == COERCION_PATH_FUNC && OidIsValid(castfunc))
 					{
 						*tcategory = JSONTYPE_CAST;
