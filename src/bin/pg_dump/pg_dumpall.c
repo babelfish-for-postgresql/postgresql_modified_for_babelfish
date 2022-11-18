@@ -1008,8 +1008,9 @@ dumpRoleMembership(PGconn *conn)
 				end,
 				total;
 	bool		dump_grantors;
-	bool		dump_inherit_option;
+	bool		dump_grant_options;
 	int			i_inherit_option;
+	int			i_set_option;
 
 	/*
 	 * Previous versions of PostgreSQL didn't used to track the grantor very
@@ -1021,10 +1022,10 @@ dumpRoleMembership(PGconn *conn)
 	dump_grantors = (PQserverVersion(conn) >= 160000);
 
 	/*
-	 * Previous versions of PostgreSQL also did not have a grant-level
+	 * Previous versions of PostgreSQL also did not have grant-level options.
 	 * INHERIT option.
 	 */
-	dump_inherit_option = (server_version >= 160000);
+	dump_grant_options = (server_version >= 160000);
 
 	/*
 	 * Do not add GRANTED BY clause for Babelfish Database dump.
@@ -1038,8 +1039,8 @@ dumpRoleMembership(PGconn *conn)
 					  "ug.oid AS grantorid, "
 					  "ug.rolname AS grantor, "
 					  "a.admin_option");
-	if (dump_inherit_option)
-		appendPQExpBufferStr(buf, ", a.inherit_option");
+	if (dump_grant_options)
+		appendPQExpBufferStr(buf, ", a.inherit_option, a.set_option");
 	appendPQExpBuffer(buf, " FROM pg_auth_members a "
 					  "LEFT JOIN %s ur on ur.oid = a.roleid "
 					  "LEFT JOIN %s um on um.oid = a.member "
@@ -1049,6 +1050,7 @@ dumpRoleMembership(PGconn *conn)
 	getBabelfishRoleMembershipQuery(conn, buf, role_catalog, binary_upgrade);
 	res = executeQuery(conn, buf->data);
 	i_inherit_option = PQfnumber(res, "inherit_option");
+	i_set_option = PQfnumber(res, "set_option");
 
 	if (PQntuples(res) > 0)
 		fprintf(OPF, "--\n-- Role memberships\n--\n\n");
@@ -1119,6 +1121,7 @@ dumpRoleMembership(PGconn *conn)
 				char	   *admin_option;
 				char	   *grantorid;
 				char	   *grantor;
+				char	   *set_option = "true";
 				bool		found;
 
 				/* If we already did this grant, don't do it again. */
@@ -1129,6 +1132,8 @@ dumpRoleMembership(PGconn *conn)
 				grantorid = PQgetvalue(res, i, 2);
 				grantor = PQgetvalue(res, i, 3);
 				admin_option = PQgetvalue(res, i, 4);
+				if (dump_grant_options)
+					set_option = PQgetvalue(res, i, i_set_option);
 
 				/*
 				 * If we're not dumping grantors or if the grantor is the
@@ -1158,7 +1163,7 @@ dumpRoleMembership(PGconn *conn)
 				fprintf(OPF, " TO %s", fmtId(member));
 				if (*admin_option == 't')
 					appendPQExpBufferStr(optbuf, "ADMIN OPTION");
-				if (dump_inherit_option)
+				if (dump_grant_options)
 				{
 					char   *inherit_option;
 
@@ -1168,6 +1173,12 @@ dumpRoleMembership(PGconn *conn)
 					appendPQExpBuffer(optbuf, "INHERIT %s",
 									  *inherit_option == 't' ?
 									  "TRUE" : "FALSE");
+				}
+				if (*set_option != 't')
+				{
+					if (optbuf->data[0] != '\0')
+						appendPQExpBufferStr(optbuf, ", ");
+					appendPQExpBuffer(optbuf, "SET FALSE");
 				}
 				if (optbuf->data[0] != '\0')
 					fprintf(OPF, " WITH %s", optbuf->data);
