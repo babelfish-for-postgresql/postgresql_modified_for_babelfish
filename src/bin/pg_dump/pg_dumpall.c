@@ -1023,7 +1023,6 @@ dumpRoleMembership(PGconn *conn)
 
 	/*
 	 * Previous versions of PostgreSQL also did not have grant-level options.
-	 * INHERIT option.
 	 */
 	dump_grant_options = (server_version >= 160000);
 
