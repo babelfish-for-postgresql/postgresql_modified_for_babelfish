@@ -922,11 +922,8 @@ exprCollation(const Node *expr)
 			coll = ((const MinMaxExpr *) expr)->minmaxcollid;
 			break;
 		case T_SQLValueFunction:
-			/* Returns either NAME or a non-collatable type */
-			if (((const SQLValueFunction *) expr)->type == NAMEOID)
-				coll = C_COLLATION_OID;
-			else
-				coll = InvalidOid;
+			/* Returns a non-collatable type */
+			coll = InvalidOid;
 			break;
 		case T_XmlExpr:
 
@@ -1155,9 +1152,7 @@ exprSetCollation(Node *expr, Oid collation)
 			((MinMaxExpr *) expr)->minmaxcollid = collation;
 			break;
 		case T_SQLValueFunction:
-			Assert((((SQLValueFunction *) expr)->type == NAMEOID) ?
-				   (collation == C_COLLATION_OID) :
-				   (collation == InvalidOid));
+			Assert(collation == InvalidOid);
 			break;
 		case T_XmlExpr:
 			Assert((((XmlExpr *) expr)->op == IS_XMLSERIALIZE) ?
