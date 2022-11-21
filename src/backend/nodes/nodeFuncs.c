@@ -212,9 +212,6 @@ exprType(const Node *expr)
 		case T_MinMaxExpr:
 			type = ((const MinMaxExpr *) expr)->minmaxtype;
 			break;
-		case T_SQLValueFunction:
-			type = ((const SQLValueFunction *) expr)->type;
-			break;
 		case T_XmlExpr:
 			if (((const XmlExpr *) expr)->op == IS_DOCUMENT)
 				type = BOOLOID;
@@ -479,8 +476,6 @@ exprTypmod(const Node *expr)
 				return typmod;
 			}
 			break;
-		case T_SQLValueFunction:
-			return ((const SQLValueFunction *) expr)->typmod;
 		case T_CoerceToDomain:
 			return ((const CoerceToDomain *) expr)->resulttypmod;
 		case T_CoerceToDomainValue:
@@ -921,10 +916,6 @@ exprCollation(const Node *expr)
 		case T_MinMaxExpr:
 			coll = ((const MinMaxExpr *) expr)->minmaxcollid;
 			break;
-		case T_SQLValueFunction:
-			/* Returns a non-collatable type */
-			coll = InvalidOid;
-			break;
 		case T_XmlExpr:
 
 			/*
@@ -1150,9 +1141,6 @@ exprSetCollation(Node *expr, Oid collation)
 			break;
 		case T_MinMaxExpr:
 			((MinMaxExpr *) expr)->minmaxcollid = collation;
-			break;
-		case T_SQLValueFunction:
-			Assert(collation == InvalidOid);
 			break;
 		case T_XmlExpr:
 			Assert((((XmlExpr *) expr)->op == IS_XMLSERIALIZE) ?
@@ -1436,10 +1424,6 @@ exprLocation(const Node *expr)
 		case T_MinMaxExpr:
 			/* GREATEST/LEAST keyword should always be the first thing */
 			loc = ((const MinMaxExpr *) expr)->location;
-			break;
-		case T_SQLValueFunction:
-			/* function keyword should always be the first thing */
-			loc = ((const SQLValueFunction *) expr)->location;
 			break;
 		case T_XmlExpr:
 			{
@@ -1728,10 +1712,10 @@ set_sa_opfuncid(ScalarArrayOpExpr *opexpr)
  * for themselves, in case additional checks should be made, or because they
  * have special rules about which parts of the tree need to be visited.
  *
- * Note: we ignore MinMaxExpr, SQLValueFunction, XmlExpr, CoerceToDomain,
- * and NextValueExpr nodes, because they do not contain SQL function OIDs.
- * However, they can invoke SQL-visible functions, so callers should take
- * thought about how to treat them.
+ * Note: we ignore MinMaxExpr, XmlExpr, CoerceToDomain, and NextValueExpr
+ * nodes, because they do not contain SQL function OIDs.  However, they can
+ * invoke SQL-visible functions, so callers should take thought about how
+ * to treat them.
  */
 bool
 check_functions_in_node(Node *node, check_function_callback checker,
@@ -1947,7 +1931,6 @@ expression_tree_walker_impl(Node *node,
 		case T_Const:
 		case T_Param:
 		case T_CaseTestExpr:
-		case T_SQLValueFunction:
 		case T_CoerceToDomainValue:
 		case T_SetToDefault:
 		case T_CurrentOfExpr:
@@ -2684,7 +2667,6 @@ expression_tree_mutator_impl(Node *node,
 			break;
 		case T_Param:
 		case T_CaseTestExpr:
-		case T_SQLValueFunction:
 		case T_CoerceToDomainValue:
 		case T_SetToDefault:
 		case T_CurrentOfExpr:
@@ -3598,7 +3580,6 @@ raw_expression_tree_walker_impl(Node *node,
 	{
 		case T_SetToDefault:
 		case T_CurrentOfExpr:
-		case T_SQLValueFunction:
 		case T_Integer:
 		case T_Float:
 		case T_Boolean:
