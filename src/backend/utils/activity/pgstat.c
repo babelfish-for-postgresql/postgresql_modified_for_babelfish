@@ -177,6 +177,9 @@ static void pgstat_build_snapshot_fixed(PgStat_Kind kind);
 
 static inline bool pgstat_is_kind_valid(int ikind);
 
+invalidate_stat_table_hook_type invalidate_stat_table_hook = NULL;
+guc_newval_hook_type guc_newval_hook = NULL;
+
 
 /* ----------
  * GUC parameters
@@ -773,6 +776,13 @@ pgstat_clear_snapshot(void)
 	 * forward the reset request.
 	 */
 	pgstat_clear_backend_activity_snapshot();
+
+	/*
+	 * Signal babelfishpg_tds extension (if loaded) to
+	 * mark the local TDS status table as invalid too
+	 */
+	if (invalidate_stat_table_hook)
+		(*invalidate_stat_table_hook)();
 }
 
 void *

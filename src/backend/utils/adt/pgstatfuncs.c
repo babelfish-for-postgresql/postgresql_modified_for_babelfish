@@ -32,9 +32,16 @@
 #include "utils/inet.h"
 #include "utils/timestamp.h"
 
+tsql_has_pgstat_permissions_hook_type tsql_has_pgstat_permissions_hook = NULL;
+
 #define UINT32_ACCESS_ONCE(var)		 ((uint32)(*((volatile uint32 *)&(var))))
 
-#define HAS_PGSTAT_PERMISSIONS(role)	 (has_privs_of_role(GetUserId(), ROLE_PG_READ_ALL_STATS) || has_privs_of_role(GetUserId(), role))
+/*
+ * Additionally if the babelfishpg_tsql extension is loaded, and if the current
+ * session user is sysadmin of babelfish db or has the privileges of a role that
+ * has permissions to view pg stats, then such a user can also view pg stats.
+ */
+#define HAS_PGSTAT_PERMISSIONS(role)	 (has_privs_of_role(GetUserId(), ROLE_PG_READ_ALL_STATS) || has_privs_of_role(GetUserId(), role) || (tsql_has_pgstat_permissions_hook ? (*tsql_has_pgstat_permissions_hook)(role) : false))
 
 Datum
 pg_stat_get_numscans(PG_FUNCTION_ARGS)
