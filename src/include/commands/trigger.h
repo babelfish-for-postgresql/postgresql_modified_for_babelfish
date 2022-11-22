@@ -189,6 +189,8 @@ extern void ExecBSInsertTriggers(EState *estate,
 extern void ExecASInsertTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TransitionCaptureState *transition_capture);
+extern IOTState ExecISInsertTriggers(EState *estate,
+								ResultRelInfo *relinfo);
 extern bool ExecBRInsertTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TupleTableSlot *slot);
@@ -205,6 +207,8 @@ extern void ExecBSDeleteTriggers(EState *estate,
 extern void ExecASDeleteTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TransitionCaptureState *transition_capture);
+extern IOTState ExecISDeleteTriggers(EState *estate,
+								ResultRelInfo *relinfo);
 extern bool ExecBRDeleteTriggers(EState *estate,
 								 EPQState *epqstate,
 								 ResultRelInfo *relinfo,
@@ -225,6 +229,8 @@ extern void ExecBSUpdateTriggers(EState *estate,
 extern void ExecASUpdateTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TransitionCaptureState *transition_capture);
+extern IOTState ExecISUpdateTriggers(EState *estate,
+								ResultRelInfo *relinfo);
 extern bool ExecBRUpdateTriggers(EState *estate,
 								 EPQState *epqstate,
 								 ResultRelInfo *relinfo,
@@ -280,5 +286,8 @@ extern void RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel,
 #define RI_TRIGGER_NONE 0		/* is not an RI trigger function */
 
 extern int	RI_FKey_trigger_type(Oid tgfoid);
+
+extern void BeginCompositeTriggers(MemoryContext curCxt);
+extern void EndCompositeTriggers(bool error);
 
 #endif							/* TRIGGER_H */

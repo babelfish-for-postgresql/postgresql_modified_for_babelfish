@@ -561,7 +561,13 @@ typedef enum NodeTag
 	T_SupportRequestCost,		/* in nodes/supportnodes.h */
 	T_SupportRequestRows,		/* in nodes/supportnodes.h */
 	T_SupportRequestIndexCondition, /* in nodes/supportnodes.h */
-	T_SupportRequestWFuncMonotonic	/* in nodes/supportnodes.h */
+	T_SupportRequestWFuncMonotonic,	/* in nodes/supportnodes.h */
+
+	/*
+	 * Additional TAG FOR VALUE NODES (value.h)
+	 */
+	T_TSQL_HexString
+
 } NodeTag;
 
 /*

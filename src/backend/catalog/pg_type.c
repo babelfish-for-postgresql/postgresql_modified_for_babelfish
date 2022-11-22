@@ -422,7 +422,11 @@ TypeCreate(Oid newTypeOid,
 	tup = SearchSysCacheCopy2(TYPENAMENSP,
 							  CStringGetDatum(typeName),
 							  ObjectIdGetDatum(typeNamespace));
-	if (HeapTupleIsValid(tup))
+	/* 
+	 * If the tuple is for an ENR that's not in the current query environment,
+	 * we are still allowed to create new type.
+	 */
+	if (HeapTupleIsValid(tup) && get_ENR(currentQueryEnv, typeName) == NULL)
 	{
 		Form_pg_type typform = (Form_pg_type) GETSTRUCT(tup);
 

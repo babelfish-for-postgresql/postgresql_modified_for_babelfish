@@ -717,6 +717,8 @@ extern bool has_fn_opclass_options(FmgrInfo *flinfo);
 extern void set_fn_opclass_options(FmgrInfo *flinfo, bytea *options);
 extern bool CheckFunctionValidatorAccess(Oid validatorOid, Oid functionOid);
 
+extern PGFunction lookup_C_func_by_oid(Oid fn_oid, char* probin, char* prosrc);
+
 /*
  * Routines in dfmgr.c
  */
@@ -772,8 +774,11 @@ typedef bool (*needs_fmgr_hook_type) (Oid fn_oid);
 typedef void (*fmgr_hook_type) (FmgrHookEventType event,
 								FmgrInfo *flinfo, Datum *arg);
 
+typedef void (*non_tsql_proc_entry_hook_type) (int, int);
+
 extern PGDLLIMPORT needs_fmgr_hook_type needs_fmgr_hook;
 extern PGDLLIMPORT fmgr_hook_type fmgr_hook;
+extern PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook;
 
 #define FmgrHookIsNeeded(fn_oid)							\
 	(!needs_fmgr_hook ? false : (*needs_fmgr_hook)(fn_oid))

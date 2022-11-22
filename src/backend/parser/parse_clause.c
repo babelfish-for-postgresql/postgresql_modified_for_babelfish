@@ -48,9 +48,11 @@
 #include "utils/catcache.h"
 #include "utils/guc.h"
 #include "utils/lsyscache.h"
+#include "utils/queryenvironment.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
+tle_name_comparison_hook_type  tle_name_comparison_hook = NULL;
 
 static int	extractRemainingColumns(ParseNamespaceColumn *src_nscolumns,
 									List *src_colnames,
@@ -178,13 +180,15 @@ setTargetTable(ParseState *pstate, RangeVar *relation,
 			   bool inh, bool alsoSource, AclMode requiredPerms)
 {
 	ParseNamespaceItem *nsitem;
+	EphemeralNamedRelationMetadata enrmd;
 
 	/*
 	 * ENRs hide tables of the same name, so we need to check for them first.
 	 * In contrast, CTEs don't hide tables (for this purpose).
 	 */
 	if (relation->schemaname == NULL &&
-		scanNameSpaceForENR(pstate, relation->relname))
+		(enrmd = get_visible_ENR_metadata(pstate->p_queryEnv, relation->relname)) &&
+		enrmd->enrtype != ENR_TSQL_TEMP)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("relation \"%s\" cannot be the target of a modifying statement",
@@ -1959,7 +1963,10 @@ findTargetlistEntrySQL92(ParseState *pstate, Node *node, List **tlist,
 				TargetEntry *tle = (TargetEntry *) lfirst(tl);
 
 				if (!tle->resjunk &&
-					strcmp(tle->resname, name) == 0)
+					((!tle_name_comparison_hook &&
+					  strcmp(tle->resname, name) == 0) ||
+					 (tle_name_comparison_hook &&
+					  (*tle_name_comparison_hook)(tle->resname, name))))
 				{
 					if (target_result != NULL)
 					{

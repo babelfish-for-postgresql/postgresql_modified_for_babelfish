@@ -105,6 +105,44 @@ static const LOCKMASK LockConflicts[] = {
 
 };
 
+/*
+ * LOCKMODE conflict map for TSQL-style application locks.
+ * NB: we reuse and map some of the existing LOCKMODE in PG to the
+ * application lock modes so we don't have to add more LOCKMODE bits.
+ */
+static const LOCKMASK AppLockConflicts[] = {
+	0,
+
+	/* AccessShareLock */
+	0,
+
+	/* (PG) RowShareLock -> (TSQL) IntentShared */
+	LOCKBIT_ON(ExclusiveLock),
+
+	/* (PG) RowExclusiveLock -> (TSQL) IntentExclusive */
+	LOCKBIT_ON(ShareLock) | LOCKBIT_ON(ShareUpdateExclusiveLock) |
+	LOCKBIT_ON(ExclusiveLock),
+
+	/* (PG) ShareUpdateExclusiveLock -> (TSQL) Update */
+	LOCKBIT_ON(ShareUpdateExclusiveLock) |
+	LOCKBIT_ON(RowExclusiveLock) | LOCKBIT_ON(ExclusiveLock),
+
+	/* ShareLock */
+	LOCKBIT_ON(RowExclusiveLock) | LOCKBIT_ON(ExclusiveLock),
+
+	/* ShareRowExclusiveLock */
+	0,
+
+	/* ExclusiveLock */
+	LOCKBIT_ON(RowShareLock) |
+	LOCKBIT_ON(RowExclusiveLock) | LOCKBIT_ON(ShareUpdateExclusiveLock) |
+	LOCKBIT_ON(ShareLock) |	LOCKBIT_ON(ExclusiveLock),
+
+	/* AccessExclusiveLock */
+	0
+
+};
+
 /* Names of lock modes, for debug printouts */
 static const char *const lock_mode_names[] =
 {
@@ -145,13 +183,25 @@ static const LockMethodData user_lockmethod = {
 #endif
 };
 
+static const LockMethodData applock_lockmethod = {
+	AccessExclusiveLock,		/* highest valid lock mode number */
+	AppLockConflicts,
+	lock_mode_names,
+#ifdef LOCK_DEBUG
+	&Trace_userlocks
+#else
+	&Dummy_trace
+#endif
+};
+
 /*
  * map from lock method id to the lock table data structures
  */
 static const LockMethod LockMethods[] = {
 	NULL,
 	&default_lockmethod,
-	&user_lockmethod
+	&user_lockmethod,
+	&applock_lockmethod
 };
 
 
@@ -282,6 +332,9 @@ static HTAB *LockMethodLockHash;
 static HTAB *LockMethodProcLockHash;
 static HTAB *LockMethodLocalHash;
 
+
+/* TSQL-only handler for releasing application lock. */
+applock_release_func_handler_type applock_release_func_handler = NULL;
 
 /* private state for error cleanup */
 static LOCALLOCK *StrongLockInProgress;
@@ -2208,6 +2261,14 @@ LockReleaseAll(LOCKMETHODID lockmethodid, bool allLocks)
 		VirtualXactLockTableCleanup();
 
 	numLockModes = lockMethodTable->numLockModes;
+
+	/*
+	 * If we are in TSQL, call the handler to remove the hash entries for 
+	 * application locks too. applock_release_func_handler is 
+	 * initialized when application lock is acquired the first time.
+	 */
+	if (lockmethodid == USER_LOCKMETHOD && applock_release_func_handler != NULL)
+		applock_release_func_handler(allLocks);
 
 	/*
 	 * First we run through the locallock table and get rid of unwanted

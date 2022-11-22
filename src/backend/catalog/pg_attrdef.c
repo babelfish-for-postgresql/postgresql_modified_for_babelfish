@@ -302,7 +302,8 @@ RemoveAttrDefaultById(Oid attrdefId)
 	myrel = relation_open(myrelid, AccessExclusiveLock);
 
 	/* Now we can delete the pg_attrdef row */
-	CatalogTupleDelete(attrdef_rel, &tuple->t_self);
+	if (!ENRdropTuple(attrdef_rel, tuple))
+		CatalogTupleDelete(attrdef_rel, &tuple->t_self);
 
 	systable_endscan(scan);
 	table_close(attrdef_rel, RowExclusiveLock);

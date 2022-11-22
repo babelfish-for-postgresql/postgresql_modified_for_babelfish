@@ -87,6 +87,12 @@ typedef struct SeqTableData
 
 typedef SeqTableData *SeqTable;
 
+/* Hooks for pltsql plugin */
+pltsql_sequence_validate_increment_hook_type pltsql_sequence_validate_increment_hook = NULL;
+pltsql_sequence_datatype_hook_type pltsql_sequence_datatype_hook = NULL;
+pltsql_nextval_hook_type pltsql_nextval_hook = NULL;
+pltsql_resetcache_hook_type pltsql_resetcache_hook = NULL;
+
 static HTAB *seqhashtab = NULL; /* hash table for SeqTable items */
 
 /*
@@ -792,6 +798,9 @@ nextval_internal(Oid relid, bool check_permissions)
 
 	last_used_seq = elm;
 
+	if (pltsql_nextval_hook)
+		(* pltsql_nextval_hook) (elm->relid, result);
+
 	/*
 	 * If something needs to be WAL logged, acquire an xid, so this
 	 * transaction's commit will trigger a WAL flush and wait for syncrep.
@@ -1374,6 +1383,14 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 	{
 		Oid			newtypid = typenameTypeId(pstate, defGetTypeName(as_type));
 
+		if (pltsql_sequence_datatype_hook)
+			(* pltsql_sequence_datatype_hook) (pstate,
+											   &newtypid,
+											   for_identity,
+											   as_type,
+											   &max_value,
+											   &min_value);
+
 		if (newtypid != INT2OID &&
 			newtypid != INT4OID &&
 			newtypid != INT8OID)
@@ -1579,6 +1596,11 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 	{
 		seqform->seqcache = 1;
 	}
+
+	if(pltsql_sequence_validate_increment_hook)
+		(* pltsql_sequence_validate_increment_hook) (seqform->seqincrement,
+													seqform->seqmax,
+													seqform->seqmin);
 }
 
 /*
@@ -1895,6 +1917,9 @@ ResetSequenceCaches(void)
 	}
 
 	last_used_seq = NULL;
+
+	if (pltsql_resetcache_hook)
+		(* pltsql_resetcache_hook) ();
 }
 
 /*

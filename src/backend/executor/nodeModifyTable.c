@@ -48,12 +48,15 @@
 #include "access/xact.h"
 #include "catalog/catalog.h"
 #include "commands/trigger.h"
+#include "commands/defrem.h"
 #include "executor/execPartition.h"
 #include "executor/executor.h"
 #include "executor/nodeModifyTable.h"
+#include "executor/tstoreReceiver.h"
 #include "foreign/fdwapi.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
+#include "parser/parser.h"
 #include "rewrite/rewriteHandler.h"
 #include "storage/bufmgr.h"
 #include "storage/lmgr.h"
@@ -765,6 +768,10 @@ ExecInsert(ModifyTableContext *context,
 			return NULL;		/* "do nothing" */
 	}
 
+	/* Process RETURNING if present */
+	if (resultRelInfo->ri_projectReturning)
+		result = ExecProcessReturning(resultRelInfo, slot, planSlot);
+
 	/* INSTEAD OF ROW INSERT Triggers */
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_insert_instead_row)
@@ -1311,6 +1318,7 @@ ExecDelete(ModifyTableContext *context,
 	Relation	resultRelationDesc = resultRelInfo->ri_RelationDesc;
 	TupleTableSlot *slot = NULL;
 	TM_Result	result;
+	TupleTableSlot *rslot_output = NULL;
 
 	if (tupleDeleted)
 		*tupleDeleted = false;
@@ -1322,6 +1330,43 @@ ExecDelete(ModifyTableContext *context,
 	if (!ExecDeletePrologue(context, resultRelInfo, tupleid, oldtuple,
 							epqreturnslot))
 		return NULL;
+
+	/* Process RETURNING if present and if requested */
+	if (processReturning && resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
+	{
+		/*
+		 * We have to put the target tuple into a slot, which means first we
+		 * gotta fetch it.  We can use the trigger tuple slot.
+		 */
+		if (resultRelInfo->ri_FdwRoutine)
+		{
+			/* FDW must have provided a slot containing the deleted row */
+			Assert(!TupIsNull(slot));
+		}
+		else
+		{
+			slot = ExecGetReturningSlot(estate, resultRelInfo);
+			if (oldtuple != NULL)
+			{
+				ExecForceStoreHeapTuple(oldtuple, slot, false);
+			}
+			else
+			{
+				if (!table_tuple_fetch_row_version(resultRelationDesc, tupleid,
+												   SnapshotAny, slot))
+					elog(ERROR, "failed to fetch deleted tuple for DELETE RETURNING");
+			}
+		}
+		rslot_output = ExecProcessReturning(resultRelInfo, slot, context->planSlot);
+
+		/*
+		 * Before releasing the target tuple again, make sure rslot has a
+		 * local copy of any pass-by-reference values.
+		 */
+		ExecMaterializeSlot(rslot_output);
+
+		ExecClearTuple(slot);
+	}
 
 	/* INSTEAD OF ROW DELETE Triggers */
 	if (resultRelInfo->ri_TrigDesc &&
@@ -1549,7 +1594,7 @@ ldelete:;
 	ExecDeleteEpilogue(context, resultRelInfo, tupleid, oldtuple, changingPart);
 
 	/* Process RETURNING if present and if requested */
-	if (processReturning && resultRelInfo->ri_projectReturning)
+	if (processReturning && resultRelInfo->ri_projectReturning && sql_dialect != SQL_DIALECT_TSQL)
 	{
 		/*
 		 * We have to put the target tuple into a slot, which means first we
@@ -1589,6 +1634,9 @@ ldelete:;
 
 		return rslot;
 	}
+
+	if (processReturning && resultRelInfo->ri_projectReturning && rslot_output)
+		return rslot_output;
 
 	return NULL;
 }
@@ -2130,6 +2178,7 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 	UpdateContext updateCxt = {0};
 	List	   *recheckIndexes = NIL;
 	TM_Result	result;
+	TupleTableSlot *rslot = NULL;
 
 	/*
 	 * abort the operation if not running transactions
@@ -2143,6 +2192,10 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 	 */
 	if (!ExecUpdatePrologue(context, resultRelInfo, tupleid, oldtuple, slot))
 		return NULL;
+
+	/* Process RETURNING if present */
+	if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
+		rslot = ExecProcessReturning(resultRelInfo, slot, context->planSlot);
 
 	/* INSTEAD OF ROW UPDATE Triggers */
 	if (resultRelInfo->ri_TrigDesc &&
@@ -2342,8 +2395,11 @@ redo_act:
 	list_free(recheckIndexes);
 
 	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning)
+	if (resultRelInfo->ri_projectReturning && sql_dialect != SQL_DIALECT_TSQL)
 		return ExecProcessReturning(resultRelInfo, slot, context->planSlot);
+
+	if (resultRelInfo->ri_projectReturning)
+		return rslot;
 
 	return NULL;
 }
@@ -3306,6 +3362,48 @@ fireBSTriggers(ModifyTableState *node)
 }
 
 /*
+ * Process INSTEAD OF EACH STATEMENT triggers
+ */
+static IOTState
+fireISTriggers(ModifyTableState *node)
+{
+	ModifyTable *plan = (ModifyTable *) node->ps.plan;
+	ResultRelInfo *resultRelInfo = node->resultRelInfo;
+	IOTState ret =IOT_UNKNOWN;
+
+	/*
+	 * If the node modifies a partitioned table, we must fire its triggers.
+	 * Note that in that case, node->resultRelInfo points to the first leaf
+	 * partition, not the root table.
+	 */
+	if (node->rootResultRelInfo != NULL)
+		resultRelInfo = node->rootResultRelInfo;
+
+	switch (node->operation)
+	{
+		case CMD_INSERT:
+			ret = ExecISInsertTriggers(node->ps.state, resultRelInfo);
+			if (plan->onConflictAction == ONCONFLICT_UPDATE)
+				ret = ExecISUpdateTriggers(node->ps.state,
+									 resultRelInfo);
+			break;
+		case CMD_UPDATE:
+			ret = ExecISUpdateTriggers(node->ps.state, resultRelInfo);
+			break;
+		case CMD_DELETE:
+			ret = ExecISDeleteTriggers(node->ps.state, resultRelInfo);
+			break;
+		case CMD_MERGE:
+			elog(ERROR, "Merge is unsupported in TSQL");
+			break;
+		default:
+			elog(ERROR, "unknown operation");
+			break;
+	}
+	return ret;
+}
+
+/*
  * Process AFTER EACH STATEMENT triggers
  */
 static void
@@ -3460,6 +3558,11 @@ ExecModifyTable(PlanState *pstate)
 	PartitionTupleRouting *proute = node->mt_partition_tuple_routing;
 	List	   *relinfos = NIL;
 	ListCell   *lc;
+	/* for INSERT ... EXECUTE */
+	bool 		tsql_insert_exec = node->callStmt != NULL;
+	Tuplestorestate *tss;
+	TupleDesc 	tupdesc;
+	DestReceiver *dest = NULL;
 
 	CHECK_FOR_INTERRUPTS();
 
@@ -3484,6 +3587,23 @@ ExecModifyTable(PlanState *pstate)
 	if (node->mt_done)
 		return NULL;
 
+	/* Try to see if IOT exists on the action. fireISTriggers() should return
+	 * IOT_NOT_REQUIRED if there does not exist on the relation and action.
+	 * Otherwise, this should fire the IOT or recognize the IOT has already been
+	 * fired.
+	 */
+	if (node->fireISTriggers == IOT_NOT_FIRED && sql_dialect == SQL_DIALECT_TSQL)
+	{
+		node->fireISTriggers = fireISTriggers(node);
+	}
+
+	/* If IOT is already fired, bail out */
+	if (node->fireISTriggers == IOT_FIRED)
+	{
+		node->mt_done = true;
+		return NULL;
+	}
+
 	/*
 	 * On first call, fire BEFORE STATEMENT triggers before proceeding.
 	 */
@@ -3503,7 +3623,37 @@ ExecModifyTable(PlanState *pstate)
 	context.estate = estate;
 
 	/*
-	 * Fetch rows from subplan, and execute the required table modification
+	 * If we are here for INSERT ... EXECUTE, create a TuplestoreDestReceiver
+	 * and pass it to the procedure execution. The procedure execution will send
+	 * its result sets to the tuplestore via the receiver function.
+	 */
+	if (tsql_insert_exec)
+	{
+		tss = tuplestore_begin_heap(false, false, work_mem);
+		tupdesc = RelationGetDescr(resultRelInfo->ri_RelationDesc);
+		dest = CreateTuplestoreDestReceiver();
+		SetTuplestoreDestReceiverParams(dest, tss, CurrentMemoryContext, false, NULL, NULL);
+		dest->rStartup(dest, -1, tupdesc);
+
+		switch (nodeTag(node->callStmt))
+		{
+			case T_CallStmt:
+				ExecuteCallStmt((CallStmt *)node->callStmt,
+								pstate->state->es_param_list_info, false, dest);
+				break;
+			case T_DoStmt:
+				ExecuteDoStmtInsertExec((DoStmt *)node->callStmt, false, dest);
+				break;
+			default:
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("Unrecognized stmt in INSERT EXEC")));
+				break;
+		}
+	}
+
+	/*
+	 * Fetch rows from subplan(s), and execute the required table modification
 	 * for each row.
 	 */
 	for (;;)
@@ -3524,7 +3674,13 @@ ExecModifyTable(PlanState *pstate)
 		if (pstate->ps_ExprContext)
 			ResetExprContext(pstate->ps_ExprContext);
 
-		context.planSlot = ExecProcNode(subplanstate);
+		if (tsql_insert_exec)
+		{
+			context.planSlot = MakeSingleTupleTableSlot(tupdesc, &TTSOpsMinimalTuple);
+			tuplestore_gettupleslot(tss, true, false, context.planSlot);
+		}
+		else
+			context.planSlot = ExecProcNode(subplanstate);
 
 		/* No more tuples to process? */
 		if (TupIsNull(context.planSlot))
@@ -3750,12 +3906,21 @@ ExecModifyTable(PlanState *pstate)
 				break;
 		}
 
+		if(tsql_insert_exec)
+			ExecDropSingleTupleTableSlot(context.planSlot);
+
 		/*
 		 * If we got a RETURNING result, return it to caller.  We'll continue
 		 * the work on next call.
 		 */
 		if (slot)
 			return slot;
+	}
+
+	if (tsql_insert_exec && dest)
+	{
+		dest->rShutdown(dest);
+		dest->rDestroy(dest);
 	}
 
 	/*
@@ -3878,6 +4043,8 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 	mtstate->resultRelInfo = (ResultRelInfo *)
 		palloc(nrels * sizeof(ResultRelInfo));
 
+	mtstate->callStmt = node->callStmt;
+
 	mtstate->mt_merge_inserted = 0;
 	mtstate->mt_merge_updated = 0;
 	mtstate->mt_merge_deleted = 0;
@@ -3912,6 +4079,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 	/* set up epqstate with dummy subplan data for the moment */
 	EvalPlanQualInit(&mtstate->mt_epqstate, estate, NULL, NIL, node->epqParam);
 	mtstate->fireBSTriggers = true;
+	mtstate->fireISTriggers = IOT_NOT_FIRED;
 
 	/*
 	 * Build state for collecting transition tuples.  This requires having a

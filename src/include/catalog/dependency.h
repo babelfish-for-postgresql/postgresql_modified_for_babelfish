@@ -139,6 +139,7 @@ typedef enum ObjectClass
 #define PERFORM_DELETION_SKIP_EXTENSIONS	0x0010	/* keep extensions */
 #define PERFORM_DELETION_CONCURRENT_LOCK	0x0020	/* normal drop with
 													 * concurrent lock mode */
+#define PERFORM_DELETION_SKIP_ENR			0x0040	/* Skip ENR-supported catalogs*/
 
 
 /* in dependency.c */

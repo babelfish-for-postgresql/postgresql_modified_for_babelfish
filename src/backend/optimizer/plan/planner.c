@@ -72,7 +72,8 @@ bool		parallel_leader_participation = true;
 
 /* Hook for plugins to get control in planner() */
 planner_hook_type planner_hook = NULL;
-
+/* Hook for plugins to transform qual nodes in planner */
+planner_node_transformer_hook_type planner_node_transformer_hook = NULL;
 /* Hook for plugins to get control when grouping_planner() plans upper rels */
 create_upper_paths_hook_type create_upper_paths_hook = NULL;
 
@@ -411,6 +412,12 @@ standard_planner(Query *parse, const char *query_string, int cursorOptions,
 	best_path = get_cheapest_fractional_path(final_rel, tuple_fraction);
 
 	top_plan = create_plan(root, best_path);
+	/*
+	 * For INSERT ... EXECUTE, add the utilityStmt (if any) from the Query to
+	 * the plan node.
+	 */
+	if (nodeTag(top_plan) == T_ModifyTable)
+		((ModifyTable *)top_plan)->callStmt = parse->utilityStmt;
 
 	/*
 	 * If creating a plan for a scrollable cursor, make sure it can run
@@ -814,6 +821,9 @@ subquery_planner(PlannerGlobal *glob, Query *parse,
 
 	preprocess_qual_conditions(root, (Node *) parse->jointree);
 
+	if(planner_node_transformer_hook)
+		parse->havingQual = planner_node_transformer_hook(root, parse->havingQual, EXPRKIND_QUAL);
+
 	parse->havingQual = preprocess_expression(root, parse->havingQual,
 											  EXPRKIND_QUAL);
 
@@ -1101,6 +1111,9 @@ preprocess_expression(PlannerInfo *root, Node *expr, int kind)
 		  kind == EXPRKIND_TABLEFUNC))
 		expr = flatten_join_alias_vars(root->parse, expr);
 
+	if(EXPRKIND_TARGET == kind && planner_node_transformer_hook)
+		expr = planner_node_transformer_hook(root, expr, kind);
+
 	/*
 	 * Simplify constant expressions.  For function RTEs, this was already
 	 * done by preprocess_function_rtes.  (But note we must do it again for
@@ -1192,6 +1205,9 @@ preprocess_qual_conditions(PlannerInfo *root, Node *jtnode)
 
 		foreach(l, f->fromlist)
 			preprocess_qual_conditions(root, lfirst(l));
+
+		if(planner_node_transformer_hook)
+			f->quals = planner_node_transformer_hook(root, f->quals, EXPRKIND_QUAL);
 
 		f->quals = preprocess_expression(root, f->quals, EXPRKIND_QUAL);
 	}

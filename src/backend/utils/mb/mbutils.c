@@ -268,7 +268,21 @@ SetClientEncoding(int encoding)
 	}
 
 	if (found)
+	{
+		/*
+		 * We cache the information required to 
+		 * invoke perform_default_encoding_conversion()
+		 * but the cached info may incomplete at this
+		 * point.  To complete the cache item, we invoke
+		 * both ToServer and ToClient functions by converting
+		 * a simple value (a space character) and just 
+		 * ignore the result.
+		 */
+		perform_default_encoding_conversion(" ", 1, true);
+		perform_default_encoding_conversion(" ", 1, false);
+		
 		return 0;				/* success */
+	}
 	else
 		return -1;				/* it's not cached, so fail */
 }

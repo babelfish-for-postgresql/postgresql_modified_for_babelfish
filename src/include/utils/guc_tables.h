@@ -159,6 +159,7 @@ struct config_generic
 	char	   *sourcefile;		/* file current setting is from (NULL if not
 								 * set in config file) */
 	int			sourceline;		/* line in source file */
+	GucStack   *session_stack;	/* stacked prior value at session level */
 };
 
 /* bit values in status field */
@@ -264,5 +265,15 @@ extern const char *config_enum_lookup_by_value(struct config_enum *record, int v
 extern bool config_enum_lookup_by_name(struct config_enum *record,
 									   const char *value, int *retval);
 extern struct config_generic **get_explain_guc_options(int *num);
+
+extern void guc_set_string_field(struct config_string *conf, char **field, char *newval);
+extern void guc_set_extra_field(struct config_generic *gconf, void **field, void *newval);
+extern void guc_set_stack_value(struct config_generic *gconf, config_var_value *val);
+
+typedef        void (*guc_push_old_value_hook_type) (struct config_generic *gconf, GucAction action);
+
+extern PGDLLIMPORT guc_push_old_value_hook_type guc_push_old_value_hook;
+typedef			void(*validate_set_config_function_hook_type) (char *name, char *value);
+extern PGDLLIMPORT validate_set_config_function_hook_type validate_set_config_function_hook;
 
 #endif							/* GUC_TABLES_H */

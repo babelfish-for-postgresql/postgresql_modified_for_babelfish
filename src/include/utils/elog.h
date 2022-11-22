@@ -410,6 +410,9 @@ extern void pg_re_throw(void) pg_attribute_noreturn();
 
 extern char *GetErrorContextStack(void);
 
+/* libpq function for sending messages to client */
+extern void send_message_to_frontend(ErrorData *edata);
+
 /* Hook for intercepting messages before they are sent to the server log */
 typedef void (*emit_log_hook_type) (ErrorData *edata);
 extern PGDLLIMPORT emit_log_hook_type emit_log_hook;

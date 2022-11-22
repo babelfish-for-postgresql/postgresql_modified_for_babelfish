@@ -30,6 +30,8 @@
 #include "parser/parse_relation.h"
 #include "parser/parse_type.h"
 #include "parser/parsetree.h"
+#include "parser/parser.h"   /* SQL_DIALECT_TSQL */
+#include "parser/scansup.h"  /* downcase_identifier */
 #include "storage/lmgr.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
@@ -791,7 +793,16 @@ scanRTEForColumn(ParseState *pstate, RangeTblEntry *rte,
 	int			result = InvalidAttrNumber;
 	int			attnum = 0;
 	ListCell   *c;
+	char       *refname = NULL;
+	int        reflen = 0;
 
+	if (sql_dialect == SQL_DIALECT_TSQL
+		&& pltsql_case_insensitive_identifiers)
+	{
+		refname = downcase_identifier(colname, strlen(colname), false, false);
+		reflen = strlen(refname);
+	}
+	
 	/*
 	 * Scan the user column names (or aliases) for a match. Complain if
 	 * multiple matches.
@@ -808,9 +819,24 @@ scanRTEForColumn(ParseState *pstate, RangeTblEntry *rte,
 	foreach(c, eref->colnames)
 	{
 		const char *attcolname = strVal(lfirst(c));
+		bool matches;
 
 		attnum++;
-		if (strcmp(attcolname, colname) == 0)
+		matches = false;
+		
+		if (sql_dialect == SQL_DIALECT_TSQL
+			&& pltsql_case_insensitive_identifiers)
+		{
+			if (strlen(attcolname) != reflen)
+				continue;
+			
+			if (strcmp(downcase_identifier(attcolname, reflen, false, false), refname) == 0)
+				matches = true;
+		}
+		else if (strcmp(attcolname, colname) == 0)
+			matches = true;
+		
+		if (matches)
 		{
 			if (result)
 				ereport(ERROR,
@@ -2434,6 +2460,18 @@ addRangeTableEntryForENR(ParseState *pstate,
 	{
 		case ENR_NAMED_TUPLESTORE:
 			rte->rtekind = RTE_NAMEDTUPLESTORE;
+			rte->requiredPerms = 0;
+			rte->inh = false;
+			break;
+
+		case ENR_TSQL_TEMP:
+			rte->inh = rv->inh;
+			rte->rtekind = RTE_RELATION;
+			rte->rellockmode = isLockedRefname(pstate, refname) ? RowShareLock : AccessShareLock;
+			rte->requiredPerms = ACL_SELECT;
+			rte->insertedCols = NULL;
+			rte->updatedCols = NULL;
+			rte->extraUpdatedCols = NULL;
 			break;
 
 		default:
@@ -2491,10 +2529,8 @@ addRangeTableEntryForENR(ParseState *pstate,
 	 * ENRs are never checked for access rights.
 	 */
 	rte->lateral = false;
-	rte->inh = false;			/* never true for ENRs */
 	rte->inFromCl = inFromCl;
 
-	rte->requiredPerms = 0;
 	rte->checkAsUser = InvalidOid;
 	rte->selectedCols = NULL;
 

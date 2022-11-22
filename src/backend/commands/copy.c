@@ -208,6 +208,7 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
 
 				target = makeNode(ResTarget);
 				target->name = NULL;
+				target->name_location = -1;
 				target->indirection = NIL;
 				target->val = (Node *) cr;
 				target->location = -1;
@@ -232,6 +233,7 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
 					/* Build the ResTarget and add the ColumnRef to it. */
 					target = makeNode(ResTarget);
 					target->name = NULL;
+					target->name_location = -1;
 					target->indirection = NIL;
 					target->val = (Node *) cr;
 					target->location = -1;

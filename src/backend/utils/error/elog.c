@@ -178,7 +178,6 @@ static void write_console(const char *line, int len);
 static const char *process_log_prefix_padding(const char *p, int *padding);
 static void log_line_prefix(StringInfo buf, ErrorData *edata);
 static void send_message_to_server_log(ErrorData *edata);
-static void send_message_to_frontend(ErrorData *edata);
 static void append_with_tabs(StringInfo buf, const char *str);
 
 
@@ -1538,7 +1537,12 @@ EmitErrorReport(void)
 
 	/* Send to client, if enabled */
 	if (edata->output_to_client)
-		send_message_to_frontend(edata);
+	{
+		if (MyProcPort)
+			MyProcPort->protocol_config->fn_send_message(edata);
+		else
+			send_message_to_frontend(edata);
+	}
 
 	MemoryContextSwitchTo(oldcontext);
 	recursion_depth--;
@@ -3120,7 +3124,7 @@ err_sendstring(StringInfo buf, const char *str)
 /*
  * Write error report to client
  */
-static void
+void
 send_message_to_frontend(ErrorData *edata)
 {
 	StringInfoData msgbuf;

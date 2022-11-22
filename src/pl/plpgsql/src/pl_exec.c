@@ -3147,6 +3147,26 @@ exec_stmt_exit(PLpgSQL_execstate *estate, PLpgSQL_stmt_exit *stmt)
 			return PLPGSQL_RC_OK;
 	}
 
+	/*
+	 * NOTE: we are copying the PL/pgSQL EXIT functionality in order
+	 *       to implement the TSQL BREAK statement.  EXIT offers more
+	 *       more functionality than BREAK but we don't expose that
+	 *       functionality to the user.  In particular, an EXIT (or
+	 *       CONTINUE statement can specify a label in order to exit
+	 *       or continue) a loop other than the nearest enclosing loop
+	 *
+	 *       We don't provide the syntax that would allow the user to
+	 *       specify a target so we are compatible with TSQL in this 
+	 *       respect. 
+	 *
+	 *       However, we are *incompatible* with TSQL in that we don't
+	 *       report an error if we execute a BREAK without an enclosing
+	 *       WHILE loop.
+	 *
+	 *       We may fix this incompatibility after executing the GOTO
+	 *       statement.
+	 */
+	
 	estate->exitlabel = stmt->label;
 	if (stmt->is_exit)
 		return PLPGSQL_RC_EXIT;

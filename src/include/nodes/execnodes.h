@@ -1210,6 +1210,18 @@ typedef struct ProjectSetState
 	MemoryContext argcontext;	/* context for SRF arguments */
 } ProjectSetState;
 
+/*------------------
+ * Instead of trigger state information
+ * Contains the TSQL statement level IOT runtime state.
+ * -----------------
+ */
+typedef enum
+{
+	IOT_NOT_FIRED,          /* Instead of triggers not fired so far */
+	IOT_NOT_REQUIRED,       /* Attempted to fire TSQL IOT, but relation has none */
+	IOT_FIRED,              /* IOT fired for this statement */
+	IOT_UNKNOWN
+} IOTState;
 
 /* flags for mt_merge_subcommands */
 #define MERGE_INSERT	0x01
@@ -1239,6 +1251,7 @@ typedef struct ModifyTableState
 
 	EPQState	mt_epqstate;	/* for evaluating EvalPlanQual rechecks */
 	bool		fireBSTriggers; /* do we need to fire stmt triggers? */
+	IOTState	fireISTriggers; /* current state for instead stmt trigger */
 
 	/*
 	 * These fields are used for inherited UPDATE and DELETE, to track which
@@ -1265,6 +1278,9 @@ typedef struct ModifyTableState
 
 	/* controls transition table population for INSERT...ON CONFLICT UPDATE */
 	struct TransitionCaptureState *mt_oc_transition_capture;
+
+	/* CallStmt for INSERT ... EXECUTE */
+	Node	   *callStmt;
 
 	/* Flags showing which subcommands are present INS/UPD/DEL/DO NOTHING */
 	int			mt_merge_subcommands;

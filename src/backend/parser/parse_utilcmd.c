@@ -68,6 +68,9 @@
 #include "utils/syscache.h"
 #include "utils/typcache.h"
 
+/* Hook for pltsql plugin */
+pltsql_identity_datatype_hook_type pltsql_identity_datatype_hook = NULL;
+post_transform_column_definition_hook_type post_transform_column_definition_hook = NULL;
 
 /* State shared by transformCreateStmt and its subroutines */
 typedef struct
@@ -709,6 +712,9 @@ transformColumnDefinition(CreateStmtContext *cxt, ColumnDef *column)
 											 true, false,
 											 NULL, NULL);
 
+					if (pltsql_identity_datatype_hook)
+						(* pltsql_identity_datatype_hook) (cxt->pstate, column);
+
 					column->identity = constraint->generated_when;
 					saw_identity = true;
 
@@ -856,6 +862,9 @@ transformColumnDefinition(CreateStmtContext *cxt, ColumnDef *column)
 
 		cxt->alist = lappend(cxt->alist, stmt);
 	}
+
+	if (sql_dialect == SQL_DIALECT_TSQL && post_transform_column_definition_hook)
+		(* post_transform_column_definition_hook) (cxt->pstate, cxt->relation, column, &cxt->alist);
 }
 
 /*
@@ -2551,6 +2560,12 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 			iparam->nulls_ordering = SORTBY_NULLS_DEFAULT;
 			index->indexParams = lappend(index->indexParams, iparam);
 
+			if (nodeTag(lfirst(lc)) == T_IndexElem) {
+				// Babelfish support for ordered constraints
+				// Update index parameter from ordering information only provided from T-SQL parser
+				IndexElem * i = (IndexElem *) lfirst(lc);
+				iparam->ordering = i->ordering;
+			}
 			/*
 			 * For a primary-key column, also create an item for ALTER TABLE
 			 * SET NOT NULL if we couldn't ensure it via is_not_null above.

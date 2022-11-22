@@ -25,12 +25,21 @@
 #include "catalog/pg_collation.h"
 #include "catalog/pg_namespace.h"
 #include "mb/pg_wchar.h"
+#include "parser/parser.h"  /* sql_dialect */
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
 #include "utils/pg_locale.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
+/* Hook for plugins to get control in CLUSTER_COLLATION_OID() */
+CLUSTER_COLLATION_OID_hook_type CLUSTER_COLLATION_OID_hook = NULL;
+
+/* Hook for plugins to get control just prior to creating a collation */
+PreCreateCollation_hook_type PreCreateCollation_hook = NULL;
+
+/* Hook for plugins to get control if a collation name is not found */
+TranslateCollation_hook_type TranslateCollation_hook = NULL;
 
 /*
  * CollationCreate
@@ -146,6 +155,19 @@ CollationCreate(const char *collname, Oid collnamespace,
 							collname)));
 	}
 
+	/* A hook may be registered to preprocess the parameters that will
+	 * be used to create the collation
+	 */
+	if (PreCreateCollation_hook)
+	{
+		(*PreCreateCollation_hook)(collprovider,
+								   collisdeterministic,
+								   collencoding,
+								   &collcollate,
+								   &collctype,
+								   collversion);
+	}
+	
 	tupDesc = RelationGetDescr(rel);
 
 	/* form a tuple */
@@ -208,4 +230,16 @@ CollationCreate(const char *collname, Oid collnamespace,
 	table_close(rel, NoLock);
 
 	return oid;
+}
+
+Oid CLUSTER_COLLATION_OID()
+{
+	/*
+	 * We provide a function hook variable that lets loadable plugins get
+	 * control when CLUSTER_COLLATION_OID is called.
+	 */
+	if (CLUSTER_COLLATION_OID_hook)
+		return (*CLUSTER_COLLATION_OID_hook)();
+	else
+		return DEFAULT_COLLATION_OID;
 }

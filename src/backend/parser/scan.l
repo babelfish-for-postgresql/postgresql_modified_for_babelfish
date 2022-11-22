@@ -30,6 +30,10 @@
  *
  *-------------------------------------------------------------------------
  */
+
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "scan-tsql-prologue-top.l.h"*/
+
 #include "postgres.h"
 
 #include <ctype.h>
@@ -143,6 +147,12 @@ static void check_escape_warning(core_yyscan_t yyscanner);
 extern int	core_yyget_column(yyscan_t yyscanner);
 extern void core_yyset_column(int column_no, yyscan_t yyscanner);
 
+/* T-SQL specific variables widely used in backend code */
+int sql_dialect = SQL_DIALECT_PG;
+bool pltsql_case_insensitive_identifiers = true;
+
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "scan-tsql-prologue.l.h"*/
 %}
 
 %option reentrant
@@ -420,7 +430,13 @@ other			.
  *  Also whitespace (comment) must appear before operator.
  */
 
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "scan-tsql-decl.l"*/
+
 %%
+
+ /* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+ /*$$include "scan-tsql-rule.l"*/
 
 {whitespace}	{
 					/* ignore */
@@ -894,10 +910,14 @@ other			.
 					 * The idea is to lex '=-' as two operators, but not
 					 * to forbid operator names like '?-' that could not be
 					 * sequences of SQL operators.
+					 * Also lexing '=@' as two operators to support tsql
+					 * identifiers like @foo.
 					 */
 					if (nchars > 1 &&
 						(yytext[nchars - 1] == '+' ||
-						 yytext[nchars - 1] == '-'))
+						 yytext[nchars - 1] == '-' ||
+						 (sql_dialect == SQL_DIALECT_TSQL && 
+						  yytext[nchars - 1] == '@')))
 					{
 						int			ic;
 
@@ -920,7 +940,9 @@ other			.
 								nchars--;
 							} while (nchars > 1 &&
 								 (yytext[nchars - 1] == '+' ||
-								  yytext[nchars - 1] == '-'));
+								  yytext[nchars - 1] == '-' ||
+								  (sql_dialect == SQL_DIALECT_TSQL &&
+								   yytext[nchars - 1] == '@')));
 						}
 					}
 
@@ -973,7 +995,7 @@ other			.
 					return Op;
 				}
 
-{param}			{
+<INITIAL>{param}	{
 					SET_YYLLOC();
 					yylval->ival = atol(yytext + 1);
 					return PARAM;
@@ -1034,6 +1056,20 @@ other			.
 					{
 						yylval->keyword = GetScanKeyword(kwnum,
 														 yyextra->keywordlist);
+
+						/* test of BABEL-219 needs special handling of VARCHAR w/o installing pgtsql */
+						if (yyextra->keyword_tokens[kwnum] == VARCHAR ||
+								yyextra->keyword_tokens[kwnum] == NCHAR)
+						{
+							/* Only a keyword in postgres */
+							if (sql_dialect == SQL_DIALECT_TSQL)
+							{
+								ident = downcase_truncate_identifier(yytext, yyleng, true);
+								yylval->str = ident;
+								return IDENT;
+							}
+						}
+
 						return yyextra->keyword_tokens[kwnum];
 					}
 
@@ -1075,6 +1111,8 @@ other			.
 #undef yyleng
 #define yyleng	(((struct yyguts_t *) yyscanner)->yyleng_r)
 
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "scan-tsql-epilogue.l.c"*/
 
 /*
  * scanner_errposition

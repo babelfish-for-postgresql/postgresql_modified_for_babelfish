@@ -84,10 +84,12 @@ extern void PostgresSingleUserMain(int argc, char *argv[],
 								   const char *username) pg_attribute_noreturn();
 extern void PostgresMain(const char *dbname,
 						 const char *username) pg_attribute_noreturn();
+extern int	SocketBackendReadCommand(StringInfo inBuf);
 extern long get_stack_depth_rlimit(void);
 extern void ResetUsage(void);
 extern void ShowUsage(const char *title);
 extern int	check_log_duration(char *msec_str, bool was_logged);
+extern bool check_log_statement(List *stmt);
 extern void set_debug_options(int debug_flag,
 							  GucContext context, GucSource source);
 extern bool set_plan_disabling_options(const char *arg,

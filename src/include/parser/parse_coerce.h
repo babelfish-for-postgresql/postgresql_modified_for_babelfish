@@ -97,4 +97,18 @@ extern CoercionPathType find_coercion_pathway(Oid targetTypeId,
 extern CoercionPathType find_typmod_coercion_function(Oid typeId,
 													  Oid *funcid);
 
+/*
+ * Hook interface to check TSQL has implicit coercion path from sourceTypeId to targetTypeId
+ */
+typedef CoercionPathType (*find_coercion_pathway_hook_type) (Oid sourceTypeId,
+									Oid targetTypeId,
+									CoercionContext ccontext,
+									Oid *funcid);
+
+/*
+ * Hook interface to check TSQL datatype precedence
+ * Return true if typeId1 precedes typeId2
+ */
+typedef bool (*determine_datatype_precedence_hook_type) (Oid typeId1, Oid typeId2);
+
 #endif							/* PARSE_COERCE_H */

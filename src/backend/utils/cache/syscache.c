@@ -110,18 +110,6 @@
 *---------------------------------------------------------------------------
 */
 
-/*
- *		struct cachedesc: information defining a single syscache
- */
-struct cachedesc
-{
-	Oid			reloid;			/* OID of the relation being cached */
-	Oid			indoid;			/* OID of index relation for this cache */
-	int			nkeys;			/* # of keys needed for cache lookup */
-	int			key[4];			/* attribute numbers of key attrs */
-	int			nbuckets;		/* number of hash buckets for this cache */
-};
-
 static const struct cachedesc cacheinfo[] = {
 	{AggregateRelationId,		/* AGGFNOID */
 		AggregateFnoidIndexId,
@@ -1068,14 +1056,14 @@ InitCatalogCache(void)
 {
 	int			cacheId;
 
-	StaticAssertStmt(SysCacheSize == (int) lengthof(cacheinfo),
+	StaticAssertStmt(SysCacheNoExtensionSize == (int) lengthof(cacheinfo),
 					 "SysCacheSize does not match syscache.c's array");
 
 	Assert(!CacheInitialized);
 
 	SysCacheRelationOidSize = SysCacheSupportingRelOidSize = 0;
 
-	for (cacheId = 0; cacheId < SysCacheSize; cacheId++)
+	for (cacheId = 0; cacheId < SysCacheNoExtensionSize; cacheId++)
 	{
 		SysCache[cacheId] = InitCatCache(cacheId,
 										 cacheinfo[cacheId].reloid,
@@ -1117,6 +1105,42 @@ InitCatalogCache(void)
 }
 
 /*
+ * InitExtensionCatalogCache - initialize the catcache for extensions
+ *
+ * This function should be called ONLY ONCE by the extension module before 
+ * they start to access their extension catcache. The caller should indicate 
+ * the corresponding portion of SysCache that it wants to initialize 
+ * (specified by startid + ext_cachelength).
+ * XXX: unlike InitCatalogCache, we skip the OID binary search here since the
+ * size of extension catcache is rather small. But if it grows larger we 
+ * might consider supporting binary search for them as well.
+ */
+void
+InitExtensionCatalogCache(struct cachedesc *ext_cacheinfo, int startid, int ext_cachelength)
+{
+	int			cacheId;
+	int			i;
+
+	SysCacheRelationOidSize = SysCacheSupportingRelOidSize = 0;
+
+	for (i = 0; i < ext_cachelength; i++)
+	{
+		cacheId = startid + i;
+		SysCache[cacheId] = InitCatCache(cacheId,
+										 ext_cacheinfo[i].reloid,
+										 ext_cacheinfo[i].indoid,
+										 ext_cacheinfo[i].nkeys,
+										 ext_cacheinfo[i].key,
+										 ext_cacheinfo[i].nbuckets);
+		if (!PointerIsValid(SysCache[cacheId]))
+			elog(ERROR, "could not initialize extension cache %u (%d)",
+				 ext_cacheinfo[i].reloid, cacheId);
+		/* see comments for RelationInvalidatesSnapshotsOnly */
+		Assert(!RelationInvalidatesSnapshotsOnly(ext_cacheinfo[i].reloid));
+	}
+}
+
+/*
  * InitCatalogCachePhase2 - finish initializing the caches
  *
  * Finish initializing all the caches, including necessary database
@@ -1135,7 +1159,7 @@ InitCatalogCachePhase2(void)
 
 	Assert(CacheInitialized);
 
-	for (cacheId = 0; cacheId < SysCacheSize; cacheId++)
+	for (cacheId = 0; cacheId < SysCacheNoExtensionSize; cacheId++)
 		InitCatCachePhase2(SysCache[cacheId], true);
 }
 

@@ -83,6 +83,9 @@
 	((plansource)->raw_parse_tree && \
 	 IsA((plansource)->raw_parse_tree->stmt, TransactionStmt))
 
+plansource_complete_hook_type plansource_complete_hook = NULL;
+plansource_revalidate_hook_type plansource_revalidate_hook = NULL;
+
 /*
  * This is the head of the backend's list of "saved" CachedPlanSources (i.e.,
  * those that are in long-lived storage and are examined for sinval events).
@@ -220,6 +223,7 @@ CreateCachedPlan(RawStmt *raw_parse_tree,
 	plansource->total_custom_cost = 0;
 	plansource->num_generic_plans = 0;
 	plansource->num_custom_plans = 0;
+	plansource->pltsql_plan_info = NIL;
 
 	MemoryContextSwitchTo(oldcxt);
 
@@ -288,6 +292,7 @@ CreateOneShotCachedPlan(RawStmt *raw_parse_tree,
 	plansource->total_custom_cost = 0;
 	plansource->num_generic_plans = 0;
 	plansource->num_custom_plans = 0;
+	plansource->pltsql_plan_info = NIL;
 
 	return plansource;
 }
@@ -428,6 +433,9 @@ CompleteCachedPlan(CachedPlanSource *plansource,
 	plansource->cursor_options = cursor_options;
 	plansource->fixed_result = fixed_result;
 	plansource->resultDesc = PlanCacheComputeResultDesc(querytree_list);
+
+	if (plansource_complete_hook)
+		(* plansource_complete_hook) (plansource);
 
 	MemoryContextSwitchTo(oldcxt);
 
@@ -601,6 +609,15 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 		(plansource->rewriteRoleId != GetUserId() ||
 		 plansource->rewriteRowSecurity != row_security))
 		plansource->is_valid = false;
+
+	/*
+	 * Call revalidation plan hook.
+	 */
+	if (plansource->is_valid && plansource_revalidate_hook)
+	{
+		if (!(* plansource_revalidate_hook) (plansource))
+			plansource->is_valid = false;
+	}
 
 	/*
 	 * If the query is currently valid, acquire locks on the referenced
@@ -1580,6 +1597,8 @@ CopyCachedPlan(CachedPlanSource *plansource)
 	newsource->total_custom_cost = plansource->total_custom_cost;
 	newsource->num_generic_plans = plansource->num_generic_plans;
 	newsource->num_custom_plans = plansource->num_custom_plans;
+
+	newsource->pltsql_plan_info = copyObject(plansource->pltsql_plan_info);
 
 	MemoryContextSwitchTo(oldcxt);
 

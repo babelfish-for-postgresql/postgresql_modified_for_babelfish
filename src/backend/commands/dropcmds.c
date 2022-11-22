@@ -25,17 +25,21 @@
 #include "commands/defrem.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
+#include "parser/parser.h"
 #include "parser/parse_type.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
+#include "utils/rel.h"
 #include "utils/syscache.h"
 
 
 static void does_not_exist_skipping(ObjectType objtype,
-									Node *object);
+						Node *object, Relation relation);
 static bool owningrel_does_not_exist_skipping(List *object,
-											  const char **msg, char **name);
+								  const char **msg, char **name);
+static bool owningrel_does_not_exist_skipping_by_relation(Relation relation, 
+								const char **msg, char **name);
 static bool schema_does_not_exist_skipping(List *object,
 										   const char **msg, char **name);
 static bool type_in_list_does_not_exist_skipping(List *typenames,
@@ -83,7 +87,7 @@ RemoveObjects(DropStmt *stmt)
 		if (!OidIsValid(address.objectId))
 		{
 			Assert(stmt->missing_ok);
-			does_not_exist_skipping(stmt->removeType, object);
+			does_not_exist_skipping(stmt->removeType, object, relation);
 			continue;
 		}
 
@@ -116,8 +120,15 @@ RemoveObjects(DropStmt *stmt)
 		if (OidIsValid(namespaceId) && isTempNamespace(namespaceId))
 			MyXactFlags |= XACT_FLAGS_ACCESSEDTEMPNAMESPACE;
 
-		/* Release any relcache reference count, but keep lock until commit. */
-		if (relation)
+		/* 
+		* Release any relcache reference count, but keep lock until commit. 
+		* Usually get_object_address() does not close a relation, but in tsql
+		* dialect, the get_object_address_trigger_tsql() closes the relation
+		* for the case of triggers. This is required for drop trigger to 
+		* function smoothly.
+		*/
+		if (relation && !(sql_dialect == SQL_DIALECT_TSQL &&
+				stmt->removeType == OBJECT_TRIGGER))
 			table_close(relation, NoLock);
 
 		add_exact_object_address(&address, objects);
@@ -158,6 +169,25 @@ owningrel_does_not_exist_skipping(List *object, const char **msg, char **name)
 		*msg = gettext_noop("relation \"%s\" does not exist, skipping");
 		*name = NameListToString(parent_object);
 
+		return true;
+	}
+
+	return false;
+}
+
+static bool
+owningrel_does_not_exist_skipping_by_relation(Relation relation, const char **msg, char **name)
+{
+	if (!relation)
+	{
+		*msg = gettext_noop("relation does not exist, skipping");
+		return true;
+	}
+
+	if (!OidIsValid(RelationGetRelid(relation)))
+	{
+		*msg = gettext_noop("relation \"%s\" does not exist, skipping");
+		*name = RelationGetRelationName(relation);
 		return true;
 	}
 
@@ -245,7 +275,7 @@ type_in_list_does_not_exist_skipping(List *typenames, const char **msg,
  * get_object_address() in RemoveObjects would have thrown an ERROR.
  */
 static void
-does_not_exist_skipping(ObjectType objtype, Node *object)
+does_not_exist_skipping(ObjectType objtype, Node *object, Relation relation)
 {
 	const char *msg = NULL;
 	char	   *name = NULL;
@@ -415,7 +445,15 @@ does_not_exist_skipping(ObjectType objtype, Node *object)
 			}
 			break;
 		case OBJECT_TRIGGER:
-			if (!owningrel_does_not_exist_skipping(castNode(List, object), &msg, &name))
+			if (sql_dialect == SQL_DIALECT_TSQL && 
+				!owningrel_does_not_exist_skipping_by_relation(relation, &msg, &name))
+			{
+				msg = gettext_noop("trigger \"%s\" does not exist, skipping");
+				name = strVal(llast(castNode(List, object)));
+			}
+			else
+			if (sql_dialect != SQL_DIALECT_TSQL &&
+				!owningrel_does_not_exist_skipping(castNode(List, object), &msg, &name))
 			{
 				msg = gettext_noop("trigger \"%s\" for relation \"%s\" does not exist, skipping");
 				name = strVal(llast(castNode(List, object)));

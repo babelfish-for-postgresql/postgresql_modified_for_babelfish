@@ -81,3 +81,17 @@ makeBitString(char *str)
 	v->bsval = str;
 	return v;
 }
+
+/*
+ *	makeTSQLHexString
+ *
+ * Caller is responsible for passing a palloc'd string.
+ */
+TSQL_HexString *
+makeTSQLHexString(char *str)
+{
+	TSQL_HexString	   *v = makeNode(TSQL_HexString);
+
+	v->hsval = str;
+	return v;
+}

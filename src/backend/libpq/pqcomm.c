@@ -79,6 +79,7 @@
 #include "libpq/libpq.h"
 #include "miscadmin.h"
 #include "port/pg_bswap.h"
+#include "postmaster/protocol_extension.h"
 #include "storage/ipc.h"
 #include "utils/guc.h"
 #include "utils/memutils.h"
@@ -110,6 +111,12 @@ char	   *Unix_socket_group;
 
 /* Where the Unix socket files are (list of palloc'd strings) */
 static List *sock_paths = NIL;
+
+/*
+ * IsNonLibpqClient allows loadable protocol extension to use
+ * pq_putbytes() directly.
+ */
+bool		IsNonLibpqClient = false;
 
 /*
  * Buffers for low-level I/O.
@@ -332,7 +339,6 @@ StreamServerPort(int family, const char *hostName, unsigned short portNumber,
 	struct addrinfo *addrs = NULL,
 			   *addr;
 	struct addrinfo hint;
-	int			listen_index = 0;
 	int			added = 0;
 
 #ifdef HAVE_UNIX_SOCKETS
@@ -403,18 +409,8 @@ StreamServerPort(int family, const char *hostName, unsigned short portNumber,
 		}
 
 		/* See if there is still room to add 1 more socket. */
-		for (; listen_index < MaxListen; listen_index++)
-		{
-			if (ListenSocket[listen_index] == PGINVALID_SOCKET)
-				break;
-		}
-		if (listen_index >= MaxListen)
-		{
-			ereport(LOG,
-					(errmsg("could not bind to all requested addresses: MAXLISTEN (%d) exceeded",
-							MaxListen)));
+		if (!listen_have_free_slot())
 			break;
-		}
 
 		/* set up address family name for log messages */
 		switch (addr->ai_family)
@@ -584,7 +580,7 @@ StreamServerPort(int family, const char *hostName, unsigned short portNumber,
 					(errmsg("listening on %s address \"%s\", port %d",
 							familyDesc, addrDesc, (int) portNumber)));
 
-		ListenSocket[listen_index] = fd;
+		listen_add_socket(fd, NULL);
 		added++;
 	}
 
@@ -993,7 +989,7 @@ pq_recvbuf(void)
 int
 pq_getbyte(void)
 {
-	Assert(PqCommReadingMsg);
+	Assert(PqCommReadingMsg || IsNonLibpqClient);
 
 	while (PqRecvPointer >= PqRecvLength)
 	{
@@ -1012,7 +1008,7 @@ pq_getbyte(void)
 int
 pq_peekbyte(void)
 {
-	Assert(PqCommReadingMsg);
+	Assert(PqCommReadingMsg || IsNonLibpqClient);
 
 	while (PqRecvPointer >= PqRecvLength)
 	{
@@ -1035,7 +1031,7 @@ pq_getbyte_if_available(unsigned char *c)
 {
 	int			r;
 
-	Assert(PqCommReadingMsg);
+	Assert(PqCommReadingMsg || IsNonLibpqClient);
 
 	if (PqRecvPointer < PqRecvLength)
 	{
@@ -1089,7 +1085,7 @@ pq_getbytes(char *s, size_t len)
 {
 	size_t		amount;
 
-	Assert(PqCommReadingMsg);
+	Assert(PqCommReadingMsg || IsNonLibpqClient);
 
 	while (len > 0)
 	{
@@ -1123,7 +1119,7 @@ pq_discardbytes(size_t len)
 {
 	size_t		amount;
 
-	Assert(PqCommReadingMsg);
+	Assert(PqCommReadingMsg || IsNonLibpqClient);
 
 	while (len > 0)
 	{
@@ -1187,7 +1183,7 @@ pq_startmsgread(void)
 void
 pq_endmsgread(void)
 {
-	Assert(PqCommReadingMsg);
+	Assert(PqCommReadingMsg || IsNonLibpqClient);
 
 	PqCommReadingMsg = false;
 }
@@ -1227,7 +1223,7 @@ pq_getmessage(StringInfo s, int maxlen)
 {
 	int32		len;
 
-	Assert(PqCommReadingMsg);
+	Assert(PqCommReadingMsg || IsNonLibpqClient);
 
 	resetStringInfo(s);
 

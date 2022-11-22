@@ -30,6 +30,7 @@ static bool check_uescapechar(unsigned char escape);
 static char *str_udeescape(const char *str, char escape,
 						   int position, core_yyscan_t yyscanner);
 
+raw_parser_hook_type raw_parser_hook = NULL;
 
 /*
  * raw_parser
@@ -44,6 +45,9 @@ raw_parser(const char *str, RawParseMode mode)
 	core_yyscan_t yyscanner;
 	base_yy_extra_type yyextra;
 	int			yyresult;
+
+	if (raw_parser_hook && sql_dialect == SQL_DIALECT_TSQL) /* TODO: dialect condition should be improved */
+		return (*raw_parser_hook) (str);
 
 	/* initialize the flex scanner */
 	yyscanner = scanner_init(str, &yyextra.core_yy_extra,

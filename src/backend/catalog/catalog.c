@@ -49,6 +49,8 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 
+IsExtendedCatalogHookType IsExtendedCatalogHook;
+
 /*
  * Parameters to determine when to emit a log message in
  * GetNewOidWithIndex()
@@ -121,6 +123,10 @@ IsCatalogRelation(Relation relation)
 bool
 IsCatalogRelationOid(Oid relid)
 {
+	/* Allows extension to add new catalog tables on demand */
+	if (IsExtendedCatalogHook && IsExtendedCatalogHook(relid))
+		return true;
+
 	/*
 	 * We consider a relation to be a system catalog if it has a pinned OID.
 	 * This includes all the defined catalogs, their indexes, and their TOAST

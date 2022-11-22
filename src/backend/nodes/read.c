@@ -290,6 +290,8 @@ nodeTokenType(const char *token, int length)
 		retval = T_String;
 	else if (*token == 'b')
 		retval = T_BitString;
+	else if (*token == '0' && (token[1] == 'x' || token[1] == 'X'))
+		retval = T_TSQL_HexString;
 	else
 		retval = OTHER_TOKEN;
 	return retval;
@@ -456,6 +458,16 @@ nodeRead(const char *token, int tok_len)
 				memcpy(val, token + 1, tok_len - 1);
 				val[tok_len - 1] = '\0';
 				result = (Node *) makeBitString(val);
+				break;
+			}
+		case T_TSQL_HexString:
+			{
+				char	   *val = palloc(tok_len);
+
+				/* skip leading '0x' */
+				memcpy(val, token + 2, tok_len - 2);
+				val[tok_len - 2] = '\0';
+				result = (Node *) makeTSQLHexString(val);
 				break;
 			}
 		default:

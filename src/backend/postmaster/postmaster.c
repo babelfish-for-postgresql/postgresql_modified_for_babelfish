@@ -116,6 +116,7 @@
 #include "postmaster/interrupt.h"
 #include "postmaster/pgarch.h"
 #include "postmaster/postmaster.h"
+#include "postmaster/protocol_extension.h"
 #include "postmaster/syslogger.h"
 #include "replication/logicallauncher.h"
 #include "replication/walsender.h"
@@ -218,9 +219,33 @@ char	   *ListenAddresses;
  */
 int			ReservedBackends;
 
+/* The hook for protocol extension init functions */
+listen_init_hook_type	listen_init_hook = NULL;
+
 /* The socket(s) we're listening to. */
 #define MAXLISTEN	64
 static pgsocket ListenSocket[MAXLISTEN];
+
+/* The wire protocol callbacks to use for those server sockets. */
+static ProtocolExtensionConfig *ListenConfig[MAXLISTEN];
+
+static ProtocolExtensionConfig default_protocol_config = {
+	libpq_accept,
+	libpq_close,
+	libpq_init,
+	libpq_start,
+	libpq_authenticate,
+	libpq_mainfunc,
+	libpq_send_message,
+	libpq_send_cancel_key,
+	libpq_comm_reset,
+	libpq_is_reading_msg,
+	libpq_send_ready_for_query,
+	libpq_read_command,
+	libpq_end_command,
+	NULL, NULL, NULL, NULL,			/* use libpq defaults for printtup*() */
+	NULL
+};
 
 /*
  * These globals control the behavior of the postmaster in case some
@@ -389,7 +414,7 @@ static void CloseServerPorts(int status, Datum arg);
 static void unlink_external_pid_file(int status, Datum arg);
 static void getInstallationPaths(const char *argv0);
 static void checkControlFile(void);
-static Port *ConnCreate(int serverFd);
+static Port *ConnCreate(int serverFd, ProtocolExtensionConfig *protocol_config);
 static void ConnFree(Port *port);
 static void reset_shared(void);
 static void SIGHUP_handler(SIGNAL_ARGS);
@@ -1351,6 +1376,13 @@ PostmasterMain(int argc, char *argv[])
 #endif
 
 	/*
+	 * call loadable protocol extension's init functions so they
+	 * may register additional server sockets.
+	 */
+	if (listen_init_hook != NULL)
+		listen_init_hook();
+
+	/*
 	 * check that we have some socket to listen on
 	 */
 	if (ListenSocket[0] == PGINVALID_SOCKET)
@@ -1485,6 +1517,91 @@ PostmasterMain(int argc, char *argv[])
 	abort();					/* not reached */
 }
 
+int
+libpq_accept(pgsocket server_fd, Port *port)
+{
+	return StreamConnection(server_fd, port);
+}
+
+void
+libpq_close(pgsocket server_fd)
+{
+	StreamClose(server_fd);
+}
+
+void
+libpq_init(void)
+{
+	pq_init();
+}
+
+int
+libpq_start(Port *port)
+{
+	return ProcessStartupPacket(port, false, false);
+}
+
+void
+libpq_authenticate(Port *port, const char **username)
+{
+	PerformAuthentication(port);
+}
+
+void
+libpq_mainfunc(Port *port)
+{
+	PostgresMain(port->database_name, port->user_name);
+}
+
+void
+libpq_send_message(ErrorData *edata)
+{
+	send_message_to_frontend(edata);
+}
+
+void
+libpq_send_cancel_key(int pid, int32 key)
+{
+	StringInfoData buf;
+
+	pq_beginmessage(&buf, 'K');
+	pq_sendint32(&buf, (int32) pid);
+	pq_sendint32(&buf, (int32) key);
+	pq_endmessage(&buf);
+	/* Need not flush since ReadyForQuery will do it. */
+
+}
+
+void
+libpq_comm_reset(void)
+{
+	pq_comm_reset();
+}
+
+bool
+libpq_is_reading_msg(void)
+{
+	return pq_is_reading_msg();
+}
+
+void
+libpq_send_ready_for_query(CommandDest dest)
+{
+	ReadyForQuery(dest);
+}
+
+int
+libpq_read_command(StringInfo inBuf)
+{
+	return SocketBackendReadCommand(inBuf);
+}
+
+void
+libpq_end_command(QueryCompletion *qc, CommandDest dest)
+{
+	EndCommand(qc, dest, false);
+}
+
 
 /*
  * on_proc_exit callback to close server's listen sockets
@@ -1504,8 +1621,9 @@ CloseServerPorts(int status, Datum arg)
 	{
 		if (ListenSocket[i] != PGINVALID_SOCKET)
 		{
-			StreamClose(ListenSocket[i]);
+			(ListenConfig[i]->fn_close)(ListenSocket[i]);
 			ListenSocket[i] = PGINVALID_SOCKET;
+			ListenConfig[i] = NULL;
 		}
 	}
 
@@ -1583,6 +1701,47 @@ getInstallationPaths(const char *argv0)
 	 * XXX is it worth similarly checking the share/ directory?  If the lib/
 	 * directory is there, then share/ probably is too.
 	 */
+}
+
+int
+listen_have_free_slot(void)
+{
+	int	listen_index = 0;
+
+	/* See if there is still room to add 1 more socket. */
+	for (; listen_index < MAXLISTEN; listen_index++)
+	{
+		if (ListenSocket[listen_index] == PGINVALID_SOCKET)
+			return true;
+	}
+
+	ereport(LOG,
+			(errmsg("could not bind to all requested addresses: MAXLISTEN (%d) exceeded",
+					MAXLISTEN)));
+
+	return false;
+}
+
+void
+listen_add_socket(pgsocket fd, ProtocolExtensionConfig *protocol_config)
+{
+	int	listen_index = 0;
+
+	/* Lookup the next free slot */
+	for (; listen_index < MAXLISTEN; listen_index++)
+	{
+		if (ListenSocket[listen_index] == PGINVALID_SOCKET)
+			break;
+	}
+
+	/* Caller must have checked with listen_have_free_slot() before */
+	Assert(listen_index < MAXLISTEN);
+
+	if (protocol_config == NULL)
+		protocol_config = &default_protocol_config;
+
+	ListenSocket[listen_index] = fd;
+	ListenConfig[listen_index] = protocol_config;
 }
 
 /*
@@ -1800,7 +1959,7 @@ ServerLoop(void)
 				{
 					Port	   *port;
 
-					port = ConnCreate(ListenSocket[i]);
+					port = ConnCreate(ListenSocket[i], ListenConfig[i]);
 					if (port)
 					{
 						BackendStartup(port);
@@ -2573,7 +2732,7 @@ canAcceptConnections(int backend_type)
  * Returns NULL on failure, other than out-of-memory which is fatal.
  */
 static Port *
-ConnCreate(int serverFd)
+ConnCreate(int serverFd, ProtocolExtensionConfig *protocol_config)
 {
 	Port	   *port;
 
@@ -2585,10 +2744,11 @@ ConnCreate(int serverFd)
 		ExitPostmaster(1);
 	}
 
-	if (StreamConnection(serverFd, port) != STATUS_OK)
-	{
+	port->protocol_config = protocol_config;
+
+	if ((protocol_config->fn_accept)(serverFd, port) != STATUS_OK)	{
 		if (port->sock != PGINVALID_SOCKET)
-			StreamClose(port->sock);
+			(protocol_config->fn_close)(port->sock);
 		ConnFree(port);
 		return NULL;
 	}
@@ -2647,10 +2807,11 @@ ClosePostmasterPorts(bool am_syslogger)
 	 */
 	for (i = 0; i < MAXLISTEN; i++)
 	{
-		if (ListenSocket[i] != PGINVALID_SOCKET)
+		if (ListenSocket[i] != PGINVALID_SOCKET && ListenConfig[i] != NULL)
 		{
-			StreamClose(ListenSocket[i]);
+			(ListenConfig[i]->fn_close)(ListenSocket[i]);
 			ListenSocket[i] = PGINVALID_SOCKET;
+			ListenConfig[i] = NULL;
 		}
 	}
 
@@ -4345,10 +4506,11 @@ BackendInitialize(Port *port)
 	port->remote_port = "";
 
 	/*
-	 * Initialize libpq and enable reporting of ereport errors to the client.
+	 * Initialize protocol and enable reporting of ereport errors to the client.
 	 * Must do this now because authentication uses libpq to send messages.
 	 */
-	pq_init();					/* initialize libpq to talk to client */
+	(port->protocol_config->fn_init)();
+
 	whereToSendOutput = DestRemote; /* now safe to ereport to client */
 
 	/*
@@ -4439,7 +4601,7 @@ BackendInitialize(Port *port)
 	 * Receive the startup packet (which might turn out to be a cancel request
 	 * packet).
 	 */
-	status = ProcessStartupPacket(port, false, false);
+	status = (port->protocol_config->fn_start)(port);
 
 	/*
 	 * Disable the timeout, and prevent SIGTERM again.
@@ -4501,7 +4663,7 @@ BackendRun(Port *port)
 	 */
 	MemoryContextSwitchTo(TopMemoryContext);
 
-	PostgresMain(port->database_name, port->user_name);
+	(port->protocol_config->fn_mainfunc)(port);
 }
 
 
@@ -6444,6 +6606,93 @@ ShmemBackendArrayAdd(Backend *bn)
 	Assert(ShmemBackendArray[i].pid == 0);
 	ShmemBackendArray[i] = *bn;
 }
+
+// int
+// libpq_accept(pgsocket server_fd, Port *port)
+// {
+// 	return StreamConnection(server_fd, port);
+// }
+
+// void
+// libpq_close(pgsocket server_fd)
+// {
+// 	StreamClose(server_fd);
+// }
+
+// void
+// libpq_init(void)
+// {
+// 	pq_init();
+// }
+
+// int
+// libpq_start(Port *port)
+// {
+// 	return ProcessStartupPacket(port, false, false);
+// }
+
+// void
+// libpq_authenticate(Port *port, const char **username)
+// {
+// 	PerformAuthentication(port);
+// }
+
+// void
+// libpq_mainfunc(Port *port, int argc, char *argv[])
+// {
+// 	PostgresMain(argc, argv, port->database_name,
+// 				 port->database_oid? atooid(port->database_oid) : InvalidOid,
+// 				 port->user_name);
+// }
+
+// void
+// libpq_send_message(ErrorData *edata)
+// {
+// 	send_message_to_frontend(edata);
+// }
+
+// void
+// libpq_send_cancel_key(int pid, int32 key)
+// {
+// 	StringInfoData buf;
+
+// 	pq_beginmessage(&buf, 'K');
+// 	pq_sendint32(&buf, (int32) pid);
+// 	pq_sendint32(&buf, (int32) key);
+// 	pq_endmessage(&buf);
+// 	/* Need not flush since ReadyForQuery will do it. */
+
+// }
+
+// void
+// libpq_comm_reset(void)
+// {
+// 	pq_comm_reset();
+// }
+
+// bool
+// libpq_is_reading_msg(void)
+// {
+// 	return pq_is_reading_msg();
+// }
+
+// void
+// libpq_send_ready_for_query(CommandDest dest)
+// {
+// 	ReadyForQuery(dest);
+// }
+
+// int
+// libpq_read_command(StringInfo inBuf)
+// {
+// 	return SocketBackendReadCommand(inBuf);
+// }
+
+// void
+// libpq_end_command(QueryCompletion *qc, CommandDest dest)
+// {
+// 	EndCommand(qc, dest, false);
+// }
 
 static void
 ShmemBackendArrayRemove(Backend *bn)

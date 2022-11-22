@@ -1627,7 +1627,7 @@ bool		process_shmem_requests_in_progress = false;
  * 'gucname': name of GUC variable, for error reports
  * 'restricted': if true, force libraries to be in $libdir/plugins/
  */
-static void
+void
 load_libraries(const char *libraries, const char *gucname, bool restricted)
 {
 	char	   *rawstring;

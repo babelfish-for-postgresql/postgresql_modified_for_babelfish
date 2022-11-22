@@ -236,6 +236,35 @@ PostPrepare_PgStat(void)
 }
 
 /*
+ * Cleanup transaction state only. Used in cases where transaction states are
+ * changed but we cannot wait until committing to reset those states.
+ */
+void
+Cleanup_xact_PgStat(void)
+{
+	PgStat_SubXactStatus *xact_state;
+
+	/*
+	 * We don't bother to free any of the transactional state, since it's all
+	 * in TopTransactionContext and will go away anyway.
+	 */
+	xact_state = pgStatXactStack;
+	if (xact_state != NULL)
+	{
+		PgStat_TableXactStatus *trans;
+
+		for (trans = xact_state->first; trans != NULL; trans = trans->next)
+		{
+			PgStat_TableStatus *tabstat;
+
+			tabstat = trans->parent;
+			tabstat->trans = NULL;
+		}
+	}
+	pgStatXactStack = NULL;
+}
+
+/*
  * Ensure (sub)transaction stack entry for the given nest_level exists, adding
  * it if needed.
  */

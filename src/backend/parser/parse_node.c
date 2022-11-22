@@ -17,21 +17,28 @@
 #include "access/htup_details.h"
 #include "access/table.h"
 #include "catalog/pg_type.h"
+#include "executor/spi.h"
 #include "mb/pg_wchar.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/subscripting.h"
+#include "parser/parser.h" // Needed for TSQLHexConstTypmod
 #include "parser/parse_coerce.h"
 #include "parser/parse_expr.h"
 #include "parser/parse_relation.h"
 #include "parser/parsetree.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
+#include "utils/snapmgr.h"
 #include "utils/syscache.h"
 #include "utils/varbit.h"
 
 static void pcb_error_callback(void *arg);
+static Oid lookup_varbinary_oid();
+static Oid lookup_varbinaryin_funcoid();
 
+static Oid varbinary_oid = InvalidOid;
+static PGFunction varbinaryin_funcaddr = NULL;
 
 /*
  * make_parsestate
@@ -179,6 +186,131 @@ pcb_error_callback(void *arg)
 		(void) parser_errposition(pcbstate->pstate, pcbstate->location);
 }
 
+/*
+ * Get Oid of sys.varbinary from pg_catalog.pg_type.
+ * Return InvalidOid if it doesn't exist.
+ */
+static Oid
+lookup_varbinary_oid()
+{
+	int rc;
+	bool snapshot_set;
+	char *query;
+	TupleDesc tupdesc;
+	HeapTuple row;
+	bool isnull;
+	Oid varbinary_oid;
+
+	/*
+	 * Some statement type (i.e. CallStmt) does not captrue the active snapshot.
+	 * (please see (analyze_requires_snapshot().) It may cause a crash while
+	 * excuting a varbinary oid lookup query internally via SPI_execute().
+	 * If there is no active snapshot, captrue it.
+	 */
+	snapshot_set = false;
+	if (!ActiveSnapshotSet())
+	{
+		PushActiveSnapshot(GetTransactionSnapshot());
+		snapshot_set = true;
+	}
+
+	/* Connect to the SPI manager */
+	if ((rc = SPI_connect()) < 0)
+		elog(ERROR, "SPI_connect() failed in Parse Analyzer "
+					"with return code %d", rc);
+
+	query = "SELECT T.oid FROM pg_catalog.pg_type T "
+			"JOIN pg_catalog.pg_namespace N ON N.oid = T.typnamespace "
+			"WHERE N.nspname = 'sys' AND T.typname = 'varbinary'";
+	rc = SPI_execute(query, true, 0);
+	if (rc != SPI_OK_SELECT)
+		elog(ERROR, "SPI_execute() failed in Parse Analyzer "
+					"with return code %d", rc);
+
+	Assert(SPI_processed <= 1);
+	if (SPI_processed == 1)
+	{
+		tupdesc = SPI_tuptable->tupdesc;
+		row = SPI_tuptable->vals[0];
+		varbinary_oid = DatumGetObjectId(SPI_getbinval(row, tupdesc, 1, &isnull));
+	}
+	else
+		/* sys.varbinary does not exist in pg_type catalog */
+		varbinary_oid = InvalidOid;
+
+	/* Cleanup and done */
+	SPI_finish();
+
+	if (snapshot_set)
+	{
+		PopActiveSnapshot();
+	}
+
+	return varbinary_oid;
+}
+
+/*
+ * Get Oid of sys.varbinary from pg_catalog.pg_type.
+ * Return InvalidOid if it doesn't exist.
+ */
+static Oid
+lookup_varbinaryin_funcoid()
+{
+	int rc;
+	bool snapshot_set;
+	char *query;
+	TupleDesc tupdesc;
+	HeapTuple row;
+	bool isnull;
+	Oid func_oid;
+
+	/*
+	 * Some statement type (i.e. CallStmt) does not captrue the active snapshot.
+	 * (please see (analyze_requires_snapshot().) It may cause a crash while
+	 * excuting a varbinary oid lookup query internally via SPI_execute().
+	 * If there is no active snapshot, captrue it.
+	 */
+	snapshot_set = false;
+	if (!ActiveSnapshotSet())
+	{
+		PushActiveSnapshot(GetTransactionSnapshot());
+		snapshot_set = true;
+	}
+
+	/* Connect to the SPI manager */
+	if ((rc = SPI_connect()) < 0)
+		elog(ERROR, "SPI_connect() failed in Parse Analyzer "
+					"with return code %d", rc);
+
+	query = "SELECT P.oid  FROM pg_catalog.pg_proc P "
+			"JOIN pg_catalog.pg_namespace N ON N.oid = P.pronamespace "
+			"WHERE N.nspname = 'sys' AND P.proname = 'varbinaryin'";
+	rc = SPI_execute(query, true, 0);
+	if (rc != SPI_OK_SELECT)
+		elog(ERROR, "SPI_execute() failed in Parse Analyzer "
+					"with return code %d", rc);
+
+	Assert(SPI_processed <= 1);
+	if (SPI_processed == 1)
+	{
+		tupdesc = SPI_tuptable->tupdesc;
+		row = SPI_tuptable->vals[0];
+		func_oid = DatumGetObjectId(SPI_getbinval(row, tupdesc, 1, &isnull));
+	}
+	else
+		/* sys.varbinary does not exist in pg_type catalog */
+		func_oid = InvalidOid;
+
+	/* Cleanup and done */
+	SPI_finish();
+
+	if (snapshot_set)
+	{
+		PopActiveSnapshot();
+	}
+
+	return func_oid;
+}
 
 /*
  * transformContainerType()
@@ -463,6 +595,38 @@ make_const(ParseState *pstate, A_Const *aconst)
 									  Int32GetDatum(-1));
 			cancel_parser_errposition_callback(&pcbstate);
 			typeid = BITOID;
+			typelen = -1;
+			typebyval = false;
+			break;
+
+		/* Unquoted hex input such as 0x1F, process it as type sys.VARBINARY */
+		case T_TSQL_HexString:
+			/* Lookup Oid of type sys.varbinary and the input function sys.varbinaryin */
+			if (varbinary_oid == InvalidOid)
+			{
+				if ((varbinary_oid = lookup_varbinary_oid()) != InvalidOid)
+				{
+					Oid varbinaryin_funcoid = lookup_varbinaryin_funcoid();
+					varbinaryin_funcaddr =
+							lookup_C_func_by_oid(varbinaryin_funcoid, "babelfishpg_common", "varbinaryin");
+				}
+			}
+
+			if (varbinary_oid == InvalidOid || varbinaryin_funcaddr == NULL)
+				ereport(ERROR,
+						 errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("Type VARBINARY is not supported for input %s.", aconst->val.hsval.hsval),
+						 errhint("Install babelfishpg_tsql extension to support Type VARBINARY"));
+
+			/* arrange to report location if the input function fails */
+			setup_parser_errposition_callback(&pcbstate, pstate, aconst->location);
+			val = DirectFunctionCall3(varbinaryin_funcaddr,
+									  CStringGetDatum(aconst->val.hsval.hsval),
+									  ObjectIdGetDatum(InvalidOid),
+									  Int32GetDatum(TSQLHexConstTypmod)
+									  );
+			cancel_parser_errposition_callback(&pcbstate);
+			typeid = varbinary_oid;
 			typelen = -1;
 			typebyval = false;
 			break;

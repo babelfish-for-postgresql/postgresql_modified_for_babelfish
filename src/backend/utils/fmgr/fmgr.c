@@ -16,9 +16,12 @@
 #include "postgres.h"
 
 #include "access/detoast.h"
+#include "catalog/namespace.h"
 #include "catalog/pg_language.h"
+#include "catalog/pg_namespace.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
+#include "commands/proclang.h"
 #include "executor/functions.h"
 #include "lib/stringinfo.h"
 #include "miscadmin.h"
@@ -37,6 +40,7 @@
  */
 PGDLLIMPORT needs_fmgr_hook_type needs_fmgr_hook = NULL;
 PGDLLIMPORT fmgr_hook_type fmgr_hook = NULL;
+PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook = NULL;
 
 /*
  * Hashtable for fast lookup of external C functions
@@ -60,7 +64,7 @@ static void fmgr_info_C_lang(Oid functionId, FmgrInfo *finfo, HeapTuple procedur
 static void fmgr_info_other_lang(Oid functionId, FmgrInfo *finfo, HeapTuple procedureTuple);
 static CFuncHashTabEntry *lookup_C_func(HeapTuple procedureTuple);
 static void record_C_func(HeapTuple procedureTuple,
-						  PGFunction user_fn, const Pg_finfo_record *inforec);
+			  PGFunction user_fn, const Pg_finfo_record *inforec);
 
 /* extern so it's callable via JIT */
 extern Datum fmgr_security_definer(PG_FUNCTION_ARGS);
@@ -204,6 +208,12 @@ fmgr_info_cxt_security(Oid functionId, FmgrInfo *finfo, MemoryContext mcxt,
 	if (!ignore_security &&
 		(procedureStruct->prosecdef ||
 		 !heap_attisnull(procedureTuple, Anum_pg_proc_proconfig, NULL) ||
+		 /*
+		  * If babelfishpg_tsql extension is installed, set proconfig of functions
+		  * to have sql_dialect be either postgres or tsql according to
+		  * their language.
+		  */
+		 (*find_rendezvous_variable("PLtsql_config") != NULL) ||
 		 FmgrHookIsNeeded(functionId)))
 	{
 		finfo->fn_addr = fmgr_security_definer;
@@ -546,6 +556,36 @@ lookup_C_func(HeapTuple procedureTuple)
 	return NULL;				/* entry is out of date */
 }
 
+PGFunction
+lookup_C_func_by_oid(Oid fn_oid, char* probinstring, char* prosrcstring)
+{
+	PGFunction user_fn = NULL;
+
+	/* Lookup hash table CFuncHash If Functions are already cached */
+	if (CFuncHash != NULL)
+	{
+		CFuncHashTabEntry *entry;
+
+		entry = (CFuncHashTabEntry *)
+			hash_search(CFuncHash,
+						&fn_oid,
+						HASH_FIND,
+						NULL);
+		if (entry == NULL)
+			user_fn = NULL;			/* no such entry */
+		else
+			user_fn = entry->user_fn;			/* OK */
+	}
+	/*
+	 * If haven't found using CFuncHash hash table,
+	 * load the dynamically linked library to get the function
+	 */
+	if (user_fn == NULL)
+		user_fn = load_external_function(probinstring, prosrcstring, true, NULL);
+
+	return user_fn;
+}
+
 /*
  * record_C_func: enter (or update) info about a C function in the hash table
  */
@@ -650,6 +690,14 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	int			save_sec_context;
 	volatile int save_nestlevel;
 	PgStat_FunctionCallUsage fcusage;
+	Oid			pltsql_lang_oid, pltsql_validator_oid;
+	bool		set_sql_dialect;
+	char		*sql_dialect_value;
+	const char	*sql_dialect_value_old;
+	char		*pg_dialect = "postgres";
+	char		*tsql_dialect = "tsql";
+	int			sys_func_count = 0;
+	int			non_tsql_proc_count = 0;
 
 	if (!fcinfo->flinfo->fn_extra)
 	{
@@ -692,6 +740,44 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	else
 		fcache = fcinfo->flinfo->fn_extra;
 
+	/*
+	 * If babelfishpg_tsql extension is installed, set proconfig of sql_dialect
+	 */
+	{
+		/*
+		 * FIXME: the following typedef (PLtsql_config) describes a 
+		 * structure shared with PLtsql.  Since the type is shared, 
+		 * we should find a header file that is properly shared and
+		 * move this typedef
+		 *
+		 * This typedef *must* be kept in-synch with the PLtsql_config
+		 * type declaration found in contrib/babelfishpg_tsql/src/pgtsql.h
+		 */
+		typedef struct PLtsql_config
+		{
+			char	*version;         /* Extension version info */
+			Oid		 handler_oid;     /* Oid of language handler function */
+			Oid		 validator_oid;   /* Oid of language validator function */
+		} PLtsql_config;
+		
+		PLtsql_config **config = (PLtsql_config **) find_rendezvous_variable("PLtsql_config");
+
+		if (*config)
+		{
+			pltsql_lang_oid = (*config)->handler_oid;
+			pltsql_validator_oid = (*config)->validator_oid;
+		}
+		else
+		{
+			pltsql_lang_oid = InvalidOid;
+			pltsql_validator_oid = InvalidOid;
+		}
+	}
+	
+
+	// get_language_procs("pltsql", &pltsql_lang_oid, &pltsql_validator_oid);
+	set_sql_dialect = pltsql_lang_oid != InvalidOid;
+
 	/* GetUserIdAndSecContext is cheap enough that no harm in a wasted call */
 	GetUserIdAndSecContext(&save_userid, &save_sec_context);
 	if (fcache->proconfig)		/* Need a new GUC nesting level */
@@ -709,6 +795,52 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 						(superuser() ? PGC_SUSET : PGC_USERSET),
 						PGC_S_SESSION,
 						GUC_ACTION_SAVE);
+	}
+
+	if (set_sql_dialect)
+	{
+		HeapTuple	tuple;
+		Form_pg_proc procedureStruct;
+		tuple = SearchSysCache1(PROCOID,
+								ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
+		if (!HeapTupleIsValid(tuple))
+			elog(ERROR, "cache lookup failed for function %u",
+				 fcinfo->flinfo->fn_oid);
+		procedureStruct = (Form_pg_proc) GETSTRUCT(tuple);
+
+		if ((procedureStruct->prolang == pltsql_lang_oid) || (procedureStruct->prolang == pltsql_validator_oid))
+			sql_dialect_value = tsql_dialect;
+		else
+		{
+			/* Record PG procedure entry */
+			Oid sys_nspoid = get_namespace_oid("sys", false);
+			/*
+			 * For functions and C procs inside sys/pg_catalog,
+			 * handle errors TSQL way. Otherwise, error in simple
+			 * functions like cast/coerce will change TSQL behavior
+			 */
+			if ((procedureStruct->pronamespace == sys_nspoid ||
+				 procedureStruct->pronamespace == PG_CATALOG_NAMESPACE) &&
+				(procedureStruct->prokind == PROKIND_FUNCTION ||
+				 procedureStruct->prolang == ClanguageId ||
+				 procedureStruct->prolang == INTERNALlanguageId))
+				sys_func_count = 1;
+			else
+				non_tsql_proc_count = 1;
+
+			non_tsql_proc_entry_hook(non_tsql_proc_count, sys_func_count);
+			sql_dialect_value = pg_dialect;
+		}
+
+		ReleaseSysCache(tuple);
+		sql_dialect_value_old = GetConfigOption("babelfishpg_tsql.sql_dialect", true, true);
+		set_config_option("babelfishpg_tsql.sql_dialect", sql_dialect_value,
+						  (superuser() ? PGC_SUSET : PGC_USERSET),
+						  PGC_S_SESSION,
+						  GUC_ACTION_SAVE,
+						  true,
+						  0,
+						  false);
 	}
 
 	/* function manager hook */
@@ -745,13 +877,40 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		fcinfo->flinfo = save_flinfo;
 		if (fmgr_hook)
 			(*fmgr_hook) (FHET_ABORT, &fcache->flinfo, &fcache->arg);
+
+		/*
+		 * TODO PG set commands cannot work with transaction commands
+		 * inside procedures. Fix it as part of larger interoperability
+		 * design for PG vs TSQL procedures.
+		 */
+		if (set_sql_dialect)
+			set_config_option("babelfishpg_tsql.sql_dialect", sql_dialect_value_old,
+							  (superuser() ? PGC_SUSET : PGC_USERSET),
+							  PGC_S_SESSION,
+							  GUC_ACTION_SAVE,
+							  true,
+							  0,
+							  false);
+
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
 
 	fcinfo->flinfo = save_flinfo;
 
-	if (fcache->proconfig)
+	if (set_sql_dialect)
+	{
+		set_config_option("babelfishpg_tsql.sql_dialect", sql_dialect_value_old,
+						  (superuser() ? PGC_SUSET : PGC_USERSET),
+						  PGC_S_SESSION,
+						  GUC_ACTION_SAVE,
+						  true,
+						  0,
+						  false);
+		if (strncmp(sql_dialect_value, pg_dialect, strlen(pg_dialect)) == 0)
+			non_tsql_proc_entry_hook(non_tsql_proc_count * -1, sys_func_count * -1);
+	}
+	else if (fcache->proconfig)
 		AtEOXact_GUC(true, save_nestlevel);
 	if (OidIsValid(fcache->userid))
 		SetUserIdAndSecContext(save_userid, save_sec_context);
@@ -2074,3 +2233,4 @@ CheckFunctionValidatorAccess(Oid validatorOid, Oid functionOid)
 
 	return true;
 }
+

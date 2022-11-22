@@ -24,6 +24,7 @@
 #include "executor/executor.h"
 #include "executor/spi_priv.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "tcop/pquery.h"
 #include "tcop/utility.h"
 #include "utils/builtins.h"
@@ -428,6 +429,18 @@ SPI_rollback_and_chain(void)
 void
 AtEOXact_SPI(bool isCommit)
 {
+	if (!isCommit)
+	{
+		while (_SPI_current && !_SPI_current->internal_xact)
+		{
+			_SPI_connected--;
+			if (_SPI_connected < 0)
+				_SPI_current = NULL;
+			else
+				_SPI_current = &(_SPI_stack[_SPI_connected]);
+		}
+	}
+
 	bool		found = false;
 
 	/*
@@ -1852,6 +1865,21 @@ SPI_scroll_cursor_move(Portal portal, FetchDirection direction, long count)
 
 
 /*
+ * SPI_scroll_cursor_fetch_dest()
+ *
+ *	Fetch rows in a scrollable cursor
+ */
+void
+SPI_scroll_cursor_fetch_dest(Portal portal, FetchDirection direction, long count,
+							 DestReceiver *receiver)
+{
+	_SPI_cursor_operation(portal,
+						  direction, count, receiver);
+	/* we know that the DestSPI receiver doesn't need a destroy call */
+}
+
+
+/*
  * SPI_cursor_close()
  *
  *	Close a cursor
@@ -2617,8 +2645,14 @@ _SPI_execute_plan(SPIPlanPtr plan, const SPIExecuteOptions *options,
 						goto fail;
 					}
 				}
-				else if (IsA(stmt->utilityStmt, TransactionStmt))
+				else if (IsA(stmt->utilityStmt, TransactionStmt) &&
+						 sql_dialect != SQL_DIALECT_TSQL)
 				{
+					/*
+					 * Allow transaction only for TSQL mode
+					 * This code path is used by do block
+					 * and procedure execution
+					 */
 					my_res = SPI_ERROR_TRANSACTION;
 					goto fail;
 				}
@@ -2653,8 +2687,13 @@ _SPI_execute_plan(SPIPlanPtr plan, const SPIExecuteOptions *options,
 			else
 				dest = CreateDestReceiver(DestSPI);
 
-			if (stmt->utilityStmt == NULL)
+			if (stmt->utilityStmt == NULL || stmt->commandType == CMD_INSERT)
 			{
+				/*
+				 * INSERT ... EXECUTE stmt can also have a utilityStmt attached,
+				 * and here we should treat it like an INSERT stmt, and let it
+				 * handle the EXECUTE during its execution.
+				 */
 				QueryDesc  *qdesc;
 				Snapshot	snap;
 
@@ -3283,8 +3322,12 @@ SPI_register_relation(EphemeralNamedRelation enr)
 		res = SPI_ERROR_REL_DUPLICATE;
 	else
 	{
-		if (_SPI_current->queryEnv == NULL)
-			_SPI_current->queryEnv = create_queryEnv();
+		if (_SPI_current->queryEnv == NULL) {
+			if (sql_dialect == SQL_DIALECT_TSQL)
+				_SPI_current->queryEnv = currentQueryEnv;
+			else
+				_SPI_current->queryEnv = create_queryEnv();
+		}
 
 		register_ENR(_SPI_current->queryEnv, enr);
 		res = SPI_OK_REL_REGISTER;
@@ -3373,4 +3416,13 @@ SPI_register_trigger_data(TriggerData *tdata)
 	}
 
 	return SPI_OK_TD_REGISTER;
+}
+
+/*
+ * Enable internal transaction mode for whole connection duration
+ */
+void
+SPI_setCurrentInternalTxnMode(bool mode)
+{
+	_SPI_current->internal_xact = mode;
 }

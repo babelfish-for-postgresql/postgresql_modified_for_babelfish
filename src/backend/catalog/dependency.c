@@ -1393,6 +1393,10 @@ doDeletion(const ObjectAddress *object, int flags)
 			{
 				char		relKind = get_rel_relkind(object->objectId);
 
+				if (flags & PERFORM_DELETION_SKIP_ENR && 
+						!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(object->objectId)))
+					break;
+
 				if (relKind == RELKIND_INDEX ||
 					relKind == RELKIND_PARTITIONED_INDEX)
 				{
@@ -1425,11 +1429,15 @@ doDeletion(const ObjectAddress *object, int flags)
 			break;
 
 		case OCLASS_TYPE:
-			RemoveTypeById(object->objectId);
+			if ((flags & PERFORM_DELETION_SKIP_ENR) == 0 ||
+					SearchSysCacheExists1(TYPEOID, ObjectIdGetDatum(object->objectId)))
+				RemoveTypeById(object->objectId);
 			break;
 
 		case OCLASS_CONSTRAINT:
-			RemoveConstraintById(object->objectId);
+			if ((flags & PERFORM_DELETION_SKIP_ENR) == 0 ||
+					SearchSysCacheExists1(CONSTROID, ObjectIdGetDatum(object->objectId)))
+				RemoveConstraintById(object->objectId);
 			break;
 
 		case OCLASS_DEFAULT:
@@ -1453,7 +1461,9 @@ doDeletion(const ObjectAddress *object, int flags)
 			break;
 
 		case OCLASS_STATISTIC_EXT:
-			RemoveStatisticsById(object->objectId);
+			if ((flags & PERFORM_DELETION_SKIP_ENR) == 0 ||
+					SearchSysCacheExists1(STATEXTOID, ObjectIdGetDatum(object->objectId)))
+				RemoveStatisticsById(object->objectId);
 			break;
 
 		case OCLASS_TSCONFIG:

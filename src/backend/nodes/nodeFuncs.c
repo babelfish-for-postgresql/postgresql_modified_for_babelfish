@@ -3879,6 +3879,7 @@ raw_expression_tree_walker(Node *node,
 		case T_Boolean:
 		case T_String:
 		case T_BitString:
+		case T_TSQL_HexString:
 		case T_ParamRef:
 		case T_A_Const:
 		case T_A_Star:

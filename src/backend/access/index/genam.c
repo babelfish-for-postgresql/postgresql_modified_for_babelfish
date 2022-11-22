@@ -32,6 +32,7 @@
 #include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
+#include "utils/queryenvironment.h"
 #include "utils/rel.h"
 #include "utils/rls.h"
 #include "utils/ruleutils.h"
@@ -404,6 +405,9 @@ systable_beginscan(Relation heapRelation,
 	sysscan->heap_rel = heapRelation;
 	sysscan->irel = irel;
 	sysscan->slot = table_slot_create(heapRelation, NULL);
+	sysscan->enr = false;
+	sysscan->enr_tuplist = NULL;
+	sysscan->enr_tuplist_i = 0;
 
 	if (snapshot == NULL)
 	{
@@ -418,7 +422,13 @@ systable_beginscan(Relation heapRelation,
 		sysscan->snapshot = NULL;
 	}
 
-	if (irel)
+	/* Catalog tuples for ENR are not in the on-disk catalogs */
+	if (ENRgetSystableScan(heapRelation, indexId, nkeys, key, &sysscan->enr_tuplist, &sysscan->enr_tuplist_i))
+	{
+		sysscan->enr = true;
+		index_close(sysscan->irel, AccessShareLock);
+	}
+	else if (irel)
 	{
 		int			i;
 
@@ -506,7 +516,14 @@ systable_getnext(SysScanDesc sysscan)
 {
 	HeapTuple	htup = NULL;
 
-	if (sysscan->irel)
+	if (sysscan->enr)
+	{
+		if (sysscan->enr_tuplist && sysscan->enr_tuplist_i < sysscan->enr_tuplist->length)
+		{
+			htup = lfirst(list_nth_cell(sysscan->enr_tuplist, sysscan->enr_tuplist_i++));
+		}
+	}
+	else if (sysscan->irel)
 	{
 		if (index_getnext_slot(sysscan->iscan, ForwardScanDirection, sysscan->slot))
 		{
@@ -603,12 +620,12 @@ systable_endscan(SysScanDesc sysscan)
 		sysscan->slot = NULL;
 	}
 
-	if (sysscan->irel)
+	if (sysscan->irel && !sysscan->enr)
 	{
 		index_endscan(sysscan->iscan);
 		index_close(sysscan->irel, AccessShareLock);
 	}
-	else
+	else if (!sysscan->enr)
 		table_endscan(sysscan->scan);
 
 	if (sysscan->snapshot)

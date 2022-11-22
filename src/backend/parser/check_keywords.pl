@@ -195,27 +195,18 @@ kwlist_line: while (<$kwlist>)
 		}
 		$prevkwstring = $kwstring;
 
-		# Check that the keyword string is valid: all lower-case ASCII chars
-		if ($kwstring !~ /^[a-z_]+$/)
+		# Check that the keyword string is valid: all lower-case ASCII chars followed by digits
+		if ($kwstring !~ /^[a-z_]+[0-9]*$/)
 		{
 			error
-			  "'$kwstring' is not a valid keyword string, must be all lower-case ASCII chars";
+			  "'$kwstring' is not a valid keyword string, must be all lower-case ASCII chars followed by digits";
 		}
 
-		# Check that the keyword name is valid: all upper-case ASCII chars
-		if ($kwname !~ /^[A-Z_]+$/)
+		# Check that the keyword name is valid: all upper-case ASCII chars followed by digits
+		if ($kwname !~ /^[A-Z_]+[0-9]*$/)
 		{
 			error
-			  "'$kwname' is not a valid keyword name, must be all upper-case ASCII chars";
-		}
-
-		# Check that the keyword string matches keyword name
-		$bare_kwname = $kwname;
-		$bare_kwname =~ s/_P$//;
-		if ($bare_kwname ne uc($kwstring))
-		{
-			error
-			  "keyword name '$kwname' doesn't match keyword string '$kwstring'";
+			  "'$kwname' is not a valid keyword name, must be all upper-case ASCII chars followed by digits";
 		}
 
 		# Check that the keyword is present in the right category list

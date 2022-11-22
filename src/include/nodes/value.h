@@ -66,6 +66,12 @@ typedef struct BitString
 	char	   *bsval;
 } BitString;
 
+typedef struct TSQL_HexString
+{
+	NodeTag		type;
+	char	   *hsval;
+} TSQL_HexString;
+
 #define intVal(v)		(castNode(Integer, v)->ival)
 #define floatVal(v)		atof(castNode(Float, v)->fval)
 #define boolVal(v)		(castNode(Boolean, v)->boolval)
@@ -76,5 +82,6 @@ extern Float *makeFloat(char *numericStr);
 extern Boolean *makeBoolean(bool var);
 extern String *makeString(char *str);
 extern BitString *makeBitString(char *str);
+extern TSQL_HexString *makeTSQLHexString(char *str);
 
 #endif							/* VALUE_H */

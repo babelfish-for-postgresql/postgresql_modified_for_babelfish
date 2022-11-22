@@ -13,6 +13,7 @@
 
 #include "datatype/timestamp.h"
 #include "portability/instr_time.h"
+#include "storage/proc.h"
 #include "postmaster/pgarch.h"	/* for MAX_XFN_CHARS */
 #include "utils/backend_progress.h" /* for backward compatibility */
 #include "utils/backend_status.h"	/* for backward compatibility */
@@ -564,6 +565,8 @@ extern void pgstat_count_heap_delete(Relation rel);
 extern void pgstat_count_truncate(Relation rel);
 extern void pgstat_update_heap_dead_tuples(Relation rel, int delta);
 
+extern void Cleanup_xact_PgStat(void);
+
 extern void pgstat_twophase_postcommit(TransactionId xid, uint16 info,
 									   void *recdata, uint32 len);
 extern void pgstat_twophase_postabort(TransactionId xid, uint16 info,
@@ -691,5 +694,15 @@ extern PGDLLIMPORT SessionEndType pgStatSessionEndCause;
 /* updated directly by backends and background processes */
 extern PGDLLIMPORT PgStat_WalStats PendingWalStats;
 
+
+/*
+ * Support functions for allowing call hooks for support stats from
+ * different protocols, and planning.
+ */
+extern void pg_stat_write_backend_details_NoAlloc(int outfile, PgBackendStatus *);
+extern void write_structdef_file(void);
+
+typedef void (*pre_function_call_hook_type) (const char *funcName);
+extern PGDLLIMPORT pre_function_call_hook_type pre_function_call_hook;
 
 #endif							/* PGSTAT_H */

@@ -35,6 +35,7 @@
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/supportnodes.h"
+#include "parser/parser.h"      /* only needed for GUC variable sql_dialect */
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/float.h"
@@ -7472,6 +7473,13 @@ apply_typmod(NumericVar *var, int32 typmod)
 	precision = numeric_typmod_precision(typmod);
 	scale = numeric_typmod_scale(typmod);
 	maxdigits = precision - scale;
+
+	/* TSQL client can't handle oversized precision */
+	if (sql_dialect == SQL_DIALECT_TSQL &&
+			precision > TSQLMaxNumPrecision)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("The size (%d) given to the type 'numeric' exceeds the maximum allowed (38)", precision)));
 
 	/* Round to target scale (and set var->dscale) */
 	round_var(var, scale);

@@ -78,6 +78,7 @@
 #include "parser/parse_func.h"
 #include "parser/parse_oper.h"
 #include "parser/parse_type.h"
+#include "parser/parser.h"
 #include "rewrite/rewriteSupport.h"
 #include "storage/large_object.h"
 #include "storage/lmgr.h"
@@ -985,7 +986,17 @@ get_object_address(ObjectType objtype, Node *object,
 											   missing_ok);
 				break;
 			case OBJECT_RULE:
+				address = get_object_address_relobject(objtype, castNode(List, object),
+													   &relation, missing_ok);
+				break;
 			case OBJECT_TRIGGER:
+				if(sql_dialect == SQL_DIALECT_TSQL)
+					address = get_object_address_trigger_tsql(castNode(List, object),
+													   	&relation, missing_ok);
+				else
+					address = get_object_address_relobject(objtype, castNode(List, object),
+													   &relation, missing_ok);
+				break;
 			case OBJECT_TABCONSTRAINT:
 			case OBJECT_POLICY:
 				address = get_object_address_relobject(objtype, castNode(List, object),
@@ -1450,8 +1461,8 @@ get_object_address_relobject(ObjectType objtype, List *object,
 	if (nnames < 2)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
-				 errmsg("must specify relation and object name")));
-
+ 				 errmsg("must specify relation and object name")));
+	
 	/* Extract relation name and open relation. */
 	relname = list_truncate(list_copy(object), nnames - 1);
 	relation = table_openrv_extended(makeRangeVarFromNameList(relname),
@@ -1491,6 +1502,88 @@ get_object_address_relobject(ObjectType objtype, List *object,
 		default:
 			elog(ERROR, "unrecognized objtype: %d", (int) objtype);
 	}
+
+	/* Avoid relcache leak when object not found. */
+	if (!OidIsValid(address.objectId))
+	{
+		if (relation != NULL)
+			table_close(relation, AccessShareLock);
+
+		relation = NULL;		/* department of accident prevention */
+		return address;
+	}
+
+	/* Done. */
+	*relp = relation;
+	return address;
+}
+
+/*
+* A special case of the get_object_address_relobject() function, specifically
+* for the case of triggers in tsql dialect. We add a pg_trigger lookup to search
+* for the relation that the trigger is associated with, since the relation name
+* is not supplied by the user, and thus not a part of the *object list.
+* TODO: we can use a new hook and use this function for triggers or expand it
+* for all objects in tsql dialect case.
+*/
+ObjectAddress
+get_object_address_trigger_tsql(List *object, Relation *relp,
+							 bool missing_ok)
+{
+	ObjectAddress address;
+	Relation	relation = NULL;
+	const char *depname;
+	Oid			reloid;
+	Relation	tgrel;
+	ScanKeyData		key;
+	SysScanDesc tgscan;
+	HeapTuple	tuple;
+
+	/* Extract name of dependent object. */
+	depname = strVal(llast(object));
+
+	/* 
+	* Get the table name of the trigger from pg_trigger. We know that
+	* trigger names are forced to be unique in the tsql dialect, so we
+	* can rely on searching for trigger name to find the corresponding
+	* relation name.
+	*/
+	tgrel = table_open(TriggerRelationId, AccessShareLock);
+
+	ScanKeyInit(&key,
+					Anum_pg_trigger_tgname,
+					BTEqualStrategyNumber, F_NAMEEQ,
+					CStringGetDatum(depname));
+
+	tgscan = systable_beginscan(tgrel, TriggerRelidNameIndexId, false,
+									NULL, 1, &key);
+
+	while (HeapTupleIsValid(tuple = systable_getnext(tgscan)))
+	{
+		Form_pg_trigger pg_trigger = (Form_pg_trigger) GETSTRUCT(tuple);
+
+		if (namestrcmp(&(pg_trigger->tgname), depname) == 0)
+		{
+			reloid = OidIsValid(pg_trigger->tgrelid) ? pg_trigger->tgrelid :
+						InvalidOid;
+			relation = RelationIdGetRelation(reloid); 
+			RelationClose(relation);
+		}
+	}
+	systable_endscan(tgscan);
+
+	table_close(tgrel, AccessShareLock);
+	address.classId = TriggerRelationId;
+	address.objectId = relation ?
+		get_trigger_oid(reloid, depname, missing_ok) : InvalidOid;
+	if (!relation && !missing_ok)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				errmsg("trigger \"%s\" does not exist",
+						depname)));
+	}
+	address.objectSubId = 0;
 
 	/* Avoid relcache leak when object not found. */
 	if (!OidIsValid(address.objectId))
