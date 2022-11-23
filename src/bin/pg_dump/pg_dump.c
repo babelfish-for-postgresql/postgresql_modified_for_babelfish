@@ -10820,6 +10820,7 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 	char	   *typdefault;
 	Oid			typcollation;
 	bool		typdefault_is_literal = false;
+	bool		typsupporttypmod = false;
 
 	if (!fout->is_prepared[PREPQUERY_DUMPDOMAIN])
 	{
@@ -10831,6 +10832,8 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 							 "pg_catalog.format_type(t.typbasetype, t.typtypmod) AS typdefn, "
 							 "pg_catalog.pg_get_expr(t.typdefaultbin, 'pg_catalog.pg_type'::pg_catalog.regclass) AS typdefaultbin, "
 							 "t.typdefault, "
+							 "CASE WHEN t.typmodin <> 0::pg_catalog.regproc "
+							 "THEN TRUE ELSE FALSE END AS typsupporttypmod, "
 							 "CASE WHEN t.typcollation <> u.typcollation "
 							 "THEN t.typcollation ELSE 0 END AS typcollation "
 							 "FROM pg_catalog.pg_type t "
@@ -10849,6 +10852,7 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 	res = ExecuteSqlQueryForSingleRow(fout, query->data);
 
 	typnotnull = PQgetvalue(res, 0, PQfnumber(res, "typnotnull"));
+	typsupporttypmod = (PQgetvalue(res, 0, PQfnumber(res, "typsupporttypmod"))[0] == 't');
 	typdefn = PQgetvalue(res, 0, PQfnumber(res, "typdefn"));
 	if (!PQgetisnull(res, 0, PQfnumber(res, "typdefaultbin")))
 		typdefault = PQgetvalue(res, 0, PQfnumber(res, "typdefaultbin"));
@@ -10866,6 +10870,10 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 												 tyinfo->dobj.catId.oid,
 												 true,	/* force array type */
 												 false);	/* force multirange type */
+
+	if (typsupporttypmod)
+		appendPQExpBuffer(q,
+						"SET enable_domain_typmod = TRUE;\n");
 
 	qtypname = pg_strdup(fmtId(tyinfo->dobj.name));
 	qualtypname = pg_strdup(fmtQualifiedDumpable(tyinfo));
@@ -10912,6 +10920,10 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 	}
 
 	appendPQExpBufferStr(q, ";\n");
+
+	if (typsupporttypmod)
+		appendPQExpBuffer(q,
+						"RESET enable_domain_typmod;\n");
 
 	appendPQExpBuffer(delq, "DROP DOMAIN %s;\n", qualtypname);
 
