@@ -909,6 +909,10 @@ fetch_remote_table_info(char *nspname, char *relname,
 		lrel->atttyps[natt] = DatumGetObjectId(slot_getattr(slot, 3, &isnull));
 		Assert(!isnull);
 
+		if (is_tsql_rowversion_or_timestamp_datatype_hook &&
+			is_tsql_rowversion_or_timestamp_datatype_hook(lrel->atttyps[natt]))
+			continue;
+
 		if (DatumGetBool(slot_getattr(slot, 4, &isnull)))
 			lrel->attkeys = bms_add_member(lrel->attkeys, natt);
 

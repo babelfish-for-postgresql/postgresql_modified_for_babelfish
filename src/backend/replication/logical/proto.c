@@ -13,6 +13,7 @@
 #include "postgres.h"
 
 #include "access/sysattr.h"
+#include "commands/copy.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_type.h"
 #include "libpq/pqformat.h"
@@ -783,6 +784,11 @@ logicalrep_write_tuple(StringInfo out, Relation rel, TupleTableSlot *slot,
 		if (att->attisdropped || att->attgenerated)
 			continue;
 
+		/* Skip TSQL ROWVERSION/TIMESTAMP column if it exists */
+		if (is_tsql_rowversion_or_timestamp_datatype_hook &&
+			is_tsql_rowversion_or_timestamp_datatype_hook(TupleDescAttr(desc, i)->atttypid))
+			continue;
+
 		if (!column_in_column_list(att->attnum, columns))
 			continue;
 
@@ -802,6 +808,11 @@ logicalrep_write_tuple(StringInfo out, Relation rel, TupleTableSlot *slot,
 		Form_pg_attribute att = TupleDescAttr(desc, i);
 
 		if (att->attisdropped || att->attgenerated)
+			continue;
+
+		/* Skip TSQL ROWVERSION/TIMESTAMP column if it exists */
+		if (is_tsql_rowversion_or_timestamp_datatype_hook &&
+			is_tsql_rowversion_or_timestamp_datatype_hook(att->atttypid))
 			continue;
 
 		if (!column_in_column_list(att->attnum, columns))
@@ -946,6 +957,11 @@ logicalrep_write_attrs(StringInfo out, Relation rel, Bitmapset *columns)
 		if (att->attisdropped || att->attgenerated)
 			continue;
 
+		/* Skip TSQL ROWVERSION/TIMESTAMP column if it exists */
+		if (is_tsql_rowversion_or_timestamp_datatype_hook &&
+			is_tsql_rowversion_or_timestamp_datatype_hook(TupleDescAttr(desc, i)->atttypid))
+			continue;
+
 		if (!column_in_column_list(att->attnum, columns))
 			continue;
 
@@ -965,6 +981,11 @@ logicalrep_write_attrs(StringInfo out, Relation rel, Bitmapset *columns)
 		uint8		flags = 0;
 
 		if (att->attisdropped || att->attgenerated)
+			continue;
+
+		/* Skip TSQL ROWVERSION/TIMESTAMP column if it exists */
+		if (is_tsql_rowversion_or_timestamp_datatype_hook &&
+			is_tsql_rowversion_or_timestamp_datatype_hook(att->atttypid))
 			continue;
 
 		if (!column_in_column_list(att->attnum, columns))

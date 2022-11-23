@@ -135,6 +135,7 @@
 #include "access/twophase.h"
 #include "access/xact.h"
 #include "access/xlog_internal.h"
+#include "commands/extension.h"
 #include "catalog/catalog.h"
 #include "catalog/indexing.h"
 #include "catalog/namespace.h"
@@ -143,6 +144,7 @@
 #include "catalog/pg_subscription.h"
 #include "catalog/pg_subscription_rel.h"
 #include "catalog/pg_tablespace.h"
+#include "commands/copy.h"
 #include "commands/tablecmds.h"
 #include "commands/tablespace.h"
 #include "commands/trigger.h"
@@ -197,6 +199,8 @@
 #include "utils/timeout.h"
 
 #define NAPTIME_PER_CYCLE 1000	/* max sleep time between cycles (1s) */
+
+logicalrep_modify_slot_hook_type logicalrep_modify_slot_hook = NULL;
 
 typedef struct FlushPosition
 {
@@ -1849,6 +1853,15 @@ apply_handle_update(StringInfo s)
 					bms_add_member(target_rte->updatedCols,
 								   i + 1 - FirstLowInvalidHeapAttributeNumber);
 		}
+		/* Add TSQL ROWVERSION/TIMESTAMP column to updatedCols */
+		else if (!att->attisdropped && !att->attgenerated &&
+			is_tsql_rowversion_or_timestamp_datatype_hook &&
+			is_tsql_rowversion_or_timestamp_datatype_hook(att->atttypid))
+		{
+			target_rte->updatedCols =
+				bms_add_member(target_rte->updatedCols,
+							   i + 1 - FirstLowInvalidHeapAttributeNumber);
+		}
 	}
 
 	/* Also populate extraUpdatedCols, in case we have generated columns */
@@ -1915,6 +1928,9 @@ apply_handle_update_internal(ApplyExecutionData *edata,
 		/* Process and store remote tuple in the slot */
 		oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
 		slot_modify_data(remoteslot, localslot, relmapentry, newtup);
+		/* Fill TSQL ROWVERSION/TIMESTAMP column if it exists */
+		if (logicalrep_modify_slot_hook)
+			logicalrep_modify_slot_hook(localrel, estate, remoteslot);
 		MemoryContextSwitchTo(oldctx);
 
 		EvalPlanQualSetSlot(&epqstate, remoteslot);
@@ -2232,6 +2248,9 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 				oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
 				slot_modify_data(remoteslot_part, localslot, part_entry,
 								 newtup);
+				/* Fill TSQL ROWVERSION/TIMESTAMP column if it exists */
+				if (logicalrep_modify_slot_hook)
+					logicalrep_modify_slot_hook(partrel, estate, remoteslot_part);
 				MemoryContextSwitchTo(oldctx);
 
 				/*
@@ -3579,6 +3598,8 @@ ApplyWorkerMain(Datum main_arg)
 	char	   *myslotname = NULL;
 	WalRcvStreamOptions options;
 	int			server_version;
+	const char*	pgtsql_library_name = "babelfishpg_tsql";
+	const char*	pgtsql_common_library_name = "babelfishpg_common";
 
 	/* Attach to slot */
 	logicalrep_worker_attach(worker_slot);
@@ -3608,6 +3629,21 @@ ApplyWorkerMain(Datum main_arg)
 	BackgroundWorkerInitializeConnectionByOid(MyLogicalRepWorker->dbid,
 											  MyLogicalRepWorker->userid,
 											  0);
+
+	/* load babelfishpg_tsql library if exists. */
+	StartTransactionCommand();
+	PushActiveSnapshot(GetTransactionSnapshot());
+	if (get_extension_oid(pgtsql_library_name, true) != InvalidOid)
+	{
+		/*
+		 * babelfishpg_tsql extension depends on babelfishpg_common, so
+		 * babelfishpg_common must be loaded first.
+		 */
+		load_libraries(pgtsql_common_library_name, NULL, false);
+		load_libraries(pgtsql_library_name, NULL, false);
+	}
+	PopActiveSnapshot();
+	CommitTransactionCommand();
 
 	/*
 	 * Set always-secure search path, so malicious users can't redirect user
