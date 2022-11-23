@@ -285,4 +285,7 @@ extern int	EvalJsonPathVar(void *vars, char *varName, int varNameLen,
 
 extern PGDLLIMPORT const TableFuncRoutine JsonbTableRoutine;
 
+extern Jsonb *tsql_openjson_with_get_subjsonb(PG_FUNCTION_ARGS);
+extern List *tsql_openjson_with_columnize(Jsonb *jb, char *col_info);
+
 #endif

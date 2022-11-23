@@ -526,6 +526,186 @@ jsonb_path_query_tz(PG_FUNCTION_ARGS)
 }
 
 /*
+ * tsql_openjson_with_get_subjsonb
+ * 		Returns the sub-jsonb object specified by the given json and jsonpath
+ * 		json - input json in UTF-8 encoded text
+ * 		jsonpath - input jsonpath in UTF-8 encoded text
+ */
+Jsonb *
+tsql_openjson_with_get_subjsonb(PG_FUNCTION_ARGS)
+{
+	text			*json_text,
+					*jsonpath_text;
+	Jsonb			*jb,
+					*sub_jb,
+					*vars;
+	JsonPath		*jp;
+	JsonValueList 	found = {0};
+	bool 			islax;
+
+	json_text = PG_GETARG_TEXT_PP(0);
+	jb = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum(text_to_cstring(json_text)));
+	jsonpath_text = PG_GETARG_TEXT_PP(1);
+	jp = (JsonPath *) DirectFunctionCall1(jsonpath_in, CStringGetDatum(text_to_cstring(jsonpath_text)));
+
+	/* retrieve sub_jb */
+	vars = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum("{}"));
+	(void) executeJsonPath(jp, vars, getJsonPathVariableFromJsonb, jb, false, &found, false);
+
+	if (JsonValueListLength(&found) >= 1)
+		sub_jb = JsonbValueToJsonb(JsonValueListHead(&found));
+	else
+		sub_jb = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum("null"));
+
+	islax = (jp->header & JSONPATH_LAX) != 0;
+	/* check if value is scalar and error/return null if so */
+	if (sub_jb && JB_ROOT_IS_SCALAR(sub_jb) && !islax)
+		ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR),
+								errmsg("Value referenced by JSON path is not an array or object and cannot be opened with OPENJSON.")));
+	return sub_jb;
+}
+
+/*
+ * tsql_openjson_with_columnize
+ * 		Outputs the results of searching the given jsonpath in the given jsonb into a list of strings.
+ * 		jb - the input Jsonb to search
+ * 		col_info - space-separated information about the column definition, including the jsonpath
+ * 			to search for, and column type
+ * 		Example: tsql_openjson_with_columnize('[{"a":1},{"a":2},{"a":3}]', '$.a varchar(5)') ->
+ * 				("1")->("2")->("3")
+ */
+List *
+tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
+{
+	List 			*list;
+	Jsonb			*vars = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum("{}"));
+	JsonPath		*jp;
+	JsonValueList 	found = {0};
+	int				col_size = INT_MAX; /* keep track of the column's size if declared */
+
+	/* extract column info */
+	char 	*token,
+			*col_path,
+			*col_type;
+	bool	strict,
+			as,
+			asjson;
+	col_path = NULL; col_type = NULL; strict = false; as = false; asjson = false;
+	token = strtok(col_info, " ");
+	while (token != NULL)
+	{
+		if (strncmp(token, "strict", 6) == 0)
+			strict = true;
+		else if (strncmp(token, "lax", 3) == 0)
+			strict = false;
+		else if (col_path == NULL)
+			col_path = token;
+		else if (col_type == NULL)
+			col_type = token;
+		else if (strncmp(token, "AS", 2) == 0)
+			as = true;
+		else if (as && strncmp(token, "JSON", 4) == 0)
+			asjson = true;
+		token = strtok(NULL, " ");
+	}
+
+	if (asjson)
+		if (pg_strcasecmp(col_type, "nvarchar") != 0) /* TODO: implement new error code for incorrect type for AS JSON */
+			ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR),
+									errmsg("AS JSON in WITH clause can only be specified for column of type nvarchar(max)")));
+
+	if (strlen(col_type) >= 3) /* Get column size restriction, if it exists */
+	{
+		token = strtok(col_type, "(");
+		if (token)
+		{
+			token = strtok(NULL, ")");
+			if (token)
+				col_size = atoi(token);
+		}
+	}
+
+	if (strict)
+	{
+		char *tmp;
+		int len;
+		/* Since jsonb_path_query already can interpret strict/lax keywords, just put 'strict' back into the path */
+		len = 7 + strlen(col_path) + 1;
+		tmp = palloc0(len);
+		snprintf(tmp, len, "strict %s", col_path);
+		col_path = tmp;
+	}
+	if (JB_ROOT_IS_ARRAY(jb))
+	{
+		char *tmp;
+		int len;
+		/* need to replace '$' with '$[*]' */
+		len = 4 + strlen(col_path) + 1;
+		tmp = palloc0(len);
+		snprintf(tmp, len, "$[*]%s", &(col_path[1]));
+		col_path = tmp;
+	}
+
+	/* get tuple set using executeJsonPath */
+	jp = DatumGetJsonPathP(DirectFunctionCall1(jsonpath_in, CStringGetDatum(col_path)));
+
+	(void) executeJsonPath(jp, vars, getJsonPathVariableFromJsonb, jb, false, &found, false);
+
+	list = JsonValueListGetList(&found);
+	/* go through found and convert values to strings. Truncate as necessary based on col_size */
+	if (list != NIL)
+	{
+		ListCell	*lc;
+		foreach(lc, list)
+		{
+			JsonbValue	*v = lc->ptr_value;
+			Jsonb		*jsonb;
+			char 		*json_str;
+			int			len = 0,
+						numchars = 0;
+
+			if (v == NULL)
+				continue;
+			jsonb = JsonbValueToJsonb(v);
+			if (v->type == jbvNull) /* SQL Server treats json nulls as SQL NULLs */
+				jsonb = NULL;
+			else if (IsAJsonbScalar(v))
+				jsonb = (asjson ? NULL : jsonb);
+			else
+				jsonb = (asjson ? jsonb : NULL);
+			if (jsonb != NULL)
+			{
+				json_str = JsonbToCString(NULL, &jsonb->root, VARSIZE(jsonb));
+				if (json_str[0] == '"') /* remove leading and trailing quotes, if they exist */
+					json_str = &json_str[1];
+				while (json_str[len] != '\0' && numchars < col_size) /* process up to col_size number of characters */
+				{
+					len += pg_utf_mblen((unsigned char *) &json_str[len]); /* in SQL Server, JSON inputs are always encoded in UTF-8 or UTF-16 */
+					numchars++;
+				}
+				if (json_str[len-1] == '"')
+				{
+					len--;
+					numchars--;
+				}
+				len++;
+			}
+			/* fill in lc with either the string value or NULL */
+			if (jsonb == NULL)
+				lc->ptr_value = NULL;
+			else
+			{
+				lc->ptr_value = palloc0(len);
+				snprintf(lc->ptr_value, len, "%s", json_str);
+			}
+			pfree(v);
+		}
+	}
+
+	return list;
+}
+
+/*
  * jsonb_path_query_array
  *		Executes jsonpath for given jsonb document and returns result as
  *		jsonb array.
@@ -575,7 +755,12 @@ jsonb_path_query_first_internal(FunctionCallInfo fcinfo, bool tz)
 						   jb, !silent, &found, tz);
 
 	if (JsonValueListLength(&found) >= 1)
-		PG_RETURN_JSONB_P(JsonbValueToJsonb(JsonValueListHead(&found)));
+	{
+		if (found.singleton || linitial(found.list)) /* need to handle case of a null value in the list */
+			PG_RETURN_JSONB_P(JsonbValueToJsonb(JsonValueListHead(&found)));
+		else
+			PG_RETURN_NULL();
+	}
 	else
 		PG_RETURN_NULL();
 }
@@ -739,7 +924,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 				{
 					Assert(found);
 
-					if (!jspThrowErrors(cxt))
+					if (sql_dialect != SQL_DIALECT_TSQL && !jspThrowErrors(cxt)) /* in TSQL mode, all errors are immediately reported */
 						return jperError;
 
 					ereport(ERROR,
@@ -747,6 +932,19 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 							 errmsg("JSON object does not contain key \"%s\"",
 									pnstrdup(key.val.string.val,
 											 key.val.string.len))));
+				}
+				else if (found && sql_dialect == SQL_DIALECT_TSQL) /* in TSQL JSON functions, missing values are filled with NULL so we need to keep searching */
+				{
+					if (found->singleton)
+					{
+						found->list = list_make2(found->singleton, NULL);
+						found->singleton = NULL;
+					}
+					else if (!found->list)
+						found->list = list_make1(NULL); /* Since JsonValueList uses a NULL singleton as shortcut, need to manually insert null value into list */
+					else
+						found->list = lappend(found->list, NULL);
+					res = jperOk;
 				}
 			}
 			else if (unwrap && JsonbType(jb) == jbvArray)
