@@ -2212,6 +2212,15 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 	if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
 		rslot = ExecProcessReturning(resultRelInfo, slot, context->planSlot);
 
+	if (resultRelInfo->ri_TrigDesc &&
+		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&
+		sql_dialect == SQL_DIALECT_TSQL && 
+		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_INSTEAD))
+	{
+		ExecIRUpdateTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, slot, recheckIndexes, context->mtstate->mt_transition_capture);
+		return NULL;
+	}
+
 	/* INSTEAD OF ROW UPDATE Triggers */
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_row)
@@ -3400,10 +3409,10 @@ fireISTriggers(ModifyTableState *node)
 			ret = ExecISInsertTriggers(node->ps.state, resultRelInfo, node->mt_transition_capture);
 			if (plan->onConflictAction == ONCONFLICT_UPDATE)
 				ret = ExecISUpdateTriggers(node->ps.state,
-									 resultRelInfo);
+									 resultRelInfo, node->mt_transition_capture);
 			break;
 		case CMD_UPDATE:
-			ret = ExecISUpdateTriggers(node->ps.state, resultRelInfo);
+			ret = ExecISUpdateTriggers(node->ps.state, resultRelInfo, node->mt_transition_capture);
 			break;
 		case CMD_DELETE:
 			ret = ExecISDeleteTriggers(node->ps.state, resultRelInfo, node->mt_transition_capture);
