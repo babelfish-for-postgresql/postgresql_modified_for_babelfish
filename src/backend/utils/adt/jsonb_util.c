@@ -18,6 +18,7 @@
 #include "common/hashfn.h"
 #include "common/jsonapi.h"
 #include "miscadmin.h"
+#include "parser/parser.h"  
 #include "port/pg_bitutils.h"
 #include "utils/builtins.h"
 #include "utils/datetime.h"
@@ -381,8 +382,11 @@ findJsonbValueFromContainer(JsonbContainer *container, uint32 flags,
 	{
 		/* Object key passed by caller must be a string */
 		Assert(key->type == jbvString);
-
-		return getKeyJsonValueFromContainer(container, key->val.string.val,
+		if (sql_dialect == SQL_DIALECT_TSQL)
+			return tsqlGetKeyJsonValueFromContainer(container, key->val.string.val,
+											key->val.string.len, NULL);
+		else
+			return getKeyJsonValueFromContainer(container, key->val.string.val,
 											key->val.string.len, NULL);
 	}
 
@@ -455,6 +459,86 @@ getKeyJsonValueFromContainer(JsonbContainer *container,
 			else
 				stopHigh = stopMiddle;
 		}
+	}
+
+	/* Not found */
+	return NULL;
+}
+
+/*
+ * Find leftmost value by key in Jsonb object and fetch it into 'res', which is also
+ * returned.
+ * 
+ * Since SQL Server json expressions can contain duplicate key/value pairs, we must
+ * return the first occurrence
+ *
+ * 'res' can be passed in as NULL, in which case it's newly palloc'ed here.
+ */
+JsonbValue *
+tsqlGetKeyJsonValueFromContainer(JsonbContainer *container,
+							 const char *keyVal, int keyLen, JsonbValue *res)
+{
+	JEntry	   *children = container->children;
+	int			count = JsonContainerSize(container);
+	int			difference,
+				candidateLen,
+				index;
+	const char *candidateVal;
+	char	   *baseAddr;
+	uint32		stopLow,
+				stopHigh,
+				stopMiddle,
+				firstIndex;
+
+	Assert(JsonContainerIsObject(container));
+
+	/* Quick out without a palloc cycle if object is empty */
+	if (count <= 0)
+		return NULL;
+
+	/*
+	 * Binary search the container. Since we know this is an object, account
+	 * for *Pairs* of Jentrys
+	 */
+	baseAddr = (char *) (children + count * 2);
+	stopLow = 0;
+	stopHigh = firstIndex = count;
+	while (stopLow < stopHigh)
+	{
+		stopMiddle = stopLow + (stopHigh - stopLow) / 2;
+
+		candidateVal = baseAddr + getJsonbOffset(container, stopMiddle);
+		candidateLen = getJsonbLength(container, stopMiddle);
+
+		difference = lengthCompareJsonbString(candidateVal, candidateLen,
+											  keyVal, keyLen);
+
+		if (difference > 0)
+		{
+			stopHigh = stopMiddle;
+		}
+		else if (difference == 0)
+		{
+			firstIndex = stopMiddle;
+			stopHigh = stopMiddle;
+		}
+		else
+		{
+			stopLow = stopMiddle + 1;
+		}
+	}
+
+	/* If we found our key, return corresponding value */
+	if (firstIndex < count)
+	{
+		index = firstIndex + count;
+		if (!res)
+			res = palloc(sizeof(JsonbValue));
+
+		fillJsonbValue(container, index, baseAddr,
+					getJsonbOffset(container, index),
+					res);
+		return res;
 	}
 
 	/* Not found */
@@ -1939,6 +2023,34 @@ lengthCompareJsonbPair(const void *a, const void *b, void *binequal)
 }
 
 /*
+ * qsort_arg() comparator to compare JsonbPair values when 
+ * sql_dialect is set to SQL_DIALECT_TSQL
+ * 
+ * Pairs with equal keys are ordered such that last elements
+ * are preferred, in opposite order of the lengthCompareJsonbPair
+ */
+static int
+tsqlLengthCompareJsonbPair(const void *a, const void *b, void *binequal)
+{
+	const JsonbPair *pa = (const JsonbPair *) a;
+	const JsonbPair *pb = (const JsonbPair *) b;
+	int			res;
+
+	res = lengthCompareJsonbStringValue(&pa->key, &pb->key);
+	if (res == 0 && binequal)
+		*((bool *) binequal) = true;
+
+	/*
+	 * Guarantee keeping order of equal pair.  Unique algorithm will prefer
+	 * first element as value.
+	 */
+	if (res == 0)
+		res = (pa->order > pb->order) ? 1 : -1;
+
+	return res;
+}
+
+/*
  * Sort and unique-ify pairs in JsonbValue object
  */
 static void
@@ -1949,15 +2061,21 @@ uniqueifyJsonbObject(JsonbValue *object, bool unique_keys, bool skip_nulls)
 	Assert(object->type == jbvObject);
 
 	if (object->val.object.nPairs > 1)
-		qsort_arg(object->val.object.pairs, object->val.object.nPairs, sizeof(JsonbPair),
+	{
+		if (sql_dialect == SQL_DIALECT_TSQL)
+			qsort_arg(object->val.object.pairs, object->val.object.nPairs, sizeof(JsonbPair),
+				  tsqlLengthCompareJsonbPair, &hasNonUniq);
+		else
+			qsort_arg(object->val.object.pairs, object->val.object.nPairs, sizeof(JsonbPair),
 				  lengthCompareJsonbPair, &hasNonUniq);
+	}
 
 	if (hasNonUniq && unique_keys)
 		ereport(ERROR,
 				(errcode(ERRCODE_DUPLICATE_JSON_OBJECT_KEY_VALUE),
 				 errmsg("duplicate JSON object key value")));
 
-	if (hasNonUniq || skip_nulls)
+	if ((hasNonUniq || skip_nulls) && sql_dialect != SQL_DIALECT_TSQL)
 	{
 		JsonbPair  *ptr,
 				   *res;
