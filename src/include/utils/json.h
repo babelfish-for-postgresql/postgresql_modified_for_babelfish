@@ -46,5 +46,6 @@ extern Datum json_build_object_worker(int nargs, Datum *args, bool *nulls,
 extern Datum json_build_array_worker(int nargs, Datum *args, bool *nulls,
 									 Oid *types, bool absent_on_null);
 extern bool json_validate(text *json, bool check_unique_keys, bool throw_error);
+extern void tsql_json_build_object(StringInfo result,Datum colname, Datum colval, Oid collation, bool is_null);
 
 #endif							/* JSON_H */
