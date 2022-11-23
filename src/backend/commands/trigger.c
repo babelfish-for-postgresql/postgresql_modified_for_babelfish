@@ -125,7 +125,7 @@ static void set_iot_state(Oid relid, CmdType cmdType, IOTState newState);
 */
 static bool IsCompositeTriggerActive(void);
 static void AddCompositeTriggerLevelData(void);
-static bool IsCompositeTrigger(Oid fn_oid);
+static bool IsCompositeTrigger(Oid fn_oid, List *fn_name);
 
 
 /*
@@ -232,6 +232,9 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	Oid			existing_constraint_oid = InvalidOid;
 	bool		existing_isInternal = false;
 	bool		existing_isClone = false;
+	bool		is_composite_trigger = false;
+
+	is_composite_trigger = IsCompositeTrigger(funcoid, stmt->funcname);
 
 	if (OidIsValid(relOid))
 		rel = table_open(relOid, ShareRowExclusiveLock);
@@ -246,7 +249,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	{
 		/* Tables can't have INSTEAD OF triggers */
 		/* BABELFISH: Support Instead of triggers, lift restriction for TSQL */
-		if (sql_dialect != SQL_DIALECT_TSQL &&
+		if (!is_composite_trigger &&
 			stmt->timing != TRIGGER_TYPE_BEFORE &&
 			stmt->timing != TRIGGER_TYPE_AFTER)
 			ereport(ERROR,
@@ -259,7 +262,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	{
 		/* Partitioned tables can't have INSTEAD OF triggers */
 		/* BABELFISH: Support Instead of triggers, lift restriction for TSQL */
-		if (sql_dialect != SQL_DIALECT_TSQL &&
+		if (!is_composite_trigger &&
 			stmt->timing != TRIGGER_TYPE_BEFORE &&
 			stmt->timing != TRIGGER_TYPE_AFTER)
 			ereport(ERROR,
@@ -420,11 +423,11 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	/* INSTEAD triggers must be row-level, and can't have WHEN or columns */
 	if (TRIGGER_FOR_INSTEAD(tgtype))
 	{
-		if (sql_dialect != SQL_DIALECT_TSQL && !TRIGGER_FOR_ROW(tgtype))
+		if (!is_composite_trigger && !TRIGGER_FOR_ROW(tgtype))
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 					errmsg("INSTEAD OF triggers must be FOR EACH ROW")));
-		if (sql_dialect == SQL_DIALECT_TSQL && TRIGGER_FOR_ROW(tgtype))
+		if (is_composite_trigger && TRIGGER_FOR_ROW(tgtype))
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 					errmsg("INSTEAD OF triggers not supported for FOR EACH ROW with TSQL dialect")));
@@ -508,7 +511,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 							 errmsg("ROW triggers with transition tables are not supported on inheritance children")));
 			}
 
-			if (sql_dialect != SQL_DIALECT_TSQL && stmt->timing != TRIGGER_TYPE_AFTER)
+			if (!is_composite_trigger && stmt->timing != TRIGGER_TYPE_AFTER)
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 						 errmsg("transition table name can only be specified for an AFTER trigger")));
@@ -535,7 +538,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 			if ((((TRIGGER_FOR_INSERT(tgtype) ? 1 : 0) +
 				 (TRIGGER_FOR_UPDATE(tgtype) ? 1 : 0) +
 				 (TRIGGER_FOR_DELETE(tgtype) ? 1 : 0)) != 1) 
-				 && sql_dialect != SQL_DIALECT_TSQL)
+				 && !is_composite_trigger)
 				ereport(ERROR,
 						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 						 errmsg("transition tables cannot be specified for triggers with more than one event")));
@@ -562,7 +565,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 
 			if (tt->isNew)
 			{
-				if (sql_dialect == SQL_DIALECT_TSQL){
+				if (is_composite_trigger){
 					if (!(TRIGGER_FOR_DELETE(tgtype) ||
 						TRIGGER_FOR_UPDATE(tgtype) ||
 						TRIGGER_FOR_INSERT(tgtype)))
@@ -585,7 +588,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 			}
 			else
 			{
-				if (sql_dialect != SQL_DIALECT_TSQL) {
+				if (!is_composite_trigger) {
 					if (!(TRIGGER_FOR_DELETE(tgtype) ||
 						TRIGGER_FOR_UPDATE(tgtype)))
 						ereport(ERROR,
@@ -926,7 +929,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 		* enforce unique trigger names in order to do the same.
 		* TODO: This can be done using a new hook. 
 		*/
-		if(sql_dialect == SQL_DIALECT_TSQL)
+		if(is_composite_trigger)
 		{
 			ScanKeyInit(&key,
 						Anum_pg_trigger_tgname,
@@ -6943,7 +6946,7 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 		 * trigger data list
 		 */
 		if (compositeTriggers.triggerLevel > 0 &&
-			IsCompositeTrigger(trigger->tgfoid))
+			IsCompositeTrigger(trigger->tgfoid, NULL))
 		{
 			MemoryContext oldCxt = MemoryContextSwitchTo(compositeTriggers.curCxt);
 			MemoryContext oldEventCxt = afterTriggers.event_cxt;
@@ -7247,39 +7250,24 @@ void EndCompositeTriggers(bool error)
  * Find if the trigger is TSQL or PG type
  */
 static
-bool IsCompositeTrigger(Oid fn_oid)
+bool IsCompositeTrigger(Oid fn_oid, List *fn_name)
 {
 	bool	isComposite = false;
 	Oid		pltsql_lang_oid = InvalidOid;
 	Oid		pltsql_validator_oid = InvalidOid;
-	/*
-	 * FIXME: the following typedef (PLtsql_config) describes a
-	 * structure shared with PLtsql.  Since the type is shared,
-	 * we should find a header file that is properly shared and
-	 * move this typedef
-	 *
-	 * This typedef *must* be kept in-synch with the PLtsql_config
-	 * type declaration found in contrib/babelfishpg_tsql/src/pgtsql.h
-	 */
-	typedef struct PLtsql_config
-	{
-		char	*version;         /* Extension version info */
-		Oid		 handler_oid;     /* Oid of language handler function */
-		Oid		 validator_oid;   /* Oid of language validator function */
-	} PLtsql_config;
 
-	PLtsql_config **config = (PLtsql_config **) find_rendezvous_variable("PLtsql_config");
-
-	if (*config)
-	{
-		pltsql_lang_oid = (*config)->handler_oid;
-		pltsql_validator_oid = (*config)->validator_oid;
-	}
+	if (get_func_language_oids_hook)
+		get_func_language_oids_hook(&pltsql_lang_oid, &pltsql_validator_oid);
 
 	if (pltsql_lang_oid != InvalidOid)
 	{
 		HeapTuple	tuple;
 		Form_pg_proc procedureStruct;
+		/* If function oid is invalid, get it using function name */
+		if (!OidIsValid(fn_oid) && fn_name != NULL)
+		{
+			fn_oid = LookupFuncName(fn_name, 0, NULL, false);
+		}
 		tuple = SearchSysCache1(PROCOID, fn_oid);
 		if (!HeapTupleIsValid(tuple))
 			elog(ERROR, "cache lookup failed for trigger %u", fn_oid);

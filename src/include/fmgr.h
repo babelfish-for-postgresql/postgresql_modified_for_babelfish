@@ -776,9 +776,12 @@ typedef void (*fmgr_hook_type) (FmgrHookEventType event,
 
 typedef void (*non_tsql_proc_entry_hook_type) (int, int);
 
+typedef void (*get_func_language_oids_hook_type)(Oid *, Oid *);
+
 extern PGDLLIMPORT needs_fmgr_hook_type needs_fmgr_hook;
 extern PGDLLIMPORT fmgr_hook_type fmgr_hook;
 extern PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook;
+extern PGDLLIMPORT get_func_language_oids_hook_type get_func_language_oids_hook;
 
 #define FmgrHookIsNeeded(fn_oid)							\
 	(!needs_fmgr_hook ? false : (*needs_fmgr_hook)(fn_oid))
