@@ -673,6 +673,7 @@ ExecStatus
 ExecStatusType
 ExecuteStmt
 ExecutorCheckPerms_hook_type
+TriggerRecuresiveCheck_hook_type
 ExecutorEnd_hook_type
 ExecutorFinish_hook_type
 ExecutorRun_hook_type

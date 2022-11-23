@@ -5290,7 +5290,7 @@ isTsqlInsteadofTriggerExecution(EState *estate, ResultRelInfo *relinfo, TriggerE
 	{
 		Trigger *trigger = &trigdesc->triggers[i];
 		if (TriggerEnabled(estate, relinfo, trigger, event, NULL, NULL, NULL)){
-			return true;
+			return !TsqlRecuresiveCheck(relinfo);
 		}
 	}
 	return false;
@@ -7193,6 +7193,12 @@ void BeginCompositeTriggers(MemoryContext curCxt)
 {
 	compositeTriggers.triggerLevel++;
 	compositeTriggers.curCxt = curCxt;
+}
+
+bool TsqlRecuresiveCheck(ResultRelInfo *resultRelInfo){
+	if (TriggerRecuresiveCheck_hook)
+		return TriggerRecuresiveCheck_hook(resultRelInfo);
+	else return false;
 }
 
 /*

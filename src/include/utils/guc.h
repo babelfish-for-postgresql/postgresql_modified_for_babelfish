@@ -271,6 +271,8 @@ extern PGDLLIMPORT double log_xact_sample_rate;
 extern PGDLLIMPORT char *backtrace_functions;
 extern PGDLLIMPORT char *backtrace_symbol_list;
 
+extern bool pltsql_recursive_triggers;
+
 extern PGDLLIMPORT int temp_file_limit;
 
 extern PGDLLIMPORT int num_temp_buffers;
