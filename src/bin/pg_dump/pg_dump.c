@@ -3349,6 +3349,10 @@ dumpDatabaseConfig(Archive *AH, PQExpBuffer outbuf,
 		}
 	}
 
+	/* Dump babelfish specific GUCs for which the user defined value should be persisted during upgrade */
+	if (isBabelfishDatabase(AH))
+		dumpBabelfishSpecificConfig(AH, dbname, outbuf);
+
 	/* Now look for role-and-database-specific options */
 	if (AH->remoteVersion >= 90000)
 	{
