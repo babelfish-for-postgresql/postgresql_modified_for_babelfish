@@ -16,7 +16,6 @@
 #include "catalog/pg_type_d.h"
 #include "common/logging.h"
 #include "dump_babel_utils.h"
-#include "dumputils.h"
 #include "pg_backup_db.h"
 #include "pg_dump.h"
 #include "pqexpbuffer.h"
