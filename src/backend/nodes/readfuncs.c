@@ -613,8 +613,8 @@ _readConst(void)
 	else
 		local_node->constvalue = readDatum(local_node->constbyval);
 	
-	if (local_node->constcollid == DEFAULT_COLLATION_OID)
-		local_node->constcollid = CLUSTER_COLLATION_OID();
+	//if (local_node->constcollid == DEFAULT_COLLATION_OID)
+	//	local_node->constcollid = CLUSTER_COLLATION_OID();
 
 	READ_DONE();
 }
@@ -634,8 +634,8 @@ _readParam(void)
 	READ_OID_FIELD(paramcollid);
 	READ_LOCATION_FIELD(location);
 
-	if (local_node->paramcollid == DEFAULT_COLLATION_OID)
-		local_node->paramcollid = CLUSTER_COLLATION_OID();
+	//if (local_node->paramcollid == DEFAULT_COLLATION_OID)
+	//	local_node->paramcollid = CLUSTER_COLLATION_OID();
 
 	READ_DONE();
 }
