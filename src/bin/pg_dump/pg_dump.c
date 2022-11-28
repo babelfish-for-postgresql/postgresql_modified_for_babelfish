@@ -3248,6 +3248,10 @@ dumpDatabaseConfig(Archive *AH, PQExpBuffer outbuf,
 
 	PQclear(res);
 
+	/* Dump babelfish specific GUCs for which the user defined value should be persisted during upgrade */
+	if (isBabelfishDatabase(AH))
+		dumpBabelfishSpecificConfig(AH, dbname, outbuf);
+
 	/* Now look for role-and-database-specific options */
 	printfPQExpBuffer(buf, "SELECT rolname, unnest(setconfig) "
 					  "FROM pg_db_role_setting s, pg_roles r "

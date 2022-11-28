@@ -59,4 +59,8 @@ extern Oid	AlterTypeNamespaceInternal(Oid typeOid, Oid nspOid,
 extern ObjectAddress AlterType(AlterTypeStmt *stmt);
 
 extern bool enable_domain_typmod;
+
+typedef Oid (*define_type_default_collation_hook_type)(Oid);
+extern PGDLLIMPORT define_type_default_collation_hook_type define_type_default_collation_hook;
+
 #endif							/* TYPECMDS_H */
