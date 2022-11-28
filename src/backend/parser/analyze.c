@@ -223,6 +223,9 @@ parse_analyze_withcb(RawStmt *parseTree, const char *sourceText,
 	pstate->p_queryEnv = queryEnv;
 	(*parserSetup) (pstate, parserSetupArg);
 
+	if (pre_parse_analyze_hook)
+		(*pre_parse_analyze_hook) (pstate, parseTree);
+
 	query = transformTopLevelStmt(pstate, parseTree);
 
 	if (IsQueryIdEnabled())

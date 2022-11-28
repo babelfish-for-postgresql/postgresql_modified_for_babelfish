@@ -2433,12 +2433,20 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 	{
 		foreach(lc, constraint->keys)
 		{
-			char	   *key = strVal(lfirst(lc));
+			char	   *key;
 			bool		found = false;
 			bool		forced_not_null = false;
 			ColumnDef  *column = NULL;
 			ListCell   *columns;
 			IndexElem  *iparam;
+
+			/* T-SQL parser might have directly prepared indexElem */
+			if (nodeTag(lfirst(lc)) == T_IndexElem) {
+				IndexElem * i = (IndexElem *) lfirst(lc);
+				key = i->name;
+			}
+			else
+				key = strVal(lfirst(lc));
 
 			/* Make sure referenced column exists. */
 			foreach(columns, cxt->columns)
