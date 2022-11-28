@@ -32,7 +32,6 @@
 
 #include <math.h>
 
-#include "catalog/pg_collation.h"
 #include "fmgr.h"
 #include "miscadmin.h"
 #include "nodes/extensible.h"
