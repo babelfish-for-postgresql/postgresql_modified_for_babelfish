@@ -443,3 +443,51 @@ setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *fi
 			break;
 	}
 }
+
+/*
+ * getCurrentSetting - returns current setting of given guc
+ * Note that, return result is palloc'd which should be freed by caller
+ */
+static char *
+getCurrentSetting(Archive *AH, const char *guc)
+{
+	PGresult *res;
+	PQExpBuffer query;
+	char *setting;
+
+	query = createPQExpBuffer();
+	appendPQExpBuffer(query, "select setting from pg_settings where name = \'%s\';", guc);
+	res = ExecuteSqlQueryForSingleRow(AH, query->data);
+	setting = pg_strdup(PQgetvalue(res, 0, 0));
+
+	destroyPQExpBuffer(query);
+	PQclear(res);
+
+	return setting;
+}
+
+/*
+ * dumpBabelfishSpecificConfig - dump "alter database %S set ... = /'%s/'" for the babelfish specific GUCs for which
+ * the user defined value should be persisted during upgrade e.g., babelfishpg_tsql.server_collation_name and
+ * babelfishpg_tsql.default_locale.
+ */
+void
+dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf)
+{
+	char	*current_server_collation_name = NULL,
+			*current_default_locale = NULL;
+
+	current_server_collation_name = getCurrentSetting(AH, "babelfishpg_tsql.server_collation_name");
+	if (current_server_collation_name)
+	{
+		appendPQExpBuffer(outbuf, "alter database %s set babelfishpg_tsql.restored_server_collation_name = \'%s\';\n", dbname, current_server_collation_name);
+		pfree(current_server_collation_name);
+	}
+
+	current_default_locale = getCurrentSetting(AH, "babelfishpg_tsql.default_locale");
+	if (current_default_locale)
+	{
+		appendPQExpBuffer(outbuf, "alter database %s set babelfishpg_tsql.restored_default_locale = \'%s\';\n", dbname, current_default_locale);
+		pfree(current_default_locale);
+	}
+}
