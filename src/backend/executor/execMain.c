@@ -1863,7 +1863,7 @@ ExecPartitionCheckEmitError(ResultRelInfo *resultRelInfo,
 
 		old_tupdesc = RelationGetDescr(resultRelInfo->ri_RelationDesc);
 		/* a reverse map */
-		map = build_attrmap_by_name_if_req(old_tupdesc, tupdesc);
+		map = build_attrmap_by_name_if_req(old_tupdesc, tupdesc, false);
 
 		/*
 		 * Partition-specific slot's tupdesc can't be changed, so allocate a
@@ -1948,7 +1948,8 @@ ExecConstraints(ResultRelInfo *resultRelInfo,
 					tupdesc = RelationGetDescr(rootrel->ri_RelationDesc);
 					/* a reverse map */
 					map = build_attrmap_by_name_if_req(orig_tupdesc,
-													   tupdesc);
+													   tupdesc,
+													   false);
 
 					/*
 					 * Partition-specific slot's tupdesc can't be changed, so
@@ -2000,7 +2001,8 @@ ExecConstraints(ResultRelInfo *resultRelInfo,
 				tupdesc = RelationGetDescr(rootrel->ri_RelationDesc);
 				/* a reverse map */
 				map = build_attrmap_by_name_if_req(old_tupdesc,
-												   tupdesc);
+												   tupdesc,
+												   false);
 
 				/*
 				 * Partition-specific slot's tupdesc can't be changed, so
@@ -2107,7 +2109,8 @@ ExecWithCheckOptions(WCOKind kind, ResultRelInfo *resultRelInfo,
 						tupdesc = RelationGetDescr(rootrel->ri_RelationDesc);
 						/* a reverse map */
 						map = build_attrmap_by_name_if_req(old_tupdesc,
-														   tupdesc);
+														   tupdesc,
+														   false);
 
 						/*
 						 * Partition-specific slot's tupdesc can't be changed,
