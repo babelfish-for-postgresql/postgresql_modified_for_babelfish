@@ -445,18 +445,19 @@ setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *fi
 }
 
 /*
- * getCurrentSetting - returns current setting of given guc
+ * getCurrentServerCollationNameSetting - returns current setting of babelfishpg_tsql.server_collation_name guc which
+ * should be same as the default collation of _ci_sysname data type.
  * Note that, return result is palloc'd which should be freed by caller
  */
 static char *
-getCurrentSetting(Archive *AH, const char *guc)
+getCurrentServerCollationNameSetting(Archive *AH)
 {
 	PGresult *res;
 	PQExpBuffer query;
 	char *setting;
 
 	query = createPQExpBuffer();
-	appendPQExpBuffer(query, "select setting from pg_settings where name = \'%s\';", guc);
+	appendPQExpBuffer(query, "select collname from pg_collation where oid = (select typcollation from pg_type where typname = \'_ci_sysname\');");
 	res = ExecuteSqlQueryForSingleRow(AH, query->data);
 	setting = pg_strdup(PQgetvalue(res, 0, 0));
 
@@ -474,20 +475,12 @@ getCurrentSetting(Archive *AH, const char *guc)
 void
 dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf)
 {
-	char	*current_server_collation_name = NULL,
-			*current_default_locale = NULL;
+	char	*current_server_collation_name = NULL;
 
-	current_server_collation_name = getCurrentSetting(AH, "babelfishpg_tsql.server_collation_name");
+	current_server_collation_name = getCurrentServerCollationNameSetting(AH);
 	if (current_server_collation_name)
 	{
 		appendPQExpBuffer(outbuf, "alter database %s set babelfishpg_tsql.restored_server_collation_name = \'%s\';\n", dbname, current_server_collation_name);
 		pfree(current_server_collation_name);
-	}
-
-	current_default_locale = getCurrentSetting(AH, "babelfishpg_tsql.default_locale");
-	if (current_default_locale)
-	{
-		appendPQExpBuffer(outbuf, "alter database %s set babelfishpg_tsql.restored_default_locale = \'%s\';\n", dbname, current_default_locale);
-		pfree(current_default_locale);
 	}
 }
