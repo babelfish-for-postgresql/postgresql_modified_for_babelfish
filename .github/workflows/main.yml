@@ -13,8 +13,8 @@ jobs:
         uses: actions/checkout@v2
       - name: build-postgres
         run: |
-          ./configure CFLAGS="-Werror"
-          make world-bin -j8
+          ./configure
+          make world-bin -j8 COPT='-Werror'
       - name: run-tests
         run: |
           make check -j8
