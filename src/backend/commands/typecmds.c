@@ -78,6 +78,8 @@
 
 bool enable_domain_typmod = false;
 
+define_type_default_collation_hook_type define_type_default_collation_hook = NULL;
+
 /* result structure for get_rels_with_domain() */
 typedef struct
 {
@@ -455,8 +457,16 @@ DefineType(ParseState *pstate, List *names, List *parameters)
 					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 					 errmsg("storage \"%s\" not recognized", a)));
 	}
+
 	if (collatableEl)
 		collation = defGetBoolean(collatableEl) ? DEFAULT_COLLATION_OID : InvalidOid;
+
+	/*
+	 * For Babelfish, we are creating new types during create extension time under sys schema,
+	 * We want these data types being created under sys schema to have the correct default tsql collation.
+	 */
+	if (collatableEl && defGetBoolean(collatableEl) && define_type_default_collation_hook)
+		collation = (*define_type_default_collation_hook)(typeNamespace);
 
 	/*
 	 * make sure we have our required definitions
