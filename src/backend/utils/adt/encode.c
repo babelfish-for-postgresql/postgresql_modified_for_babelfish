@@ -223,43 +223,6 @@ hex_decode(const char *src, size_t len, char *dst)
 	return p - dst;
 }
 
-/* A variant of the above hex_decode function, but allows odd number of hex digits */
-uint64
-hex_decode_allow_odd_digits(const char *src, unsigned len, char *dst)
-{
-	const char *s,
-			   *srcend;
-	char		v1,
-				v2,
-			   *p;
-
-	srcend = src + len;
-	s = src;
-	p = dst;
-
-	if (len % 2 == 1)
-	{
-		/* If input has odd number of hex digits, add a 0 to the front to make it even */
-		v1 = '\0';
-		v2 = get_hex(*s++);
-		*p++ = v1 | v2;
-	}
-	/* The rest of the input must have even number of digits*/
-	while (s < srcend)
-	{
-		if (*s == ' ' || *s == '\n' || *s == '\t' || *s == '\r')
-		{
-			s++;
-			continue;
-		}
-		v1 = get_hex(*s++) << 4;
-		v2 = get_hex(*s++);
-		*p++ = v1 | v2;
-	}
-
-	return p - dst;
-}
-
 static uint64
 hex_enc_len(const char *src, size_t srclen)
 {
