@@ -5915,14 +5915,7 @@ bigint_poly_sum(PG_FUNCTION_ARGS)
 {
 
 	PolyNumAggState		*state;
-	#ifdef HAVE_INT128
-		int128		result;
-	#else
-		Datum temp;
-		bool is_overflow;
-		int64 result;
-		NumericVar nvar;
-	#endif
+	
 
 	state = PG_ARGISNULL(0) ? NULL : (PolyNumAggState *) PG_GETARG_POINTER(0);
 	/* If there were no non-null inputs, return NULL */
@@ -5930,6 +5923,7 @@ bigint_poly_sum(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 
 	#ifdef HAVE_INT128
+		int128		result;
 		result = state->sumX;
 
 		if (unlikely(result < PG_INT64_MIN) || unlikely(result > PG_INT64_MAX))
@@ -5941,6 +5935,10 @@ bigint_poly_sum(PG_FUNCTION_ARGS)
 		else
 			PG_RETURN_INT64((int64) result);
 	#else
+		Datum temp;
+		bool is_overflow;
+		int64 result;
+		NumericVar nvar;
 		temp = numeric_sum(fcinfo);
 		init_var(&nvar);
 		set_var_from_num(DatumGetNumeric(temp), &nvar);
