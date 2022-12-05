@@ -13,8 +13,6 @@
 
 # AIX make defaults to building *every* target of the first rule.  Start with
 # a single-target, empty rule to make the other targets non-default.
-export COPT=$COPT" -Werror"  # all warnings being treated as errors
-
 all:
 
 all check install installdirs installcheck installcheck-parallel uninstall clean distclean maintainer-clean dist distcheck world check-world install-world installcheck-world:
