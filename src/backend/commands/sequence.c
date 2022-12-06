@@ -1393,7 +1393,13 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 	/* AS type */
 	if (as_type != NULL)
 	{
-		Oid			newtypid = typenameTypeId(pstate, defGetTypeName(as_type));
+		/*
+		 * typenameTypeID is called after the hook to modify the schema name
+		 * internally used within the function when sequence is defined using a
+		 * user-defined data type
+		 */
+
+		Oid			newtypid = 0;
 
 		if (pltsql_sequence_datatype_hook)
 			(* pltsql_sequence_datatype_hook) (pstate,
@@ -1402,6 +1408,8 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 											   as_type,
 											   &max_value,
 											   &min_value);
+
+		if(!newtypid) newtypid = typenameTypeId(pstate,defGetTypeName(as_type));
 
 		if (newtypid != INT2OID &&
 			newtypid != INT4OID &&
