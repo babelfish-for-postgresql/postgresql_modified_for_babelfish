@@ -111,7 +111,7 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
 	{
 		LOCKMODE	lockmode = is_from ? RowExclusiveLock : AccessShareLock;
 		ParseNamespaceItem *nsitem;
-		RangeTblEntry *rte;
+		RTEPermissionInfo *perminfo;
 		TupleDesc	tupDesc;
 		List	   *attnums;
 		ListCell   *cur;
@@ -125,8 +125,9 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
 
 		nsitem = addRangeTableEntryForRelation(pstate, rel, lockmode,
 											   NULL, false, false);
-		rte = nsitem->p_rte;
-		rte->requiredPerms = (is_from ? ACL_INSERT : ACL_SELECT);
+
+		perminfo = nsitem->p_perminfo;
+		perminfo->requiredPerms = (is_from ? ACL_INSERT : ACL_SELECT);
 
 		if (stmt->whereClause)
 		{
@@ -152,15 +153,15 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
 		attnums = CopyGetAttnums(tupDesc, rel, stmt->attlist);
 		foreach(cur, attnums)
 		{
-			int			attno = lfirst_int(cur) -
-			FirstLowInvalidHeapAttributeNumber;
+			int			attno;
+			Bitmapset **bms;
 
-			if (is_from)
-				rte->insertedCols = bms_add_member(rte->insertedCols, attno);
-			else
-				rte->selectedCols = bms_add_member(rte->selectedCols, attno);
+			attno = lfirst_int(cur) - FirstLowInvalidHeapAttributeNumber;
+			bms = is_from ? &perminfo->insertedCols : &perminfo->selectedCols;
+
+			*bms = bms_add_member(*bms, attno);
 		}
-		ExecCheckRTPerms(pstate->p_rtable, true);
+		ExecCheckPermissions(pstate->p_rtable, list_make1(perminfo), true);
 
 		/*
 		 * Permission check for row security policies.
@@ -176,7 +177,7 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
 		 * If RLS is not enabled for this, then just fall through to the
 		 * normal non-filtering relation handling.
 		 */
-		if (check_enable_rls(rte->relid, InvalidOid, false) == RLS_ENABLED)
+		if (check_enable_rls(relid, InvalidOid, false) == RLS_ENABLED)
 		{
 			SelectStmt *select;
 			ColumnRef  *cr;
