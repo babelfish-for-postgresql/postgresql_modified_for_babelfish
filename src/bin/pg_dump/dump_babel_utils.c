@@ -443,3 +443,44 @@ setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *fi
 			break;
 	}
 }
+
+/*
+ * getCurrentServerCollationNameSetting - returns current setting of babelfishpg_tsql.server_collation_name guc which
+ * should be same as the default collation of _ci_sysname data type.
+ * Note that, return result is palloc'd which should be freed by caller
+ */
+static char *
+getCurrentServerCollationNameSetting(Archive *AH)
+{
+	PGresult *res;
+	PQExpBuffer query;
+	char *setting;
+
+	query = createPQExpBuffer();
+	appendPQExpBuffer(query, "select collname from pg_collation where oid = (select typcollation from pg_type where typname = \'_ci_sysname\');");
+	res = ExecuteSqlQueryForSingleRow(AH, query->data);
+	setting = pg_strdup(PQgetvalue(res, 0, 0));
+
+	destroyPQExpBuffer(query);
+	PQclear(res);
+
+	return setting;
+}
+
+/*
+ * dumpBabelfishSpecificConfig - dump "alter database %S set ... = /'%s/'" for the babelfish specific GUCs for which
+ * the user defined value should be persisted during upgrade e.g., babelfishpg_tsql.server_collation_name and
+ * babelfishpg_tsql.default_locale.
+ */
+void
+dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf)
+{
+	char	*current_server_collation_name = NULL;
+
+	current_server_collation_name = getCurrentServerCollationNameSetting(AH);
+	if (current_server_collation_name)
+	{
+		appendPQExpBuffer(outbuf, "alter database %s set babelfishpg_tsql.restored_server_collation_name = \'%s\';\n", dbname, current_server_collation_name);
+		pfree(current_server_collation_name);
+	}
+}
