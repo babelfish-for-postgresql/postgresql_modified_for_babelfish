@@ -31,6 +31,7 @@ static int32 typenameTypeMod(ParseState *pstate, const TypeName *typeName,
 							 Type typ);
 
 check_or_set_default_typmod_hook_type check_or_set_default_typmod_hook = NULL;
+verify_valid_scale_in_variable_length_datatypes_hook_type verify_valid_scale_in_variable_length_datatypes_hook = NULL;
 
 /*
  * LookupTypeName
@@ -340,6 +341,9 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 	ListCell   *l;
 	ArrayType  *arrtypmod;
 	ParseCallbackState pcbstate;
+	int count = 0;
+	int scale[2] = {-1, -1};
+	char *dataTypeName = NULL;
 
 	/* Return prespecified typmod if no typmod expressions */
 	if (typeName->typmods == NIL)
@@ -384,7 +388,9 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 
 			if (IsA(&ac->val, Integer))
 			{
-				cstr = psprintf("%ld", (long) intVal(&ac->val));
+				scale[count] = intVal(&ac->val);
+				cstr = psprintf("%ld", (long) scale[count]);
+				count++;
 			}
 			else if (IsA(&ac->val, Float))
 			{
@@ -412,6 +418,26 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 					 parser_errposition(pstate, typeName->location)));
 		datums[n++] = CStringGetDatum(cstr);
 	}
+
+	dataTypeName = TypeNameToString(typeName);
+	/*
+	 * Since numeric/decimal datatype stores precision first, swapping scale[0] and scale[1] so that
+	 * scale[0] = scale for all datatypes
+	 * scale[1] = precision for numeric/decimal
+	 */
+	if (strstr(dataTypeName, "numeric") || strstr(dataTypeName, "decimal"))
+	{
+		count = scale[0];
+		scale[0] = scale[1];
+		scale[1] = count;
+	}
+
+	/*
+	 * Checks whether variable length datatypes like numeric, decimal, time, datetime2, datetimeoffset
+	 * are declared with permissible datalength at the time of table or stored procedure creation
+	 */
+	if (verify_valid_scale_in_variable_length_datatypes_hook)
+		(*verify_valid_scale_in_variable_length_datatypes_hook)(dataTypeName, scale[0], scale[1]);
 
 	/* hardwired knowledge about cstring's representation details here */
 	arrtypmod = construct_array(datums, n, CSTRINGOID,
