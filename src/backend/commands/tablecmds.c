@@ -4133,8 +4133,7 @@ AlterTableLookupRelation(AlterTableStmt *stmt, LOCKMODE lockmode)
  * For most subcommand types, phases 2 and 3 do no explicit recursion,
  * since phase 1 already does it.  However, for certain subcommand types
  * it is only possible to determine how to recurse at phase 2 time; for
- * those cases, phase 1 sets the cmd->recurse flag (or, in some older coding,
- * changes the command subtype of a "Recurse" variant XXX to be cleaned up.)
+ * those cases, phase 1 sets the cmd->recurse flag.
  *
  * Thanks to the magic of MVCC, an error anywhere along the way rolls back
  * the whole operation; we don't have to do anything special to clean up.
@@ -4339,7 +4338,6 @@ AlterTableGetLockLevel(List *cmds)
 				break;
 
 			case AT_AddConstraint:
-			case AT_AddConstraintRecurse:	/* becomes AT_AddConstraint */
 			case AT_ReAddConstraint:	/* becomes AT_AddConstraint */
 			case AT_ReAddDomainConstraint:	/* becomes AT_AddConstraint */
 				if (IsA(cmd->def, Constraint))
@@ -4691,7 +4689,7 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
 			/* Recursion occurs during execution phase */
 			/* No command-specific prep needed except saving recurse flag */
 			if (recurse)
-				cmd->subtype = AT_AddConstraintRecurse;
+				cmd->recurse = true;
 			pass = AT_PASS_ADD_CONSTR;
 			break;
 		case AT_AddIndexConstraint: /* ADD CONSTRAINT USING INDEX */
@@ -4706,7 +4704,7 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
 			/* Other recursion occurs during execution phase */
 			/* No command-specific prep needed except saving recurse flag */
 			if (recurse)
-				cmd->subtype = AT_DropConstraintRecurse;
+				cmd->recurse = true;
 			pass = AT_PASS_DROP;
 			break;
 		case AT_AlterColumnType:	/* ALTER COLUMN TYPE */
@@ -4828,7 +4826,7 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
 			/* Recursion occurs during execution phase */
 			/* No command-specific prep needed except saving recurse flag */
 			if (recurse)
-				cmd->subtype = AT_ValidateConstraintRecurse;
+				cmd->recurse = true;
 			pass = AT_PASS_MISC;
 			break;
 		case AT_ReplicaIdentity:	/* REPLICA IDENTITY ... */
@@ -4993,12 +4991,7 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab,
 		case AT_AddColumn:		/* ADD COLUMN */
 		case AT_AddColumnToView:	/* add column via CREATE OR REPLACE VIEW */
 			address = ATExecAddColumn(wqueue, tab, rel, &cmd,
-									  false, false,
-									  lockmode, cur_pass, context);
-			break;
-		case AT_AddColumnRecurse:
-			address = ATExecAddColumn(wqueue, tab, rel, &cmd,
-									  true, false,
+									  cmd->recurse, false,
 									  lockmode, cur_pass, context);
 			break;
 		case AT_ColumnDefault:	/* ALTER COLUMN DEFAULT */
@@ -5052,13 +5045,7 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab,
 			break;
 		case AT_DropColumn:		/* DROP COLUMN */
 			address = ATExecDropColumn(wqueue, rel, cmd->name,
-									   cmd->behavior, false, false,
-									   cmd->missing_ok, lockmode,
-									   NULL);
-			break;
-		case AT_DropColumnRecurse:	/* DROP COLUMN with recursion */
-			address = ATExecDropColumn(wqueue, rel, cmd->name,
-									   cmd->behavior, true, false,
+									   cmd->behavior, cmd->recurse, false,
 									   cmd->missing_ok, lockmode,
 									   NULL);
 			break;
@@ -5078,27 +5065,14 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab,
 			/* Transform the command only during initial examination */
 			if (cur_pass == AT_PASS_ADD_CONSTR)
 				cmd = ATParseTransformCmd(wqueue, tab, rel, cmd,
-										  false, lockmode,
+										  cmd->recurse, lockmode,
 										  cur_pass, context);
 			/* Depending on constraint type, might be no more work to do now */
 			if (cmd != NULL)
 				address =
 					ATExecAddConstraint(wqueue, tab, rel,
 										(Constraint *) cmd->def,
-										false, false, lockmode);
-			break;
-		case AT_AddConstraintRecurse:	/* ADD CONSTRAINT with recursion */
-			/* Transform the command only during initial examination */
-			if (cur_pass == AT_PASS_ADD_CONSTR)
-				cmd = ATParseTransformCmd(wqueue, tab, rel, cmd,
-										  true, lockmode,
-										  cur_pass, context);
-			/* Depending on constraint type, might be no more work to do now */
-			if (cmd != NULL)
-				address =
-					ATExecAddConstraint(wqueue, tab, rel,
-										(Constraint *) cmd->def,
-										true, false, lockmode);
+										cmd->recurse, false, lockmode);
 			break;
 		case AT_ReAddConstraint:	/* Re-add pre-existing check constraint */
 			address =
@@ -5123,22 +5097,12 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab,
 			address = ATExecAlterConstraint(rel, cmd, false, false, lockmode);
 			break;
 		case AT_ValidateConstraint: /* VALIDATE CONSTRAINT */
-			address = ATExecValidateConstraint(wqueue, rel, cmd->name, false,
-											   false, lockmode);
-			break;
-		case AT_ValidateConstraintRecurse:	/* VALIDATE CONSTRAINT with
-											 * recursion */
-			address = ATExecValidateConstraint(wqueue, rel, cmd->name, true,
+			address = ATExecValidateConstraint(wqueue, rel, cmd->name, cmd->recurse,
 											   false, lockmode);
 			break;
 		case AT_DropConstraint: /* DROP CONSTRAINT */
 			ATExecDropConstraint(rel, cmd->name, cmd->behavior,
-								 false, false,
-								 cmd->missing_ok, lockmode);
-			break;
-		case AT_DropConstraintRecurse:	/* DROP CONSTRAINT with recursion */
-			ATExecDropConstraint(rel, cmd->name, cmd->behavior,
-								 true, false,
+								 cmd->recurse, false,
 								 cmd->missing_ok, lockmode);
 			break;
 		case AT_AlterColumnType:	/* ALTER COLUMN TYPE */
@@ -5414,7 +5378,7 @@ ATParseTransformCmd(List **wqueue, AlteredTableInfo *tab, Relation rel,
 			case AT_AddConstraint:
 				/* Recursion occurs during execution phase */
 				if (recurse)
-					cmd2->subtype = AT_AddConstraintRecurse;
+					cmd2->recurse = true;
 				switch (castNode(Constraint, cmd2->def)->contype)
 				{
 					case CONSTR_PRIMARY:
@@ -6173,7 +6137,6 @@ alter_table_type_to_string(AlterTableType cmdtype)
 	switch (cmdtype)
 	{
 		case AT_AddColumn:
-		case AT_AddColumnRecurse:
 		case AT_AddColumnToView:
 			return "ADD COLUMN";
 		case AT_ColumnDefault:
@@ -6198,13 +6161,11 @@ alter_table_type_to_string(AlterTableType cmdtype)
 		case AT_SetCompression:
 			return "ALTER COLUMN ... SET COMPRESSION";
 		case AT_DropColumn:
-		case AT_DropColumnRecurse:
 			return "DROP COLUMN";
 		case AT_AddIndex:
 		case AT_ReAddIndex:
 			return NULL;		/* not real grammar */
 		case AT_AddConstraint:
-		case AT_AddConstraintRecurse:
 		case AT_ReAddConstraint:
 		case AT_ReAddDomainConstraint:
 		case AT_AddIndexConstraint:
@@ -6212,10 +6173,8 @@ alter_table_type_to_string(AlterTableType cmdtype)
 		case AT_AlterConstraint:
 			return "ALTER CONSTRAINT";
 		case AT_ValidateConstraint:
-		case AT_ValidateConstraintRecurse:
 			return "VALIDATE CONSTRAINT";
 		case AT_DropConstraint:
-		case AT_DropConstraintRecurse:
 			return "DROP CONSTRAINT";
 		case AT_ReAddComment:
 			return NULL;		/* not real grammar */
@@ -6734,7 +6693,7 @@ ATPrepAddColumn(List **wqueue, Relation rel, bool recurse, bool recursing,
 		ATTypedTableRecursion(wqueue, rel, cmd, lockmode, context);
 
 	if (recurse && !is_view)
-		cmd->subtype = AT_AddColumnRecurse;
+		cmd->recurse = true;
 }
 
 /*
@@ -8448,7 +8407,7 @@ ATPrepDropColumn(List **wqueue, Relation rel, bool recurse, bool recursing,
 		ATTypedTableRecursion(wqueue, rel, cmd, lockmode, context);
 
 	if (recurse)
-		cmd->subtype = AT_DropColumnRecurse;
+		cmd->recurse = true;
 }
 
 /*
