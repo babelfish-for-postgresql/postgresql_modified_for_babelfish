@@ -27,6 +27,7 @@
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
+#include "parser/parser.h"
 #include "pgstat.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
@@ -707,10 +708,10 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	PgStat_FunctionCallUsage fcusage;
 	Oid			pltsql_lang_oid, pltsql_validator_oid;
 	bool		set_sql_dialect;
-	char		*sql_dialect_value;
-	const char	*sql_dialect_value_old;
-	char		*pg_dialect = "postgres";
-	char		*tsql_dialect = "tsql";
+	int			sql_dialect_value;
+	int			sql_dialect_value_old;
+	int			pg_dialect = 0;
+	int			tsql_dialect = 1;
 	int			sys_func_count = 0;
 	int			non_tsql_proc_count = 0;
 
@@ -821,14 +822,9 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		}
 
 		ReleaseSysCache(tuple);
-		sql_dialect_value_old = GetConfigOption("babelfishpg_tsql.sql_dialect", true, true);
-		set_config_option("babelfishpg_tsql.sql_dialect", sql_dialect_value,
-						  (superuser() ? PGC_SUSET : PGC_USERSET),
-						  PGC_S_SESSION,
-						  GUC_ACTION_SAVE,
-						  true,
-						  0,
-						  false);
+		sql_dialect_value_old = sql_dialect;
+		sql_dialect = sql_dialect_value;
+
 	}
 
 	/* function manager hook */
@@ -872,13 +868,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		 * design for PG vs TSQL procedures.
 		 */
 		if (set_sql_dialect)
-			set_config_option("babelfishpg_tsql.sql_dialect", sql_dialect_value_old,
-							  (superuser() ? PGC_SUSET : PGC_USERSET),
-							  PGC_S_SESSION,
-							  GUC_ACTION_SAVE,
-							  true,
-							  0,
-							  false);
+			sql_dialect = sql_dialect_value_old;
 
 		PG_RE_THROW();
 	}
@@ -888,14 +878,9 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 
 	if (set_sql_dialect)
 	{
-		set_config_option("babelfishpg_tsql.sql_dialect", sql_dialect_value_old,
-						  (superuser() ? PGC_SUSET : PGC_USERSET),
-						  PGC_S_SESSION,
-						  GUC_ACTION_SAVE,
-						  true,
-						  0,
-						  false);
-		if (strncmp(sql_dialect_value, pg_dialect, strlen(pg_dialect)) == 0)
+
+		sql_dialect = sql_dialect_value_old;
+		if (sql_dialect_value == pg_dialect)
 			non_tsql_proc_entry_hook(non_tsql_proc_count * -1, sys_func_count * -1);
 	}
 	else if (fcache->proconfig)
