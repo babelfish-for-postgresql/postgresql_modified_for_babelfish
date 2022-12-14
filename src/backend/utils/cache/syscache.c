@@ -1056,7 +1056,7 @@ InitCatalogCache(void)
 {
 	int			cacheId;
 
-	StaticAssertStmt(SysCacheNoExtensionSize == (int) lengthof(cacheinfo),
+	StaticAssertStmt(lengthof(cacheinfo) == SysCacheNoExtensionSize,
 					 "SysCacheSize does not match syscache.c's array");
 
 	Assert(!CacheInitialized);
