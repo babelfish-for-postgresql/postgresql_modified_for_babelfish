@@ -132,9 +132,13 @@ anychar_typmodout(int32 typmod)
  *
  * If the input string is too long, raise an error, unless the extra
  * characters are spaces, in which case they're truncated.  (per SQL)
+ *
+ * If escontext points to an ErrorSaveContext node, that is filled instead
+ * of throwing an error; the caller must check SOFT_ERROR_OCCURRED()
+ * to detect errors.
  */
 static BpChar *
-bpchar_input(const char *s, size_t len, int32 atttypmod)
+bpchar_input(const char *s, size_t len, int32 atttypmod, Node *escontext)
 {
 	BpChar	   *result;
 	char	   *r;
@@ -163,7 +167,7 @@ bpchar_input(const char *s, size_t len, int32 atttypmod)
 			for (j = mbmaxlen; j < len; j++)
 			{
 				if (s[j] != ' ')
-					ereport(ERROR,
+					ereturn(escontext, NULL,
 							(errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
 							 errmsg("value too long for type character(%d)",
 									(int) maxlen)));
@@ -205,14 +209,13 @@ Datum
 bpcharin(PG_FUNCTION_ARGS)
 {
 	char	   *s = PG_GETARG_CSTRING(0);
-
 #ifdef NOT_USED
 	Oid			typelem = PG_GETARG_OID(1);
 #endif
 	int32		atttypmod = PG_GETARG_INT32(2);
 	BpChar	   *result;
 
-	result = bpchar_input(s, strlen(s), atttypmod);
+	result = bpchar_input(s, strlen(s), atttypmod, fcinfo->context);
 	PG_RETURN_BPCHAR_P(result);
 }
 
@@ -238,7 +241,6 @@ Datum
 bpcharrecv(PG_FUNCTION_ARGS)
 {
 	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
-
 #ifdef NOT_USED
 	Oid			typelem = PG_GETARG_OID(1);
 #endif
@@ -248,7 +250,7 @@ bpcharrecv(PG_FUNCTION_ARGS)
 	int			nbytes;
 
 	str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
-	result = bpchar_input(str, nbytes, atttypmod);
+	result = bpchar_input(str, nbytes, atttypmod, NULL);
 	pfree(str);
 	PG_RETURN_BPCHAR_P(result);
 }
@@ -460,11 +462,12 @@ bpchartypmodout(PG_FUNCTION_ARGS)
  * If the input string is too long, raise an error, unless the extra
  * characters are spaces, in which case they're truncated.  (per SQL)
  *
- * Uses the C string to text conversion function, which is only appropriate
- * if VarChar and text are equivalent types.
+ * If escontext points to an ErrorSaveContext node, that is filled instead
+ * of throwing an error; the caller must check SOFT_ERROR_OCCURRED()
+ * to detect errors.
  */
 static VarChar *
-varchar_input(const char *s, size_t len, int32 atttypmod)
+varchar_input(const char *s, size_t len, int32 atttypmod, Node *escontext)
 {
 	VarChar    *result;
 	size_t		maxlen;
@@ -480,7 +483,7 @@ varchar_input(const char *s, size_t len, int32 atttypmod)
 		for (j = mbmaxlen; j < len; j++)
 		{
 			if (s[j] != ' ')
-				ereport(ERROR,
+				ereturn(escontext, NULL,
 						(errcode(ERRCODE_STRING_DATA_RIGHT_TRUNCATION),
 						 errmsg("value too long for type character varying(%d)",
 								(int) maxlen)));
@@ -489,6 +492,10 @@ varchar_input(const char *s, size_t len, int32 atttypmod)
 		len = mbmaxlen;
 	}
 
+	/*
+	 * We can use cstring_to_text_with_len because VarChar and text are
+	 * binary-compatible types.
+	 */
 	result = (VarChar *) cstring_to_text_with_len(s, len);
 	return result;
 }
@@ -501,14 +508,13 @@ Datum
 varcharin(PG_FUNCTION_ARGS)
 {
 	char	   *s = PG_GETARG_CSTRING(0);
-
 #ifdef NOT_USED
 	Oid			typelem = PG_GETARG_OID(1);
 #endif
 	int32		atttypmod = PG_GETARG_INT32(2);
 	VarChar    *result;
 
-	result = varchar_input(s, strlen(s), atttypmod);
+	result = varchar_input(s, strlen(s), atttypmod, fcinfo->context);
 	PG_RETURN_VARCHAR_P(result);
 }
 
@@ -534,7 +540,6 @@ Datum
 varcharrecv(PG_FUNCTION_ARGS)
 {
 	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
-
 #ifdef NOT_USED
 	Oid			typelem = PG_GETARG_OID(1);
 #endif
@@ -544,7 +549,7 @@ varcharrecv(PG_FUNCTION_ARGS)
 	int			nbytes;
 
 	str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
-	result = varchar_input(str, nbytes, atttypmod);
+	result = varchar_input(str, nbytes, atttypmod, NULL);
 	pfree(str);
 	PG_RETURN_VARCHAR_P(result);
 }

@@ -34,6 +34,8 @@ extern int	errdomainconstraint(Oid datatypeOid, const char *conname);
 /* encode.c */
 extern uint64 hex_encode(const char *src, size_t len, char *dst);
 extern uint64 hex_decode(const char *src, size_t len, char *dst);
+extern uint64 hex_decode_safe(const char *src, size_t len, char *dst,
+							  Node *escontext);
 extern PGDLLEXPORT uint64 hex_decode_allow_odd_digits(const char *src, unsigned len, char *dst);
 
 /* int.c */
