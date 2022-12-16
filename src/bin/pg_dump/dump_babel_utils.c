@@ -139,24 +139,59 @@ bbf_selectDumpableCast(CastInfo *cast)
 void
 fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 {
-	char *source = attrDefInfo->adef_expr;
-	char *runtimeErrFunc = "babelfish_runtime_error";
-	char *runtimeErrStr = "'An empty or space-only string cannot be converted into numeric/decimal data type'";
+	char *source;
+	char *substr;
 	char *atttypname;
+	char *adef_expr;
+	const char *defaultCollation = "COLLATE \"default\"";
 
-	if (!isBabelfishDatabase(fout) ||
-		!strstr(source, runtimeErrStr) ||
-		strstr(source, runtimeErrFunc) ||
-		attrDefInfo->adnum < 1)
+	if (!isBabelfishDatabase(fout) || attrDefInfo->adnum < 1)
 		return;
 
+	/* Handle default value for "numeric" and "decimal") */
 	atttypname = attrDefInfo->adtable->atttypnames[attrDefInfo->adnum - 1];
-	if (!strstr(atttypname, "decimal") && !strstr(atttypname, "numeric"))
+	if (strstr(atttypname, "decimal") || strstr(atttypname, "numeric"))
+	{
+		char *runtimeErrFunc = "babelfish_runtime_error";
+		char *runtimeErrStr = "'An empty or space-only string cannot be converted into numeric/decimal data type'";
+		source = attrDefInfo->adef_expr;
+
+		if (!strstr(source, runtimeErrStr) || strstr(source, runtimeErrFunc))
+			return;
+
+		/* Replace the default expr to runtime error function */
+		free(source);
+		attrDefInfo->adef_expr = psprintf("(sys.%s(%s::text))::integer", runtimeErrFunc, runtimeErrStr);
+		return;
+	}
+
+	/*
+	 * Remove COLLATE "default" from the end for default value clause of the column because 
+	 * it does not matter if we specify such clause for default value and column's collation
+	 * will be used at the end.
+	 */
+	adef_expr = attrDefInfo->adef_expr;
+	source = "";
+
+	if (!strstr(adef_expr, defaultCollation))
 		return;
 
-	/* Replace the default expr to runtime error function */
-	free(source);
-	attrDefInfo->adef_expr = psprintf("(sys.%s(%s::text))::integer", runtimeErrFunc, runtimeErrStr);
+	while ((substr = strstr(adef_expr, defaultCollation)) != NULL)
+	{
+		source = psprintf("%s%s", source, pnstrdup(adef_expr, substr - adef_expr));
+
+		/* skip "COLLATE \"default\" */
+		adef_expr = substr + strlen(defaultCollation);
+
+		if (!adef_expr)
+			break;
+	}
+
+	if (adef_expr)
+		source = psprintf("%s%s", source, adef_expr);
+
+	free(attrDefInfo->adef_expr);
+	attrDefInfo->adef_expr = source;
 }
 
 /*
@@ -483,4 +518,37 @@ dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf)
 		appendPQExpBuffer(outbuf, "alter database %s set babelfishpg_tsql.restored_server_collation_name = \'%s\';\n", dbname, current_server_collation_name);
 		pfree(current_server_collation_name);
 	}
+}
+
+/*
+ * babelfish_handle_view_def - Any upgraded Babelfish database from 2.1.0/2.2.0 to 2.3.0
+ * may dump extra COLLATE "default" clause around const clause inside view definition which
+ * is kind of unnecessary for tsql objects as well as for sys views. So this function remove 
+ * such clause from view definition. 
+ */
+char *
+babelfish_handle_view_def(char *view_def)
+{
+	char *substr;
+	const char *defaultCollation = "COLLATE \"default\"";
+	char *source = "";
+
+	if (!strstr(view_def, defaultCollation))
+		return view_def;
+
+	while ((substr = strstr(view_def, defaultCollation)) != NULL)
+	{
+		source = psprintf("%s%s", source, pnstrdup(view_def, substr - view_def));
+
+		/* skip "COLLATE \"default\" */
+		view_def = substr + strlen(defaultCollation);
+
+		if (!view_def)
+			break;
+	}
+
+	if (view_def)
+		source = psprintf("%s%s", source, view_def);
+
+	return source;
 }

@@ -32,5 +32,6 @@ extern int getTsqlTvfType(Archive *fout, const FuncInfo *finfo, char prokind, bo
 extern void fixAttoptionsBbfOriginalName(Archive *fout, Oid relOid, const TableInfo *tbinfo, int idx);
 extern void setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *finfo, char prokind, bool proretset, bool is_set);
 extern void dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf);
+extern char *babelfish_handle_view_def(char *view_def);
 
 #endif

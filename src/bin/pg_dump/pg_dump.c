@@ -15072,7 +15072,11 @@ createViewAsClause(Archive *fout, const TableInfo *tbinfo)
 
 	/* Strip off the trailing semicolon so that other things may follow. */
 	Assert(PQgetvalue(res, 0, 0)[len - 1] == ';');
-	appendBinaryPQExpBuffer(result, PQgetvalue(res, 0, 0), len - 1);
+
+	if (isBabelfishDatabase(fout))
+		appendBinaryPQExpBuffer(result, babelfish_handle_view_def(PQgetvalue(res, 0, 0)), len - 1);
+	else
+		appendBinaryPQExpBuffer(result, PQgetvalue(res, 0, 0), len - 1);
 
 	PQclear(res);
 	destroyPQExpBuffer(query);
