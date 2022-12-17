@@ -31,6 +31,7 @@ static int32 typenameTypeMod(ParseState *pstate, const TypeName *typeName,
 							 Type typ);
 
 check_or_set_default_typmod_hook_type check_or_set_default_typmod_hook = NULL;
+validate_var_datatype_scale_hook_type validate_var_datatype_scale_hook = NULL;
 
 /*
  * LookupTypeName
@@ -412,6 +413,13 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 					 parser_errposition(pstate, typeName->location)));
 		datums[n++] = CStringGetDatum(cstr);
 	}
+
+	/*
+	 * Checks whether variable length datatypes like numeric, decimal, time, datetime2, datetimeoffset
+	 * are declared with permissible datalength at the time of table or stored procedure creation
+	 */
+	if (validate_var_datatype_scale_hook)
+			(*validate_var_datatype_scale_hook)(typeName, typ);
 
 	/* hardwired knowledge about cstring's representation details here */
 	arrtypmod = construct_array(datums, n, CSTRINGOID,
