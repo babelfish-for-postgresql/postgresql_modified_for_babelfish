@@ -429,6 +429,8 @@ SPI_rollback_and_chain(void)
 void
 AtEOXact_SPI(bool isCommit)
 {
+	bool		found = false;
+	
 	if (!isCommit)
 	{
 		while (_SPI_current && !_SPI_current->internal_xact)
@@ -441,7 +443,6 @@ AtEOXact_SPI(bool isCommit)
 		}
 	}
 
-	bool		found = false;
 
 	/*
 	 * Pop stack entries, stopping if we find one marked internal_xact (that
