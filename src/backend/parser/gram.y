@@ -18612,34 +18612,9 @@ SplitColQualList(List *qualList,
 		}
 		if (IsA(n, CollateClause))
 		{
-			const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 			CollateClause *c = (CollateClause *) n;
 
-			/*
-			 * XXX: This is temporary fix.
-			 * During upgrade from 14.6 to 15.1, we can ignore extra COLLATE "default" clause.
-			 */
-			if (*collClause && dump_restore && strncmp(dump_restore, "on", 2) == 0)
-			{
-				char	   *schemaname;
-				char	   *collation_name1;
-				char	   *collation_name2;
-
-				DeconstructQualifiedName((*collClause)->collname, &schemaname, &collation_name1);
-				DeconstructQualifiedName(c->collname, &schemaname, &collation_name2);
-
-				if (strncmp(collation_name1, "default", 7) != 0 && 
-					strncmp(collation_name2, "default", 7) != 0)
-					ereport(ERROR,
-						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("multiple COLLATE clauses not allowed"),
-						 parser_errposition(c->location)));
-
-				/* If previously determined collation is default then override it with current collation. */ 
-				if (strncmp(collation_name1, "default", 7) == 0)
-					*collClause = c;
-			}
-			else if (*collClause)
+			if (*collClause)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
 						 errmsg("multiple COLLATE clauses not allowed"),

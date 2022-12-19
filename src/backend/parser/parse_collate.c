@@ -46,7 +46,6 @@
 #include "nodes/nodeFuncs.h"
 #include "parser/parse_collate.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
-#include "utils/guc.h"
 #include "utils/lsyscache.h"
 
 
@@ -863,28 +862,6 @@ merge_collation_state(Oid collation,
 			case COLLATE_EXPLICIT:
 				if (collation != context->collation)
 				{
-					const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
-
-					/*
-					 * XXX: This is temporary fix. 
-					 * During upgrade from 14.6 to 15.1, we can ignore COLLATE default if
-					 * Babelfish database is being restored.
-					 */
-					if (dump_restore && strncmp(dump_restore, "on", 2) ==0)
-					{
-						if (context->collation != DEFAULT_COLLATION_OID &&
-							collation != DEFAULT_COLLATION_OID)
-							ereport(ERROR,
-									(errcode(ERRCODE_COLLATION_MISMATCH),
-									 errmsg("collation mismatch between explicit collations \"%s\" and \"%s\"",
-										get_collation_name(context->collation),
-										get_collation_name(collation)),
-									 parser_errposition(context->pstate, location)));
-						
-						if (collation != DEFAULT_COLLATION_OID)
-							context->collation = collation;
-						return;
-					}
 					/*
 					 * Oops, we have a conflict of explicit COLLATE clauses.
 					 * Here we choose to throw error immediately; that is what
