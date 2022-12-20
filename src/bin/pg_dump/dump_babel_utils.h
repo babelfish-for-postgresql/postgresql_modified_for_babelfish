@@ -24,6 +24,7 @@
 extern char *getMinOid(Archive *fout);
 extern void bbf_selectDumpableCast(CastInfo *cast);
 extern void fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo);
+extern void fixTsqlCheckConstraint(Archive *fout, ConstraintInfo *constrs);
 extern bool isBabelfishDatabase(Archive *fout);
 extern void fixOprRegProc(Archive *fout, const OprInfo *oprinfo, const char *oprleft, const char *oprright, char **oprregproc);
 extern void fixTsqlTableTypeDependency(Archive *fout, DumpableObject *func, DumpableObject *tabletype, char deptype);
@@ -32,6 +33,6 @@ extern int getTsqlTvfType(Archive *fout, const FuncInfo *finfo, char prokind, bo
 extern void fixAttoptionsBbfOriginalName(Archive *fout, Oid relOid, const TableInfo *tbinfo, int idx);
 extern void setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *finfo, char prokind, bool proretset, bool is_set);
 extern void dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf);
-extern char *babelfish_handle_view_def(char *view_def);
+extern char *babelfish_handle_view_def(Archive *fout, char *view_def);
 
 #endif

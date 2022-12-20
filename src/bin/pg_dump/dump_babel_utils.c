@@ -124,6 +124,32 @@ bbf_selectDumpableCast(CastInfo *cast)
 		cast->dobj.dump = DUMP_COMPONENT_NONE;
 }
 
+static char *
+removeSubstr(char *src, const char *substr)
+{
+	char *str;
+	char *result = "";
+
+	if (!strstr(src, substr))
+		return src;
+
+	while ((str = strstr(src, substr)) != NULL)
+	{
+		result = psprintf("%s%s", result, pnstrdup(src, str - src));
+
+		/* skip "COLLATE \"default\" */
+		src = str + strlen(substr);
+
+		if (!src)
+			break;
+	}
+
+	if (src)
+		result = psprintf("%s%s", result, src);
+
+	return result;
+}
+
 /*
  * T-SQL allows an empty/space-only string as a default constraint of
  * NUMERIC column in CREATE TABLE statement. However, it will eventually
@@ -139,8 +165,6 @@ bbf_selectDumpableCast(CastInfo *cast)
 void
 fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 {
-	char *source;
-	char *substr;
 	char *atttypname;
 	char *adef_expr;
 	const char *defaultCollation = "COLLATE \"default\"";
@@ -154,13 +178,13 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 	{
 		char *runtimeErrFunc = "babelfish_runtime_error";
 		char *runtimeErrStr = "'An empty or space-only string cannot be converted into numeric/decimal data type'";
-		source = attrDefInfo->adef_expr;
+		adef_expr = attrDefInfo->adef_expr;
 
-		if (!strstr(source, runtimeErrStr) || strstr(source, runtimeErrFunc))
+		if (!strstr(adef_expr, runtimeErrStr) || strstr(adef_expr, runtimeErrFunc))
 			return;
 
 		/* Replace the default expr to runtime error function */
-		free(source);
+		free(adef_expr);
 		attrDefInfo->adef_expr = psprintf("(sys.%s(%s::text))::integer", runtimeErrFunc, runtimeErrStr);
 		return;
 	}
@@ -170,28 +194,35 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 	 * it does not matter if we specify such clause for default value and column's collation
 	 * will be used at the end.
 	 */
-	adef_expr = attrDefInfo->adef_expr;
-	source = "";
+	adef_expr = removeSubstr(attrDefInfo->adef_expr, defaultCollation);
 
-	if (!strstr(adef_expr, defaultCollation))
+	if (adef_expr != attrDefInfo->adef_expr)
+	{
+		free(attrDefInfo->adef_expr);
+		attrDefInfo->adef_expr = adef_expr;
+	}
+}
+
+/*
+ * fixTsqlCheckConstraint - In upgraded Babelfish database from v2.1.0/2.2.0 to v2.3.0 may contain extra
+ * COLLATE "default" clause around check constraint which is kind of redundant in tsql objects.
+ * So this helper function takes care of it during dump and restore.
+ */
+void 
+fixTsqlCheckConstraint(Archive *fout, ConstraintInfo *constrs)
+{
+	const char *defaultCollation = "COLLATE \"default\"";
+	char *condef;
+
+	if (!isBabelfishDatabase(fout))
 		return;
 
-	while ((substr = strstr(adef_expr, defaultCollation)) != NULL)
+	condef = removeSubstr(constrs->condef, defaultCollation);
+	if (condef != constrs->condef)
 	{
-		source = psprintf("%s%s", source, pnstrdup(adef_expr, substr - adef_expr));
-
-		/* skip "COLLATE \"default\" */
-		adef_expr = substr + strlen(defaultCollation);
-
-		if (!adef_expr)
-			break;
+		pfree(constrs->condef);
+		constrs->condef = condef;
 	}
-
-	if (adef_expr)
-		source = psprintf("%s%s", source, adef_expr);
-
-	free(attrDefInfo->adef_expr);
-	attrDefInfo->adef_expr = source;
 }
 
 /*
@@ -527,28 +558,12 @@ dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf)
  * such clause from view definition. 
  */
 char *
-babelfish_handle_view_def(char *view_def)
+babelfish_handle_view_def(Archive *fout, char *view_def)
 {
-	char *substr;
 	const char *defaultCollation = "COLLATE \"default\"";
-	char *source = "";
 
-	if (!strstr(view_def, defaultCollation))
+	if (!isBabelfishDatabase(fout))
 		return view_def;
 
-	while ((substr = strstr(view_def, defaultCollation)) != NULL)
-	{
-		source = psprintf("%s%s", source, pnstrdup(view_def, substr - view_def));
-
-		/* skip "COLLATE \"default\" */
-		view_def = substr + strlen(defaultCollation);
-
-		if (!view_def)
-			break;
-	}
-
-	if (view_def)
-		source = psprintf("%s%s", source, view_def);
-
-	return source;
+	return removeSubstr(view_def, defaultCollation);
 }
