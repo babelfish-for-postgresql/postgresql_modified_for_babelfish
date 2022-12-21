@@ -205,7 +205,7 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 
 /*
  * fixTsqlCheckConstraint - In upgraded Babelfish database from v2.1.0/2.2.0 to v2.3.0 may contain extra
- * COLLATE "default" clause around check constraint which is kind of redundant in tsql objects.
+ * COLLATE "default" clause around check constraint which is kind of redundant in T-SQL objects.
  * So this helper function takes care of it during dump and restore.
  */
 void 
@@ -554,7 +554,7 @@ dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf)
 /*
  * babelfish_handle_view_def - Any upgraded Babelfish database from 2.1.0/2.2.0 to 2.3.0
  * may dump extra COLLATE "default" clause around const clause inside view definition which
- * is kind of unnecessary for tsql objects as well as for sys views. So this function remove 
+ * is kind of unnecessary for T-SQL objects as well as for sys views. So this function removes 
  * such clause from view definition. 
  */
 char *
