@@ -8598,6 +8598,9 @@ getTableAttrs(Archive *fout, TableInfo *tblinfo, int numTables)
 				constrs[j].condeferred = false;
 				constrs[j].conislocal = (PQgetvalue(res, j, i_conislocal)[0] == 't');
 
+				/* Babelfish-specific logic for check constraint */
+				fixTsqlCheckConstraint(fout, &constrs[j]);
+
 				/*
 				 * An unvalidated constraint needs to be dumped separately, so
 				 * that potentially-violating existing data is loaded before
@@ -15072,7 +15075,8 @@ createViewAsClause(Archive *fout, const TableInfo *tbinfo)
 
 	/* Strip off the trailing semicolon so that other things may follow. */
 	Assert(PQgetvalue(res, 0, 0)[len - 1] == ';');
-	appendBinaryPQExpBuffer(result, PQgetvalue(res, 0, 0), len - 1);
+
+	appendBinaryPQExpBuffer(result, babelfish_handle_view_def(fout, PQgetvalue(res, 0, 0)), len - 1);
 
 	PQclear(res);
 	destroyPQExpBuffer(query);
