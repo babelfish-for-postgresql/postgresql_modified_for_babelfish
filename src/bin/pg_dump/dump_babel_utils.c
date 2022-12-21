@@ -125,27 +125,40 @@ bbf_selectDumpableCast(CastInfo *cast)
 }
 
 static char *
-removeSubstr(char *src, const char *substr)
+babelfishRemoveSubstr(char *src, const char *substr)
 {
 	char *str;
-	char *result = "";
+	char *result = pstrdup("");
+	int substr_len = strlen(substr);
 
 	if (!strstr(src, substr))
 		return src;
 
 	while ((str = strstr(src, substr)) != NULL)
 	{
-		result = psprintf("%s%s", result, pnstrdup(src, str - src));
+		char *tmp = psprintf("%s%s", result, pnstrdup(src, str - src));
+		if (result)
+		{
+			pfree(result);
+			result = tmp;
+		}
 
-		/* skip "COLLATE \"default\" */
-		src = str + strlen(substr);
+		/* skip substr part */
+		src = str + substr_len;
 
 		if (!src)
 			break;
 	}
 
 	if (src)
-		result = psprintf("%s%s", result, src);
+	{
+		char *tmp = psprintf("%s%s", result, src);
+		if (result)
+		{
+			pfree(result);
+			result = tmp;
+		}
+	}
 
 	return result;
 }
@@ -194,7 +207,7 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 	 * it does not matter if we specify such clause for default value and column's collation
 	 * will be used at the end.
 	 */
-	adef_expr = removeSubstr(attrDefInfo->adef_expr, defaultCollation);
+	adef_expr = babelfishRemoveSubstr(attrDefInfo->adef_expr, defaultCollation);
 
 	if (adef_expr != attrDefInfo->adef_expr)
 	{
@@ -217,7 +230,7 @@ fixTsqlCheckConstraint(Archive *fout, ConstraintInfo *constrs)
 	if (!isBabelfishDatabase(fout))
 		return;
 
-	condef = removeSubstr(constrs->condef, defaultCollation);
+	condef = babelfishRemoveSubstr(constrs->condef, defaultCollation);
 	if (condef != constrs->condef)
 	{
 		pfree(constrs->condef);
@@ -565,5 +578,5 @@ babelfish_handle_view_def(Archive *fout, char *view_def)
 	if (!isBabelfishDatabase(fout))
 		return view_def;
 
-	return removeSubstr(view_def, defaultCollation);
+	return babelfishRemoveSubstr(view_def, defaultCollation);
 }
