@@ -254,9 +254,12 @@ typedef struct JsonPathParseResult
 	bool		lax;
 } JsonPathParseResult;
 
-extern JsonPathParseResult *parsejsonpath(const char *str, int len);
+extern JsonPathParseResult *parsejsonpath(const char *str, int len,
+										  struct Node *escontext);
 
-extern int	jspConvertRegexFlags(uint32 xflags);
+extern bool jspConvertRegexFlags(uint32 xflags, int *result,
+								 struct Node *escontext);
+
 
 extern Jsonb *tsql_openjson_with_get_subjsonb(PG_FUNCTION_ARGS);
 extern List *tsql_openjson_with_columnize(Jsonb *jb, char *col_info);
