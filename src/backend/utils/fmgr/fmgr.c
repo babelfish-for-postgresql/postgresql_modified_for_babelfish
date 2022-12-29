@@ -710,10 +710,11 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	bool		set_sql_dialect;
 	int			sql_dialect_value;
 	int			sql_dialect_value_old;
-	int			pg_dialect = 0;
-	int			tsql_dialect = 1;
+	int			pg_dialect = SQL_DIALECT_PG;
+	int			tsql_dialect = SQL_DIALECT_TSQL;
 	int			sys_func_count = 0;
 	int			non_tsql_proc_count = 0;
+	void	   *newextra = NULL;
 
 	if (!fcinfo->flinfo->fn_extra)
 	{
@@ -824,6 +825,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		ReleaseSysCache(tuple);
 		sql_dialect_value_old = sql_dialect;
 		sql_dialect = sql_dialect_value;
+		assign_sql_dialect(sql_dialect_value, newextra);
 
 	}
 
@@ -869,6 +871,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		 */
 		if (set_sql_dialect)
 			sql_dialect = sql_dialect_value_old;
+			assign_sql_dialect(sql_dialect_value_old, newextra);
 
 		PG_RE_THROW();
 	}
@@ -880,6 +883,8 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	{
 
 		sql_dialect = sql_dialect_value_old;
+		assign_sql_dialect(sql_dialect_value_old, newextra);
+
 		if (sql_dialect_value == pg_dialect)
 			non_tsql_proc_entry_hook(non_tsql_proc_count * -1, sys_func_count * -1);
 	}

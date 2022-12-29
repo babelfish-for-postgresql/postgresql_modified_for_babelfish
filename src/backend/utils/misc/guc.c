@@ -4990,6 +4990,9 @@ static struct config_enum ConfigureNamesEnum[] =
 		NULL, NULL, NULL
 	},
 
+/* When changing this guc value directly without set_config_option,The function 
+ * assign_sql_dialect() should also be invoked with the assignment. 
+ */
 	{
 		{"babelfishpg_tsql.sql_dialect", PGC_USERSET, COMPAT_OPTIONS_PREVIOUS,
 			gettext_noop("Sets the dialect for SQL commands."),

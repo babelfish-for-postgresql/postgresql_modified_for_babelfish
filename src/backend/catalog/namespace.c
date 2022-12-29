@@ -4480,7 +4480,10 @@ assign_search_path(const char *newval, void *extra)
 	baseSearchPathValid = false;
 }
 
-/* assign_hook: do extra actions as needed */
+/* assign_hook: do extra actions as needed when assigning the GUC. This function
+ * should also be invoked whenever changing the GUC value directly without
+ * set_config_option.
+ */
 void
 assign_sql_dialect(int newval, void *extra)
 {
