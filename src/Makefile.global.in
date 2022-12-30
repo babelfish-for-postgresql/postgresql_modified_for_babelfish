@@ -1019,7 +1019,7 @@ GENHTML_TITLE = PostgreSQL $(VERSION)
 
 coverage-html-stamp: lcov_base.info lcov_test.info
 	rm -rf coverage
-	$(GENHTML) $(GENHTML_FLAGS) -o coverage --title='$(GENHTML_TITLE)' --num-spaces=4 $(if $(filter no,$(vpath_build)),--prefix='$(abs_top_srcdir)') $^
+  $(GENHTML) $(GENHTML_FLAGS) -o coverage --title='$(GENHTML_TITLE)' --ignore-errors source --num-spaces=4 $(if $(filter no,$(vpath_build)),--prefix='$(abs_top_srcdir)') $^
 	touch $@
 
 LCOV += --gcov-tool $(GCOV)
