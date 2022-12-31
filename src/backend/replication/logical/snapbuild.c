@@ -1101,6 +1101,9 @@ SnapBuildCommitTxn(SnapBuild *builder, XLogRecPtr lsn, TransactionId xid,
 	else if (sub_needs_timetravel)
 	{
 		/* track toplevel txn as well, subxact alone isn't meaningful */
+		elog(DEBUG2, "forced transaction %u to do timetravel due to one of its subtransactions",
+			 xid);
+		needs_timetravel = true;
 		SnapBuildAddCommittedTxn(builder, xid);
 	}
 	else if (needs_timetravel)
@@ -2117,9 +2120,6 @@ SnapBuildXidSetCatalogChanges(SnapBuild *builder, TransactionId xid, int subxcnt
 		ReorderBufferXidSetCatalogChanges(builder->reorder, xid, lsn);
 
 		for (int i = 0; i < subxcnt; i++)
-		{
-			ReorderBufferAssignChild(builder->reorder, xid, subxacts[i], lsn);
 			ReorderBufferXidSetCatalogChanges(builder->reorder, subxacts[i], lsn);
-		}
 	}
 }

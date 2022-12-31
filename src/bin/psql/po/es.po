@@ -10,10 +10,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: psql (PostgreSQL) 14\n"
+"Project-Id-Version: psql (PostgreSQL) 15\n"
 "Report-Msgid-Bugs-To: pgsql-bugs@lists.postgresql.org\n"
 "POT-Creation-Date: 2022-09-24 23:17+0000\n"
-"PO-Revision-Date: 2022-09-03 17:02+0200\n"
+"PO-Revision-Date: 2022-11-04 13:02+0100\n"
 "Last-Translator: Carlos Chapi <carloswaldo@babelruins.org>\n"
 "Language-Team: PgSQL-es-Ayuda <pgsql-es-ayuda@lists.postgresql.org>\n"
 "Language: es\n"
@@ -2696,7 +2696,9 @@ msgstr "  \\copyright      mostrar términos de uso y distribución de PostgreSQ
 
 #: help.c:193
 msgid "  \\crosstabview [COLUMNS] execute query and display result in crosstab\n"
-msgstr "  \\crosstabview [COLUMNAS] ejecutar la consulta y desplegar en «crosstab»\n"
+msgstr ""
+"  \\crosstabview [COLUMNAS]\n"
+"                  ejecutar la consulta y desplegar en «crosstab»\n"
 
 #: help.c:194
 msgid "  \\errverbose            show most recent error message at maximum verbosity\n"
@@ -2707,12 +2709,13 @@ msgid ""
 "  \\g [(OPTIONS)] [FILE]  execute query (and send result to file or |pipe);\n"
 "                         \\g with no arguments is equivalent to a semicolon\n"
 msgstr ""
-"  \\g [(OPTIONS)] [FILE]  ejecuta la consulta (y envía el resultado a un fichero o |pipe);\n"
-"                         \\g sin argumentos es equivalente a un punto y coma\n"
+"  \\g [(OPTIONS)] [FILE]\n"
+"                  ejecuta la consulta (y envía el resultado a un fichero o |pipe);\n"
+"                  \\g sin argumentos es equivalente a un punto y coma\n"
 
 #: help.c:197
 msgid "  \\gdesc                 describe result of query, without executing it\n"
-msgstr "  \\gdesc              describir resultado de la consulta, sin ejecutarla\n"
+msgstr "  \\gdesc          describir resultado de la consulta, sin ejecutarla\n"
 
 #: help.c:198
 msgid "  \\gexec                 execute query, then execute each value in its result\n"
@@ -2726,7 +2729,9 @@ msgstr ""
 
 #: help.c:200
 msgid "  \\gx [(OPTIONS)] [FILE] as \\g, but forces expanded output mode\n"
-msgstr "  \\ gx [(OPTIONS)] [FILE] como \\g, pero fuerza el modo de salida expandido\n"
+msgstr ""
+"  \\gx [(OPTIONS)] [FILE]\n"
+"                  como \\g, pero fuerza el modo de salida expandido\n"
 
 #: help.c:201
 msgid "  \\q                     quit psql\n"
@@ -2803,35 +2808,37 @@ msgstr "  \\w ARCHIVO      escribir búfer de consulta a archivo\n"
 
 #: help.c:225
 msgid "Input/Output\n"
-msgstr "Entrada/Salida\n"
+msgstr ""
+"Entrada/Salida\n"
+"        (con -n, donde existe, se omite el salto de línea final)\n"
 
 #: help.c:226
 msgid "  \\copy ...              perform SQL COPY with data stream to the client host\n"
-msgstr "  \\copy ...       ejecutar orden SQL COPY con flujo de datos al cliente\n"
+msgstr "  \\copy ...            ejecutar orden SQL COPY con flujo de datos al cliente\n"
 
 #: help.c:227
 msgid "  \\echo [-n] [STRING]    write string to standard output (-n for no newline)\n"
-msgstr "  \\echo [-n] [STRING]    escribe la cadena en la salida estándar (-n no genera el salto de línea final)\n"
+msgstr "  \\echo [-n] [STRING]  escribe la cadena en la salida estándar\n"
 
 #: help.c:228
 msgid "  \\i FILE                execute commands from file\n"
-msgstr "  \\i ARCHIVO      ejecutar órdenes desde archivo\n"
+msgstr "  \\i ARCHIVO           ejecutar órdenes desde archivo\n"
 
 #: help.c:229
 msgid "  \\ir FILE               as \\i, but relative to location of current script\n"
-msgstr "  \\ir ARCHIVO     como \\i, pero relativo a la ubicación del script actual\n"
+msgstr "  \\ir ARCHIVO          como \\i, pero relativo a la ubicación del script actual\n"
 
 #: help.c:230
 msgid "  \\o [FILE]              send all query results to file or |pipe\n"
-msgstr "  \\o [ARCHIVO]    enviar resultados de consultas a archivo u |orden\n"
+msgstr "  \\o [ARCHIVO]         enviar resultados de consultas a archivo u |orden\n"
 
 #: help.c:231
 msgid "  \\qecho [-n] [STRING]   write string to \\o output stream (-n for no newline)\n"
-msgstr "  \\qecho [-n] [STRING]   escribe la cadena hacia flujo de salida \\o (-n no genera el salto de línea final)\n"
+msgstr "  \\qecho [-n] [STRING] escribe la cadena hacia flujo de salida \\o\n"
 
 #: help.c:232
 msgid "  \\warn [-n] [STRING]    write string to standard error (-n for no newline)\n"
-msgstr "  \\warn [-n] [STRING]    escribe la cadena a la salida de error estándar (-n no genera el salto de línea final)\n"
+msgstr "  \\warn [-n] [STRING]  escribe la cadena a la salida de error estándar\n"
 
 #: help.c:235
 msgid "Conditional\n"
@@ -2859,7 +2866,7 @@ msgstr "Informativo\n"
 
 #: help.c:243
 msgid "  (options: S = show system objects, + = additional detail)\n"
-msgstr "   (opciones: S = desplegar objectos de sistema, + = agregar más detalle)\n"
+msgstr "   (opciones: S = desplegar objetos de sistema, + = agregar más detalle)\n"
 
 #: help.c:244
 msgid "  \\d[S+]                 list tables, views, and sequences\n"
@@ -2947,7 +2954,7 @@ msgid ""
 "                         list [only agg/normal/procedure/trigger/window] functions\n"
 msgstr ""
 "  \\df[anptw][S+] [FUNCPTRN [TYPEPTRN ...]]\n"
-"                         listar funciones [sólo ag./normal/proc./trigger/ventana]\n"
+"                    listar funciones [sólo ag./normal/proc./trigger/ventana]\n"
 
 #: help.c:266
 msgid "  \\dF[+]  [PATTERN]      list text search configurations\n"
@@ -2995,7 +3002,7 @@ msgid ""
 "                         list operators\n"
 msgstr ""
 "  \\do[S+] [OPPTRN [TYPEPTRN [TYPEPTRN]]]\n"
-"                         listar operadores\n"
+"                    listar operadores\n"
 
 #: help.c:278
 msgid "  \\dO[S+] [PATTERN]      list collations\n"
@@ -3011,7 +3018,9 @@ msgstr "  \\dP[tin+] [PATRÓN] listar relaciones particionadas (sólo tablas/ín
 
 #: help.c:281
 msgid "  \\drds [ROLEPTRN [DBPTRN]] list per-database role settings\n"
-msgstr "  \\drds [PATROL [PATBASE]] listar parámetros de rol por base de datos\n"
+msgstr ""
+"  \\drds [PATRÓN_ROL [PATRÓN_BASE]]\n"
+"                    listar parámetros de rol por base de datos\n"
 
 #: help.c:282
 msgid "  \\dRp[+] [PATTERN]      list replication publications\n"
@@ -3055,7 +3064,7 @@ msgstr "  \\dy[+]  [PATRÓN]  listar disparadores por eventos\n"
 
 #: help.c:292
 msgid "  \\l[+]   [PATTERN]      list databases\n"
-msgstr "  \\l[+]   [PATRÓN]    listar bases de datos\n"
+msgstr "  \\l[+]   [PATRÓN]  listar bases de datos\n"
 
 #: help.c:293
 msgid "  \\sf[+]  FUNCNAME       show a function's definition\n"
@@ -3075,7 +3084,7 @@ msgstr "Objetos Grandes\n"
 
 #: help.c:299
 msgid "  \\lo_export LOBOID FILE write large object to file\n"
-msgstr "  \\lo_export LOBOID ARCHIVO escribir objto grande a archivo\n"
+msgstr "  \\lo_export LOBOID ARCHIVO escribir objeto grande a archivo\n"
 
 #: help.c:300
 msgid ""
@@ -3083,7 +3092,7 @@ msgid ""
 "                         read large object from file\n"
 msgstr ""
 "  \\lo_import ARCHIVO [COMENTARIO]\n"
-"                         leer objeto grande desde archivo\n"
+"                    leer objeto grande desde archivo\n"
 
 #: help.c:302
 msgid "  \\lo_list[+]            list large objects\n"
@@ -3128,19 +3137,19 @@ msgid ""
 msgstr ""
 "  \\pset [NOMBRE [VALOR]]  define opción de tabla de salida\n"
 "                  (border|columns|csv_fieldsep|expanded|fieldsep|fieldsep_zero|\n"
-"                  footer|format|linestyle|null|numericlocale|pager|\n"
-"                  pager_min_lines|recordsep|recordsep_zero|tableattr|title|\n"
-"                  tuples_only|unicode_border_linestyle|unicode_column_linestyle\n"
-"                  |unicode_header_linestyle)\n"
+"                   footer|format|linestyle|null|numericlocale|pager|\n"
+"                   pager_min_lines|recordsep|recordsep_zero|tableattr|title|\n"
+"                   tuples_only|unicode_border_linestyle|unicode_column_linestyle|\n"
+"                   unicode_header_linestyle)\n"
 
 #: help.c:319
 #, c-format
 msgid "  \\t [on|off]            show only rows (currently %s)\n"
-msgstr "  \\t [on|off]     mostrar sólo filas (actualmente %s)\n"
+msgstr "  \\t [on|off]      mostrar sólo filas (actualmente %s)\n"
 
 #: help.c:321
 msgid "  \\T [STRING]            set HTML <table> tag attributes, or unset if none\n"
-msgstr "  \\T [CADENA]     definir atributos HTML de <table>, o indefinir si es vacío\n"
+msgstr "  \\T [CADENA]      definir atributos HTML de <table>, o indefinir si es vacío\n"
 
 #: help.c:322
 #, c-format
@@ -3691,7 +3700,7 @@ msgstr "  PGAPPNAME          igual que el parámetro de conexión application_na
 msgid ""
 "  PGDATABASE\n"
 "    same as the dbname connection parameter\n"
-msgstr "  PGDATABASE        igual que el parámetro de conexión dbname\n"
+msgstr "  PGDATABASE         igual que el parámetro de conexión dbname\n"
 
 #: help.c:530
 msgid ""
@@ -5376,11 +5385,11 @@ msgstr "loid"
 
 #: sql_help.c:3946
 msgid "remote_schema"
-msgstr "schema_remoto"
+msgstr "esquema_remoto"
 
 #: sql_help.c:3949
 msgid "local_schema"
-msgstr "schema_local"
+msgstr "esquema_local"
 
 #: sql_help.c:3984
 msgid "conflict_target"
@@ -5926,7 +5935,7 @@ msgstr "define una nueva regla de reescritura"
 
 #: sql_help.c:5592
 msgid "define a new schema"
-msgstr "define un nuevo schema"
+msgstr "define un nuevo esquema"
 
 #: sql_help.c:5598
 msgid "define a new sequence generator"
@@ -6114,7 +6123,7 @@ msgstr "elimina una regla de reescritura"
 
 #: sql_help.c:5886
 msgid "remove a schema"
-msgstr "elimina un schema"
+msgstr "elimina un esquema"
 
 #: sql_help.c:5892
 msgid "remove a sequence"

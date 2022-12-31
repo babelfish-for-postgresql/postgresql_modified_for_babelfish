@@ -749,7 +749,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 
 	QUOTE
 
-	RANGE READ REAL REASSIGN RECHECK RECURSIVE REF REFERENCES REFERENCING
+	RANGE READ REAL REASSIGN RECHECK RECURSIVE REF_P REFERENCES REFERENCING
 	REFRESH REINDEX RELATIVE_P RELEASE RENAME REPEATABLE REPLACE REPLICA
 	RESET RESTART RESTRICT RETURN RETURNING RETURNS REVOKE RIGHT ROLE ROLLBACK ROLLUP
 	ROUTINE ROUTINES ROW ROWS RULE
@@ -11124,9 +11124,9 @@ createdb_opt_items:
 		;
 
 createdb_opt_item:
-			createdb_opt_name opt_equal SignedIconst
+			createdb_opt_name opt_equal NumericOnly
 				{
-					$$ = makeDefElem($1, (Node *) makeInteger($3), @1);
+					$$ = makeDefElem($1, $3, @1);
 				}
 			| createdb_opt_name opt_equal opt_boolean_or_string
 				{
@@ -15720,7 +15720,7 @@ xmlexists_argument:
 		;
 
 xml_passing_mech:
-			BY REF
+			BY REF_P
 			| BY VALUE_P
 		;
 
@@ -17086,7 +17086,7 @@ unreserved_keyword:
 			| REASSIGN
 			| RECHECK
 			| RECURSIVE
-			| REF
+			| REF_P
 			| REFERENCING
 			| REFRESH
 			| REINDEX
@@ -17671,7 +17671,7 @@ bare_label_keyword:
 			| REASSIGN
 			| RECHECK
 			| RECURSIVE
-			| REF
+			| REF_P
 			| REFERENCES
 			| REFERENCING
 			| REFRESH

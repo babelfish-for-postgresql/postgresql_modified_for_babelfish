@@ -9,10 +9,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: pg_dump (PostgreSQL) 14\n"
+"Project-Id-Version: pg_dump (PostgreSQL) 15\n"
 "Report-Msgid-Bugs-To: pgsql-bugs@lists.postgresql.org\n"
 "POT-Creation-Date: 2022-09-24 23:20+0000\n"
-"PO-Revision-Date: 2022-09-03 16:48+0200\n"
+"PO-Revision-Date: 2022-10-20 09:06+0200\n"
 "Last-Translator: Carlos Chapi <carloswaldo@babelruins.org>\n"
 "Language-Team: PgSQL-es-Ayuda <pgsql-es-ayuda@lists.postgresql.org>\n"
 "Language: es\n"
@@ -1995,7 +1995,7 @@ msgstr "valor no válido en el campo pg_cast.castmethod"
 #: pg_dump.c:12106
 #, c-format
 msgid "bogus transform definition, at least one of trffromsql and trftosql should be nonzero"
-msgstr "definición errónea de transformación; al menos uno de trffromsql and trftosql debe ser distinto de cero"
+msgstr "definición errónea de transformación; al menos uno de trffromsql y trftosql debe ser distinto de cero"
 
 #: pg_dump.c:12123
 #, c-format

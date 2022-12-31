@@ -8598,6 +8598,9 @@ getTableAttrs(Archive *fout, TableInfo *tblinfo, int numTables)
 				constrs[j].condeferred = false;
 				constrs[j].conislocal = (PQgetvalue(res, j, i_conislocal)[0] == 't');
 
+				/* Babelfish-specific logic for check constraint */
+				fixTsqlCheckConstraint(fout, &constrs[j]);
+
 				/*
 				 * An unvalidated constraint needs to be dumped separately, so
 				 * that potentially-violating existing data is loaded before
@@ -11015,7 +11018,7 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 		appendPQExpBuffer(conprefix, "CONSTRAINT %s ON DOMAIN",
 						  fmtId(domcheck->dobj.name));
 
-		if (tyinfo->dobj.dump & DUMP_COMPONENT_COMMENT)
+		if (domcheck->dobj.dump & DUMP_COMPONENT_COMMENT)
 			dumpComment(fout, conprefix->data, qtypname,
 						tyinfo->dobj.namespace->dobj.name,
 						tyinfo->rolname,
@@ -15072,7 +15075,8 @@ createViewAsClause(Archive *fout, const TableInfo *tbinfo)
 
 	/* Strip off the trailing semicolon so that other things may follow. */
 	Assert(PQgetvalue(res, 0, 0)[len - 1] == ';');
-	appendBinaryPQExpBuffer(result, PQgetvalue(res, 0, 0), len - 1);
+
+	appendBinaryPQExpBuffer(result, babelfish_handle_view_def(fout, PQgetvalue(res, 0, 0)), len - 1);
 
 	PQclear(res);
 	destroyPQExpBuffer(query);
@@ -15916,7 +15920,7 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 		if (constr->separate || !constr->conislocal)
 			continue;
 
-		if (tbinfo->dobj.dump & DUMP_COMPONENT_COMMENT)
+		if (constr->dobj.dump & DUMP_COMPONENT_COMMENT)
 			dumpTableConstraintComment(fout, constr);
 	}
 
