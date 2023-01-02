@@ -4990,7 +4990,8 @@ static struct config_enum ConfigureNamesEnum[] =
 		NULL, NULL, NULL
 	},
 
-/* When changing this guc value directly without set_config_option,The function 
+/*
+ * When changing this guc value directly without set_config_option,The function 
  * assign_sql_dialect() should also be invoked with the assignment. 
  */
 	{
