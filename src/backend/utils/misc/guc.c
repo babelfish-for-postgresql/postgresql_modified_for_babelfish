@@ -5133,6 +5133,10 @@ static struct config_enum ConfigureNamesEnum[] =
 		NULL, NULL, NULL
 	},
 
+/*
+ * When changing this guc value directly without set_config_option,The function 
+ * assign_sql_dialect() should also be invoked with the assignment. 
+ */
 	{
 		{"babelfishpg_tsql.sql_dialect", PGC_USERSET, COMPAT_OPTIONS_PREVIOUS,
 			gettext_noop("Sets the dialect for SQL commands."),
@@ -10516,7 +10520,7 @@ show_all_file_settings(PG_FUNCTION_ARGS)
 	conf = ProcessConfigFileInternal(PGC_SIGHUP, false, DEBUG3);
 
 	/* Build a tuplestore to return our results in */
-	SetSingleFuncCall(fcinfo, 0);
+	InitMaterializedSRF(fcinfo, 0);
 
 	/* Process the results and create a tuplestore */
 	for (seqno = 1; conf != NULL; conf = conf->next, seqno++)

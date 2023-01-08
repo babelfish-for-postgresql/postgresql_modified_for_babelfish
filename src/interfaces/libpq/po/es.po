@@ -10,10 +10,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: libpq (PostgreSQL) 14\n"
+"Project-Id-Version: libpq (PostgreSQL) 15\n"
 "Report-Msgid-Bugs-To: pgsql-bugs@lists.postgresql.org\n"
 "POT-Creation-Date: 2022-09-24 23:10+0000\n"
-"PO-Revision-Date: 2022-09-25 16:46+0200\n"
+"PO-Revision-Date: 2022-10-20 09:06+0200\n"
 "Last-Translator: Carlos Chapi <carloswaldo@babelruins.org>\n"
 "Language-Team: PgSQL-es-Ayuda <pgsql-es-ayuda@lists.postgresql.org>\n"
 "Language: es\n"
@@ -1225,7 +1225,7 @@ msgstr "el certificado no coincide con la llave privada «%s»: %s\n"
 #: fe-secure-openssl.c:1545
 #, c-format
 msgid "This may indicate that the server does not support any SSL protocol version between %s and %s.\n"
-msgstr "Esto puede indicar que el servidor no soporta ninguna versión del protocolo SSL entre %s and %s.\n"
+msgstr "Esto puede indicar que el servidor no soporta ninguna versión del protocolo SSL entre %s y %s.\n"
 
 #: fe-secure-openssl.c:1581
 #, c-format

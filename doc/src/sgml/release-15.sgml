@@ -1,3 +1,637 @@
+<!-- doc/src/sgml/release-15.sgml -->
+<!-- See header comment in release.sgml about typical markup -->
+
+ <sect1 id="release-15-1">
+  <title>Release 15.1</title>
+
+  <formalpara>
+  <title>Release date:</title>
+  <para>2022-11-10</para>
+  </formalpara>
+
+  <para>
+   This release contains a variety of fixes from 15.0.
+   For information about new features in major release 15, see
+   <xref linkend="release-15"/>.
+  </para>
+
+  <sect2>
+   <title>Migration to Version 15.1</title>
+
+   <para>
+    A dump/restore is not required for those running 15.X.
+   </para>
+
+   <para>
+    However, if you regularly create and drop tables exceeding 1GB,
+    see the first changelog entry below.
+   </para>
+  </sect2>
+
+  <sect2>
+   <title>Changes</title>
+
+   <itemizedlist>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [0e758ae89] 2022-11-07 11:36:45 -0500
+Branch: REL_15_STABLE [5fe0ab420] 2022-11-07 11:36:45 -0500
+-->
+     <para>
+      Fix failure to remove non-first segments of large tables
+      (Tom Lane)
+     </para>
+
+     <para>
+      <productname>PostgreSQL</productname> splits large tables into
+      multiple files (normally with 1GB per file).  The logic for dropping
+      a table was broken and would miss removing all but the first such
+      file, in two cases: drops of temporary tables and WAL replay of
+      drops of regular tables.  Applications that routinely create
+      multi-gigabyte temporary tables could suffer significant disk space
+      leakage.
+     </para>
+
+     <para>
+      Orphaned temporary-table files are removed during postmaster start,
+      so the mere act of updating to 15.1 is sufficient to clear any
+      leaked temporary-table storage.  However, if you suffered any
+      database crashes while using 15.0, and there might have been
+      large tables dropped just before such crashes, it's advisable
+      to check the database directories for files named according to the
+      pattern
+      <literal><replaceable>NNNN</replaceable>.<replaceable>NN</replaceable></literal>.
+      If there is no matching file named
+      just <literal><replaceable>NNNN</replaceable></literal> (without
+      the <literal>.<replaceable>NN</replaceable></literal> suffix), these
+      files should be removed manually.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [b8f2687fd] 2022-10-11 18:24:14 -0400
+Branch: REL_15_STABLE [07ce67698] 2022-10-11 18:24:14 -0400
+Branch: REL_14_STABLE [3162bd95c] 2022-10-11 18:24:14 -0400
+Branch: REL_13_STABLE [21e042b0b] 2022-10-11 18:24:14 -0400
+Branch: REL_12_STABLE [abc510fa2] 2022-10-11 18:24:15 -0400
+Branch: REL_11_STABLE [addde9bc6] 2022-10-11 18:24:15 -0400
+Branch: REL_10_STABLE [23e2a06ac] 2022-10-11 18:24:15 -0400
+-->
+     <para>
+      Fix handling of <literal>DEFAULT</literal> tokens that appear
+      in a multi-row <literal>VALUES</literal> clause of an
+      <command>INSERT</command> on an updatable view (Tom Lane)
+     </para>
+
+     <para>
+      This oversight could lead to <quote>cache lookup failed for
+      type</quote> errors, or in older branches even to crashes.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [797e313dc] 2022-10-17 12:14:39 -0400
+Branch: REL_15_STABLE [4a41a069e] 2022-10-17 12:14:39 -0400
+Branch: REL_14_STABLE [2f26cec48] 2022-10-17 12:14:39 -0400
+Branch: REL_13_STABLE [b21615d1e] 2022-10-17 12:14:39 -0400
+Branch: REL_12_STABLE [65c1106d8] 2022-10-17 12:14:39 -0400
+Branch: REL_11_STABLE [e9377e3e5] 2022-10-17 12:14:39 -0400
+Branch: REL_10_STABLE [ecf4ce689] 2022-10-17 12:14:39 -0400
+-->
+     <para>
+      Disallow rules named <literal>_RETURN</literal> that are
+      not <literal>ON SELECT</literal> (Tom Lane)
+     </para>
+
+     <para>
+      This avoids confusion between a view's <literal>ON SELECT</literal>
+      rule and any other rules it may have.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [d57534740] 2022-10-16 19:18:08 -0400
+Branch: REL_15_STABLE [d4abb0bc5] 2022-10-16 19:18:08 -0400
+Branch: REL_14_STABLE [8122160ff] 2022-10-16 19:18:08 -0400
+-->
+     <para>
+      Avoid failure in <command>EXPLAIN VERBOSE</command> for a query
+      using <literal>SEARCH BREADTH FIRST</literal> with constant
+      initial values (Tom Lane)
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Alvaro Herrera <alvherre@alvh.no-ip.org>
+Branch: master [cba4e78f3] 2022-10-15 19:24:26 +0200
+Branch: REL_15_STABLE [16d11d684] 2022-10-15 19:24:26 +0200
+-->
+     <para>
+      Prevent use of <command>MERGE</command> on a partitioned table with
+      foreign-table partitions (&Aacute;lvaro Herrera)
+     </para>
+
+     <para>
+      The case isn't supported, and previously threw an incomprehensible
+      error.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Alvaro Herrera <alvherre@alvh.no-ip.org>
+Branch: master [b0284bfb1] 2022-11-03 20:40:21 +0100
+Branch: REL_15_STABLE [c301e1c0c] 2022-11-03 20:40:21 +0100
+Branch: REL_14_STABLE [18865f4df] 2022-11-03 20:40:21 +0100
+Branch: REL_13_STABLE [41b6e7c9a] 2022-11-03 20:40:21 +0100
+Branch: REL_12_STABLE [ab70b3a52] 2022-11-03 20:40:21 +0100
+Author: Alvaro Herrera <alvherre@alvh.no-ip.org>
+Branch: master [614a406b4] 2022-10-07 19:37:48 +0200
+Branch: REL_15_STABLE Release: REL_15_0 [6083132ab] 2022-10-07 19:37:48 +0200
+Branch: REL_14_STABLE [483d26930] 2022-10-07 19:37:48 +0200
+Branch: REL_13_STABLE [7d520e68e] 2022-10-07 19:37:48 +0200
+Branch: REL_12_STABLE [669803af0] 2022-10-07 19:37:48 +0200
+-->
+     <para>
+      Fix construction of per-partition foreign key constraints while
+      doing <command>ALTER TABLE ATTACH PARTITION</command>
+      (Jehan-Guillaume de Rorthais, &Aacute;lvaro Herrera)
+     </para>
+
+     <para>
+      Previously, incorrect or duplicate constraints could be constructed
+      for the newly-added partition.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [f4857082b] 2022-11-01 14:34:44 -0400
+Branch: REL_15_STABLE [1f1865e90] 2022-11-01 14:34:44 -0400
+-->
+     <para>
+      Fix planner failure with extended statistics on partitioned or
+      inherited tables (Richard Guo, Justin Pryzby)
+     </para>
+
+     <para>
+      Some cases failed with <quote>cache lookup failed for statistics
+      object</quote>.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Michael Paquier <michael@paquier.xyz>
+Branch: master [56b662523] 2022-10-13 09:31:57 +0900
+Branch: REL_15_STABLE [ca4070f2b] 2022-10-26 09:41:13 +0900
+Branch: REL_14_STABLE [5a30d43fa] 2022-10-26 09:41:18 +0900
+Branch: REL_13_STABLE [594b97509] 2022-10-26 09:41:22 +0900
+Branch: REL_12_STABLE [51c24d9e2] 2022-10-26 09:41:26 +0900
+Branch: REL_11_STABLE [341fba2a6] 2022-10-26 09:41:28 +0900
+Branch: REL_10_STABLE [b02fc7df1] 2022-10-26 09:41:31 +0900
+-->
+     <para>
+      Fix mis-ordering of WAL operations in fast insert path for GIN
+      indexes (Matthias van de Meent, Zhang Mingli)
+     </para>
+
+     <para>
+      This mistake is not known to have any negative consequences within
+      core <productname>PostgreSQL</productname>, but it did cause issues
+      for some extensions.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Amit Kapila <akapila@postgresql.org>
+Branch: master [16b1fe003] 2022-10-20 08:49:48 +0530
+Branch: REL_15_STABLE [64ff0fe4e] 2022-10-20 09:43:59 +0530
+Branch: REL_14_STABLE [a592ed923] 2022-10-20 09:34:18 +0530
+Branch: REL_13_STABLE [25f7be1ca] 2022-10-20 09:25:13 +0530
+Branch: REL_12_STABLE [1bf4d9206] 2022-10-20 09:16:28 +0530
+Branch: REL_11_STABLE [5f7076cb6] 2022-10-20 09:07:04 +0530
+Branch: REL_10_STABLE [10ed7b9e4] 2022-10-20 08:58:11 +0530
+Branch: REL_15_STABLE [343afa967] 2022-10-21 10:03:35 +0530
+Branch: REL_14_STABLE [4fbe6096b] 2022-10-21 09:52:44 +0530
+Branch: REL_13_STABLE [38dbaaf27] 2022-10-21 09:42:24 +0530
+Branch: REL_12_STABLE [02600886c] 2022-10-21 09:32:21 +0530
+Branch: REL_11_STABLE [216af69ae] 2022-10-21 09:22:20 +0530
+-->
+     <para>
+      Fix bugs in logical decoding when replay starts from a point
+      between the beginning of a transaction and the beginning of its
+      subtransaction (Masahiko Sawada, Kuroda Hayato)
+     </para>
+
+     <para>
+      These errors could lead to assertion failures in debug builds, and
+      otherwise to memory leaks.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Amit Kapila <akapila@postgresql.org>
+Branch: master [ce20f8b9f] 2022-10-21 12:57:18 +0530
+Branch: REL_15_STABLE [10eaa9750] 2022-10-21 12:43:28 +0530
+Branch: REL_14_STABLE [36fc013fa] 2022-10-21 12:33:47 +0530
+Branch: REL_13_STABLE [1eed947f9] 2022-10-21 12:22:47 +0530
+Branch: REL_12_STABLE [f7f82cf05] 2022-10-21 12:10:11 +0530
+Branch: REL_11_STABLE [5c51afe23] 2022-10-21 12:08:14 +0530
+Branch: REL_10_STABLE [61838d2dd] 2022-10-21 11:54:34 +0530
+Author: Amit Kapila <akapila@postgresql.org>
+Branch: master [f972ec5c2] 2022-08-23 10:20:02 +0530
+Branch: REL_15_STABLE Release: REL_15_0 [42681dffa] 2022-08-23 10:08:43 +0530
+Branch: REL_14_STABLE [6d05d575b] 2022-08-23 09:24:51 +0530
+Branch: REL_13_STABLE [4985a4591] 2022-08-23 09:10:28 +0530
+Branch: REL_12_STABLE [9415873ae] 2022-08-23 08:51:20 +0530
+Branch: REL_11_STABLE [51e9469a4] 2022-08-23 08:42:51 +0530
+Branch: REL_10_STABLE [6b50433e8] 2022-08-23 08:39:31 +0530
+-->
+     <para>
+      Accept interrupts in more places during logical decoding (Amit
+      Kapila, Masahiko Sawada)
+     </para>
+
+     <para>
+      This ameliorates problems with slow shutdown of replication workers.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [be541efbf] 2022-11-02 12:29:39 -0400
+Branch: REL_15_STABLE [414d29a82] 2022-11-02 12:29:39 -0400
+Branch: REL_14_STABLE [a5b7821fc] 2022-11-02 12:29:39 -0400
+Branch: REL_13_STABLE [4d3f7e75c] 2022-11-02 12:29:39 -0400
+-->
+     <para>
+      Prevent attempts to replicate into a foreign-table partition in
+      replication workers (Shi Yu, Tom Lane)
+     </para>
+
+     <para>
+      Although partitioned tables can have foreign tables as partitions,
+      replicating into such a partition isn't currently supported.
+      The logical replication worker process would crash if it was
+      attempted.  Now, an error is thrown.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [dea834938] 2022-11-03 12:02:14 -0400
+Branch: REL_15_STABLE [f2dc7f9e3] 2022-11-03 12:01:57 -0400
+Branch: REL_14_STABLE [2489c38cd] 2022-11-03 12:01:57 -0400
+Branch: REL_13_STABLE [b00f342ea] 2022-11-03 12:01:57 -0400
+Branch: REL_12_STABLE [d9ffccf8d] 2022-11-03 12:01:57 -0400
+Branch: REL_11_STABLE [ed019b5ef] 2022-11-03 12:01:57 -0400
+Branch: REL_10_STABLE [5f3cec77b] 2022-11-03 12:01:57 -0400
+-->
+     <para>
+      Avoid crash after function syntax error in replication workers
+      (Maxim Orlov, Anton Melnikov, Masahiko Sawada, Tom Lane)
+     </para>
+
+     <para>
+      If a syntax error occurred in a SQL-language or PL/pgSQL-language
+      <command>CREATE FUNCTION</command> or <command>DO</command> command
+      executed in a logical replication worker, the worker process would
+      crash with a null pointer dereference or assertion failure.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Michael Paquier <michael@paquier.xyz>
+Branch: master [9668c4a66] 2022-10-19 14:06:56 +0900
+Branch: REL_15_STABLE [5d2a47a29] 2022-10-19 14:07:01 +0900
+-->
+     <para>
+      Avoid double call of the shutdown callback of an archiver module
+      (Nathan Bossart, Bharath Rupireddy)
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [eec346611] 2022-10-17 11:35:23 -0400
+Branch: REL_15_STABLE [2e3326929] 2022-10-17 11:35:23 -0400
+Branch: REL_14_STABLE [8c611602b] 2022-10-17 11:35:23 -0400
+Branch: REL_13_STABLE [62b263bf7] 2022-10-17 11:35:23 -0400
+Branch: REL_12_STABLE [99b6b705d] 2022-10-17 11:35:23 -0400
+-->
+     <para>
+      Add plan-time check for attempted access to a table that has no
+      table access method (Tom Lane)
+     </para>
+
+     <para>
+      This prevents a crash in some catalog-corruption scenarios, for
+      example use of a view whose <literal>ON SELECT</literal> rule is
+      missing.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [18a4a620e] 2022-10-11 18:54:31 -0400
+Branch: REL_15_STABLE [e7b4ff327] 2022-10-11 18:54:31 -0400
+Branch: REL_14_STABLE [b10546ecf] 2022-10-11 18:54:31 -0400
+Branch: REL_13_STABLE [744270137] 2022-10-11 18:54:31 -0400
+Branch: REL_12_STABLE [8f98352b5] 2022-10-11 18:54:31 -0400
+Branch: REL_11_STABLE [6c1de98ba] 2022-10-11 18:54:31 -0400
+Branch: REL_10_STABLE [ab35b9dd7] 2022-10-11 18:54:31 -0400
+-->
+     <para>
+      Prevent postmaster crash when shared-memory state is corrupted
+      (Tom Lane)
+     </para>
+
+     <para>
+      The postmaster process is supposed to survive and initiate a
+      database restart if shared memory becomes corrupted, but one
+      bit of code was being insufficiently cautious about that.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Alvaro Herrera <alvherre@alvh.no-ip.org>
+Branch: master [db1b931a4] 2022-10-14 19:06:26 +0200
+Branch: REL_15_STABLE [27ca0bce5] 2022-10-14 19:06:26 +0200
+Branch: REL_14_STABLE [b8af4166f] 2022-10-14 19:06:26 +0200
+-->
+     <para>
+      In <application>libpq</application>, handle single-row mode
+      correctly when pipelining (Denis Laxalde)
+     </para>
+
+     <para>
+      The single-row flag was not reset at the correct time if pipeline
+      mode was also active.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Peter Eisentraut <peter@eisentraut.org>
+Branch: master [2598b76bf] 2022-10-22 09:42:52 +0200
+Branch: REL_15_STABLE [4a6de748d] 2022-10-22 09:41:38 +0200
+-->
+     <para>
+      Fix <application>psql</application>'s exit status when a
+      command-line query is canceled (Peter Eisentraut)
+     </para>
+
+     <para>
+      <literal>psql -c <replaceable>query</replaceable></literal> would
+      exit successfully if the query was canceled.  Fix it to exit with
+      nonzero status, as in other error cases.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Robert Haas <rhaas@postgresql.org>
+Branch: master [1f0c4fa25] 2022-10-21 08:21:55 -0400
+Branch: REL_15_STABLE [5c013e620] 2022-10-21 08:31:39 -0400
+Branch: REL_14_STABLE [aaad8adb0] 2022-10-21 08:39:48 -0400
+Branch: REL_13_STABLE [0bf2cd160] 2022-10-21 08:45:08 -0400
+Branch: REL_12_STABLE [475e9daf3] 2022-10-21 08:59:26 -0400
+Branch: REL_11_STABLE [38214dabd] 2022-10-21 09:05:57 -0400
+Branch: REL_10_STABLE [ba58266eb] 2022-10-21 09:11:47 -0400
+-->
+     <para>
+      Allow cross-platform tablespace relocation
+      in <application>pg_basebackup</application> (Robert Haas)
+     </para>
+
+     <para>
+      Allow the remote path in <option>--tablespace-mapping</option> to be
+      either a Unix-style or Windows-style absolute path, since the source
+      server could be on a different OS than the local system.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [26ee7fb36] 2022-11-02 11:30:04 -0400
+Branch: REL_15_STABLE [0eede9625] 2022-11-02 11:30:04 -0400
+-->
+     <para>
+      Fix <application>pg_dump</application>'s failure to dump comments
+      attached to some <literal>CHECK</literal> constraints (Tom Lane)
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [34fa0ddae] 2022-11-04 10:39:52 -0400
+Branch: REL_15_STABLE [2c6d43650] 2022-11-04 10:39:52 -0400
+-->
+     <para>
+      Fix <command>CREATE DATABASE</command> to allow
+      its <literal>oid</literal> parameter to exceed
+      2<superscript>31</superscript> (Tom Lane)
+     </para>
+
+     <para>
+      This oversight prevented <application>pg_upgrade</application> from
+      succeeding when the source installation contained databases with
+      OIDs larger than that.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [495e73c20] 2022-11-01 12:48:01 -0400
+Branch: REL_15_STABLE [8b0a5cf3f] 2022-11-01 12:48:01 -0400
+Branch: REL_14_STABLE [0f2f5645a] 2022-11-01 12:48:01 -0400
+Branch: REL_13_STABLE [a9fdb48b7] 2022-11-01 12:48:01 -0400
+Branch: REL_12_STABLE [ca4c6764b] 2022-11-01 12:48:01 -0400
+Branch: REL_11_STABLE [149e00192] 2022-11-01 12:48:01 -0400
+Branch: REL_10_STABLE [56083ff30] 2022-11-01 12:48:01 -0400
+-->
+     <para>
+      In <application>pg_stat_statements</application>, fix access to
+      already-freed memory (zhaoqigui)
+     </para>
+
+     <para>
+      This occurred if <application>pg_stat_statements</application>
+      tracked a <command>ROLLBACK</command> command issued via extended
+      query protocol.  In debug builds it consistently led to an assertion
+      failure.  In production builds there would often be no visible ill
+      effect; but if the freed memory had already been reused, the likely
+      result would be to store garbage for the query string.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Thomas Munro <tmunro@postgresql.org>
+Branch: master [c2ae01f69] 2022-10-19 22:18:26 +1300
+Branch: REL_15_STABLE [af64846e1] 2022-10-19 22:18:54 +1300
+Branch: REL_14_STABLE [d033f8f8b] 2022-10-19 22:32:14 +1300
+Branch: REL_13_STABLE [cf94cb586] 2022-10-19 22:38:58 +1300
+Branch: REL_12_STABLE [aa34bc4e2] 2022-10-19 22:44:53 +1300
+Branch: REL_11_STABLE [da3a6825e] 2022-10-19 22:49:25 +1300
+-->
+     <para>
+      Fix incompatibilities with LLVM 15 (Thomas Munro, Andres Freund)
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [1c72d82c2] 2022-11-02 17:37:29 -0400
+Branch: REL_15_STABLE [a5737e765] 2022-11-02 17:37:26 -0400
+Branch: REL_14_STABLE [058c7b5dd] 2022-11-02 17:37:26 -0400
+Branch: REL_13_STABLE [c479492c0] 2022-11-02 17:37:26 -0400
+Branch: REL_12_STABLE [5ecf836e9] 2022-11-02 17:37:26 -0400
+Branch: REL_11_STABLE [a0f9be1f9] 2022-11-02 17:37:26 -0400
+Branch: REL_10_STABLE [19cefebe7] 2022-11-02 17:37:26 -0400
+-->
+     <para>
+      Allow use of <function>__sync_lock_test_and_set()</function> for
+      spinlocks on any machine (Tom Lane)
+     </para>
+
+     <para>
+      This eases porting to new machine architectures, at least if you're
+      using a compiler that supports this GCC builtin function.
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [717ec1aae] 2022-10-16 15:27:04 -0400
+Branch: REL_15_STABLE [24c4c2617] 2022-10-16 15:27:04 -0400
+Branch: REL_14_STABLE [18e60712d] 2022-10-16 15:27:04 -0400
+Branch: REL_13_STABLE [bc7a40b42] 2022-10-16 15:27:04 -0400
+Branch: REL_12_STABLE [3d7df87c4] 2022-10-16 15:27:04 -0400
+Branch: REL_11_STABLE [6618c276b] 2022-10-16 15:27:04 -0400
+Branch: REL_10_STABLE [02d074e3e] 2022-10-16 15:27:04 -0400
+Branch: REL9_6_STABLE [9bfa043a1] 2022-10-16 15:27:04 -0400
+Branch: REL9_5_STABLE [377b37cf7] 2022-10-16 15:27:04 -0400
+Branch: REL9_4_STABLE [57dfb6ce6] 2022-10-16 15:27:04 -0400
+Branch: REL9_3_STABLE [ee4c44014] 2022-10-16 15:27:04 -0400
+Branch: REL9_2_STABLE [fec443414] 2022-10-16 15:27:04 -0400
+-->
+     <para>
+      Rename symbol <literal>REF</literal> to <literal>REF_P</literal> to
+      avoid compile failure on recent macOS (Tom Lane)
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [450ee7012] 2022-10-16 11:47:44 -0400
+Branch: REL_15_STABLE [bd4b2926e] 2022-10-16 11:47:44 -0400
+Branch: REL_14_STABLE [6fa431d84] 2022-10-16 11:47:44 -0400
+Branch: REL_13_STABLE [a2acafc7b] 2022-10-16 11:47:44 -0400
+Branch: REL_12_STABLE [d33ac1ec2] 2022-10-16 11:47:44 -0400
+-->
+     <para>
+      Avoid using <function>sprintf</function>, to avoid compile-time
+      deprecation warnings (Tom Lane)
+     </para>
+    </listitem>
+
+    <listitem>
+<!--
+Author: Tom Lane <tgl@sss.pgh.pa.us>
+Branch: master [e7c7605a7] 2022-11-01 17:08:28 -0400
+Branch: REL_15_STABLE [c3d16eb3d] 2022-11-01 17:08:49 -0400
+Branch: REL_14_STABLE [97bb80b1b] 2022-11-01 17:08:58 -0400
+Branch: REL_13_STABLE [ebf48810b] 2022-11-01 17:09:04 -0400
+Branch: REL_12_STABLE [ec9a000d8] 2022-11-01 17:09:09 -0400
+Branch: REL_11_STABLE [b1cb77bdf] 2022-11-01 17:09:16 -0400
+Branch: REL_10_STABLE [b3326a753] 2022-11-01 17:09:21 -0400
+-->
+     <para>
+      Update time zone data files to <application>tzdata</application>
+      release 2022f for DST law changes in Chile, Fiji, Iran, Jordan,
+      Mexico, Palestine, and Syria, plus historical corrections for Chile,
+      Crimea, Iran, and Mexico.
+     </para>
+
+     <para>
+      Also, the Europe/Kiev zone has been renamed to Europe/Kyiv.
+      Also, the following zones have been merged into nearby,
+      more-populous zones whose clocks have agreed with them since 1970:
+      Antarctica/Vostok, Asia/Brunei,
+      Asia/Kuala_Lumpur, Atlantic/Reykjavik, Europe/Amsterdam,
+      Europe/Copenhagen, Europe/Luxembourg, Europe/Monaco, Europe/Oslo,
+      Europe/Stockholm, Indian/Christmas, Indian/Cocos, Indian/Kerguelen,
+      Indian/Mahe, Indian/Reunion, Pacific/Chuuk, Pacific/Funafuti,
+      Pacific/Majuro, Pacific/Pohnpei, Pacific/Wake and Pacific/Wallis.
+      (This indirectly affects zones that were already links to one of
+      these: Arctic/Longyearbyen, Atlantic/Jan_Mayen, Iceland,
+      Pacific/Ponape, Pacific/Truk, and Pacific/Yap.)  America/Nipigon,
+      America/Rainy_River, America/Thunder_Bay, Europe/Uzhgorod, and
+      Europe/Zaporozhye were also merged into nearby zones after
+      discovering that their claimed post-1970 differences from those
+      zones seem to have been errors.
+      In all these cases, the previous zone name remains as an alias;
+      but the actual data is that of the zone that was merged into.
+     </para>
+
+     <para>
+      These zone mergers result in loss of pre-1970 timezone history for
+      the merged zones, which may be troublesome for applications
+      expecting consistency of <type>timestamptz</type> display.  As an
+      example, the stored value <literal>1944-06-01 12:00 UTC</literal>
+      would previously display as <literal>1944-06-01
+      13:00:00+01</literal> if the Europe/Stockholm zone is selected, but
+      now it will read out as <literal>1944-06-01 14:00:00+02</literal>.
+     </para>
+
+     <para>
+      It is possible to build the time zone data files with options that
+      will restore the older zone data, but that choice also inserts a lot
+      of other old (and typically poorly-attested) zone data, resulting in
+      more total changes from the previous release than accepting these
+      upstream changes does.  <productname>PostgreSQL</productname> has
+      chosen to ship the <productname>tzdb</productname> data
+      as-recommended, and so far as we are aware most major operating
+      system distributions are doing likewise.  However, if these changes
+      cause significant problems for your application, a possible solution
+      is to install a local build of the time zone data files using
+      <productname>tzdb</productname>'s backwards-compatibility options
+      (see their <literal>PACKRATDATA</literal>
+      and <literal>PACKRATLIST</literal> options).
+     </para>
+    </listitem>
+
+   </itemizedlist>
+
+  </sect2>
+ </sect1>
+
  <sect1 id="release-15">
   <title>Release 15</title>
 
@@ -3652,7 +4286,6 @@ Author: Etsuro Fujita <efujita@postgresql.org>
     <member>Floris Van Nee</member>
     <member>Frédéric Yhuel</member>
     <member>Gabriela Serventi</member>
-    <member>Gabriele Varrazzo</member>
     <member>Gaurab Dey</member>
     <member>Geoff Winkless</member>
     <member>Geoffrey Blake</member>
