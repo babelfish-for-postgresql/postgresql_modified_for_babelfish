@@ -1720,6 +1720,7 @@ RecordTransactionAbort(bool isSubXact)
 	int			nchildren;
 	TransactionId *children;
 	TimestampTz xact_time;
+	bool		replorigin;
 
 	/*
 	 * If we haven't been assigned an XID, nobody will care whether we aborted
@@ -1750,6 +1751,13 @@ RecordTransactionAbort(bool isSubXact)
 		elog(PANIC, "cannot abort transaction %u, it was already committed",
 			 xid);
 
+	/*
+	 * Are we using the replication origins feature?  Or, in other words, are
+	 * we replaying remote actions?
+	 */
+	replorigin = (replorigin_session_origin != InvalidRepOriginId &&
+				  replorigin_session_origin != DoNotReplicateId);
+
 	/* Fetch the data we need for the abort record */
 	nrels = smgrGetPendingDeletes(false, &rels);
 	nchildren = xactGetCommittedChildren(&children);
@@ -1772,6 +1780,11 @@ RecordTransactionAbort(bool isSubXact)
 					   ndroppedstats, droppedstats,
 					   MyXactFlags, InvalidTransactionId,
 					   NULL);
+
+	if (replorigin)
+		/* Move LSNs forward for this replication origin */
+		replorigin_session_advance(replorigin_session_origin_lsn,
+								   XactLastRecEnd);
 
 	/*
 	 * Report the latest async abort LSN, so that the WAL writer knows to
@@ -5880,11 +5893,10 @@ XactLogAbortRecord(TimestampTz abort_time,
 	}
 
 	/*
-	 * Dump transaction origin information only for abort prepared. We need
-	 * this during recovery to update the replication origin progress.
+	 * Dump transaction origin information. We need this during recovery to
+	 * update the replication origin progress.
 	 */
-	if ((replorigin_session_origin != InvalidRepOriginId) &&
-		TransactionIdIsValid(twophase_xid))
+	if (replorigin_session_origin != InvalidRepOriginId)
 	{
 		xl_xinfo.xinfo |= XACT_XINFO_HAS_ORIGIN;
 
@@ -5941,8 +5953,8 @@ XactLogAbortRecord(TimestampTz abort_time,
 	if (xl_xinfo.xinfo & XACT_XINFO_HAS_ORIGIN)
 		XLogRegisterData((char *) (&xl_origin), sizeof(xl_xact_origin));
 
-	if (TransactionIdIsValid(twophase_xid))
-		XLogSetRecordFlags(XLOG_INCLUDE_ORIGIN);
+	/* Include the replication origin */
+	XLogSetRecordFlags(XLOG_INCLUDE_ORIGIN);
 
 	return XLogInsert(RM_XACT_ID, info);
 }

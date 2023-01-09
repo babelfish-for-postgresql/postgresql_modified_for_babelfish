@@ -1474,6 +1474,7 @@ LogicalRepRelId
 LogicalRepRelMapEntry
 LogicalRepRelation
 LogicalRepRollbackPreparedTxnData
+LogicalRepStreamAbortData
 LogicalRepTupleData
 LogicalRepTyp
 LogicalRepWorker
@@ -1877,6 +1878,9 @@ PageXLogRecPtr
 PagetableEntry
 Pairs
 ParallelAppendState
+ParallelApplyWorkerEntry
+ParallelApplyWorkerInfo
+ParallelApplyWorkerShared
 ParallelBitmapHeapState
 ParallelBlockTableScanDesc
 ParallelBlockTableScanWorker
@@ -1896,6 +1900,7 @@ ParallelSlotResultHandler
 ParallelState
 ParallelTableScanDesc
 ParallelTableScanDescData
+ParallelTransState
 ParallelVacuumState
 ParallelWorkerContext
 ParallelWorkerInfo
@@ -1925,6 +1930,7 @@ ParserState
 PartClauseInfo
 PartClauseMatchStatus
 PartClauseTarget
+PartialFileSetState
 PartitionBoundInfo
 PartitionBoundInfoData
 PartitionBoundSpec
@@ -2775,6 +2781,7 @@ TocEntry
 TokenAuxData
 TokenizedAuthLine
 TrackItem
+TransApplyAction
 TransInvalidationInfo
 TransState
 TransactionId
