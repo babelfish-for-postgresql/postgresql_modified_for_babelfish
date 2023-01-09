@@ -330,4 +330,7 @@ extern bool pg_statistics_object_ownercheck(Oid stat_oid, Oid roleid);
 extern bool has_createrole_privilege(Oid roleid);
 extern bool has_bypassrls_privilege(Oid roleid);
 
+typedef bool (*tsql_has_linked_srv_permissions_hook_type) (Oid roleid);
+extern PGDLLIMPORT tsql_has_linked_srv_permissions_hook_type tsql_has_linked_srv_permissions_hook;
+
 #endif							/* ACL_H */
