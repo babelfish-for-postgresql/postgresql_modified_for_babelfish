@@ -460,7 +460,9 @@ internal_get_result_type(Oid funcid,
 	 */
 	if (modify_RangeTblFunction_tupdesc_hook)
 	{
-		if (strcmp(NameStr(procform->proname), "openquery") == 0)
+		char* funcname = NameStr(procform->proname);
+
+		if (funcname && (strlen(funcname) == 9) && strncmp(NameStr(procform->proname), "openquery", 9) == 0)
 			(*modify_RangeTblFunction_tupdesc_hook)(call_expr, &tupdesc);
 	}
 
