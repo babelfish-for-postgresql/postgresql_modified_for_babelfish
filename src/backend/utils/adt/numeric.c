@@ -5906,6 +5906,9 @@ numeric_poly_sum(PG_FUNCTION_ARGS)
 #endif
 }
 
+/*
+ *	Final function for BIGINT datatype for TSQL Aggregates (SUM,AVG)
+ */
 Datum
 bigint_utility(FunctionCallInfo fcinfo, bool isSum)
 {
