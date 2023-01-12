@@ -1788,8 +1788,7 @@ AcquireExecutorLocks(List *stmt_list, bool acquire)
 		{
 			RangeTblEntry *rte = (RangeTblEntry *) lfirst(lc2);
 
-			if (!(rte->rtekind == RTE_RELATION ||
-				  (rte->rtekind == RTE_SUBQUERY && OidIsValid(rte->relid))))
+			if (rte->rtekind != RTE_RELATION)
 				continue;
 
 			/*
