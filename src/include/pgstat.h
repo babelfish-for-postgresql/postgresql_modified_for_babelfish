@@ -477,6 +477,7 @@ extern void pgstat_report_connect(Oid dboid);
 
 extern PgStat_StatDBEntry *pgstat_fetch_stat_dbentry(Oid dboid);
 
+
 /*
  * Functions in pgstat_function.c
  */
