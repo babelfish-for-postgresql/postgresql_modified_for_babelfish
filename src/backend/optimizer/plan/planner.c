@@ -3174,6 +3174,27 @@ reorder_grouping_sets(List *groupingSets, List *sortclause)
 }
 
 /*
+ * has_volatile_pathkey
+ *		Returns true if any PathKey in 'keys' has an EquivalenceClass
+ *		containing a volatile function.  Otherwise returns false.
+ */
+static bool
+has_volatile_pathkey(List *keys)
+{
+	ListCell   *lc;
+
+	foreach(lc, keys)
+	{
+		PathKey    *pathkey = lfirst_node(PathKey, lc);
+
+		if (pathkey->pk_eclass->ec_has_volatile)
+			return true;
+	}
+
+	return false;
+}
+
+/*
  * make_pathkeys_for_groupagg
  *		Determine the pathkeys for the GROUP BY clause and/or any ordered
  *		aggregates.  We expect at least one of these here.
@@ -3194,6 +3215,19 @@ reorder_grouping_sets(List *groupingSets, List *sortclause)
  *
  * When the best pathkeys are found we also mark each Aggref that can use
  * those pathkeys as aggpresorted = true.
+ *
+ * Note: When an aggregate function's ORDER BY / DISTINCT clause contains any
+ * volatile functions, we never make use of these pathkeys.  We want to ensure
+ * that sorts using volatile functions are done independently in each Aggref
+ * rather than once at the query level.  If we were to allow this then Aggrefs
+ * with compatible sort orders would all transition their rows in the same
+ * order if those pathkeys were deemed to be the best pathkeys to sort on.
+ * Whereas, if some other set of Aggref's pathkeys happened to be deemed
+ * better pathkeys to sort on, then the volatile function Aggrefs would be
+ * left to perform their sorts individually.  To avoid this inconsistent
+ * behavior which could make Aggref results depend on what other Aggrefs the
+ * query contains, we always force Aggrefs with volatile functions to perform
+ * their own sorts.
  */
 static List *
 make_pathkeys_for_groupagg(PlannerInfo *root, List *groupClause, List *tlist,
@@ -3280,11 +3314,25 @@ make_pathkeys_for_groupagg(PlannerInfo *root, List *groupClause, List *tlist,
 			AggInfo    *agginfo = list_nth_node(AggInfo, root->agginfos, i);
 			Aggref	   *aggref = linitial_node(Aggref, agginfo->aggrefs);
 			List	   *sortlist;
+			List	   *pathkeys;
 
 			if (aggref->aggdistinct != NIL)
 				sortlist = aggref->aggdistinct;
 			else
 				sortlist = aggref->aggorder;
+
+			pathkeys = make_pathkeys_for_sortclauses(root, sortlist,
+													 aggref->args);
+
+			/*
+			 * Ignore Aggrefs which have volatile functions in their ORDER BY
+			 * or DISTINCT clause.
+			 */
+			if (has_volatile_pathkey(pathkeys))
+			{
+				unprocessed_aggs = bms_del_member(unprocessed_aggs, i);
+				continue;
+			}
 
 			/*
 			 * When not set yet, take the pathkeys from the first unprocessed
@@ -3292,8 +3340,7 @@ make_pathkeys_for_groupagg(PlannerInfo *root, List *groupClause, List *tlist,
 			 */
 			if (currpathkeys == NIL)
 			{
-				currpathkeys = make_pathkeys_for_sortclauses(root, sortlist,
-															 aggref->args);
+				currpathkeys = pathkeys;
 
 				/* include the GROUP BY pathkeys, if they exist */
 				if (grouppathkeys != NIL)
@@ -3305,11 +3352,7 @@ make_pathkeys_for_groupagg(PlannerInfo *root, List *groupClause, List *tlist,
 			}
 			else
 			{
-				List	   *pathkeys;
-
 				/* now look for a stronger set of matching pathkeys */
-				pathkeys = make_pathkeys_for_sortclauses(root, sortlist,
-														 aggref->args);
 
 				/* include the GROUP BY pathkeys, if they exist */
 				if (grouppathkeys != NIL)
