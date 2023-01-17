@@ -5910,8 +5910,14 @@ numeric_poly_sum(PG_FUNCTION_ARGS)
 #endif
 }
 
+/*
+ *	Final function for BIGINT datatype for TSQL Aggregates (SUM,AVG).
+ *  The tsql aggregate return non-default return types when compared with 
+ *  Default aggregate for integer datatypes , this function takes the accumlated
+ *  State and tranform the result into return type expected by tsql.
+ */
 Datum
-bigint_utility(FunctionCallInfo fcinfo, bool isSum)
+bigint_utility(FunctionCallInfo fcinfo, int tsqlAggType)
 {
 
 	PolyNumAggState		*state;
@@ -5939,8 +5945,9 @@ bigint_utility(FunctionCallInfo fcinfo, bool isSum)
 						errmsg("Arithmetic overflow error converting expression to data type bigint.")));
 		}
 		else {
-			if (isSum)
+			if (tsqlAggType == TSQL_SUM)
 				PG_RETURN_INT64((int64) result);
+			/* If the aggregate type is TSQL_AVG */
 			else
 			{
 				result /= state->N;
@@ -5948,8 +5955,9 @@ bigint_utility(FunctionCallInfo fcinfo, bool isSum)
 			}
 		}
 	#else
-		if (isSum)
+		if (tsqlAggType == TSQL_SUM)
 			temp = numeric_sum(fcinfo);
+		/* If the aggregate type is TSQL_AVG */
 		else
 			temp = numeric_avg(fcinfo);
 				
