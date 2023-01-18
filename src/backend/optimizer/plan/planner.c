@@ -97,17 +97,9 @@ create_upper_paths_hook_type create_upper_paths_hook = NULL;
 #define EXPRKIND_TABLEFUNC			11
 #define EXPRKIND_TABLEFUNC_LATERAL	12
 
-/* Passthrough data for standard_qp_callback */
-typedef struct
-{
-	List	   *activeWindows;	/* active windows, if any */
-	List	   *groupClause;	/* overrides parse->groupClause */
-} standard_qp_extra;
-
 /*
  * Data specific to grouping sets
  */
-
 typedef struct
 {
 	List	   *rollups;
@@ -130,6 +122,13 @@ typedef struct
 	List	   *uniqueOrder;	/* A List of unique ordering/partitioning
 								 * clauses per Window */
 } WindowClauseSortData;
+
+/* Passthrough data for standard_qp_callback */
+typedef struct
+{
+	List	   *activeWindows;	/* active windows, if any */
+	grouping_sets_data *gset_data;	/* grouping sets data, if any */
+} standard_qp_extra;
 
 /* Local functions */
 static Node *preprocess_expression(PlannerInfo *root, Node *expr, int kind);
@@ -644,6 +643,8 @@ subquery_planner(PlannerGlobal *glob, Query *parse,
 	root->rowMarks = NIL;
 	memset(root->upper_rels, 0, sizeof(root->upper_rels));
 	memset(root->upper_targets, 0, sizeof(root->upper_targets));
+	root->processed_groupClause = NIL;
+	root->processed_distinctClause = NIL;
 	root->processed_tlist = NIL;
 	root->update_colnos = NIL;
 	root->grouping_map = NULL;
@@ -1043,9 +1044,6 @@ subquery_planner(PlannerGlobal *glob, Query *parse,
 	}
 	parse->havingQual = (Node *) newHaving;
 
-	/* Remove any redundant GROUP BY columns */
-	remove_useless_groupby_columns(root);
-
 	/*
 	 * If we have any outer joins, try to reduce them to plain inner joins.
 	 * This step is most easily done after we've done expression
@@ -1413,11 +1411,12 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 		{
 			gset_data = preprocess_grouping_sets(root);
 		}
-		else
+		else if (parse->groupClause)
 		{
 			/* Preprocess regular GROUP BY clause, if any */
-			if (parse->groupClause)
-				parse->groupClause = preprocess_groupclause(root, NIL);
+			root->processed_groupClause = preprocess_groupclause(root, NIL);
+			/* Remove any redundant GROUP BY columns */
+			remove_useless_groupby_columns(root);
 		}
 
 		/*
@@ -1495,9 +1494,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 
 		/* Set up data needed by standard_qp_callback */
 		qp_extra.activeWindows = activeWindows;
-		qp_extra.groupClause = (gset_data
-								? (gset_data->rollups ? linitial_node(RollupData, gset_data->rollups)->groupClause : NIL)
-								: parse->groupClause);
+		qp_extra.gset_data = gset_data;
 
 		/*
 		 * Generate the best unsorted and presorted paths for the scan/join
@@ -2030,6 +2027,12 @@ preprocess_grouping_sets(PlannerInfo *root)
 	gd->unhashable_refs = NULL;
 	gd->unsortable_refs = NULL;
 	gd->unsortable_sets = NIL;
+
+	/*
+	 * We don't currently make any attempt to optimize the groupClause when
+	 * there are grouping sets, so just duplicate it in processed_groupClause.
+	 */
+	root->processed_groupClause = parse->groupClause;
 
 	if (parse->groupClause)
 	{
@@ -2664,7 +2667,7 @@ remove_useless_groupby_columns(PlannerInfo *root)
 	int			relid;
 
 	/* No chance to do anything if there are less than two GROUP BY items */
-	if (list_length(parse->groupClause) < 2)
+	if (list_length(root->processed_groupClause) < 2)
 		return;
 
 	/* Don't fiddle with the GROUP BY clause if the query has grouping sets */
@@ -2678,7 +2681,7 @@ remove_useless_groupby_columns(PlannerInfo *root)
 	 */
 	groupbyattnos = (Bitmapset **) palloc0(sizeof(Bitmapset *) *
 										   (list_length(parse->rtable) + 1));
-	foreach(lc, parse->groupClause)
+	foreach(lc, root->processed_groupClause)
 	{
 		SortGroupClause *sgc = lfirst_node(SortGroupClause, lc);
 		TargetEntry *tle = get_sortgroupclause_tle(sgc, parse->targetList);
@@ -2773,7 +2776,7 @@ remove_useless_groupby_columns(PlannerInfo *root)
 	{
 		List	   *new_groupby = NIL;
 
-		foreach(lc, parse->groupClause)
+		foreach(lc, root->processed_groupClause)
 		{
 			SortGroupClause *sgc = lfirst_node(SortGroupClause, lc);
 			TargetEntry *tle = get_sortgroupclause_tle(sgc, parse->targetList);
@@ -2790,7 +2793,7 @@ remove_useless_groupby_columns(PlannerInfo *root)
 				new_groupby = lappend(new_groupby, sgc);
 		}
 
-		parse->groupClause = new_groupby;
+		root->processed_groupClause = new_groupby;
 	}
 }
 
@@ -2809,6 +2812,10 @@ remove_useless_groupby_columns(PlannerInfo *root)
  *
  * Note: we need no comparable processing of the distinctClause because
  * the parser already enforced that that matches ORDER BY.
+ *
+ * Note: we return a fresh List, but its elements are the same
+ * SortGroupClauses appearing in parse->groupClause.  This is important
+ * because later processing may modify the processed_groupClause list.
  *
  * For grouping sets, the order of items is instead forced to agree with that
  * of the grouping set (and items not in the grouping set are skipped). The
@@ -2840,7 +2847,7 @@ preprocess_groupclause(PlannerInfo *root, List *force)
 
 	/* If no ORDER BY, nothing useful to do here */
 	if (parse->sortClause == NIL)
-		return parse->groupClause;
+		return list_copy(parse->groupClause);
 
 	/*
 	 * Scan the ORDER BY clause and construct a list of matching GROUP BY
@@ -2871,7 +2878,7 @@ preprocess_groupclause(PlannerInfo *root, List *force)
 
 	/* If no match at all, no point in reordering GROUP BY */
 	if (new_groupclause == NIL)
-		return parse->groupClause;
+		return list_copy(parse->groupClause);
 
 	/*
 	 * Add any remaining GROUP BY items to the new list, but only if we were
@@ -2887,10 +2894,10 @@ preprocess_groupclause(PlannerInfo *root, List *force)
 
 		if (list_member_ptr(new_groupclause, gc))
 			continue;			/* it matched an ORDER BY item */
-		if (partial_match)
-			return parse->groupClause;	/* give up, no common sort possible */
-		if (!OidIsValid(gc->sortop))
-			return parse->groupClause;	/* give up, GROUP BY can't be sorted */
+		if (partial_match)		/* give up, no common sort possible */
+			return list_copy(parse->groupClause);
+		if (!OidIsValid(gc->sortop))	/* give up, GROUP BY can't be sorted */
+			return list_copy(parse->groupClause);
 		new_groupclause = lappend(new_groupclause, gc);
 	}
 
@@ -3195,23 +3202,17 @@ has_volatile_pathkey(List *keys)
 }
 
 /*
- * make_pathkeys_for_groupagg
- *		Determine the pathkeys for the GROUP BY clause and/or any ordered
- *		aggregates.  We expect at least one of these here.
+ * adjust_group_pathkeys_for_groupagg
+ *		Add pathkeys to root->group_pathkeys to reflect the best set of
+ *		pre-ordered input for ordered aggregates.
  *
- * Building the pathkeys for the GROUP BY is simple.  Most of the complexity
- * involved here comes from calculating the best pathkeys for ordered
- * aggregates.  We define "best" as the pathkeys that suit the most number of
+ * We define "best" as the pathkeys that suit the largest number of
  * aggregate functions.  We find these by looking at the first ORDER BY /
  * DISTINCT aggregate and take the pathkeys for that before searching for
  * other aggregates that require the same or a more strict variation of the
  * same pathkeys.  We then repeat that process for any remaining aggregates
  * with different pathkeys and if we find another set of pathkeys that suits a
- * larger number of aggregates then we return those pathkeys instead.
- *
- * *number_groupby_pathkeys gets set to the number of elements in the returned
- * list that belong to the GROUP BY clause.  Any elements above this number
- * must belong to ORDER BY / DISTINCT aggregates.
+ * larger number of aggregates then we select those pathkeys instead.
  *
  * When the best pathkeys are found we also mark each Aggref that can use
  * those pathkeys as aggpresorted = true.
@@ -3229,43 +3230,24 @@ has_volatile_pathkey(List *keys)
  * query contains, we always force Aggrefs with volatile functions to perform
  * their own sorts.
  */
-static List *
-make_pathkeys_for_groupagg(PlannerInfo *root, List *groupClause, List *tlist,
-						   int *number_groupby_pathkeys)
+static void
+adjust_group_pathkeys_for_groupagg(PlannerInfo *root)
 {
-	List	   *grouppathkeys = NIL;
+	List	   *grouppathkeys = root->group_pathkeys;
 	List	   *bestpathkeys;
 	Bitmapset  *bestaggs;
 	Bitmapset  *unprocessed_aggs;
 	ListCell   *lc;
 	int			i;
 
-	Assert(groupClause != NIL || root->numOrderedAggs > 0);
+	/* Shouldn't be here if there are grouping sets */
+	Assert(root->parse->groupingSets == NIL);
+	/* Shouldn't be here unless there are some ordered aggregates */
+	Assert(root->numOrderedAggs > 0);
 
-	if (groupClause != NIL)
-	{
-		/* no pathkeys possible if there's an unsortable GROUP BY */
-		if (!grouping_is_sortable(groupClause))
-		{
-			*number_groupby_pathkeys = 0;
-			return NIL;
-		}
-
-		grouppathkeys = make_pathkeys_for_sortclauses(root, groupClause,
-													  tlist);
-		*number_groupby_pathkeys = list_length(grouppathkeys);
-	}
-	else
-		*number_groupby_pathkeys = 0;
-
-	/*
-	 * We can't add pathkeys for ordered aggregates if there are any grouping
-	 * sets.  All handling specific to ordered aggregates must be done by the
-	 * executor in that case.
-	 */
-	if (root->numOrderedAggs == 0 || root->parse->groupingSets != NIL ||
-		!enable_presorted_aggregate)
-		return grouppathkeys;
+	/* Do nothing if disabled */
+	if (!enable_presorted_aggregate)
+		return;
 
 	/*
 	 * Make a first pass over all AggInfos to collect a Bitmapset containing
@@ -3397,6 +3379,14 @@ make_pathkeys_for_groupagg(PlannerInfo *root, List *groupClause, List *tlist,
 	}
 
 	/*
+	 * If we found any ordered aggregates, update root->group_pathkeys to add
+	 * the best set of aggregate pathkeys.  Note that bestpathkeys includes
+	 * the original GROUP BY pathkeys already.
+	 */
+	if (bestpathkeys != NIL)
+		root->group_pathkeys = bestpathkeys;
+
+	/*
 	 * Now that we've found the best set of aggregates we can set the
 	 * presorted flag to indicate to the executor that it needn't bother
 	 * performing a sort for these Aggrefs.  We're able to do this now as
@@ -3416,16 +3406,6 @@ make_pathkeys_for_groupagg(PlannerInfo *root, List *groupClause, List *tlist,
 			aggref->aggpresorted = true;
 		}
 	}
-
-	/*
-	 * bestpathkeys includes the GROUP BY pathkeys, so if we found any ordered
-	 * aggregates, then return bestpathkeys, otherwise return the
-	 * grouppathkeys.
-	 */
-	if (bestpathkeys != NIL)
-		return bestpathkeys;
-
-	return grouppathkeys;
 }
 
 /*
@@ -3443,11 +3423,62 @@ standard_qp_callback(PlannerInfo *root, void *extra)
 	 * Calculate pathkeys that represent grouping/ordering and/or ordered
 	 * aggregate requirements.
 	 */
-	if (qp_extra->groupClause != NIL || root->numOrderedAggs > 0)
-		root->group_pathkeys = make_pathkeys_for_groupagg(root,
-														  qp_extra->groupClause,
-														  tlist,
-														  &root->num_groupby_pathkeys);
+	if (qp_extra->gset_data)
+	{
+		/*
+		 * With grouping sets, just use the first RollupData's groupClause. We
+		 * don't make any effort to optimize grouping clauses when there are
+		 * grouping sets, nor can we combine aggregate ordering keys with
+		 * grouping.
+		 */
+		List	   *rollups = qp_extra->gset_data->rollups;
+		List	   *groupClause = (rollups ? linitial_node(RollupData, rollups)->groupClause : NIL);
+
+		if (grouping_is_sortable(groupClause))
+		{
+			root->group_pathkeys = make_pathkeys_for_sortclauses(root,
+																 groupClause,
+																 tlist);
+			root->num_groupby_pathkeys = list_length(root->group_pathkeys);
+		}
+		else
+		{
+			root->group_pathkeys = NIL;
+			root->num_groupby_pathkeys = 0;
+		}
+	}
+	else if (parse->groupClause || root->numOrderedAggs > 0)
+	{
+		/*
+		 * With a plain GROUP BY list, we can remove any grouping items that
+		 * are proven redundant by EquivalenceClass processing.  For example,
+		 * we can remove y given "WHERE x = y GROUP BY x, y".  These aren't
+		 * especially common cases, but they're nearly free to detect.  Note
+		 * that we remove redundant items from processed_groupClause but not
+		 * the original parse->groupClause.
+		 */
+		bool		sortable;
+
+		root->group_pathkeys =
+			make_pathkeys_for_sortclauses_extended(root,
+												   &root->processed_groupClause,
+												   tlist,
+												   true,
+												   &sortable);
+		if (!sortable)
+		{
+			/* Can't sort; no point in considering aggregate ordering either */
+			root->group_pathkeys = NIL;
+			root->num_groupby_pathkeys = 0;
+		}
+		else
+		{
+			root->num_groupby_pathkeys = list_length(root->group_pathkeys);
+			/* If we have ordered aggs, consider adding onto group_pathkeys */
+			if (root->numOrderedAggs > 0)
+				adjust_group_pathkeys_for_groupagg(root);
+		}
+	}
 	else
 	{
 		root->group_pathkeys = NIL;
@@ -3466,12 +3497,27 @@ standard_qp_callback(PlannerInfo *root, void *extra)
 	else
 		root->window_pathkeys = NIL;
 
-	if (parse->distinctClause &&
-		grouping_is_sortable(parse->distinctClause))
+	/*
+	 * As with GROUP BY, we can discard any DISTINCT items that are proven
+	 * redundant by EquivalenceClass processing.  The non-redundant list is
+	 * kept in root->processed_distinctClause, leaving the original
+	 * parse->distinctClause alone.
+	 */
+	if (parse->distinctClause)
+	{
+		bool		sortable;
+
+		/* Make a copy since pathkey processing can modify the list */
+		root->processed_distinctClause = list_copy(parse->distinctClause);
 		root->distinct_pathkeys =
-			make_pathkeys_for_sortclauses(root,
-										  parse->distinctClause,
-										  tlist);
+			make_pathkeys_for_sortclauses_extended(root,
+												   &root->processed_distinctClause,
+												   tlist,
+												   true,
+												   &sortable);
+		if (!sortable)
+			root->distinct_pathkeys = NIL;
+	}
 	else
 		root->distinct_pathkeys = NIL;
 
@@ -3600,8 +3646,8 @@ get_number_of_groups(PlannerInfo *root,
 		}
 		else
 		{
-			/* Plain GROUP BY */
-			groupExprs = get_sortgrouplist_exprs(parse->groupClause,
+			/* Plain GROUP BY -- estimate based on optimized groupClause */
+			groupExprs = get_sortgrouplist_exprs(root->processed_groupClause,
 												 target_list);
 
 			dNumGroups = estimate_num_groups(root, groupExprs, path_rows,
@@ -3679,8 +3725,8 @@ create_grouping_paths(PlannerInfo *root,
 
 		/*
 		 * Determine whether it's possible to perform sort-based
-		 * implementations of grouping.  (Note that if groupClause is empty,
-		 * grouping_is_sortable() is trivially true, and all the
+		 * implementations of grouping.  (Note that if processed_groupClause
+		 * is empty, grouping_is_sortable() is trivially true, and all the
 		 * pathkeys_contained_in() tests will succeed too, so that we'll
 		 * consider every surviving input path.)
 		 *
@@ -3689,7 +3735,7 @@ create_grouping_paths(PlannerInfo *root,
 		 * must consider any sorted-input plan.
 		 */
 		if ((gd && gd->rollups != NIL)
-			|| grouping_is_sortable(parse->groupClause))
+			|| grouping_is_sortable(root->processed_groupClause))
 			flags |= GROUPING_CAN_USE_SORT;
 
 		/*
@@ -3714,7 +3760,7 @@ create_grouping_paths(PlannerInfo *root,
 		 */
 		if ((parse->groupClause != NIL &&
 			 root->numOrderedAggs == 0 &&
-			 (gd ? gd->any_hashable : grouping_is_hashable(parse->groupClause))))
+			 (gd ? gd->any_hashable : grouping_is_hashable(root->processed_groupClause))))
 			flags |= GROUPING_CAN_USE_HASH;
 
 		/*
@@ -3925,6 +3971,9 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 		 * partial partitionwise aggregation.  But if partial aggregation is
 		 * not supported in general then we can't use it for partitionwise
 		 * aggregation either.
+		 *
+		 * Check parse->groupClause not processed_groupClause, because it's
+		 * okay if some of the partitioning columns were proved redundant.
 		 */
 		if (extra->patype == PARTITIONWISE_AGGREGATE_FULL &&
 			group_by_has_partkey(input_rel, extra->targetList,
@@ -4715,7 +4764,7 @@ create_partial_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 
 	cheapest_partial_path = linitial(input_rel->partial_pathlist);
 
-	distinctExprs = get_sortgrouplist_exprs(parse->distinctClause,
+	distinctExprs = get_sortgrouplist_exprs(root->processed_distinctClause,
 											parse->targetList);
 
 	/* estimate how many distinct rows we'll get from each worker */
@@ -4727,7 +4776,7 @@ create_partial_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	 * Try sorting the cheapest path and incrementally sorting any paths with
 	 * presorted keys and put a unique paths atop of those.
 	 */
-	if (grouping_is_sortable(parse->distinctClause))
+	if (grouping_is_sortable(root->processed_distinctClause))
 	{
 		foreach(lc, input_rel->partial_pathlist)
 		{
@@ -4789,7 +4838,7 @@ create_partial_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	 * path here, we treat enable_hashagg as a hard off-switch rather than the
 	 * slightly softer variant in create_final_distinct_paths.
 	 */
-	if (enable_hashagg && grouping_is_hashable(parse->distinctClause))
+	if (enable_hashagg && grouping_is_hashable(root->processed_distinctClause))
 	{
 		add_partial_path(partial_distinct_rel, (Path *)
 						 create_agg_path(root,
@@ -4798,7 +4847,7 @@ create_partial_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 										 cheapest_partial_path->pathtarget,
 										 AGG_HASHED,
 										 AGGSPLIT_SIMPLE,
-										 parse->distinctClause,
+										 root->processed_distinctClause,
 										 NIL,
 										 NULL,
 										 numDistinctRows));
@@ -4870,7 +4919,7 @@ create_final_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 		 */
 		List	   *distinctExprs;
 
-		distinctExprs = get_sortgrouplist_exprs(parse->distinctClause,
+		distinctExprs = get_sortgrouplist_exprs(root->processed_distinctClause,
 												parse->targetList);
 		numDistinctRows = estimate_num_groups(root, distinctExprs,
 											  cheapest_input_path->rows,
@@ -4880,7 +4929,7 @@ create_final_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	/*
 	 * Consider sort-based implementations of DISTINCT, if possible.
 	 */
-	if (grouping_is_sortable(parse->distinctClause))
+	if (grouping_is_sortable(root->processed_distinctClause))
 	{
 		/*
 		 * Firstly, if we have any adequately-presorted paths, just stick a
@@ -5014,7 +5063,7 @@ create_final_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	else
 		allow_hash = true;		/* default */
 
-	if (allow_hash && grouping_is_hashable(parse->distinctClause))
+	if (allow_hash && grouping_is_hashable(root->processed_distinctClause))
 	{
 		/* Generate hashed aggregate path --- no sort needed */
 		add_path(distinct_rel, (Path *)
@@ -5024,7 +5073,7 @@ create_final_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 								 cheapest_input_path->pathtarget,
 								 AGG_HASHED,
 								 AGGSPLIT_SIMPLE,
-								 parse->distinctClause,
+								 root->processed_distinctClause,
 								 NIL,
 								 NULL,
 								 numDistinctRows));
@@ -5319,8 +5368,9 @@ make_group_input_target(PlannerInfo *root, PathTarget *final_target)
 		Expr	   *expr = (Expr *) lfirst(lc);
 		Index		sgref = get_pathtarget_sortgroupref(final_target, i);
 
-		if (sgref && parse->groupClause &&
-			get_sortgroupref_clause_noerr(sgref, parse->groupClause) != NULL)
+		if (sgref && root->processed_groupClause &&
+			get_sortgroupref_clause_noerr(sgref,
+										  root->processed_groupClause) != NULL)
 		{
 			/*
 			 * It's a grouping column, so add it to the input target as-is.
@@ -5388,7 +5438,6 @@ make_partial_grouping_target(PlannerInfo *root,
 							 PathTarget *grouping_target,
 							 Node *havingQual)
 {
-	Query	   *parse = root->parse;
 	PathTarget *partial_target;
 	List	   *non_group_cols;
 	List	   *non_group_exprs;
@@ -5404,8 +5453,9 @@ make_partial_grouping_target(PlannerInfo *root,
 		Expr	   *expr = (Expr *) lfirst(lc);
 		Index		sgref = get_pathtarget_sortgroupref(grouping_target, i);
 
-		if (sgref && parse->groupClause &&
-			get_sortgroupref_clause_noerr(sgref, parse->groupClause) != NULL)
+		if (sgref && root->processed_groupClause &&
+			get_sortgroupref_clause_noerr(sgref,
+										  root->processed_groupClause) != NULL)
 		{
 			/*
 			 * It's a grouping column, so add it to the partial_target as-is.
@@ -5860,7 +5910,6 @@ make_window_input_target(PlannerInfo *root,
 						 PathTarget *final_target,
 						 List *activeWindows)
 {
-	Query	   *parse = root->parse;
 	PathTarget *input_target;
 	Bitmapset  *sgrefs;
 	List	   *flattenable_cols;
@@ -5868,7 +5917,7 @@ make_window_input_target(PlannerInfo *root,
 	int			i;
 	ListCell   *lc;
 
-	Assert(parse->hasWindowFuncs);
+	Assert(root->parse->hasWindowFuncs);
 
 	/*
 	 * Collect the sortgroupref numbers of window PARTITION/ORDER BY clauses
@@ -5895,7 +5944,7 @@ make_window_input_target(PlannerInfo *root,
 	}
 
 	/* Add in sortgroupref numbers of GROUP BY clauses, too */
-	foreach(lc, parse->groupClause)
+	foreach(lc, root->processed_groupClause)
 	{
 		SortGroupClause *grpcl = lfirst_node(SortGroupClause, lc);
 
@@ -6814,7 +6863,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 										 grouped_rel->reltarget,
 										 parse->groupClause ? AGG_SORTED : AGG_PLAIN,
 										 AGGSPLIT_SIMPLE,
-										 parse->groupClause,
+										 root->processed_groupClause,
 										 havingQual,
 										 agg_costs,
 										 dNumGroups));
@@ -6829,7 +6878,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 						 create_group_path(root,
 										   grouped_rel,
 										   path,
-										   parse->groupClause,
+										   root->processed_groupClause,
 										   havingQual,
 										   dNumGroups));
 			}
@@ -6898,7 +6947,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 											 grouped_rel->reltarget,
 											 parse->groupClause ? AGG_SORTED : AGG_PLAIN,
 											 AGGSPLIT_FINAL_DESERIAL,
-											 parse->groupClause,
+											 root->processed_groupClause,
 											 havingQual,
 											 agg_final_costs,
 											 dNumGroups));
@@ -6907,7 +6956,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 							 create_group_path(root,
 											   grouped_rel,
 											   path,
-											   parse->groupClause,
+											   root->processed_groupClause,
 											   havingQual,
 											   dNumGroups));
 
@@ -6938,7 +6987,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 									 grouped_rel->reltarget,
 									 AGG_HASHED,
 									 AGGSPLIT_SIMPLE,
-									 parse->groupClause,
+									 root->processed_groupClause,
 									 havingQual,
 									 agg_costs,
 									 dNumGroups));
@@ -6959,7 +7008,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 									 grouped_rel->reltarget,
 									 AGG_HASHED,
 									 AGGSPLIT_FINAL_DESERIAL,
-									 parse->groupClause,
+									 root->processed_groupClause,
 									 havingQual,
 									 agg_final_costs,
 									 dNumGroups));
@@ -7161,7 +7210,7 @@ create_partial_grouping_paths(PlannerInfo *root,
 										 partially_grouped_rel->reltarget,
 										 parse->groupClause ? AGG_SORTED : AGG_PLAIN,
 										 AGGSPLIT_INITIAL_SERIAL,
-										 parse->groupClause,
+										 root->processed_groupClause,
 										 NIL,
 										 agg_partial_costs,
 										 dNumPartialGroups));
@@ -7170,7 +7219,7 @@ create_partial_grouping_paths(PlannerInfo *root,
 						 create_group_path(root,
 										   partially_grouped_rel,
 										   path,
-										   parse->groupClause,
+										   root->processed_groupClause,
 										   NIL,
 										   dNumPartialGroups));
 		}
@@ -7230,7 +7279,7 @@ create_partial_grouping_paths(PlannerInfo *root,
 												 partially_grouped_rel->reltarget,
 												 parse->groupClause ? AGG_SORTED : AGG_PLAIN,
 												 AGGSPLIT_INITIAL_SERIAL,
-												 parse->groupClause,
+												 root->processed_groupClause,
 												 NIL,
 												 agg_partial_costs,
 												 dNumPartialPartialGroups));
@@ -7239,7 +7288,7 @@ create_partial_grouping_paths(PlannerInfo *root,
 								 create_group_path(root,
 												   partially_grouped_rel,
 												   path,
-												   parse->groupClause,
+												   root->processed_groupClause,
 												   NIL,
 												   dNumPartialPartialGroups));
 		}
@@ -7260,7 +7309,7 @@ create_partial_grouping_paths(PlannerInfo *root,
 								 partially_grouped_rel->reltarget,
 								 AGG_HASHED,
 								 AGGSPLIT_INITIAL_SERIAL,
-								 parse->groupClause,
+								 root->processed_groupClause,
 								 NIL,
 								 agg_partial_costs,
 								 dNumPartialGroups));
@@ -7278,7 +7327,7 @@ create_partial_grouping_paths(PlannerInfo *root,
 										 partially_grouped_rel->reltarget,
 										 AGG_HASHED,
 										 AGGSPLIT_INITIAL_SERIAL,
-										 parse->groupClause,
+										 root->processed_groupClause,
 										 NIL,
 										 agg_partial_costs,
 										 dNumPartialPartialGroups));
