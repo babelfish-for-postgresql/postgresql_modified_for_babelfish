@@ -205,15 +205,15 @@ char	   *Unix_socket_directories;
 char	   *ListenAddresses;
 
 /*
- * ReservedBackends is the number of backends reserved for superuser use.
- * This number is taken out of the pool size given by MaxConnections so
- * number of backend slots available to non-superusers is
- * (MaxConnections - ReservedBackends).  Note what this really means is
- * "if there are <= ReservedBackends connections available, only superusers
- * can make new connections" --- pre-existing superuser connections don't
- * count against the limit.
+ * SuperuserReservedConnections is the number of backends reserved for
+ * superuser use.  This number is taken out of the pool size given by
+ * MaxConnections so number of backend slots available to non-superusers is
+ * (MaxConnections - SuperuserReservedConnections).  Note what this really
+ * means is "if there are <= SuperuserReservedConnections connections
+ * available, only superusers can make new connections" --- pre-existing
+ * superuser connections don't count against the limit.
  */
-int			ReservedBackends;
+int			SuperuserReservedConnections;
 
 /* The hook for protocol extension init functions */
 listen_init_hook_type	listen_init_hook = NULL;
@@ -934,11 +934,11 @@ PostmasterMain(int argc, char *argv[])
 	/*
 	 * Check for invalid combinations of GUC settings.
 	 */
-	if (ReservedBackends >= MaxConnections)
+	if (SuperuserReservedConnections >= MaxConnections)
 	{
 		write_stderr("%s: superuser_reserved_connections (%d) must be less than max_connections (%d)\n",
 					 progname,
-					 ReservedBackends, MaxConnections);
+					 SuperuserReservedConnections, MaxConnections);
 		ExitPostmaster(1);
 	}
 	if (XLogArchiveMode > ARCHIVE_MODE_OFF && wal_level == WAL_LEVEL_MINIMAL)
