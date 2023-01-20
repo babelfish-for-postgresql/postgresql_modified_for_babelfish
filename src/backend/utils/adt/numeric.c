@@ -5917,7 +5917,7 @@ numeric_poly_sum(PG_FUNCTION_ARGS)
  *  State and tranform the result into return type expected by tsql.
  */
 Datum
-bigint_poly_aggr_final(FunctionCallInfo fcinfo, int tsqlAggType)
+bigint_poly_aggr_final(FunctionCallInfo fcinfo, tsqlAggType AggType)
 {
 
 	PolyNumAggState		*state;
@@ -5945,7 +5945,7 @@ bigint_poly_aggr_final(FunctionCallInfo fcinfo, int tsqlAggType)
 						errmsg("Arithmetic overflow error converting expression to data type bigint.")));
 		}
 		else {
-			if (tsqlAggType == TSQL_SUM)
+			if (AggType == TSQL_SUM)
 				PG_RETURN_INT64((int64) result);
 			/* If the aggregate type is TSQL_AVG */
 			else
