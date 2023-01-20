@@ -930,7 +930,7 @@ InitPostgres(const char *in_dbname, Oid dboid,
 		!HaveNFreeProcs(ReservedBackends))
 		ereport(FATAL,
 				(errcode(ERRCODE_TOO_MANY_CONNECTIONS),
-				 errmsg("remaining connection slots are reserved for non-replication superuser connections")));
+				 errmsg("remaining connection slots are reserved for superusers")));
 
 	/* Check replication permissions needed for walsender processes. */
 	if (am_walsender)
