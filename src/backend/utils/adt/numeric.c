@@ -5917,7 +5917,7 @@ numeric_poly_sum(PG_FUNCTION_ARGS)
  *  State and tranform the result into return type expected by tsql.
  */
 Datum
-bigint_utility(FunctionCallInfo fcinfo, int tsqlAggType)
+bigint_poly_aggr_final(FunctionCallInfo fcinfo, int tsqlAggType)
 {
 
 	PolyNumAggState		*state;
