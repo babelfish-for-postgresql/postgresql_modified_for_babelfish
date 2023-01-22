@@ -176,6 +176,7 @@
 #include "postmaster/walwriter.h"
 #include "replication/decode.h"
 #include "replication/logical.h"
+#include "replication/logicallauncher.h"
 #include "replication/logicalproto.h"
 #include "replication/logicalrelation.h"
 #include "replication/logicalworker.h"
@@ -3830,6 +3831,15 @@ apply_worker_exit(void)
 		return;
 	}
 
+	/*
+	 * Reset the last-start time for this apply worker so that the launcher
+	 * will restart it without waiting for wal_retrieve_retry_interval if the
+	 * subscription is still active, and so that we won't leak that hash table
+	 * entry if it isn't.
+	 */
+	if (!am_tablesync_worker())
+		ApplyLauncherForgetWorkerStartTime(MyLogicalRepWorker->subid);
+
 	proc_exit(0);
 }
 
@@ -3870,6 +3880,9 @@ maybe_reread_subscription(void)
 				(errmsg("%s for subscription \"%s\" will stop because the subscription was removed",
 						get_worker_name(), MySubscription->name)));
 
+		/* Ensure we remove no-longer-useful entry for worker's start time */
+		if (!am_tablesync_worker() && !am_parallel_apply_worker())
+			ApplyLauncherForgetWorkerStartTime(MyLogicalRepWorker->subid);
 		proc_exit(0);
 	}
 
@@ -4457,6 +4470,9 @@ InitializeApplyWorker(void)
 				(errmsg("%s for subscription %u will not start because the subscription was removed during startup",
 						get_worker_name(), MyLogicalRepWorker->subid)));
 
+		/* Ensure we remove no-longer-useful entry for worker's start time */
+		if (!am_tablesync_worker() && !am_parallel_apply_worker())
+			ApplyLauncherForgetWorkerStartTime(MyLogicalRepWorker->subid);
 		proc_exit(0);
 	}
 
@@ -4713,6 +4729,10 @@ DisableSubscriptionAndExit(void)
 	StartTransactionCommand();
 	DisableSubscription(MySubscription->oid);
 	CommitTransactionCommand();
+
+	/* Ensure we remove no-longer-useful entry for worker's start time */
+	if (!am_tablesync_worker() && !am_parallel_apply_worker())
+		ApplyLauncherForgetWorkerStartTime(MyLogicalRepWorker->subid);
 
 	/* Notify the subscription has been disabled and exit */
 	ereport(LOG,
