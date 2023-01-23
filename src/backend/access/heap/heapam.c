@@ -562,7 +562,7 @@ heapgettup(HeapScanDesc scan,
 				}
 			}
 			else
-				block = scan->rs_startblock; /* first page */
+				block = scan->rs_startblock;	/* first page */
 			heapgetpage((TableScanDesc) scan, block);
 			lineoff = FirstOffsetNumber;	/* first offnum */
 			scan->rs_inited = true;
@@ -570,7 +570,7 @@ heapgettup(HeapScanDesc scan,
 		else
 		{
 			/* continue from previously returned page/tuple */
-			block = scan->rs_cblock; /* current page */
+			block = scan->rs_cblock;	/* current page */
 			lineoff =			/* next offnum */
 				OffsetNumberNext(ItemPointerGetOffsetNumber(&(tuple->t_self)));
 		}
@@ -624,7 +624,7 @@ heapgettup(HeapScanDesc scan,
 		else
 		{
 			/* continue from previously returned page/tuple */
-			block = scan->rs_cblock; /* current page */
+			block = scan->rs_cblock;	/* current page */
 		}
 
 		LockBuffer(scan->rs_cbuf, BUFFER_LOCK_SHARE);
@@ -771,7 +771,7 @@ heapgettup(HeapScanDesc scan,
 			scan->rs_parallelworkerdata;
 
 			block = table_block_parallelscan_nextpage(scan->rs_base.rs_rd,
-													 pbscanwork, pbscan);
+													  pbscanwork, pbscan);
 			finished = (block == InvalidBlockNumber);
 		}
 		else
@@ -901,7 +901,7 @@ heapgettup_pagemode(HeapScanDesc scan,
 				}
 			}
 			else
-				block = scan->rs_startblock; /* first page */
+				block = scan->rs_startblock;	/* first page */
 			heapgetpage((TableScanDesc) scan, block);
 			lineindex = 0;
 			scan->rs_inited = true;
@@ -909,7 +909,7 @@ heapgettup_pagemode(HeapScanDesc scan,
 		else
 		{
 			/* continue from previously returned page/tuple */
-			block = scan->rs_cblock; /* current page */
+			block = scan->rs_cblock;	/* current page */
 			lineindex = scan->rs_cindex + 1;
 		}
 
@@ -960,7 +960,7 @@ heapgettup_pagemode(HeapScanDesc scan,
 		else
 		{
 			/* continue from previously returned page/tuple */
-			block = scan->rs_cblock; /* current page */
+			block = scan->rs_cblock;	/* current page */
 		}
 
 		page = BufferGetPage(scan->rs_cbuf);
@@ -1080,7 +1080,7 @@ heapgettup_pagemode(HeapScanDesc scan,
 			scan->rs_parallelworkerdata;
 
 			block = table_block_parallelscan_nextpage(scan->rs_base.rs_rd,
-													 pbscanwork, pbscan);
+													  pbscanwork, pbscan);
 			finished = (block == InvalidBlockNumber);
 		}
 		else
@@ -2729,6 +2729,7 @@ heap_delete(Relation relation, ItemPointer tid,
 	tp.t_self = *tid;
 
 l1:
+
 	/*
 	 * If we didn't pin the visibility map page and the page has become all
 	 * visible while we were busy locking the buffer, we'll have to unlock and
