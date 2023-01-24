@@ -358,7 +358,7 @@ extern int	extract_variadic_args(FunctionCallInfo fcinfo, int variadic_start,
 								  Oid **types, bool **nulls);
 
 typedef void (*modify_RangeTblFunction_tupdesc_hook_type) (
-	Node *expr, TupleDesc *tupdesc);
+	char *funcname, Node *expr, TupleDesc *tupdesc);
 extern PGDLLIMPORT modify_RangeTblFunction_tupdesc_hook_type
 	modify_RangeTblFunction_tupdesc_hook;
 
