@@ -52,6 +52,12 @@
 struct NumericData;
 typedef struct NumericData *Numeric;
 
+/* Enum type for bigint aggregates for tsql dialect */
+typedef enum tsqlAggType {
+	TSQL_SUM,
+	TSQL_AVG
+} tsqlAggType;
+
 /*
  * fmgr interface macros
  */
@@ -87,7 +93,7 @@ extern Numeric numeric_mod_opt_error(Numeric num1, Numeric num2,
 									 bool *have_error);
 extern int32 numeric_int4_opt_error(Numeric num, bool *error);
 
-extern Datum bigint_poly_sum(PG_FUNCTION_ARGS);
+extern Datum bigint_poly_aggr_final(FunctionCallInfo fcinfo, tsqlAggType aggType);
 
 /* Hook interface to calculate exact numeric digits before generating numeric overflow error in TSQL */
 typedef bool (*detect_numeric_overflow_hook_type) (int weight, int dscale, int first_block, int numeric_base);
