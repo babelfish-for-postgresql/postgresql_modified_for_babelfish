@@ -75,6 +75,9 @@ pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook
 /* Hook for plugins to get control after an insert row transform */
 post_transform_insert_row_hook_type post_transform_insert_row_hook = NULL;
 
+/* Hook for plugins to get control after setting target table */
+post_set_target_table_hook_type post_set_target_table_hook = NULL;
+
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
 static Query *transformInsertStmt(ParseState *pstate, InsertStmt *stmt);
@@ -471,6 +474,10 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 										 stmt->relation->inh,
 										 true,
 										 ACL_DELETE);
+
+	if (post_set_target_table_hook)
+		(*post_set_target_table_hook) (pstate, (Node *) stmt, qry->commandType);
+
 	nsitem = pstate->p_target_nsitem;
 
 	/* there's no DISTINCT in DELETE */
@@ -496,7 +503,7 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 								EXPR_KIND_WHERE, "WHERE");
 
 	if (pre_transform_returning_hook)
-			(*pre_transform_returning_hook) (qry->commandType, stmt->returningList, pstate);
+		(*pre_transform_returning_hook) (qry, stmt->returningList, pstate);
 	
 	qry->returningList = transformReturningList(pstate, stmt->returningList);
 
@@ -959,7 +966,7 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 	if (stmt->returningList)
 	{
 		if (pre_transform_returning_hook)
-			(*pre_transform_returning_hook) (qry->commandType, stmt->returningList, pstate);
+			(*pre_transform_returning_hook) (qry, stmt->returningList, pstate);
 		
 		qry->returningList = transformReturningList(pstate,
 													stmt->returningList);
@@ -2403,6 +2410,10 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 										 stmt->relation->inh,
 										 true,
 										 ACL_UPDATE);
+
+	if (post_set_target_table_hook)
+		(*post_set_target_table_hook) (pstate, (Node *) stmt, qry->commandType);
+
 	nsitem = pstate->p_target_nsitem;
 
 	/* subqueries in FROM cannot access the result relation */
@@ -2421,7 +2432,7 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 
 	/* Check if self-join transformation is needed for update satatement with output clause */
 	if (pre_output_clause_transformation_hook)
-		qual = (*pre_output_clause_transformation_hook) (pstate, stmt, qry->commandType);
+		qual = (*pre_output_clause_transformation_hook) (pstate, stmt, qry);
 	else
 		qual = transformWhereClause(pstate, stmt->whereClause,
 								EXPR_KIND_WHERE, "WHERE");
