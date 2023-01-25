@@ -534,11 +534,6 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 		token = strtok(NULL, " ");
 	}
 
-	if (asjson)
-		if (pg_strcasecmp(col_type, "nvarchar") != 0) /* TODO: implement new error code for incorrect type for AS JSON */
-			ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR),
-									errmsg("AS JSON in WITH clause can only be specified for column of type nvarchar(max)")));
-
 	if (strlen(col_type) >= 3) /* Get column size restriction, if it exists */
 	{
 		token = strtok(col_type, "(");
