@@ -76,6 +76,9 @@ pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook
 /* Hook for plugins to get control after an insert row transform */
 post_transform_insert_row_hook_type post_transform_insert_row_hook = NULL;
 
+/* Hook for handle target table before transforming from clause */
+pre_transform_from_clause_hook_type pre_transform_from_clause_hook = NULL;
+
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
 static Query *transformInsertStmt(ParseState *pstate, InsertStmt *stmt);
@@ -513,10 +516,15 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 	}
 
 	/* set up range table with just the result rel */
-	qry->resultRelation = setTargetTable(pstate, stmt->relation,
-										 stmt->relation->inh,
-										 true,
-										 ACL_DELETE);
+	if (pre_transform_from_clause_hook)
+		qry->resultRelation = (*pre_transform_from_clause_hook) (pstate, (Node *) stmt,
+																 qry->commandType);
+	else
+		qry->resultRelation = setTargetTable(pstate, stmt->relation,
+											 stmt->relation->inh,
+											 true,
+											 ACL_DELETE);
+
 	nsitem = pstate->p_target_nsitem;
 
 	/* there's no DISTINCT in DELETE */
@@ -542,7 +550,7 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 								EXPR_KIND_WHERE, "WHERE");
 
 	if (pre_transform_returning_hook)
-			(*pre_transform_returning_hook) (qry->commandType, stmt->returningList, pstate);
+		(*pre_transform_returning_hook) (qry, stmt->returningList, pstate);
 	
 	qry->returningList = transformReturningList(pstate, stmt->returningList);
 
@@ -1005,7 +1013,7 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 	if (stmt->returningList)
 	{
 		if (pre_transform_returning_hook)
-			(*pre_transform_returning_hook) (qry->commandType, stmt->returningList, pstate);
+			(*pre_transform_returning_hook) (qry, stmt->returningList, pstate);
 		
 		qry->returningList = transformReturningList(pstate,
 													stmt->returningList);
@@ -2448,10 +2456,15 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 		qry->hasModifyingCTE = pstate->p_hasModifyingCTE;
 	}
 
-	qry->resultRelation = setTargetTable(pstate, stmt->relation,
-										 stmt->relation->inh,
-										 true,
-										 ACL_UPDATE);
+	if (pre_transform_from_clause_hook)
+		qry->resultRelation = (*pre_transform_from_clause_hook) (pstate, (Node *) stmt,
+																 qry->commandType);
+	else
+		qry->resultRelation = setTargetTable(pstate, stmt->relation,
+											 stmt->relation->inh,
+											 true,
+											 ACL_UPDATE);
+
 	nsitem = pstate->p_target_nsitem;
 
 	/* subqueries in FROM cannot access the result relation */
@@ -2470,7 +2483,7 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 
 	/* Check if self-join transformation is needed for update satatement with output clause */
 	if (pre_output_clause_transformation_hook)
-		qual = (*pre_output_clause_transformation_hook) (pstate, stmt, qry->commandType);
+		qual = (*pre_output_clause_transformation_hook) (pstate, stmt, qry);
 	else
 		qual = transformWhereClause(pstate, stmt->whereClause,
 								EXPR_KIND_WHERE, "WHERE");
