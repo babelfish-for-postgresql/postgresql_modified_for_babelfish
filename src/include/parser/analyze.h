@@ -49,9 +49,9 @@ extern PGDLLIMPORT get_output_clause_status_hook_type get_output_clause_status_h
 typedef void (*post_transform_insert_row_hook_type) (List *icolumns, List *exprList, Oid relid);
 extern PGDLLIMPORT post_transform_insert_row_hook_type post_transform_insert_row_hook;
 
-/* Hook for plugins to get control after setting target table */
-typedef void (*post_set_target_table_hook_type) (ParseState *pstate, Node *stmt, CmdType command);
-extern PGDLLIMPORT post_set_target_table_hook_type post_set_target_table_hook;
+/* Hook for handle target table before transforming from clause */
+typedef int (*pre_transform_from_clause_hook_type) (ParseState *pstate, Node *stmt, CmdType command);
+extern PGDLLIMPORT pre_transform_from_clause_hook_type pre_transform_from_clause_hook;
 
 extern Query *parse_analyze(RawStmt *parseTree, const char *sourceText,
 							Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);

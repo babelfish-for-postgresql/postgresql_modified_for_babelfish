@@ -75,8 +75,8 @@ pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook
 /* Hook for plugins to get control after an insert row transform */
 post_transform_insert_row_hook_type post_transform_insert_row_hook = NULL;
 
-/* Hook for plugins to get control after setting target table */
-post_set_target_table_hook_type post_set_target_table_hook = NULL;
+/* Hook for handle target table before transforming from clause */
+pre_transform_from_clause_hook_type pre_transform_from_clause_hook = NULL;
 
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
@@ -470,13 +470,14 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 	}
 
 	/* set up range table with just the result rel */
-	qry->resultRelation = setTargetTable(pstate, stmt->relation,
-										 stmt->relation->inh,
-										 true,
-										 ACL_DELETE);
-
-	if (post_set_target_table_hook)
-		(*post_set_target_table_hook) (pstate, (Node *) stmt, qry->commandType);
+	if (pre_transform_from_clause_hook)
+		qry->resultRelation = (*pre_transform_from_clause_hook) (pstate, (Node *) stmt,
+																 qry->commandType);
+	else
+		qry->resultRelation = setTargetTable(pstate, stmt->relation,
+											 stmt->relation->inh,
+											 true,
+											 ACL_DELETE);
 
 	nsitem = pstate->p_target_nsitem;
 
@@ -2406,13 +2407,14 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 		qry->hasModifyingCTE = pstate->p_hasModifyingCTE;
 	}
 
-	qry->resultRelation = setTargetTable(pstate, stmt->relation,
-										 stmt->relation->inh,
-										 true,
-										 ACL_UPDATE);
-
-	if (post_set_target_table_hook)
-		(*post_set_target_table_hook) (pstate, (Node *) stmt, qry->commandType);
+	if (pre_transform_from_clause_hook)
+		qry->resultRelation = (*pre_transform_from_clause_hook) (pstate, (Node *) stmt,
+																 qry->commandType);
+	else
+		qry->resultRelation = setTargetTable(pstate, stmt->relation,
+											 stmt->relation->inh,
+											 true,
+											 ACL_UPDATE);
 
 	nsitem = pstate->p_target_nsitem;
 
