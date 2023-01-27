@@ -50,8 +50,8 @@ typedef void (*post_transform_insert_row_hook_type) (List *icolumns, List *exprL
 extern PGDLLIMPORT post_transform_insert_row_hook_type post_transform_insert_row_hook;
 
 /* Hook for handle target table before transforming from clause */
-typedef int (*pre_transform_from_clause_hook_type) (ParseState *pstate, Node *stmt, CmdType command);
-extern PGDLLIMPORT pre_transform_from_clause_hook_type pre_transform_from_clause_hook;
+typedef int (*set_target_table_alternative_hook_type) (ParseState *pstate, Node *stmt, CmdType command);
+extern PGDLLIMPORT set_target_table_alternative_hook_type set_target_table_alternative_hook;
 
 extern Query *parse_analyze(RawStmt *parseTree, const char *sourceText,
 							Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);

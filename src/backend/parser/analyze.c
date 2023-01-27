@@ -76,7 +76,7 @@ pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook
 post_transform_insert_row_hook_type post_transform_insert_row_hook = NULL;
 
 /* Hook for handle target table before transforming from clause */
-pre_transform_from_clause_hook_type pre_transform_from_clause_hook = NULL;
+set_target_table_alternative_hook_type set_target_table_alternative_hook = NULL;
 
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
@@ -470,9 +470,9 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 	}
 
 	/* set up range table with just the result rel */
-	if (pre_transform_from_clause_hook)
-		qry->resultRelation = (*pre_transform_from_clause_hook) (pstate, (Node *) stmt,
-																 qry->commandType);
+	if (set_target_table_alternative_hook)
+		qry->resultRelation = (*set_target_table_alternative_hook) (pstate, 
+											(Node *) stmt, qry->commandType);
 	else
 		qry->resultRelation = setTargetTable(pstate, stmt->relation,
 											 stmt->relation->inh,
@@ -2407,9 +2407,9 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 		qry->hasModifyingCTE = pstate->p_hasModifyingCTE;
 	}
 
-	if (pre_transform_from_clause_hook)
-		qry->resultRelation = (*pre_transform_from_clause_hook) (pstate, (Node *) stmt,
-																 qry->commandType);
+	if (set_target_table_alternative_hook)
+		qry->resultRelation = (*set_target_table_alternative_hook) (pstate, 
+											(Node *) stmt, qry->commandType);
 	else
 		qry->resultRelation = setTargetTable(pstate, stmt->relation,
 											 stmt->relation->inh,
