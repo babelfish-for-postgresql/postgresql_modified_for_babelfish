@@ -4204,8 +4204,7 @@ GetConfigOption(const char *name, bool missing_ok, bool restrict_privileged)
 	if (record == NULL)
 		return NULL;
 	if (restrict_privileged &&
-		(record->flags & GUC_SUPERUSER_ONLY) &&
-		!has_privs_of_role(GetUserId(), ROLE_PG_READ_ALL_SETTINGS))
+		!ConfigOptionIsVisible(record))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser or have privileges of pg_read_all_settings to examine \"%s\"",
@@ -4251,8 +4250,7 @@ GetConfigOptionResetString(const char *name)
 
 	record = find_option(name, false, false, ERROR);
 	Assert(record != NULL);
-	if ((record->flags & GUC_SUPERUSER_ONLY) &&
-		!has_privs_of_role(GetUserId(), ROLE_PG_READ_ALL_SETTINGS))
+	if (!ConfigOptionIsVisible(record))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser or have privileges of pg_read_all_settings to examine \"%s\"",
@@ -5177,9 +5175,7 @@ get_explain_guc_options(int *num)
 			continue;
 
 		/* return only options visible to the current user */
-		if ((conf->flags & GUC_NO_SHOW_ALL) ||
-			((conf->flags & GUC_SUPERUSER_ONLY) &&
-			 !has_privs_of_role(GetUserId(), ROLE_PG_READ_ALL_SETTINGS)))
+		if (!ConfigOptionIsVisible(conf))
 			continue;
 
 		/* return only options that are different from their boot values */
@@ -5260,8 +5256,7 @@ GetConfigOptionByName(const char *name, const char **varname, bool missing_ok)
 		return NULL;
 	}
 
-	if ((record->flags & GUC_SUPERUSER_ONLY) &&
-		!has_privs_of_role(GetUserId(), ROLE_PG_READ_ALL_SETTINGS))
+	if (!ConfigOptionIsVisible(record))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser or have privileges of pg_read_all_settings to examine \"%s\"",
