@@ -30,9 +30,7 @@ typedef void (*pre_parse_analyze_hook_type) (ParseState *pstate, RawStmt *parseT
 extern PGDLLIMPORT pre_parse_analyze_hook_type pre_parse_analyze_hook;
 
 /* Hook to handle qualifiers in returning list for output clause */
-typedef void (*pre_transform_returning_hook_type) (CmdType command, 
-										List *returningList, ParseState *pstate);
-
+typedef void (*pre_transform_returning_hook_type) (Query *query, List *returningList, ParseState *pstate);
 extern PGDLLIMPORT pre_transform_returning_hook_type pre_transform_returning_hook;
 
 /* Hook to modify insert statement in output clause */
@@ -41,7 +39,7 @@ typedef void (*pre_transform_insert_hook_type) (InsertStmt *stmt, Oid relid);
 extern PGDLLIMPORT pre_transform_insert_hook_type pre_transform_insert_hook;
 
 /* Hook to perform self-join transformation on UpdateStmt in output clause */
-typedef Node* (*pre_output_clause_transformation_hook_type) (ParseState *pstate, UpdateStmt *stmt, CmdType command);
+typedef Node* (*pre_output_clause_transformation_hook_type) (ParseState *pstate, UpdateStmt *stmt, Query *query);
 extern PGDLLIMPORT pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook;
 
 /* Hook to read a global variable with info on output clause */
@@ -52,8 +50,14 @@ extern PGDLLIMPORT get_output_clause_status_hook_type get_output_clause_status_h
 typedef void (*post_transform_insert_row_hook_type) (List *icolumns, List *exprList, Oid relid);
 extern PGDLLIMPORT post_transform_insert_row_hook_type post_transform_insert_row_hook;
 
+/* Hook for handle target table before transforming from clause */
+typedef int (*set_target_table_alternative_hook_type) (ParseState *pstate, Node *stmt, CmdType command);
+extern PGDLLIMPORT set_target_table_alternative_hook_type set_target_table_alternative_hook;
+
 extern Query *parse_analyze_fixedparams(RawStmt *parseTree, const char *sourceText,
 										const Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);
+extern Query *parse_analyze(RawStmt *parseTree, const char *sourceText,
+							Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);
 extern Query *parse_analyze_varparams(RawStmt *parseTree, const char *sourceText,
 									  Oid **paramTypes, int *numParams, QueryEnvironment *queryEnv);
 extern Query *parse_analyze_withcb(RawStmt *parseTree, const char *sourceText,
