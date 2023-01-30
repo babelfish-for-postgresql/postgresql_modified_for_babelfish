@@ -1459,7 +1459,6 @@ LogicalDecodeStreamStopCB
 LogicalDecodeStreamTruncateCB
 LogicalDecodeTruncateCB
 LogicalDecodingContext
-LogicalDecodingMode
 LogicalErrorCallbackState
 LogicalOutputPluginInit
 LogicalOutputPluginWriterPrepareWrite
@@ -1469,6 +1468,7 @@ LogicalRepBeginData
 LogicalRepCommitData
 LogicalRepCommitPreparedTxnData
 LogicalRepCtxStruct
+LogicalRepMode
 LogicalRepMsgType
 LogicalRepPartMapEntry
 LogicalRepPreparedTxnData
