@@ -55,6 +55,7 @@ static bool resolve_polymorphic_tupdesc(TupleDesc tupdesc,
 										Node *call_expr);
 static TypeFuncClass get_type_func_class(Oid typid, Oid *base_typeid);
 
+modify_RangeTblFunction_tupdesc_hook_type modify_RangeTblFunction_tupdesc_hook = NULL;
 
 /*
  * Compatibility function for v15.
@@ -452,6 +453,10 @@ internal_get_result_type(Oid funcid,
 
 	/* Check for OUT parameters defining a RECORD result */
 	tupdesc = build_function_result_tupdesc_t(tp);
+
+	if (modify_RangeTblFunction_tupdesc_hook)
+		(*modify_RangeTblFunction_tupdesc_hook)(NameStr(procform->proname), call_expr, &tupdesc);
+
 	if (tupdesc)
 	{
 		/*
