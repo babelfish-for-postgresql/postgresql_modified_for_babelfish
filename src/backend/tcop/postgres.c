@@ -2839,7 +2839,7 @@ void
 quickdie(SIGNAL_ARGS)
 {
 	sigaddset(&BlockSig, SIGQUIT);	/* prevent nested calls */
-	PG_SETMASK(&BlockSig);
+	sigprocmask(SIG_SETMASK, &BlockSig, NULL);
 
 	/*
 	 * Prevent interrupts while exiting; though we just blocked signals that
@@ -4140,7 +4140,7 @@ PostgresMain(const char *dbname, const char *username)
 	BaseInit();
 
 	/* We need to allow SIGINT, etc during the initial transaction */
-	PG_SETMASK(&UnBlockSig);
+	sigprocmask(SIG_SETMASK, &UnBlockSig, NULL);
 
 	/*
 	 * General initialization.

@@ -2762,7 +2762,7 @@ AbortTransaction(void)
 	 * handler.  We do this fairly early in the sequence so that the timeout
 	 * infrastructure will be functional if needed while aborting.
 	 */
-	PG_SETMASK(&UnBlockSig);
+	sigprocmask(SIG_SETMASK, &UnBlockSig, NULL);
 
 	/*
 	 * check the current transaction state
@@ -5122,7 +5122,7 @@ AbortSubTransaction(void)
 	 * handler.  We do this fairly early in the sequence so that the timeout
 	 * infrastructure will be functional if needed while aborting.
 	 */
-	PG_SETMASK(&UnBlockSig);
+	sigprocmask(SIG_SETMASK, &UnBlockSig, NULL);
 
 	/*
 	 * check the current transaction state
