@@ -465,6 +465,7 @@ tsql_openjson_with_get_subjsonb(PG_FUNCTION_ARGS)
 					*sub_jb,
 					*vars;
 	JsonPath		*jp;
+	JsonPathItem    jsp;
 	JsonValueList 	found = {0};
 	bool 			islax;
 
@@ -472,6 +473,13 @@ tsql_openjson_with_get_subjsonb(PG_FUNCTION_ARGS)
 	jb = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum(text_to_cstring(json_text)));
 	jsonpath_text = PG_GETARG_TEXT_PP(1);
 	jp = (JsonPath *) DirectFunctionCall1(jsonpath_in, CStringGetDatum(text_to_cstring(jsonpath_text)));
+
+	jspInit(&jsp, jp);
+	if (jsp.type != jpiRoot)
+	{
+		ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR)),
+								errmsg("invalid json path"));
+	}
 
 	/* retrieve sub_jb */
 	vars = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum("{}"));
