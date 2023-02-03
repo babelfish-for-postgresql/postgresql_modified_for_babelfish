@@ -914,6 +914,54 @@ exprIsNullConstant(Node *arg)
 	return false;
 }
 
+/*
+ * Helper function for replacing certain calls to scope_identity with
+ * babelfish_get_last_identity, only when using TSQL.
+ * 
+ * Fixes an issue where if scope_identity is compared to an identity index.
+ * scope_identity returns a numeric type, and needs to be rewritten to the
+ * underlying function that returns an int type so the index is used.
+ */
+static void
+rewrite_scope_identity_call(ParseState *pstate, Node **lexpr, Node **rexpr)
+{
+	Var       *col_expr;
+	FuncExpr  *func_expr;
+	FuncCall  *new_call;
+	char      *func_name;
+
+	if (sql_dialect != SQL_DIALECT_TSQL)
+		return;
+	if (!(*lexpr) || !(*rexpr))
+		return;
+
+	if ((IsA(*lexpr, Var) && IsA(*rexpr, FuncExpr)))
+	{
+		col_expr = (Var*) *lexpr;
+		func_expr = (FuncExpr*) *rexpr;
+	}
+	else if (IsA(*lexpr, FuncExpr) && IsA(*rexpr, Var))
+	{
+		col_expr = (Var*) *rexpr;
+		func_expr = (FuncExpr*) *lexpr;
+	}
+	else
+		return;
+
+	func_name = get_func_name(func_expr->funcid);
+	if (strcmp(func_name, "babelfish_get_last_identity_numeric") != 0 &&
+			strcmp(func_name, "scope_identity") != 0)
+		return;
+	if (col_expr->vartype != INT4OID)
+		return;
+
+	new_call = makeFuncCall(list_make1(makeString("babelfish_get_last_identity")), NULL, COERCE_EXPLICIT_CALL, -1);
+	if (IsA(*rexpr, FuncExpr))
+		*rexpr = transformFuncCall(pstate, new_call);
+	else
+		*lexpr = transformFuncCall(pstate, new_call);
+}
+
 static Node *
 transformAExprOp(ParseState *pstate, A_Expr *a)
 {
@@ -991,6 +1039,9 @@ transformAExprOp(ParseState *pstate, A_Expr *a)
 
 		lexpr = transformExprRecurse(pstate, lexpr);
 		rexpr = transformExprRecurse(pstate, rexpr);
+
+		/* So that where clauses with scope_identity use an index */
+		rewrite_scope_identity_call(pstate, &lexpr, &rexpr);
 
 		result = (Node *) make_op(pstate,
 								  a->name,
