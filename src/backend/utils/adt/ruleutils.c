@@ -319,6 +319,7 @@ static const char *query_getviewrule = "SELECT * FROM pg_catalog.pg_rewrite WHER
 bool		quote_all_identifiers = false;
 
 print_pltsql_function_arguments_hook_type print_pltsql_function_arguments_hook = NULL;
+handle_const_collation_hook_type handle_const_collation_hook = NULL;
 
 
 /* ----------
@@ -10453,6 +10454,9 @@ get_const_collation(Const *constval, deparse_context *context)
 
 		if (constval->constcollid != typcollation)
 		{
+			if (!handle_const_collation_hook(constval))
+				return;
+
 			appendStringInfo(buf, " COLLATE %s",
 							 generate_collation_name(constval->constcollid));
 		}

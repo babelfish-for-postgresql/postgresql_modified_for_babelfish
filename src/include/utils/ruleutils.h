@@ -49,4 +49,7 @@ typedef int (*print_pltsql_function_arguments_hook_type) (StringInfo buf,
 														  bool print_defaults);
 extern PGDLLIMPORT print_pltsql_function_arguments_hook_type print_pltsql_function_arguments_hook;
 
+typedef bool (*handle_const_collation_hook_type) (Const *constval);
+extern PGDLLIMPORT handle_const_collation_hook_type handle_const_collation_hook;
+
 #endif							/* RULEUTILS_H */
