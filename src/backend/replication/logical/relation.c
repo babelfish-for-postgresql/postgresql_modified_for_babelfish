@@ -168,7 +168,7 @@ logicalrep_relmap_update(LogicalRepRelation *remoterel)
 	/*
 	 * HASH_ENTER returns the existing entry if present or creates a new one.
 	 */
-	entry = hash_search(LogicalRepRelMap, (void *) &remoterel->remoteid,
+	entry = hash_search(LogicalRepRelMap, &remoterel->remoteid,
 						HASH_ENTER, &found);
 
 	if (found)
@@ -327,7 +327,7 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 		logicalrep_relmap_init();
 
 	/* Search for existing entry. */
-	entry = hash_search(LogicalRepRelMap, (void *) &remoteid,
+	entry = hash_search(LogicalRepRelMap, &remoteid,
 						HASH_FIND, &found);
 
 	if (!found)
@@ -601,7 +601,7 @@ logicalrep_partition_open(LogicalRepRelMapEntry *root,
 
 	/* Search for existing entry. */
 	part_entry = (LogicalRepPartMapEntry *) hash_search(LogicalRepPartMap,
-														(void *) &partOid,
+														&partOid,
 														HASH_ENTER, &found);
 
 	entry = &part_entry->relmapentry;
