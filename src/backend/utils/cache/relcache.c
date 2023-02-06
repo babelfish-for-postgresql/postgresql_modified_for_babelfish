@@ -6143,7 +6143,7 @@ load_relcache_init_file(bool shared)
 			if (rel->rd_isnailed)
 				nailed_indexes++;
 
-			/* next, read the pg_index tuple */
+			/* read the pg_index tuple */
 			if (fread(&len, 1, sizeof(len), fp) != sizeof(len))
 				goto read_failed;
 
@@ -6174,7 +6174,7 @@ load_relcache_init_file(bool shared)
 			 */
 			InitIndexAmRoutine(rel);
 
-			/* next, read the vector of opfamily OIDs */
+			/* read the vector of opfamily OIDs */
 			if (fread(&len, 1, sizeof(len), fp) != sizeof(len))
 				goto read_failed;
 
@@ -6184,7 +6184,7 @@ load_relcache_init_file(bool shared)
 
 			rel->rd_opfamily = opfamily;
 
-			/* next, read the vector of opcintype OIDs */
+			/* read the vector of opcintype OIDs */
 			if (fread(&len, 1, sizeof(len), fp) != sizeof(len))
 				goto read_failed;
 
@@ -6194,7 +6194,7 @@ load_relcache_init_file(bool shared)
 
 			rel->rd_opcintype = opcintype;
 
-			/* next, read the vector of support procedure OIDs */
+			/* read the vector of support procedure OIDs */
 			if (fread(&len, 1, sizeof(len), fp) != sizeof(len))
 				goto read_failed;
 			support = (RegProcedure *) MemoryContextAlloc(indexcxt, len);
@@ -6203,7 +6203,7 @@ load_relcache_init_file(bool shared)
 
 			rel->rd_support = support;
 
-			/* next, read the vector of collation OIDs */
+			/* read the vector of collation OIDs */
 			if (fread(&len, 1, sizeof(len), fp) != sizeof(len))
 				goto read_failed;
 
@@ -6213,7 +6213,7 @@ load_relcache_init_file(bool shared)
 
 			rel->rd_indcollation = indcollation;
 
-			/* finally, read the vector of indoption values */
+			/* read the vector of indoption values */
 			if (fread(&len, 1, sizeof(len), fp) != sizeof(len))
 				goto read_failed;
 
@@ -6223,7 +6223,7 @@ load_relcache_init_file(bool shared)
 
 			rel->rd_indoption = indoption;
 
-			/* finally, read the vector of opcoptions values */
+			/* read the vector of opcoptions values */
 			rel->rd_opcoptions = (bytea **)
 				MemoryContextAllocZero(indexcxt, sizeof(*rel->rd_opcoptions) * relform->relnatts);
 
