@@ -10454,7 +10454,7 @@ get_const_collation(Const *constval, deparse_context *context)
 
 		if (constval->constcollid != typcollation)
 		{
-			if (!handle_const_collation_hook(constval))
+			if (handle_const_collation_hook && !handle_const_collation_hook(constval))
 				return;
 
 			appendStringInfo(buf, " COLLATE %s",
