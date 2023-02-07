@@ -61,4 +61,11 @@ extern void parseTypeString(const char *str, Oid *typeid_p, int32 *typmod_p, boo
 typedef void (*check_or_set_default_typmod_hook_type)(TypeName * typeName, int32 *typmod, bool is_cast);
 extern PGDLLIMPORT check_or_set_default_typmod_hook_type check_or_set_default_typmod_hook;
 
+/*
+ * Hook to check whether variable length datatypes like numeric, decimal, time, datetime2, datetimeoffset
+ * are declared with permissible datalength at the time of table or stored procedure creation
+ */
+typedef void (*validate_var_datatype_scale_hook_type)(const TypeName *typeName, Type typ);
+extern PGDLLIMPORT validate_var_datatype_scale_hook_type validate_var_datatype_scale_hook;
+
 #endif							/* PARSE_TYPE_H */
