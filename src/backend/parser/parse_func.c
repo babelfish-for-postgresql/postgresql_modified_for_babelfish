@@ -1269,7 +1269,8 @@ func_select_candidate(int nargs,
 	 * let's try to choose the best candidate by T-SQL precedence rule with setting resolved_unknowns.
 	 */
 	if (resolved_unknowns &&
-		sql_dialect == SQL_DIALECT_TSQL &&
+		(sql_dialect == SQL_DIALECT_TSQL ||
+		(dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 		func_select_candidate_hook != NULL)
 	{
 		last_candidate = func_select_candidate_hook(nargs, input_typeids, candidates, true);
