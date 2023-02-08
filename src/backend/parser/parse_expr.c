@@ -948,7 +948,7 @@ rewrite_scope_identity_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 	if (strcmp(func_name, "babelfish_get_last_identity_numeric") != 0 &&
 			strcmp(func_name, "scope_identity") != 0)
 		return;
-	if (col_expr->vartype != INT4OID)
+	if (col_expr->vartype != INT2OID && col_expr->vartype != INT4OID && col_expr->vartype != INT8OID)
 		return;
 
 	new_call = makeFuncCall(list_make1(makeString("babelfish_get_last_identity")), NULL, COERCE_EXPLICIT_CALL, -1);
