@@ -124,45 +124,6 @@ bbf_selectDumpableCast(CastInfo *cast)
 		cast->dobj.dump = DUMP_COMPONENT_NONE;
 }
 
-static char *
-babelfishRemoveSubstr(char *src, const char *substr)
-{
-	char *str;
-	char *result = pstrdup("");
-	int substr_len = strlen(substr);
-
-	if (!strstr(src, substr))
-		return src;
-
-	while ((str = strstr(src, substr)) != NULL)
-	{
-		char *tmp = psprintf("%s%s", result, pnstrdup(src, str - src));
-		if (result)
-		{
-			pfree(result);
-			result = tmp;
-		}
-
-		/* skip substr part */
-		src = str + substr_len;
-
-		if (!src)
-			break;
-	}
-
-	if (src)
-	{
-		char *tmp = psprintf("%s%s", result, src);
-		if (result)
-		{
-			pfree(result);
-			result = tmp;
-		}
-	}
-
-	return result;
-}
-
 /*
  * T-SQL allows an empty/space-only string as a default constraint of
  * NUMERIC column in CREATE TABLE statement. However, it will eventually
@@ -178,64 +139,24 @@ babelfishRemoveSubstr(char *src, const char *substr)
 void
 fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 {
+	char *source = attrDefInfo->adef_expr;
+	char *runtimeErrFunc = "babelfish_runtime_error";
+	char *runtimeErrStr = "'An empty or space-only string cannot be converted into numeric/decimal data type'";
 	char *atttypname;
-	char *adef_expr;
-	const char *defaultCollation = "COLLATE \"default\"";
 
-	if (!isBabelfishDatabase(fout) || attrDefInfo->adnum < 1)
+	if (!isBabelfishDatabase(fout) ||
+		!strstr(source, runtimeErrStr) ||
+		strstr(source, runtimeErrFunc) ||
+		attrDefInfo->adnum < 1)
 		return;
 
-	/* Handle default value for "numeric" and "decimal") */
 	atttypname = attrDefInfo->adtable->atttypnames[attrDefInfo->adnum - 1];
-	if (strstr(atttypname, "decimal") || strstr(atttypname, "numeric"))
-	{
-		char *runtimeErrFunc = "babelfish_runtime_error";
-		char *runtimeErrStr = "'An empty or space-only string cannot be converted into numeric/decimal data type'";
-		adef_expr = attrDefInfo->adef_expr;
-
-		if (!strstr(adef_expr, runtimeErrStr) || strstr(adef_expr, runtimeErrFunc))
-			return;
-
-		/* Replace the default expr to runtime error function */
-		free(adef_expr);
-		attrDefInfo->adef_expr = psprintf("(sys.%s(%s::text))::integer", runtimeErrFunc, runtimeErrStr);
-		return;
-	}
-
-	/*
-	 * Remove COLLATE "default" from the end for default value clause of the column because 
-	 * it does not matter if we specify such clause for default value and column's collation
-	 * will be used at the end.
-	 */
-	adef_expr = babelfishRemoveSubstr(attrDefInfo->adef_expr, defaultCollation);
-
-	if (adef_expr != attrDefInfo->adef_expr)
-	{
-		free(attrDefInfo->adef_expr);
-		attrDefInfo->adef_expr = adef_expr;
-	}
-}
-
-/*
- * fixTsqlCheckConstraint - In upgraded Babelfish database from v2.1.0/2.2.0 to v2.3.0 may contain extra
- * COLLATE "default" clause around check constraint which is kind of redundant in T-SQL objects.
- * So this helper function takes care of it during dump and restore.
- */
-void 
-fixTsqlCheckConstraint(Archive *fout, ConstraintInfo *constrs)
-{
-	const char *defaultCollation = "COLLATE \"default\"";
-	char *condef;
-
-	if (!isBabelfishDatabase(fout))
+	if (!strstr(atttypname, "decimal") && !strstr(atttypname, "numeric"))
 		return;
 
-	condef = babelfishRemoveSubstr(constrs->condef, defaultCollation);
-	if (condef != constrs->condef)
-	{
-		pfree(constrs->condef);
-		constrs->condef = condef;
-	}
+	/* Replace the default expr to runtime error function */
+	free(source);
+	attrDefInfo->adef_expr = psprintf("(sys.%s(%s::text))::integer", runtimeErrFunc, runtimeErrStr);
 }
 
 /*
@@ -562,21 +483,4 @@ dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf)
 		appendPQExpBuffer(outbuf, "alter database %s set babelfishpg_tsql.restored_server_collation_name = \'%s\';\n", dbname, current_server_collation_name);
 		pfree(current_server_collation_name);
 	}
-}
-
-/*
- * babelfish_handle_view_def - Any upgraded Babelfish database from 2.1.0/2.2.0 to 2.3.0
- * may dump extra COLLATE "default" clause around const clause inside view definition which
- * is kind of unnecessary for T-SQL objects as well as for sys views. So this function removes 
- * such clause from view definition. 
- */
-char *
-babelfish_handle_view_def(Archive *fout, char *view_def)
-{
-	const char *defaultCollation = "COLLATE \"default\"";
-
-	if (!isBabelfishDatabase(fout))
-		return view_def;
-
-	return babelfishRemoveSubstr(view_def, defaultCollation);
 }
