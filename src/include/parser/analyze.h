@@ -54,6 +54,10 @@ extern PGDLLIMPORT post_transform_insert_row_hook_type post_transform_insert_row
 typedef int (*set_target_table_alternative_hook_type) (ParseState *pstate, Node *stmt, CmdType command);
 extern PGDLLIMPORT set_target_table_alternative_hook_type set_target_table_alternative_hook;
 
+/* Hook to handle target table in ORDER BY with set operation */
+typedef void (*pre_transform_sort_from_set_hook_type) (ParseState *pstate, Query *qry, Query *leftmostQuery, List *fromClause);
+extern PGDLLIMPORT pre_transform_sort_from_set_hook_type pre_transform_sort_from_set_hook;
+
 extern Query *parse_analyze_fixedparams(RawStmt *parseTree, const char *sourceText,
 										const Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);
 extern Query *parse_analyze(RawStmt *parseTree, const char *sourceText,

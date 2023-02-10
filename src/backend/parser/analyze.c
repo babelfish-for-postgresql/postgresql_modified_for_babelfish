@@ -79,6 +79,9 @@ post_transform_insert_row_hook_type post_transform_insert_row_hook = NULL;
 /* Hook for handle target table before transforming from clause */
 set_target_table_alternative_hook_type set_target_table_alternative_hook = NULL;
 
+/* Hook to handle target table in ORDER BY with set operation */
+pre_transform_sort_from_set_hook_type pre_transform_sort_from_set_hook = NULL;
+
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
 static Query *transformInsertStmt(ParseState *pstate, InsertStmt *stmt);
@@ -1911,6 +1914,9 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 
 	/* add jnsitem to column namespace only */
 	addNSItemToQuery(pstate, jnsitem, false, false, true);
+	
+	if (pre_transform_sort_from_set_hook)
+		(*pre_transform_sort_from_set_hook) (pstate, qry, leftmostQuery, leftmostSelect->fromClause);
 
 	/*
 	 * For now, we don't support resjunk sort clauses on the output of a
