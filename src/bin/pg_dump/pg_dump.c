@@ -17629,6 +17629,9 @@ processExtensionTables(Archive *fout, ExtensionInfo extinfo[],
 			if (nconfigitems != nconditionitems)
 				pg_fatal("mismatched number of configurations and conditions for extension");
 
+			if (strcmp(curext->dobj.name, "babelfishpg_tsql") == 0)
+				updateExtConfigArray(fout, &extconfigarray, nconfigitems);
+
 			for (j = 0; j < nconfigitems; j++)
 			{
 				TableInfo  *configtbl;
