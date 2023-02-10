@@ -51,5 +51,6 @@ extern bool extension_file_exists(const char *extensionName);
 
 extern ObjectAddress AlterExtensionNamespace(const char *extensionName, const char *newschema,
 											 Oid *oldschema);
+extern void extension_config_remove(Oid extensionoid, Oid tableoid);
 
 #endif							/* EXTENSION_H */

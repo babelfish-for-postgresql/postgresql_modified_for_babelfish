@@ -2537,7 +2537,7 @@ pg_extension_config_dump(PG_FUNCTION_ARGS)
  * This is not currently exposed as a function, but it could be;
  * for now, we just invoke it from ALTER EXTENSION DROP.
  */
-static void
+void
 extension_config_remove(Oid extensionoid, Oid tableoid)
 {
 	Relation	extRel;
