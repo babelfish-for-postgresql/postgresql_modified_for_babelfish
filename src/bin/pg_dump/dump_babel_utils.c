@@ -484,3 +484,60 @@ dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf)
 		pfree(current_server_collation_name);
 	}
 }
+
+/*
+ * updateExtConfigArray:
+ * In some old Babelfish versions, we have incorrectly marked some extension
+ * configuration tables as follows:
+ * 1. Table sys.babelfish_authid_user_ext has not been marked as config table.
+ * 2. Table sys.babelfish_configurations has been marked as configuration table
+ *    but it is not supposed to.
+ * So the function takes babelfishpg_tsql extension's configuration array(extconfigarray)
+ * and replaces OID of sys.babelfish_configurations table with the OID of
+ * sys.babelfish_authid_user_ext table. This will ensure that we will dump the data
+ * of table sys.babelfish_authid_user_ext instead of sys.babelfish_configurations.
+ */
+void
+updateExtConfigArray(Archive *fout, char ***extconfigarray, int nconfigitems)
+{
+	char		*bbf_user_ext_tbl_oid;
+	Oid			bbf_config_tbl_oid;
+	PQExpBuffer query;
+	PGresult	*res;
+	int			i;
+	if (!isBabelfishDatabase(fout))
+		return;
+
+	query = createPQExpBuffer();
+
+	/*
+	 * Get OIDs of sys.babelfish_authid_user_ext and sys.babelfish_configurations tables.
+	 * Later we will replace sys.babelfish_configurations table's OID with the OID of
+	 * sys.babelfish_authid_user_ext table in extconfigarray.
+	 */
+	appendPQExpBufferStr(query,
+						 "SELECT oid "
+						 "FROM pg_catalog.pg_class "
+						 "WHERE relname IN ('babelfish_authid_user_ext', 'babelfish_configurations') "
+						 "AND relnamespace = 'sys'::regnamespace "
+						 "ORDER BY relname;");
+
+	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
+
+	if(PQntuples(res) == 2)
+	{
+		bbf_user_ext_tbl_oid = PQgetvalue(res, 0, 0);
+		bbf_config_tbl_oid = atooid(PQgetvalue(res, 1, 0));
+
+		for (i = 0; i < nconfigitems; i++)
+		{
+			Oid configtbloid = atooid((*extconfigarray)[i]);
+
+			if (configtbloid == bbf_config_tbl_oid)
+				(*extconfigarray)[i] = pg_strdup(bbf_user_ext_tbl_oid);
+		}
+	}
+
+	PQclear(res);
+	resetPQExpBuffer(query);
+}
