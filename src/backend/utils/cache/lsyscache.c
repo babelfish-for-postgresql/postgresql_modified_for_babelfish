@@ -2232,6 +2232,9 @@ get_typlenbyval(Oid typid, int16 *typlen, bool *typbyval)
 	typtup = (Form_pg_type) GETSTRUCT(tp);
 	*typlen = typtup->typlen;
 	*typbyval = typtup->typbyval;
+	/* TSQL table types are always passed by value */
+	if (sql_dialect == SQL_DIALECT_TSQL && typtup->typrelid != 0)
+		*typbyval = true;
 	ReleaseSysCache(tp);
 }
 
