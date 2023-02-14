@@ -30,6 +30,7 @@
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
 #include "parser/scansup.h"
+#include "parser/parser.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
@@ -346,6 +347,14 @@ TypeCreate(Oid newTypeOid,
 		nulls[i] = false;
 		replaces[i] = true;
 		values[i] = (Datum) 0;
+	}
+
+	/*
+	 * In TSQL, table variables are passed by value, not by reference.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL && OidIsValid(relationOid))
+	{
+		passedByValue = true;
 	}
 
 	/*
