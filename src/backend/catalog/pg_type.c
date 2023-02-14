@@ -299,7 +299,7 @@ TypeCreate(Oid newTypeOid,
 								alignment, internalSize)));
 		}
 #endif
-		else
+		else if (sql_dialect != SQL_DIALECT_TSQL) /* in TSQL it is okay to use pass-by-value for composite types */
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 					 errmsg("internal size %d is invalid for passed-by-value type",
@@ -347,14 +347,6 @@ TypeCreate(Oid newTypeOid,
 		nulls[i] = false;
 		replaces[i] = true;
 		values[i] = (Datum) 0;
-	}
-
-	/*
-	 * In TSQL, table variables are passed by value, not by reference.
-	 */
-	if (sql_dialect == SQL_DIALECT_TSQL && OidIsValid(relationOid))
-	{
-		passedByValue = true;
 	}
 
 	/*
