@@ -102,8 +102,7 @@ static ObjectAddress AddNewRelationType(const char *typeName,
 										char new_rel_kind,
 										Oid ownerid,
 										Oid new_row_type,
-										Oid new_array_type,
-										bool typbyval);
+										Oid new_array_type);
 static void RelationRemoveInheritance(Oid relid);
 static Oid	StoreRelCheck(Relation rel, const char *ccname, Node *expr,
 						  bool is_validated, bool is_local, int inhcount,
@@ -1031,8 +1030,7 @@ AddNewRelationType(const char *typeName,
 				   char new_rel_kind,
 				   Oid ownerid,
 				   Oid new_row_type,
-				   Oid new_array_type,
-				   bool typbyval)
+				   Oid new_array_type)
 {
 	return
 		TypeCreate(new_row_type,	/* optional predetermined OID */
@@ -1060,7 +1058,7 @@ AddNewRelationType(const char *typeName,
 				   InvalidOid,	/* domain base type - irrelevant */
 				   NULL,		/* default value - none */
 				   NULL,		/* default binary representation */
-				   typbyval,		/* passed by value? */
+				   false,		/* passed by reference */
 				   TYPALIGN_DOUBLE, /* alignment - must be the largest! */
 				   TYPSTORAGE_EXTENDED, /* fully TOASTable */
 				   -1,			/* typmod */
@@ -1348,15 +1346,6 @@ heap_create_with_catalog(const char *relname,
 		Oid			new_array_oid;
 		ObjectAddress new_type_addr;
 		char	   *relarrayname;
-		bool		passbyval;
-
-		/*
-		 * In TSQL, a table type will always set the typaddress, while other
-		 * forms of create table will leave typaddress as NULL. Table types
-		 * need to be set to pass-by-value, or else we will run into segmentation
-		 * faults later down the line while trying to access them.
-		 */
-		passbyval = sql_dialect == SQL_DIALECT_TSQL && typaddress != NULL;
 
 		/*
 		 * We'll make an array over the composite type, too.  For largely
@@ -1379,8 +1368,7 @@ heap_create_with_catalog(const char *relname,
 										   relkind,
 										   ownerid,
 										   reltypeid,
-										   new_array_oid,
-										   passbyval);
+										   new_array_oid);
 		new_type_oid = new_type_addr.objectId;
 		if (typaddress)
 			*typaddress = new_type_addr;
@@ -1413,7 +1401,7 @@ heap_create_with_catalog(const char *relname,
 				   InvalidOid,	/* domain base type - irrelevant */
 				   NULL,		/* default value - none */
 				   NULL,		/* default binary representation */
-				   passbyval,		/* passed by value? */
+				   false,		/* passed by reference */
 				   TYPALIGN_DOUBLE, /* alignment - must be the largest! */
 				   TYPSTORAGE_EXTENDED, /* fully TOASTable */
 				   -1,			/* typmod */

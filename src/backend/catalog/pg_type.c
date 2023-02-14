@@ -30,7 +30,6 @@
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
 #include "parser/scansup.h"
-#include "parser/parser.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
@@ -299,7 +298,7 @@ TypeCreate(Oid newTypeOid,
 								alignment, internalSize)));
 		}
 #endif
-		else if (sql_dialect != SQL_DIALECT_TSQL) /* in TSQL it is okay to use pass-by-value for composite types */
+		else
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 					 errmsg("internal size %d is invalid for passed-by-value type",
