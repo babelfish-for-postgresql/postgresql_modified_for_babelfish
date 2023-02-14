@@ -53,6 +53,7 @@
 #include "utils/syscache.h"
 
 tle_name_comparison_hook_type  tle_name_comparison_hook = NULL;
+List **sv_fromclause_ns;
 
 static int	extractRemainingColumns(ParseNamespaceColumn *src_nscolumns,
 									List *src_colnames,
@@ -151,6 +152,10 @@ transformFromClause(ParseState *pstate, List *frmList)
 	 * but those should have been that way already.
 	 */
 	setNamespaceLateralState(pstate->p_namespace, false, true);
+
+	/* Save namespace */
+	if (sv_fromclause_ns && !*sv_fromclause_ns)
+		*sv_fromclause_ns = pstate->p_namespace;
 }
 
 /*

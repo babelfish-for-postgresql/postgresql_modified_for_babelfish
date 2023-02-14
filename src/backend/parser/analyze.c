@@ -1751,6 +1751,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	ParseNamespaceColumn *sortnscolumns;
 	int			sortcolindex;
 	int			tllen;
+	List *sv_namespace_tsql = NIL;
 
 	qry->commandType = CMD_SELECT;
 
@@ -1812,6 +1813,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	/*
 	 * Recursively transform the components of the tree.
 	 */
+	sv_fromclause_ns = &sv_namespace_tsql;
 	sostmt = castNode(SetOperationStmt,
 					  transformSetOperationTree(pstate, stmt, true, NULL));
 	Assert(sostmt);
@@ -1916,7 +1918,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	addNSItemToQuery(pstate, jnsitem, false, false, true);
 	
 	if (pre_transform_sort_from_set_hook)
-		(*pre_transform_sort_from_set_hook) (pstate, qry, leftmostQuery, leftmostSelect->fromClause);
+		(*pre_transform_sort_from_set_hook) (pstate, qry, leftmostQuery, sv_namespace_tsql);
 
 	/*
 	 * For now, we don't support resjunk sort clauses on the output of a
