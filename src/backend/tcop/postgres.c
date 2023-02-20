@@ -1073,6 +1073,8 @@ exec_simple_query(const char *query_string)
 		Portal		portal;
 		DestReceiver *receiver;
 		int16		format;
+		const char *cmdtagname;
+		size_t		cmdtaglen;
 
 		pgstat_report_query_id(0, true);
 
@@ -1083,8 +1085,9 @@ exec_simple_query(const char *query_string)
 		 * destination.
 		 */
 		commandTag = CreateCommandTag(parsetree->stmt);
+		cmdtagname = GetCommandTagNameAndLen(commandTag, &cmdtaglen);
 
-		set_ps_display(GetCommandTagName(commandTag));
+		set_ps_display_with_len(cmdtagname, cmdtaglen);
 
 		BeginCommand(commandTag, dest);
 
@@ -2069,6 +2072,8 @@ exec_execute_message(const char *portal_name, long max_rows)
 	char		msec_str[32];
 	ParamsErrorCbData params_data;
 	ErrorContextCallback params_errcxt;
+	const char *cmdtagname;
+	size_t		cmdtaglen;
 
 	/* Adjust destination to tell printtup.c what to do */
 	dest = whereToSendOutput;
@@ -2115,7 +2120,9 @@ exec_execute_message(const char *portal_name, long max_rows)
 
 	pgstat_report_activity(STATE_RUNNING, sourceText);
 
-	set_ps_display(GetCommandTagName(portal->commandTag));
+	cmdtagname = GetCommandTagNameAndLen(portal->commandTag, &cmdtaglen);
+
+	set_ps_display_with_len(cmdtagname, cmdtaglen);
 
 	if (save_log_statement_stats)
 		ResetUsage();
