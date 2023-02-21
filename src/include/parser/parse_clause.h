@@ -16,7 +16,12 @@
 
 #include "parser/parse_node.h"
 
-extern List **sv_fromclause_ns;
+typedef struct namespace_stack {
+	struct namespace_stack *prev;
+	List *namespace;
+} NamespaceStack;
+
+extern NamespaceStack *ns_stack;
 
 extern void transformFromClause(ParseState *pstate, List *frmList);
 extern int	setTargetTable(ParseState *pstate, RangeVar *relation,

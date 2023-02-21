@@ -53,7 +53,11 @@
 #include "utils/syscache.h"
 
 tle_name_comparison_hook_type  tle_name_comparison_hook = NULL;
+<<<<<<< Updated upstream
 List **sv_fromclause_ns;
+=======
+NamespaceStack *ns_stack = NULL;
+>>>>>>> Stashed changes
 
 static int	extractRemainingColumns(ParseNamespaceColumn *src_nscolumns,
 									List *src_colnames,
@@ -153,9 +157,9 @@ transformFromClause(ParseState *pstate, List *frmList)
 	 */
 	setNamespaceLateralState(pstate->p_namespace, false, true);
 
-	/* Save namespace */
-	if (sv_fromclause_ns && !*sv_fromclause_ns)
-		*sv_fromclause_ns = pstate->p_namespace;
+	// /* Save namespace */
+	if (ns_stack && !ns_stack->namespace)
+		ns_stack->namespace = pstate->p_namespace;
 }
 
 /*

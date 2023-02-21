@@ -45,6 +45,7 @@
 #include "parser/parse_relation.h"
 #include "parser/parse_target.h"
 #include "parser/parse_type.h"
+#include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteManip.h"
 #include "utils/backend_status.h"
@@ -1751,7 +1752,11 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	ParseNamespaceColumn *sortnscolumns;
 	int			sortcolindex;
 	int			tllen;
+<<<<<<< Updated upstream
 	List *sv_namespace_tsql = NIL;
+=======
+	NamespaceStack ns_stack_item = {.prev = NULL, .namespace = NIL};
+>>>>>>> Stashed changes
 
 	qry->commandType = CMD_SELECT;
 
@@ -1813,7 +1818,18 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	/*
 	 * Recursively transform the components of the tree.
 	 */
+<<<<<<< Updated upstream
 	sv_fromclause_ns = &sv_namespace_tsql;
+=======
+	// Manage Namespace Stack
+	if (!ns_stack)
+		ns_stack = &ns_stack_item;
+	else
+	{
+		ns_stack_item.prev = ns_stack;
+		ns_stack = &ns_stack_item;
+	}
+>>>>>>> Stashed changes
 	sostmt = castNode(SetOperationStmt,
 					  transformSetOperationTree(pstate, stmt, true, NULL));
 	Assert(sostmt);
@@ -1917,8 +1933,13 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	/* add jnsitem to column namespace only */
 	addNSItemToQuery(pstate, jnsitem, false, false, true);
 	
-	if (pre_transform_sort_from_set_hook)
-		(*pre_transform_sort_from_set_hook) (pstate, qry, leftmostQuery, sv_namespace_tsql);
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		pstate->p_namespace = ns_stack->namespace;
+		qry->targetList = leftmostQuery->targetList;
+	}
+	ns_stack = ns_stack->prev;
+	
 
 	/*
 	 * For now, we don't support resjunk sort clauses on the output of a
