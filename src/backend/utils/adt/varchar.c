@@ -775,7 +775,7 @@ bpchareq(PG_FUNCTION_ARGS)
 	else
 		mylocale = pg_newlocale_from_collation(collid);
 
-	if (locale_is_c || !mylocale || mylocale->deterministic)
+	if (locale_is_c || pg_locale_deterministic(mylocale))
 	{
 		/*
 		 * Since we only care about equality or not-equality, we can avoid all
@@ -820,7 +820,7 @@ bpcharne(PG_FUNCTION_ARGS)
 	else
 		mylocale = pg_newlocale_from_collation(collid);
 
-	if (locale_is_c || !mylocale || mylocale->deterministic)
+	if (locale_is_c || pg_locale_deterministic(mylocale))
 	{
 		/*
 		 * Since we only care about equality or not-equality, we can avoid all
@@ -1028,7 +1028,7 @@ hashbpchar(PG_FUNCTION_ARGS)
 	if (!lc_collate_is_c(collid))
 		mylocale = pg_newlocale_from_collation(collid);
 
-	if (!mylocale || mylocale->deterministic)
+	if (pg_locale_deterministic(mylocale))
 	{
 		result = hash_any((unsigned char *) keydata, keylen);
 	}
@@ -1090,7 +1090,7 @@ hashbpcharextended(PG_FUNCTION_ARGS)
 	if (!lc_collate_is_c(collid))
 		mylocale = pg_newlocale_from_collation(collid);
 
-	if (!mylocale || mylocale->deterministic)
+	if (pg_locale_deterministic(mylocale))
 	{
 		result = hash_any_extended((unsigned char *) keydata, keylen,
 								   PG_GETARG_INT64(1));
