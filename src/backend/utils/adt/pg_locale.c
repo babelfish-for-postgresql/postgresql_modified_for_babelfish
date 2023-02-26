@@ -2341,7 +2341,7 @@ pg_strxfrm_enabled(pg_locale_t locale)
 size_t
 pg_strxfrm(char *dest, const char *src, size_t destsize, pg_locale_t locale)
 {
-	size_t result;
+	size_t result = 0; /* keep compiler quiet */
 
 	if (!locale || locale->provider == COLLPROVIDER_LIBC)
 		result = pg_strxfrm_libc(dest, src, destsize, locale);
@@ -2378,7 +2378,7 @@ size_t
 pg_strnxfrm(char *dest, size_t destsize, const char *src, size_t srclen,
 			pg_locale_t locale)
 {
-	size_t result;
+	size_t result = 0; /* keep compiler quiet */
 
 	if (!locale || locale->provider == COLLPROVIDER_LIBC)
 		result = pg_strnxfrm_libc(dest, src, srclen, destsize, locale);
