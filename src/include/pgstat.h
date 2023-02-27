@@ -288,7 +288,6 @@ typedef enum IOObject
 	IOOBJECT_TEMP_RELATION,
 } IOObject;
 
-#define IOOBJECT_FIRST IOOBJECT_RELATION
 #define IOOBJECT_NUM_TYPES (IOOBJECT_TEMP_RELATION + 1)
 
 typedef enum IOContext
@@ -299,7 +298,6 @@ typedef enum IOContext
 	IOCONTEXT_VACUUM,
 } IOContext;
 
-#define IOCONTEXT_FIRST IOCONTEXT_BULKREAD
 #define IOCONTEXT_NUM_TYPES (IOCONTEXT_VACUUM + 1)
 
 typedef enum IOOp
@@ -312,7 +310,6 @@ typedef enum IOOp
 	IOOP_WRITE,
 } IOOp;
 
-#define IOOP_FIRST IOOP_EVICT
 #define IOOP_NUM_TYPES (IOOP_WRITE + 1)
 
 typedef struct PgStat_BktypeIO
