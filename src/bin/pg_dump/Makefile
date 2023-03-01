@@ -43,8 +43,8 @@ pg_dump: pg_dump.o common.o pg_dump_sort.o dump_babel_utils.o $(OBJS) | submake-
 pg_restore: pg_restore.o $(OBJS) | submake-libpq submake-libpgport submake-libpgfeutils
 	$(CC) $(CFLAGS) pg_restore.o $(OBJS) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) -o $@$(X)
 
-pg_dumpall: pg_dumpall.o dumputils.o $(WIN32RES) | submake-libpq submake-libpgport submake-libpgfeutils
-	$(CC) $(CFLAGS) pg_dumpall.o dumputils.o $(WIN32RES) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) -o $@$(X)
+pg_dumpall: pg_dumpall.o dumputils.o dumpall_babel_utils.o $(WIN32RES) | submake-libpq submake-libpgport submake-libpgfeutils
+	$(CC) $(CFLAGS) pg_dumpall.o dumputils.o dumpall_babel_utils.o $(WIN32RES) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) -o $@$(X)
 
 install: all installdirs
 	$(INSTALL_PROGRAM) pg_dump$(X) '$(DESTDIR)$(bindir)'/pg_dump$(X)

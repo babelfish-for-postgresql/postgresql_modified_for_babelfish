@@ -146,6 +146,9 @@ static int	ncomments = 0;
 static SecLabelItem *seclabels = NULL;
 static int	nseclabels = 0;
 
+/* Babelfish logical database to dump */
+char *bbf_db_name = NULL;
+
 /*
  * The default number of rows per INSERT when
  * --inserts is specified without --rows-per-insert
@@ -413,6 +416,7 @@ main(int argc, char **argv)
 		{"on-conflict-do-nothing", no_argument, &dopt.do_nothing, 1},
 		{"rows-per-insert", required_argument, NULL, 10},
 		{"include-foreign-data", required_argument, NULL, 11},
+		{"bbf-database-name", required_argument, NULL, 12},
 
 		{NULL, 0, NULL, 0}
 	};
@@ -623,6 +627,11 @@ main(int argc, char **argv)
 										  optarg);
 				break;
 
+			case 12:			/* Babelfish logical database name */
+				bbf_db_name = pg_strdup(optarg);
+				dopt.include_everything = false;
+				break;
+
 			default:
 				/* getopt_long already emitted a complaint */
 				pg_log_error_hint("Try \"%s --help\" for more information.", progname);
@@ -760,6 +769,9 @@ main(int argc, char **argv)
 	g_last_builtin_oid = FirstNormalObjectId - 1;
 
 	pg_log_info("last built-in OID is %u", g_last_builtin_oid);
+
+	if (bbf_db_name != NULL)
+		prepareForLogicalDatabaseDump(fout, &schema_include_patterns);
 
 	/* Expand schema selection patterns into OID lists */
 	if (schema_include_patterns.head != NULL)
@@ -905,6 +917,8 @@ main(int argc, char **argv)
 	/* The database items are always next, unless we don't want them at all */
 	if (dopt.outputCreateDB)
 		dumpDatabase(fout);
+
+	dumpBabelGUCs(fout);
 
 	/* Now the rearrangeable objects. */
 	for (i = 0; i < numObjs; i++)
@@ -2016,6 +2030,7 @@ dumpTableData_copy(Archive *fout, const void *dcontext)
 						  fmtQualifiedDumpable(tbinfo),
 						  column_list);
 	}
+	fixCopyCommand(fout, q, tbinfo, false);
 	res = ExecuteSqlQuery(fout, q->data, PGRES_COPY_OUT);
 	PQclear(res);
 	destroyPQExpBuffer(clistBuf);
@@ -2166,6 +2181,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	if (tdinfo->filtercond)
 		appendPQExpBuffer(q, " %s", tdinfo->filtercond);
 
+	getCursorForBbfCatalogTableData(fout, tbinfo, q, &nfields);
 	ExecuteSqlStatement(fout, q->data);
 
 	while (1)
@@ -2440,11 +2456,25 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 						  copyFrom);
 		appendPQExpBuffer(copyBuf, "%s FROM stdin;\n",
 						  fmtCopyColumnList(tbinfo, clistBuf));
+		fixCopyCommand(fout, copyBuf, tbinfo, true);
 		copyStmt = copyBuf->data;
 	}
 	else
 	{
 		/* Restore using INSERT */
+		dumpFn = dumpTableData_insert;
+		copyStmt = NULL;
+	}
+
+	/*
+	 * Always restore sys.babelfish_authid_login_ext Babelfish catalog table
+	 * using INSERT. This is needed because some inserts might fail due to certain
+	 * login being pre-existing on the target server.
+	 */
+	if (isBabelfishDatabase(fout) && bbf_db_name != NULL &&
+		strcmp(tbinfo->dobj.namespace->dobj.name, "sys") == 0 &&
+		strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
+	{
 		dumpFn = dumpTableData_insert;
 		copyStmt = NULL;
 	}
@@ -6485,6 +6515,9 @@ getTables(Archive *fout, int *numTables)
 		else
 			selectDumpableTable(&tblinfo[i], fout);
 
+		if (bbf_db_name != NULL)
+			bbf_selectDumpableTableData(&tblinfo[i], fout);
+
 		/*
 		 * Now, consider the table "interesting" if we need to dump its
 		 * definition or its data.  Later on, we'll skip a lot of data
@@ -10089,14 +10122,6 @@ dumpExtension(Archive *fout, const ExtensionInfo *extinfo)
 	delq = createPQExpBuffer();
 
 	qextname = pg_strdup(fmtId(extinfo->dobj.name));
-
-	if (strstr(qextname, "babelfishpg_common") && isBabelfishDatabase(fout))
-	{
-		char *oid = getMinOid(fout);
-		appendPQExpBuffer(q, "SET babelfishpg_tsql.dump_restore = TRUE;\n");
-		appendPQExpBuffer(q, "SET babelfishpg_tsql.dump_restore_min_oid = %s;\n", oid);
-		free(oid);
-	}
 
 	appendPQExpBuffer(delq, "DROP EXTENSION %s;\n", qextname);
 
@@ -17892,6 +17917,9 @@ getDependencies(Archive *fout)
 		/* Standalone T-SQL table-type as a function's argument or multi-statement TVF */
 		fixTsqlTableTypeDependency(fout, dobj, refdobj, deptype);
 	}
+	
+	if (bbf_db_name != NULL)
+		getBabelfishDependencies(fout);
 
 	PQclear(res);
 

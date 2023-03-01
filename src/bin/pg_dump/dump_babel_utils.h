@@ -20,9 +20,10 @@
 #define PLTSQL_TVFTYPE_MSTVF 1
 #define PLTSQL_TVFTYPE_ITVF  2
 
+extern char *bbf_db_name;
 
-extern char *getMinOid(Archive *fout);
 extern void bbf_selectDumpableCast(CastInfo *cast);
+extern void bbf_selectDumpableTableData(TableInfo *tbinfo, Archive *fout);
 extern void fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo);
 extern bool isBabelfishDatabase(Archive *fout);
 extern void fixOprRegProc(Archive *fout, const OprInfo *oprinfo, const char *oprleft, const char *oprright, char **oprregproc);
@@ -33,5 +34,11 @@ extern void fixAttoptionsBbfOriginalName(Archive *fout, Oid relOid, const TableI
 extern void setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *finfo, char prokind, bool proretset, bool is_set);
 extern void dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf);
 extern void updateExtConfigArray(Archive *fout, char ***extconfigarray, int nconfigitems);
+extern char *babelfish_handle_view_def(Archive *fout, char *view_def);
+extern void prepareForLogicalDatabaseDump(Archive *fout, SimpleStringList *schema_include_patterns);
+extern void getBabelfishDependencies(Archive *fout);
+extern void dumpBabelGUCs(Archive *fout);
+extern void getCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields);
+extern void fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFrom);
 
 #endif

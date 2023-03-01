@@ -23,6 +23,7 @@
 #include "common/file_utils.h"
 #include "common/logging.h"
 #include "common/string.h"
+#include "dumpall_babel_utils.h"
 #include "dumputils.h"
 #include "fe_utils/string_utils.h"
 #include "getopt_long.h"
@@ -152,6 +153,7 @@ main(int argc, char *argv[])
 		{"no-unlogged-table-data", no_argument, &no_unlogged_table_data, 1},
 		{"on-conflict-do-nothing", no_argument, &on_conflict_do_nothing, 1},
 		{"rows-per-insert", required_argument, NULL, 7},
+		{"bbf-database-name", required_argument, NULL, 8},
 
 		{NULL, 0, NULL, 0}
 	};
@@ -333,6 +335,10 @@ main(int argc, char *argv[])
 			case 7:
 				appendPQExpBufferStr(pgdumpopts, " --rows-per-insert ");
 				appendShellString(pgdumpopts, optarg);
+				break;
+
+			case 8:			/* Babelfish virtual database name */
+				bbf_db_name = pg_strdup(optarg);
 				break;
 
 			default:
@@ -688,6 +694,7 @@ dropRoles(PGconn *conn)
 						  "FROM %s "
 						  "ORDER BY 1", role_catalog);
 
+	getBabelfishRolesQuery(buf, role_catalog, 1);
 	res = executeQuery(conn, buf->data);
 
 	i_rolname = PQfnumber(res, "rolname");
@@ -770,6 +777,7 @@ dumpRoles(PGconn *conn)
 						  "FROM %s "
 						  "ORDER BY 2", role_catalog, role_catalog);
 
+	getBabelfishRolesQuery(buf, role_catalog, 0);
 	res = executeQuery(conn, buf->data);
 
 	i_oid = PQfnumber(res, "oid");
@@ -937,6 +945,7 @@ dumpRoleMembership(PGconn *conn)
 					  "LEFT JOIN %s ug on ug.oid = a.grantor "
 					  "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_')"
 					  "ORDER BY 1,2,3", role_catalog, role_catalog, role_catalog);
+	getBabelfishRoleMembershipQuery(buf, role_catalog);
 	res = executeQuery(conn, buf->data);
 
 	if (PQntuples(res) > 0)
