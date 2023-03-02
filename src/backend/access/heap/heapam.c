@@ -3866,9 +3866,6 @@ heap_attr_equals(TupleDesc tupdesc, int attrnum, Datum value1, Datum value2,
  * has_external indicates if any of the unmodified attributes (from those
  * listed as interesting) of the old tuple is a member of external_cols and is
  * stored externally.
- *
- * The input interesting_cols bitmapset is destructively modified; that is OK
- * since this is invoked at most once in heap_update.
  */
 static Bitmapset *
 HeapDetermineColumnsInfo(Relation relation,
@@ -3877,18 +3874,19 @@ HeapDetermineColumnsInfo(Relation relation,
 						 HeapTuple oldtup, HeapTuple newtup,
 						 bool *has_external)
 {
-	int			attrnum;
+	int			attidx;
 	Bitmapset  *modified = NULL;
 	TupleDesc	tupdesc = RelationGetDescr(relation);
 
-	while ((attrnum = bms_first_member(interesting_cols)) >= 0)
+	attidx = -1;
+	while ((attidx = bms_next_member(interesting_cols, attidx)) >= 0)
 	{
+		/* attidx is zero-based, attrnum is the normal attribute number */
+		AttrNumber	attrnum = attidx + FirstLowInvalidHeapAttributeNumber;
 		Datum		value1,
 					value2;
 		bool		isnull1,
 					isnull2;
-
-		attrnum += FirstLowInvalidHeapAttributeNumber;
 
 		/*
 		 * If it's a whole-tuple reference, say "not equal".  It's not really
@@ -3897,9 +3895,7 @@ HeapDetermineColumnsInfo(Relation relation,
 		 */
 		if (attrnum == 0)
 		{
-			modified = bms_add_member(modified,
-									  attrnum -
-									  FirstLowInvalidHeapAttributeNumber);
+			modified = bms_add_member(modified, attidx);
 			continue;
 		}
 
@@ -3912,9 +3908,7 @@ HeapDetermineColumnsInfo(Relation relation,
 		{
 			if (attrnum != TableOidAttributeNumber)
 			{
-				modified = bms_add_member(modified,
-										  attrnum -
-										  FirstLowInvalidHeapAttributeNumber);
+				modified = bms_add_member(modified, attidx);
 				continue;
 			}
 		}
@@ -3931,9 +3925,7 @@ HeapDetermineColumnsInfo(Relation relation,
 		if (!heap_attr_equals(tupdesc, attrnum, value1,
 							  value2, isnull1, isnull2))
 		{
-			modified = bms_add_member(modified,
-									  attrnum -
-									  FirstLowInvalidHeapAttributeNumber);
+			modified = bms_add_member(modified, attidx);
 			continue;
 		}
 
@@ -3950,8 +3942,7 @@ HeapDetermineColumnsInfo(Relation relation,
 		 * member of external_cols.
 		 */
 		if (VARATT_IS_EXTERNAL((struct varlena *) DatumGetPointer(value1)) &&
-			bms_is_member(attrnum - FirstLowInvalidHeapAttributeNumber,
-						  external_cols))
+			bms_is_member(attidx, external_cols))
 			*has_external = true;
 	}
 
