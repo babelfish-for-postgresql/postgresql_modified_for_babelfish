@@ -2467,19 +2467,6 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 	}
 
 	/*
-	 * Always restore sys.babelfish_authid_login_ext Babelfish catalog table
-	 * using INSERT. This is needed because some inserts might fail due to certain
-	 * login being pre-existing on the target server.
-	 */
-	if (isBabelfishDatabase(fout) && bbf_db_name != NULL &&
-		strcmp(tbinfo->dobj.namespace->dobj.name, "sys") == 0 &&
-		strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
-	{
-		dumpFn = dumpTableData_insert;
-		copyStmt = NULL;
-	}
-
-	/*
 	 * Note: although the TableDataInfo is a full DumpableObject, we treat its
 	 * dependency on its table as "special" and pass it to ArchiveEntry now.
 	 * See comments for BuildArchiveDependencies.

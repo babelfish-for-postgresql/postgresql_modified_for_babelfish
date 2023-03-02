@@ -117,7 +117,7 @@ void
 dumpBabelGUCs(Archive *fout)
 {
 	char		*oid;
-	PQExpBuffer qry;
+	PQExpBuffer	qry;
 
 	if (!isBabelfishDatabase(fout))
 		return;
@@ -187,7 +187,6 @@ bbf_selectDumpableTableData(TableInfo *tbinfo, Archive *fout)
 		(strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_namespace_ext") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0))
@@ -623,10 +622,10 @@ updateExtConfigArray(Archive *fout, char ***extconfigarray, int nconfigitems)
 void
 prepareForLogicalDatabaseDump(Archive *fout, SimpleStringList *schema_include_patterns)
 {
-	PQExpBuffer query;
+	PQExpBuffer	query;
 	PGresult	*res;
-	int			ntups;
-	int			i;
+	int 		ntups;
+	int 		i;
 
 	if (!isBabelfishDatabase(fout))
 	{
@@ -694,11 +693,11 @@ void
 getBabelfishDependencies(Archive *fout)
 {
 	PQExpBuffer		query;
-	PGresult	   *res;
-	TableInfo	   *sysdb_table;
-	TableInfo	   *namespace_ext_table;
-	DumpableObject *dobj;
-	DumpableObject *refdobj;
+	PGresult		*res;
+	TableInfo		*sysdb_table;
+	TableInfo		*namespace_ext_table;
+	DumpableObject		*dobj;
+	DumpableObject		*refdobj;
 
 	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade)
 		return;
@@ -738,24 +737,26 @@ getBabelfishDependencies(Archive *fout)
 void
 getCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields)
 {
-	int		i;
+	int 	i;
 	bool	is_builtin_db = false;
 
 	if (!isBabelfishDatabase(fout) || bbf_db_name == NULL)
 		return;
-
-	is_builtin_db = pg_strcasecmp(bbf_db_name, "master") == 0 ? true : false;
 
 	if (tbinfo->dobj.namespace == NULL ||
 		strcmp(tbinfo->dobj.namespace->dobj.name, "sys") != 0 ||
 		!(strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_namespace_ext") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0))
 		return;
+
+	is_builtin_db = (pg_strcasecmp(bbf_db_name, "master") == 0 ||
+			pg_strcasecmp(bbf_db_name, "tempdb") == 0 ||
+			pg_strcasecmp(bbf_db_name, "msdb") == 0)
+			? true : false;
 
 	resetPQExpBuffer(buf);
 	appendPQExpBufferStr(buf, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
@@ -804,15 +805,17 @@ getCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 	{
-		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.database_name = '%s'",
-						  fmtQualifiedDumpable(tbinfo), escaped_bbf_db_name);
+		appendPQExpBuffer(buf, " FROM ONLY %s a "
+						  "WHERE a.rolname IN ('dbo', 'db_owner', '%s_dbo', '%s_db_owner', '%s_guest') ",
+						  fmtQualifiedDumpable(tbinfo), escaped_bbf_db_name, escaped_bbf_db_name,
+						  escaped_bbf_db_name);
+		/*
+		 * Builtin db users will already be present in the target
+		 * server so no need to dump their catalog data.
+		 */
 		if (is_builtin_db)
-			appendPQExpBuffer(buf, " AND a.rolname NOT IN ('%s_dbo', '%s_db_owner', '%s_guest')",
-							  escaped_bbf_db_name, escaped_bbf_db_name, escaped_bbf_db_name);
+			appendPQExpBufferStr(buf, "LIMIT 0 ");
 	}
-	else if (strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
-		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.rolname != 'sysadmin'",
-						fmtQualifiedDumpable(tbinfo));
 	else
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
 						fmtQualifiedDumpable(tbinfo));
@@ -836,18 +839,20 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 	if (!isBabelfishDatabase(fout) || bbf_db_name == NULL)
 		return;
 
-	is_builtin_db = pg_strcasecmp(bbf_db_name, "master") == 0 ? true : false;
-
 	if (tbinfo->dobj.namespace == NULL ||
 		strcmp(tbinfo->dobj.namespace->dobj.name, "sys") != 0 ||
 		!(strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_namespace_ext") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
 		 strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0))
 		return;
+
+	is_builtin_db = (pg_strcasecmp(bbf_db_name, "master") == 0 ||
+			pg_strcasecmp(bbf_db_name, "tempdb") == 0 ||
+			pg_strcasecmp(bbf_db_name, "msdb") == 0)
+			? true : false;
 
 	q = createPQExpBuffer();
 	for (i = 0; i < tbinfo->numatts; i++)
@@ -912,15 +917,17 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 							  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 		else if(strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 		{
-			appendPQExpBuffer(copyBuf, "FROM ONLY %s a WHERE a.database_name = '%s'",
-							  fmtQualifiedDumpable(tbinfo), bbf_db_name);
+			appendPQExpBuffer(copyBuf, "FROM ONLY %s a "
+							  "WHERE a.rolname IN ('dbo', 'db_owner', '%s_dbo', '%s_db_owner', '%s_guest') ",
+							  fmtQualifiedDumpable(tbinfo), escaped_bbf_db_name, escaped_bbf_db_name,
+							  escaped_bbf_db_name);
+			/*
+			 * Builtin db users will already be present in the target
+			 * server so no need to dump their catalog data.
+			 */
 			if (is_builtin_db)
-				appendPQExpBuffer(copyBuf, " AND a.rolname NOT IN ('%s_dbo', '%s_db_owner', '%s_guest')",
-								  escaped_bbf_db_name, escaped_bbf_db_name, escaped_bbf_db_name);
+				appendPQExpBufferStr(copyBuf, "LIMIT 0 ");
 		}
-		else if (strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
-			appendPQExpBuffer(copyBuf, " FROM ONLY %s a WHERE a.rolname != 'sysadmin'",
-							  fmtQualifiedDumpable(tbinfo));
 		else
 			appendPQExpBuffer(copyBuf, "FROM ONLY %s a",
 							  fmtQualifiedDumpable(tbinfo));
