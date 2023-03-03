@@ -2537,7 +2537,7 @@ pg_extension_config_dump(PG_FUNCTION_ARGS)
  * This is not currently exposed as a function, but it could be;
  * for now, we just invoke it from ALTER EXTENSION DROP.
  */
-void
+static void
 extension_config_remove(Oid extensionoid, Oid tableoid)
 {
 	Relation	extRel;
@@ -2701,6 +2701,18 @@ extension_config_remove(Oid extensionoid, Oid tableoid)
 	systable_endscan(extScan);
 
 	table_close(extRel, RowExclusiveLock);
+}
+
+/*
+ * It's simply a wrapper of extension_config_remove function so that
+ * it can be used by the extensions.
+ * We should remove this wrapper when community exposes extension_config_remove
+ * as a SQL function or makes it non-static.
+ */
+void
+extension_config_remove_wrapper(Oid extensionoid, Oid tableoid)
+{
+	extension_config_remove(extensionoid, tableoid);
 }
 
 /*
