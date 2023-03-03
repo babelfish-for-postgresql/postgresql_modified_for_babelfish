@@ -1748,7 +1748,7 @@ convertJsonbArray(StringInfo buffer, JEntry *header, JsonbValue *val, int level)
 		if (totallen > JENTRY_OFFLENMASK)
 			ereport(ERROR,
 					(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-					 errmsg("total size of jsonb array elements exceeds the maximum of %u bytes",
+					 errmsg("total size of jsonb array elements exceeds the maximum of %d bytes",
 							JENTRY_OFFLENMASK)));
 
 		/*
@@ -1768,7 +1768,7 @@ convertJsonbArray(StringInfo buffer, JEntry *header, JsonbValue *val, int level)
 	if (totallen > JENTRY_OFFLENMASK)
 		ereport(ERROR,
 				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("total size of jsonb array elements exceeds the maximum of %u bytes",
+				 errmsg("total size of jsonb array elements exceeds the maximum of %d bytes",
 						JENTRY_OFFLENMASK)));
 
 	/* Initialize the header of this node in the container's JEntry array */
@@ -1829,7 +1829,7 @@ convertJsonbObject(StringInfo buffer, JEntry *header, JsonbValue *val, int level
 		if (totallen > JENTRY_OFFLENMASK)
 			ereport(ERROR,
 					(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-					 errmsg("total size of jsonb object elements exceeds the maximum of %u bytes",
+					 errmsg("total size of jsonb object elements exceeds the maximum of %d bytes",
 							JENTRY_OFFLENMASK)));
 
 		/*
@@ -1864,7 +1864,7 @@ convertJsonbObject(StringInfo buffer, JEntry *header, JsonbValue *val, int level
 		if (totallen > JENTRY_OFFLENMASK)
 			ereport(ERROR,
 					(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-					 errmsg("total size of jsonb object elements exceeds the maximum of %u bytes",
+					 errmsg("total size of jsonb object elements exceeds the maximum of %d bytes",
 							JENTRY_OFFLENMASK)));
 
 		/*
@@ -1884,7 +1884,7 @@ convertJsonbObject(StringInfo buffer, JEntry *header, JsonbValue *val, int level
 	if (totallen > JENTRY_OFFLENMASK)
 		ereport(ERROR,
 				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("total size of jsonb object elements exceeds the maximum of %u bytes",
+				 errmsg("total size of jsonb object elements exceeds the maximum of %d bytes",
 						JENTRY_OFFLENMASK)));
 
 	/* Initialize the header of this node in the container's JEntry array */
