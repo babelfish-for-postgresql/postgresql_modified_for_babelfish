@@ -2149,6 +2149,14 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			continue;
 		if (tbinfo->attgenerated[i] && dopt->column_inserts)
 			continue;
+
+		/* Skip TSQL ROWVERSION/TIMESTAMP column, it should be re-generated during restore. */
+		if (pg_strcasecmp(tbinfo->atttypnames[i],
+				quote_all_identifiers ? "\"sys\".\"rowversion\"" : "sys.rowversion") == 0 ||
+			pg_strcasecmp(tbinfo->atttypnames[i],
+				quote_all_identifiers ? "\"sys\".\"timestamp\"" : "sys.timestamp") == 0)
+			continue;
+
 		if (nfields > 0)
 			appendPQExpBufferStr(q, ", ");
 		if (tbinfo->attgenerated[i])
@@ -18202,6 +18210,7 @@ fmtCopyColumnList(const TableInfo *ti, PQExpBuffer buffer)
 {
 	int			numatts = ti->numatts;
 	char	  **attnames = ti->attnames;
+	char	  **atttypnames = ti->atttypnames;
 	bool	   *attisdropped = ti->attisdropped;
 	char	   *attgenerated = ti->attgenerated;
 	bool		needComma;
@@ -18215,6 +18224,14 @@ fmtCopyColumnList(const TableInfo *ti, PQExpBuffer buffer)
 			continue;
 		if (attgenerated[i])
 			continue;
+
+		/* Skip TSQL ROWVERSION/TIMESTAMP column, it should be re-generated during restore. */
+		if (pg_strcasecmp(atttypnames[i],
+				quote_all_identifiers ? "\"sys\".\"rowversion\"" : "sys.rowversion") == 0 ||
+			pg_strcasecmp(atttypnames[i],
+				quote_all_identifiers ? "\"sys\".\"timestamp\"" : "sys.timestamp") == 0)
+			continue;
+
 		if (needComma)
 			appendPQExpBufferStr(buffer, ", ");
 		appendPQExpBufferStr(buffer, fmtId(attnames[i]));
