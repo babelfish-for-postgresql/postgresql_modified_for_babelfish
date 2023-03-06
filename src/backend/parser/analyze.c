@@ -1752,11 +1752,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	ParseNamespaceColumn *sortnscolumns;
 	int			sortcolindex;
 	int			tllen;
-<<<<<<< Updated upstream
-	List *sv_namespace_tsql = NIL;
-=======
 	NamespaceStack ns_stack_item = {.prev = NULL, .namespace = NIL};
->>>>>>> Stashed changes
 
 	qry->commandType = CMD_SELECT;
 
@@ -1818,9 +1814,6 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	/*
 	 * Recursively transform the components of the tree.
 	 */
-<<<<<<< Updated upstream
-	sv_fromclause_ns = &sv_namespace_tsql;
-=======
 	// Manage Namespace Stack
 	if (!ns_stack)
 		ns_stack = &ns_stack_item;
@@ -1829,7 +1822,6 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 		ns_stack_item.prev = ns_stack;
 		ns_stack = &ns_stack_item;
 	}
->>>>>>> Stashed changes
 	sostmt = castNode(SetOperationStmt,
 					  transformSetOperationTree(pstate, stmt, true, NULL));
 	Assert(sostmt);

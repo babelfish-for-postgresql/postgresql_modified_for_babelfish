@@ -53,11 +53,7 @@
 #include "utils/syscache.h"
 
 tle_name_comparison_hook_type  tle_name_comparison_hook = NULL;
-<<<<<<< Updated upstream
-List **sv_fromclause_ns;
-=======
 NamespaceStack *ns_stack = NULL;
->>>>>>> Stashed changes
 
 static int	extractRemainingColumns(ParseNamespaceColumn *src_nscolumns,
 									List *src_colnames,
