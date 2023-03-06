@@ -153,7 +153,7 @@ transformFromClause(ParseState *pstate, List *frmList)
 	 */
 	setNamespaceLateralState(pstate->p_namespace, false, true);
 
-	// /* Save namespace */
+	/* Save namespace */
 	if (ns_stack && !ns_stack->namespace)
 		ns_stack->namespace = pstate->p_namespace;
 }
