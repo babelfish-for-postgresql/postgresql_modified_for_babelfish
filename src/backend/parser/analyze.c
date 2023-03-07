@@ -1811,14 +1811,9 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	/*
 	 * Recursively transform the components of the tree.
 	 */
-	// Manage Namespace Stack
-	if (!ns_stack)
-		ns_stack = &ns_stack_item;
-	else
-	{
-		ns_stack_item.prev = ns_stack;
-		ns_stack = &ns_stack_item;
-	}
+	ns_stack_item.prev = ns_stack;
+	ns_stack = &ns_stack_item;
+
 	sostmt = castNode(SetOperationStmt,
 					  transformSetOperationTree(pstate, stmt, true, NULL));
 	Assert(sostmt);
