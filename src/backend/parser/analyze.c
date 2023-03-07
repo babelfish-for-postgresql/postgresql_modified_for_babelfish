@@ -1749,7 +1749,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	ParseNamespaceColumn *sortnscolumns;
 	int			sortcolindex;
 	int			tllen;
-	NamespaceStack ns_stack_item = {.prev = NULL, .namespace = NIL};
+	// NamespaceStack ns_stack_item = {.prev = NULL, .namespace = NIL};
 
 	qry->commandType = CMD_SELECT;
 
