@@ -1813,8 +1813,8 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	 */
 	if (sql_dialect == SQL_DIALECT_TSQL)
 	{
-		ns_stack_item.prev = ns_stack;
-		ns_stack = &ns_stack_item;
+		ns_stack_item.prev = set_op_ns_stack;
+		set_op_ns_stack = &ns_stack_item;
 	}
 
 	sostmt = castNode(SetOperationStmt,
@@ -1920,11 +1920,12 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	/* add jnsitem to column namespace only */
 	addNSItemToQuery(pstate, jnsitem, false, false, true);
 	
+	/* tsql needs the leftmost query's targetlist and ns to handle ORDER BY */
 	if (sql_dialect == SQL_DIALECT_TSQL)
 	{
-		pstate->p_namespace = ns_stack->namespace;
 		qry->targetList = leftmostQuery->targetList;
-		ns_stack = ns_stack->prev;
+		pstate->p_namespace = set_op_ns_stack->namespace;
+		set_op_ns_stack = set_op_ns_stack->prev;
 	}
 	
 

@@ -21,7 +21,7 @@ typedef struct namespace_stack {
 	List *namespace;
 } NamespaceStack;
 
-extern NamespaceStack *ns_stack;
+extern NamespaceStack *set_op_ns_stack;
 
 extern void transformFromClause(ParseState *pstate, List *frmList);
 extern int	setTargetTable(ParseState *pstate, RangeVar *relation,

@@ -53,7 +53,7 @@
 #include "utils/syscache.h"
 
 tle_name_comparison_hook_type  tle_name_comparison_hook = NULL;
-NamespaceStack *ns_stack = NULL;
+NamespaceStack *set_op_ns_stack = NULL;
 
 static int	extractRemainingColumns(ParseNamespaceColumn *src_nscolumns,
 									List *src_colnames,
@@ -153,9 +153,12 @@ transformFromClause(ParseState *pstate, List *frmList)
 	 */
 	setNamespaceLateralState(pstate->p_namespace, false, true);
 
-	/* Save namespace */
-	if (ns_stack && !ns_stack->namespace)
-		ns_stack->namespace = pstate->p_namespace;
+	/* 
+	 * Save the namespace -- tsql needs the leftmost select's namespace to
+	 * resolve some ORDER BY clauses used with set operations (i.e. UNION) 
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL && set_op_ns_stack && !set_op_ns_stack->namespace)
+		set_op_ns_stack->namespace = pstate->p_namespace;
 }
 
 /*
