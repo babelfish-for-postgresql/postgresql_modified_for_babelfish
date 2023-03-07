@@ -1749,7 +1749,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	ParseNamespaceColumn *sortnscolumns;
 	int			sortcolindex;
 	int			tllen;
-	// NamespaceStack ns_stack_item = {.prev = NULL, .namespace = NIL};
+	NamespaceStack ns_stack_item = {.prev = NULL, .namespace = NIL};
 
 	qry->commandType = CMD_SELECT;
 
@@ -1811,8 +1811,11 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	/*
 	 * Recursively transform the components of the tree.
 	 */
-	// ns_stack_item.prev = ns_stack;
-	// ns_stack = &ns_stack_item;
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		ns_stack_item.prev = ns_stack;
+		ns_stack = &ns_stack_item;
+	}
 
 	sostmt = castNode(SetOperationStmt,
 					  transformSetOperationTree(pstate, stmt, true, NULL));
@@ -1917,12 +1920,12 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	/* add jnsitem to column namespace only */
 	addNSItemToQuery(pstate, jnsitem, false, false, true);
 	
-	// if (sql_dialect == SQL_DIALECT_TSQL)
-	// {
-		// pstate->p_namespace = ns_stack->namespace;
-		// qry->targetList = leftmostQuery->targetList;
-	// }
-	// ns_stack = ns_stack->prev;
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		pstate->p_namespace = ns_stack->namespace;
+		qry->targetList = leftmostQuery->targetList;
+		ns_stack = ns_stack->prev;
+	}
 	
 
 	/*
