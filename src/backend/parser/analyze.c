@@ -1919,7 +1919,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	
 	if (sql_dialect == SQL_DIALECT_TSQL)
 	{
-		pstate->p_namespace = ns_stack->namespace;
+		// pstate->p_namespace = ns_stack->namespace;
 		// qry->targetList = leftmostQuery->targetList;
 	}
 	ns_stack = ns_stack->prev;
