@@ -34,8 +34,11 @@
 static const CatalogId nilCatalogId = {0, 0};
 static char *escaped_bbf_db_name = NULL;
 static int bbf_db_id = 0;
+static SimpleOidList catalog_table_include_oids = {NULL, NULL};
 
 static char *getMinOid(Archive *fout);
+static bool isBabelfishConfigTable(TableInfo *tbinfo);
+static void addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_builtin_db);
 
 static char *
 getMinOid(Archive *fout)
@@ -109,6 +112,27 @@ isBabelfishDatabase(Archive *fout)
 }
 
 /*
+ * isBabelfishConfigTable:
+ * Returns true if given table is a configuration table (for which catalog
+ * table data needs to be dumped), false otherwise.
+ * It is mainly used during Babelfish logical database dump.
+ */
+static bool
+isBabelfishConfigTable(TableInfo *tbinfo)
+{
+	/* We don't want to dump logins during logical database dump */
+	if (tbinfo && tbinfo->dobj.namespace &&
+		strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
+		return false;
+
+	if (catalog_table_include_oids.head != NULL &&
+		simple_oid_list_member(&catalog_table_include_oids, tbinfo->dobj.catId.oid))
+		return true;
+
+	return false;
+}
+
+/*
  * dumpBabelGUCs:
  * Dumps Babelfish specific GUC settings if current
  * database is a Babelfish database.
@@ -123,10 +147,13 @@ dumpBabelGUCs(Archive *fout)
 		return;
 
 	qry = createPQExpBuffer();
-	oid = getMinOid(fout);
 	appendPQExpBufferStr(qry, "SET babelfishpg_tsql.dump_restore = TRUE;\n");
-	appendPQExpBuffer(qry, "SET babelfishpg_tsql.dump_restore_min_oid = %s;\n", oid);
-	free(oid);
+	if (fout->dopt->binary_upgrade)
+	{
+		oid = getMinOid(fout);
+		appendPQExpBuffer(qry, "SET babelfishpg_tsql.dump_restore_min_oid = %s;\n", oid);
+		free(oid);
+	}
 
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
 				 ARCHIVE_OPTS(.tag = "BABELFISHGUCS",
@@ -173,7 +200,7 @@ bbf_selectDumpableCast(CastInfo *cast)
 /*
  * bbf_selectDumpableTableData:
  * Marks Babelfish catalog table data to be dumped if not in binary-upgrade mode.
- * It is mostly used during Babelfish logical database dump as none of the extensions
+ * It is mainly used during Babelfish logical database dump as none of the extensions
  * are marked to be dumped so catalog table data explicitly need to be marked as dumpable.
  */
 void
@@ -182,17 +209,8 @@ bbf_selectDumpableTableData(TableInfo *tbinfo, Archive *fout)
 	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade)
 		return;
 
-	if (tbinfo && tbinfo->dobj.namespace &&
-		strcmp(tbinfo->dobj.namespace->dobj.name, "sys") == 0 &&
-		(strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_namespace_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0))
-	{
+	if (isBabelfishConfigTable(tbinfo))
 		tbinfo->dobj.dump |= DUMP_COMPONENT_DATA;
-	}
 }
 
 /*
@@ -656,9 +674,21 @@ prepareForLogicalDatabaseDump(Archive *fout, SimpleStringList *schema_include_pa
 
 	bbf_db_id = atooid(PQgetvalue(res, 0, PQfnumber(res, "dbid")));
 	PQclear(res);
-	destroyPQExpBuffer(query);
+	resetPQExpBuffer(query);
 
-	query = createPQExpBuffer();
+	/* Get oids of all the Babelfish catalog configuration tables */
+	appendPQExpBufferStr(query,
+						 "SELECT unnest(extconfig)::oid "
+						 "FROM pg_catalog.pg_extension "
+						 "WHERE extname = 'babelfishpg_tsql';");
+	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
+	ntups = PQntuples(res);
+	for (i = 0; i < ntups; i++)
+		simple_oid_list_append(&catalog_table_include_oids, atooid(PQgetvalue(res, i, 0)));
+
+	PQclear(res);
+	resetPQExpBuffer(query);
+
 	/* Get all the physical schema names from sys.babelfish_namespace_ext with given dbid */
 	appendPQExpBuffer(query,
 					  "SELECT pg_catalog.quote_ident(nspname) AS nspname "
@@ -676,9 +706,8 @@ prepareForLogicalDatabaseDump(Archive *fout, SimpleStringList *schema_include_pa
 	{
 		char *schema_name;
 
-		schema_name = pg_strdup(PQgetvalue(res, i, PQfnumber(res, "nspname")));
+		schema_name = PQgetvalue(res, i, PQfnumber(res, "nspname"));
 		simple_string_list_append(schema_include_patterns, schema_name);
-		pfree(schema_name);
 	}
 
 	PQclear(res);
@@ -686,11 +715,11 @@ prepareForLogicalDatabaseDump(Archive *fout, SimpleStringList *schema_include_pa
 }
 
 /*
- * getBabelfishDependencies:
+ * setBabelfishDependenciesForLogicalDatabaseDump:
  * Sets required dependencies for babelfish objects.
  */
 void
-getBabelfishDependencies(Archive *fout)
+setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 {
 	PQExpBuffer		query;
 	PGresult		*res;
@@ -730,58 +759,21 @@ getBabelfishDependencies(Archive *fout)
 }
 
 /*
- * getCursorForBbfCatalogTableData:
- * Prepare custom cursor for all Babelfish catalog tables to selectively dump the data
+ * addFromClauseForLogicalDatabaseDump:
+ * Helper function for fixCursorForBbfCatalogTableData anf fixCopyCommand functions.
+ * Responsible for adding a FROM clause to the buffer so as to dump catalog data
  * corresponding to specified logical database.
  */
 void
-getCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields)
+addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_builtin_db)
 {
-	int 	i;
-	bool	is_builtin_db = false;
-
-	if (!isBabelfishDatabase(fout) || bbf_db_name == NULL)
-		return;
-
-	if (tbinfo->dobj.namespace == NULL ||
-		strcmp(tbinfo->dobj.namespace->dobj.name, "sys") != 0 ||
-		!(strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_namespace_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0))
-		return;
-
-	is_builtin_db = (pg_strcasecmp(bbf_db_name, "master") == 0 ||
-			pg_strcasecmp(bbf_db_name, "tempdb") == 0 ||
-			pg_strcasecmp(bbf_db_name, "msdb") == 0)
-			? true : false;
-
-	resetPQExpBuffer(buf);
-	appendPQExpBufferStr(buf, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
-	*nfields = 0;
-	for (i = 0; i < tbinfo->numatts; i++)
-	{
-		if (tbinfo->attisdropped[i])
-			continue;
-		/* Skip dbid column, we will generate new database id during restore. */
-		if (!is_builtin_db && strcmp(tbinfo->attnames[i], "dbid") == 0)
-			continue;
-		if (*nfields > 0)
-			appendPQExpBufferStr(buf, ", ");
-		appendPQExpBufferStr(buf, "a.");
-		appendPQExpBufferStr(buf, fmtId(tbinfo->attnames[i]));
-		(*nfields)++;
-	}
-
 	if (strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0)
 	{
 		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.dbid = %d",
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 		/*
 		 * builtin db will already be present in the target server so
-		 * no need to dump catalog entry for it
+		 * no need to dump catalog entry for it.
 		 */
 		if (is_builtin_db)
 			appendPQExpBufferStr(buf, " LIMIT 0");
@@ -816,9 +808,67 @@ getCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 		if (is_builtin_db)
 			appendPQExpBufferStr(buf, "LIMIT 0 ");
 	}
-	else
+	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
-						fmtQualifiedDumpable(tbinfo));
+						  fmtQualifiedDumpable(tbinfo));
+	else
+		pg_log_error("Unrecognized Babelfish catalog table %s.", fmtQualifiedDumpable(tbinfo));
+}
+
+/*
+ * fixCursorForBbfCatalogTableData:
+ * Prepare custom cursor for all Babelfish catalog tables to selectively dump the data
+ * corresponding to specified logical database.
+ */
+void
+fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields, char *attgenerated)
+{
+	int 	i;
+	bool	is_builtin_db = false;
+
+	/*
+	 * Return if not a Babelfish database, it's not a logical database dump
+	 * and table is not a Babelfish configuration table config table.
+	 */
+	if (!isBabelfishDatabase(fout) || bbf_db_name == NULL ||
+		!isBabelfishConfigTable(tbinfo))
+		return;
+
+	is_builtin_db = (pg_strcasecmp(bbf_db_name, "master") == 0 ||
+			pg_strcasecmp(bbf_db_name, "tempdb") == 0 ||
+			pg_strcasecmp(bbf_db_name, "msdb") == 0)
+			? true : false;
+
+	resetPQExpBuffer(buf);
+	appendPQExpBufferStr(buf, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
+	*nfields = 0;
+	for (i = 0; i < tbinfo->numatts; i++)
+	{
+		if (tbinfo->attisdropped[i])
+			continue;
+		if (tbinfo->attgenerated[i] && fout->dopt->column_inserts)
+			continue;
+		/*
+		 * Skip dbid column, we will generate new database id during restore.
+		 * We will still dump dbid for builtin databases since we don't need to
+		 * regenerate it during restore as dbids are fixed for builtin databases.
+		 */
+		if (!is_builtin_db && strcmp(tbinfo->attnames[i], "dbid") == 0)
+			continue;
+		if (*nfields > 0)
+			appendPQExpBufferStr(buf, ", ");
+		if (tbinfo->attgenerated[i])
+			appendPQExpBufferStr(buf, "NULL");
+		else
+		{
+			appendPQExpBufferStr(buf, "a.");
+			appendPQExpBufferStr(buf, fmtId(tbinfo->attnames[i]));
+		}
+		attgenerated[*nfields] = tbinfo->attgenerated[i];
+		(*nfields)++;
+	}
+
+	addFromClauseForLogicalDatabaseDump(buf, tbinfo, is_builtin_db);
 }
 
 /*
@@ -836,17 +886,12 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 	bool		is_builtin_db = false;
 	bool		needComma = false;
 
-	if (!isBabelfishDatabase(fout) || bbf_db_name == NULL)
-		return;
-
-	if (tbinfo->dobj.namespace == NULL ||
-		strcmp(tbinfo->dobj.namespace->dobj.name, "sys") != 0 ||
-		!(strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_namespace_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
-		 strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0))
+	/*
+	 * Return if not a Babelfish database, it's not a logical database dump
+	 * and table is not a Babelfish configuration table config table.
+	 */
+	if (!isBabelfishDatabase(fout) || bbf_db_name == NULL ||
+		!isBabelfishConfigTable(tbinfo))
 		return;
 
 	is_builtin_db = (pg_strcasecmp(bbf_db_name, "master") == 0 ||
@@ -861,7 +906,11 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 			continue;
 		if (tbinfo->attgenerated[i])
 			continue;
-		/* Skip dbid column, we will generate new database id during restore. */
+		/*
+		 * Skip dbid column, we will generate new database id during restore.
+		 * We will still dump dbid for builtin databases since we don't need to
+		 * regenerate it during restore as dbids are fixed for builtin databases.
+		 */
 		if (!is_builtin_db && strcmp(tbinfo->attnames[i], "dbid") == 0)
 			continue;
 		if (needComma)
@@ -885,53 +934,9 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 	{
 		appendPQExpBuffer(copyBuf, "COPY (SELECT %s ",
 						  q->data);
-		destroyPQExpBuffer(q);
 
-		if (strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0)
-		{
-			appendPQExpBuffer(copyBuf, "FROM ONLY %s a WHERE a.dbid = %d",
-							  fmtQualifiedDumpable(tbinfo), bbf_db_id);
-			/*
-			 * builtin db will already be present in the target server so
-			 * no need to dump catalog entry for it.
-			 */
-			if (is_builtin_db)
-				appendPQExpBufferStr(copyBuf, " LIMIT 0");
-		}
-		else if (strcmp(tbinfo->dobj.name, "babelfish_namespace_ext") == 0)
-		{
-			appendPQExpBuffer(copyBuf, "FROM ONLY %s a WHERE a.dbid = %d",
-							  fmtQualifiedDumpable(tbinfo), bbf_db_id);
-			if (is_builtin_db)
-				appendPQExpBuffer(copyBuf, " AND a.nspname NOT IN ('%s_dbo', '%s_guest')",
-								  escaped_bbf_db_name, escaped_bbf_db_name);
-		}
-		else if (strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0)
-			appendPQExpBuffer(copyBuf, "FROM ONLY %s a WHERE a.dbid = %d",
-							  fmtQualifiedDumpable(tbinfo), bbf_db_id);
-		else if (strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0)
-			appendPQExpBuffer(copyBuf, "FROM ONLY %s a "
-							  "INNER JOIN sys.babelfish_namespace_ext b "
-							  "ON a.nspname = b.nspname "
-							  "WHERE b.dbid = %d",
-							  fmtQualifiedDumpable(tbinfo), bbf_db_id);
-		else if(strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
-		{
-			appendPQExpBuffer(copyBuf, "FROM ONLY %s a "
-							  "WHERE a.rolname IN ('dbo', 'db_owner', '%s_dbo', '%s_db_owner', '%s_guest') ",
-							  fmtQualifiedDumpable(tbinfo), escaped_bbf_db_name, escaped_bbf_db_name,
-							  escaped_bbf_db_name);
-			/*
-			 * Builtin db users will already be present in the target
-			 * server so no need to dump their catalog data.
-			 */
-			if (is_builtin_db)
-				appendPQExpBufferStr(copyBuf, "LIMIT 0 ");
-		}
-		else
-			appendPQExpBuffer(copyBuf, "FROM ONLY %s a",
-							  fmtQualifiedDumpable(tbinfo));
-
+		addFromClauseForLogicalDatabaseDump(copyBuf, tbinfo, is_builtin_db);
 		appendPQExpBufferStr(copyBuf, ") TO stdout;");
 	}
+	destroyPQExpBuffer(q);
 }

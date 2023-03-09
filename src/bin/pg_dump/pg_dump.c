@@ -416,7 +416,7 @@ main(int argc, char **argv)
 		{"on-conflict-do-nothing", no_argument, &dopt.do_nothing, 1},
 		{"rows-per-insert", required_argument, NULL, 10},
 		{"include-foreign-data", required_argument, NULL, 11},
-		{"bbf-database-name", required_argument, NULL, 12},
+		{"bbf-database-name", required_argument, NULL, 30},
 
 		{NULL, 0, NULL, 0}
 	};
@@ -627,7 +627,7 @@ main(int argc, char **argv)
 										  optarg);
 				break;
 
-			case 12:			/* Babelfish logical database name */
+			case 30:			/* Babelfish logical database name */
 				bbf_db_name = pg_strdup(optarg);
 				dopt.include_everything = false;
 				break;
@@ -2189,7 +2189,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	if (tdinfo->filtercond)
 		appendPQExpBuffer(q, " %s", tdinfo->filtercond);
 
-	getCursorForBbfCatalogTableData(fout, tbinfo, q, &nfields);
+	fixCursorForBbfCatalogTableData(fout, tbinfo, q, &nfields, attgenerated);
 	ExecuteSqlStatement(fout, q->data);
 
 	while (1)
@@ -17914,7 +17914,7 @@ getDependencies(Archive *fout)
 	}
 	
 	if (bbf_db_name != NULL)
-		getBabelfishDependencies(fout);
+		setBabelfishDependenciesForLogicalDatabaseDump(fout);
 
 	PQclear(res);
 

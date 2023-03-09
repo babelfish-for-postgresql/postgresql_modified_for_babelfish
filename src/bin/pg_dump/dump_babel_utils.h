@@ -36,9 +36,9 @@ extern void dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBu
 extern void updateExtConfigArray(Archive *fout, char ***extconfigarray, int nconfigitems);
 extern char *babelfish_handle_view_def(Archive *fout, char *view_def);
 extern void prepareForLogicalDatabaseDump(Archive *fout, SimpleStringList *schema_include_patterns);
-extern void getBabelfishDependencies(Archive *fout);
+extern void setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout);
 extern void dumpBabelGUCs(Archive *fout);
-extern void getCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields);
+extern void fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields, char *attgenerated);
 extern void fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFrom);
 
 #endif
