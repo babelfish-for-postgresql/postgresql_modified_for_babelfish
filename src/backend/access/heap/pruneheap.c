@@ -493,7 +493,7 @@ heap_prune_satisfies_vacuum(PruneState *prstate, HeapTuple tup, Buffer buffer)
 	HTSV_Result res;
 	TransactionId dead_after;
 
-	res = HeapTupleSatisfiesVacuumHorizon(tup, buffer, &dead_after);
+	res = HeapTupleSatisfiesVacuumHorizon(prstate->rel, tup, buffer, &dead_after);
 
 	if (res != HEAPTUPLE_RECENTLY_DEAD)
 		return res;

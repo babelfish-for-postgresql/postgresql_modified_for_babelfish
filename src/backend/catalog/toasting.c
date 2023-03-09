@@ -30,6 +30,7 @@
 #include "catalog/toasting.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
+#include "parser/parser.h"
 #include "storage/lock.h"
 #include "utils/builtins.h"
 #include "utils/rel.h"
@@ -149,7 +150,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	int16		coloptions[2];
 	ObjectAddress baseobject,
 				toastobject;
-
+	const char *pg_toast_prefix = "pg_toast";
 	/*
 	 * Is it already toasted?
 	 */
@@ -199,10 +200,14 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	/*
 	 * Create the toast table and its index
 	 */
+	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(rel))
+		pg_toast_prefix = "@pg_toast";
+
 	snprintf(toast_relname, sizeof(toast_relname),
-			 "pg_toast_%u", relOid);
+			 "%s_%u", pg_toast_prefix, relOid);
 	snprintf(toast_idxname, sizeof(toast_idxname),
-			 "pg_toast_%u_index", relOid);
+			 "%s_%u_index", pg_toast_prefix, relOid);
+
 
 	/* this is pretty painful...  need a tuple descriptor */
 	tupdesc = CreateTemplateTupleDesc(3);

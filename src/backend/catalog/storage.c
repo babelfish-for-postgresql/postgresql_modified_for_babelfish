@@ -28,6 +28,7 @@
 #include "catalog/storage.h"
 #include "catalog/storage_xlog.h"
 #include "miscadmin.h"
+#include "parser/parser.h"      /* sql_dialect */
 #include "storage/freespace.h"
 #include "storage/smgr.h"
 #include "utils/hsearch.h"
@@ -115,7 +116,7 @@ AddPendingSync(const RelFileNode *rnode)
  * transaction aborts later on, the storage will be destroyed.
  */
 SMgrRelation
-RelationCreateStorage(RelFileNode rnode, char relpersistence)
+RelationCreateStorage(RelFileNode rnode, char relpersistence, bool register_delete)
 {
 	PendingRelDelete *pending;
 	SMgrRelation srel;
@@ -150,14 +151,17 @@ RelationCreateStorage(RelFileNode rnode, char relpersistence)
 		log_smgrcreate(&srel->smgr_rnode.node, MAIN_FORKNUM);
 
 	/* Add the relation to the list of stuff to delete at abort */
-	pending = (PendingRelDelete *)
-		MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
-	pending->relnode = rnode;
-	pending->backend = backend;
-	pending->atCommit = false;	/* delete if abort */
-	pending->nestLevel = GetCurrentTransactionNestLevel();
-	pending->next = pendingDeletes;
-	pendingDeletes = pending;
+	if (register_delete)
+	{
+		pending = (PendingRelDelete *)
+			MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
+		pending->relnode = rnode;
+		pending->backend = backend;
+		pending->atCommit = false;	/* delete if abort */
+		pending->nestLevel = GetCurrentTransactionNestLevel();
+		pending->next = pendingDeletes;
+		pendingDeletes = pending;
+	}
 
 	if (relpersistence == RELPERSISTENCE_PERMANENT && !XLogIsNeeded())
 	{
@@ -205,6 +209,24 @@ RelationDropStorage(Relation rel)
 	pending->nestLevel = GetCurrentTransactionNestLevel();
 	pending->next = pendingDeletes;
 	pendingDeletes = pending;
+
+	/*
+	 * BBF Table Variables were not registered in pendingDeletes in RelationCreateStorage().
+	 * This allows us to skip files from being unlinked automatically during AbortTransaction().
+	 * However, we need to unlink the files on explicit DROP TABLE command regardless
+	 * if the transaction state is committing or aborting.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(rel))
+	{
+		pending = (PendingRelDelete *)
+		MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
+		pending->relnode = rel->rd_node;
+		pending->backend = rel->rd_backend;
+		pending->atCommit = false;
+		pending->nestLevel = GetCurrentTransactionNestLevel();
+		pending->next = pendingDeletes;
+		pendingDeletes = pending;
+	}
 
 	/*
 	 * NOTE: if the relation was created in this transaction, it will now be

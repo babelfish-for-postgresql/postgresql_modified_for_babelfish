@@ -39,6 +39,7 @@ typedef enum ENRCatalogTupleType
 	ENR_CATTUP_STATISTIC_EXT_DATA,
 	ENR_CATTUP_DEPEND,
 	ENR_CATTUP_SHDEPEND,
+	ENR_CATTUP_INDEX,
 	ENR_CATTUP_END
 } ENRCatalogTupleType;
 
@@ -95,13 +96,14 @@ extern void register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 extern void unregister_ENR(QueryEnvironment *queryEnv, const char *name);
 extern List *get_namedRelList(void);
 extern EphemeralNamedRelation get_ENR(QueryEnvironment *queryEnv, const char *name);
-extern EphemeralNamedRelation get_ENR_withoid(QueryEnvironment *queryEnv, Oid oid);
+extern EphemeralNamedRelation get_ENR_withoid(QueryEnvironment *queryEnv, Oid oid, EphemeralNameRelationType type);
 extern TupleDesc ENRMetadataGetTupDesc(EphemeralNamedRelationMetadata enrmd);
 extern bool ENRaddTuple(Relation rel, HeapTuple tup);
 extern bool ENRdropTuple(Relation rel, HeapTuple tup);
 extern bool ENRupdateTuple(Relation rel, HeapTuple tup);
-extern bool ENRgetSystableScan(Relation rel, Oid indexoid, int nkeys, ScanKey key, List **tuplist, int *tuplist_i);
+extern bool ENRgetSystableScan(Relation rel, Oid indexoid, int nkeys, ScanKey key, List **tuplist, int *tuplist_i, int *tuplist_flags);
 extern void ENRDropTempTables(QueryEnvironment *queryEnv);
 extern void ENRDropEntry(Oid id);
+extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid);
 
 #endif							/* QUERYENVIRONMENT_H */
