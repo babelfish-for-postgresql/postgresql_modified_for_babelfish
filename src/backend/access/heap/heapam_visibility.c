@@ -77,6 +77,10 @@
 #include "utils/combocid.h"
 #include "utils/snapmgr.h"
 
+table_tuple_satisfies_visibility_hook_type table_tuple_satisfies_visibility_hook = NULL;
+table_tuple_satisfies_update_hook_type table_tuple_satisfies_update_hook = NULL;
+table_tuple_satisfies_vacuum_hook_type table_tuple_satisfies_vacuum_hook = NULL;
+table_tuple_satisfies_vacuum_horizon_hook_type table_tuple_satisfies_vacuum_horizon_hook = NULL;
 
 /*
  * SetHintBits()
@@ -1791,4 +1795,41 @@ HeapTupleSatisfiesVisibility(HeapTuple tup, Snapshot snapshot, Buffer buffer)
 	}
 
 	return false;				/* keep compiler quiet */
+}
+
+
+bool
+table_tuple_satisfies_visibility(Relation relation, HeapTuple stup, Snapshot snapshot, Buffer buffer)
+{
+	if (table_tuple_satisfies_visibility_hook)
+		return table_tuple_satisfies_visibility_hook(relation, stup, snapshot, buffer);
+
+	return HeapTupleSatisfiesVisibility(stup, snapshot, buffer);
+}
+
+TM_Result
+table_tuple_satisfies_update(Relation relation, HeapTuple stup, CommandId curcid, Buffer buffer)
+{
+	if (table_tuple_satisfies_update_hook)
+		return table_tuple_satisfies_update_hook(relation, stup, curcid, buffer);
+
+	return HeapTupleSatisfiesUpdate(stup, curcid, buffer);
+}
+
+HTSV_Result
+table_tuple_satisfies_vacuum(Relation relation, HeapTuple stup, TransactionId OldestXmin, Buffer buffer)
+{
+	if (table_tuple_satisfies_vacuum_hook)
+		return table_tuple_satisfies_vacuum_hook(relation, stup, OldestXmin, buffer);
+
+	return HeapTupleSatisfiesVacuum(stup, OldestXmin, buffer);
+}
+
+HTSV_Result
+table_tuple_satisfies_vacuum_horizon(Relation relation, HeapTuple htup, Buffer buffer, TransactionId *dead_after)
+{
+	if (table_tuple_satisfies_vacuum_horizon_hook)
+		return table_tuple_satisfies_vacuum_horizon_hook(relation, htup, buffer, dead_after);
+
+	return HeapTupleSatisfiesVacuumHorizon(htup, buffer, dead_after);
 }

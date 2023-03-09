@@ -359,7 +359,6 @@ static void ShowTransactionStateRec(const char *str, TransactionState state);
 static const char *BlockStateAsString(TBlockState blockState);
 static const char *TransStateAsString(TransState state);
 
-
 /* ----------------------------------------------------------------
  *	transaction state accessors
  * ----------------------------------------------------------------

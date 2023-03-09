@@ -804,7 +804,7 @@ scanRTEForColumn(ParseState *pstate, RangeTblEntry *rte,
 		refname = downcase_identifier(colname, strlen(colname), false, false);
 		reflen = strlen(refname);
 	}
-	
+
 	/*
 	 * Scan the user column names (or aliases) for a match. Complain if
 	 * multiple matches.
@@ -825,19 +825,19 @@ scanRTEForColumn(ParseState *pstate, RangeTblEntry *rte,
 
 		attnum++;
 		matches = false;
-		
+
 		if (sql_dialect == SQL_DIALECT_TSQL
 			&& pltsql_case_insensitive_identifiers)
 		{
 			if (strlen(attcolname) != reflen)
 				continue;
-			
+
 			if (strcmp(downcase_identifier(attcolname, reflen, false, false), refname) == 0)
 				matches = true;
 		}
 		else if (strcmp(attcolname, colname) == 0)
 			matches = true;
-		
+
 		if (matches)
 		{
 			if (result)
@@ -1419,7 +1419,7 @@ parserOpenTable(ParseState *pstate, const RangeVar *relation, int lockmode)
 			else
 				ereport(ERROR,
 						(errcode(ERRCODE_UNDEFINED_TABLE),
-						 errmsg("relation \"%s\" does not exist",
+						errmsg("relation \"%s\" does not exist",
 								relation->relname)));
 		}
 	}

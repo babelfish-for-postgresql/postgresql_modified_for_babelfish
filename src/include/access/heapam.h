@@ -107,6 +107,22 @@ typedef enum
  * ----------------
  */
 
+/* Hook for plugins to get control with visibility without providing a separate AM */
+typedef bool (*table_tuple_satisfies_visibility_hook_type) (
+	Relation relation, HeapTuple stup, Snapshot snapshot, Buffer buffer);
+extern PGDLLIMPORT table_tuple_satisfies_visibility_hook_type table_tuple_satisfies_visibility_hook;
+
+typedef TM_Result (*table_tuple_satisfies_update_hook_type) (
+	Relation relation, HeapTuple stup, CommandId curcid, Buffer buffer);
+extern PGDLLIMPORT table_tuple_satisfies_update_hook_type table_tuple_satisfies_update_hook;
+
+typedef HTSV_Result (*table_tuple_satisfies_vacuum_hook_type) (
+	Relation relation, HeapTuple stup, TransactionId OldestXmin, Buffer buffer);
+extern PGDLLIMPORT table_tuple_satisfies_vacuum_hook_type table_tuple_satisfies_vacuum_hook;
+
+typedef HTSV_Result (*table_tuple_satisfies_vacuum_horizon_hook_type) (
+	Relation relation, HeapTuple htup, Buffer buffer, TransactionId *dead_after);
+extern PGDLLIMPORT table_tuple_satisfies_vacuum_horizon_hook_type table_tuple_satisfies_vacuum_horizon_hook;
 
 /*
  * HeapScanIsValid
@@ -230,4 +246,8 @@ extern bool ResolveCminCmaxDuringDecoding(struct HTAB *tuplecid_data,
 extern void HeapCheckForSerializableConflictOut(bool valid, Relation relation, HeapTuple tuple,
 												Buffer buffer, Snapshot snapshot);
 
+extern bool table_tuple_satisfies_visibility(Relation relation, HeapTuple stup, Snapshot snapshot, Buffer buffer);
+extern TM_Result table_tuple_satisfies_update(Relation relation, HeapTuple stup, CommandId curcid, Buffer buffer);
+extern HTSV_Result table_tuple_satisfies_vacuum(Relation relation, HeapTuple stup, TransactionId OldestXmin, Buffer buffer);
+extern HTSV_Result table_tuple_satisfies_vacuum_horizon(Relation relation, HeapTuple stup, Buffer buffer, TransactionId *dead_after);
 #endif							/* HEAPAM_H */

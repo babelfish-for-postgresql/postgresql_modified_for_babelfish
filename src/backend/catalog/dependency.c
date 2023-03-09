@@ -898,7 +898,7 @@ findDependentObjects(const ObjectAddress *object,
 		 * if the pg_depend tuple we are looking at is still live. (If the
 		 * object got deleted, the tuple would have been deleted too.)
 		 */
-		if (!systable_recheck_tuple(scan, tup))
+		if (!scan->enr && !systable_recheck_tuple(scan, tup))
 		{
 			/* release the now-useless lock */
 			ReleaseDeletionLock(&otherObject);
@@ -1351,7 +1351,9 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
-		if (!ENRdropTuple(*depRel, tup))
+		if (scan->enr)
+			ENRdropTuple(*depRel, tup);
+		else
 			CatalogTupleDelete(*depRel, &tup->t_self);
 	}
 
@@ -1373,6 +1375,9 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 	DeleteComments(object->objectId, object->classId, object->objectSubId);
 	DeleteSecurityLabel(object);
 	DeleteInitPrivs(object);
+
+	// Delete from ENR - noop if not found from ENR
+	ENRDropEntry(object->objectId);
 
 	/*
 	 * CommandCounterIncrement here to ensure that preceding changes are all
@@ -1397,7 +1402,7 @@ doDeletion(const ObjectAddress *object, int flags)
 			{
 				char		relKind = get_rel_relkind(object->objectId);
 
-				if (flags & PERFORM_DELETION_SKIP_ENR && 
+				if (flags & PERFORM_DELETION_SKIP_ENR &&
 						!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(object->objectId)))
 					break;
 

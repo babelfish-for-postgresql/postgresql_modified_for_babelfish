@@ -1503,7 +1503,7 @@ ExecDelete(ModifyTableContext *context,
 
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_delete_instead_statement &&
-		sql_dialect == SQL_DIALECT_TSQL && 
+		sql_dialect == SQL_DIALECT_TSQL &&
 		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_DELETE))
 	{
 		ExecIRDeleteTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, context->mtstate->mt_transition_capture);
@@ -2343,7 +2343,7 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&
-		sql_dialect == SQL_DIALECT_TSQL && 
+		sql_dialect == SQL_DIALECT_TSQL &&
 		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_INSTEAD))
 	{
 		ExecIRUpdateTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, slot, recheckIndexes, context->mtstate->mt_transition_capture);
@@ -4075,7 +4075,7 @@ ExecModifyTable(PlanState *pstate)
 	 * IOT_NOT_REQUIRED if there does not exist on the relation and action.
 	 * Otherwise, this should fire the IOT or recognize the IOT has already been
 	 * fired.
-	 * 
+	 *
 	 * IOT should be fired after execution is done
 	 */
 	if (node->fireISTriggers == IOT_NOT_FIRED && sql_dialect == SQL_DIALECT_TSQL)
