@@ -153,7 +153,7 @@ main(int argc, char *argv[])
 		{"no-unlogged-table-data", no_argument, &no_unlogged_table_data, 1},
 		{"on-conflict-do-nothing", no_argument, &on_conflict_do_nothing, 1},
 		{"rows-per-insert", required_argument, NULL, 7},
-		{"bbf-database-name", required_argument, NULL, 8},
+		{"bbf-database-name", required_argument, NULL, 30},
 
 		{NULL, 0, NULL, 0}
 	};
@@ -337,7 +337,7 @@ main(int argc, char *argv[])
 				appendShellString(pgdumpopts, optarg);
 				break;
 
-			case 8:			/* Babelfish virtual database name */
+			case 30:			/* Babelfish virtual database name */
 				bbf_db_name = pg_strdup(optarg);
 				break;
 
