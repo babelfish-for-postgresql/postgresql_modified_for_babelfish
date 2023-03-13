@@ -89,7 +89,7 @@ getBabelfishRolesQuery(PQExpBuffer buf, char *role_catalog, bool drop_query)
 }
 
 /*
- * Returns query to fetch al the roles, members and grantors related
+ * Returns query to fetch all the roles, members and grantors related
  * to Babelfish users of specified logical database.
  */
 void
