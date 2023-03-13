@@ -85,8 +85,9 @@ static bool GetTupleForTrigger(EState *estate,
 							   ItemPointer tid,
 							   LockTupleMode lockmode,
 							   TupleTableSlot *oldslot,
-							   TupleTableSlot **newSlot,
-							   TM_FailureData *tmfpd);
+							   TupleTableSlot **epqslot,
+							   TM_Result *tmresultp,
+							   TM_FailureData *tmfdp);
 static bool TriggerEnabled(EState *estate, ResultRelInfo *relinfo,
 						   Trigger *trigger, TriggerEvent event,
 						   Bitmapset *modifiedCols,
@@ -99,7 +100,7 @@ static HeapTuple ExecCallTriggerFunc(TriggerData *trigdata,
 static void InsteadofTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 								  int event, bool row_trigger,
 								  TupleTableSlot *oldtup, TupleTableSlot *newtup,
-								  List *recheckIndexes, Bitmapset *modifiedCols,
+								  Bitmapset *modifiedCols,
 								  TransitionCaptureState *transition_capture);
 
 static void AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
@@ -2772,8 +2773,7 @@ ExecIRInsertTriggersTSQL(EState *estate, ResultRelInfo *relinfo,
 		(transition_capture && transition_capture->tcs_insert_new_table)){
 		InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_INSERT,
 							  true, NULL, slot,
-							  NULL, NULL,
-							  transition_capture);
+							  NULL, transition_capture);
 	}
 }
 
@@ -2798,14 +2798,14 @@ ExecIRDeleteTriggersTSQL(EState *estate, ResultRelInfo *relinfo,
 								LockTupleExclusive,
 								slot,
 								NULL,
+								NULL,
 								NULL);
 		else
 			ExecForceStoreHeapTuple(fdw_trigtuple, slot, false);
 
 		InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_DELETE,
 							true, slot, NULL,
-							NIL, NULL,
-							transition_capture);
+							NULL, transition_capture);
 	}
 }
 
@@ -2814,7 +2814,6 @@ void ExecIRUpdateTriggersTSQL(EState *estate,
 								 ItemPointer tupleid,
 								 HeapTuple fdw_trigtuple,
 								 TupleTableSlot *newslot,
-					 			 List *recheckIndexes,
 								 TransitionCaptureState *transition_capture)
 {
 	TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
@@ -2840,12 +2839,13 @@ void ExecIRUpdateTriggersTSQL(EState *estate,
 							   LockTupleExclusive,
 							   oldslot,
 							   NULL,
+							   NULL,
 							   NULL);
 		else if (fdw_trigtuple != NULL)
 			ExecForceStoreHeapTuple(fdw_trigtuple, oldslot, false);
 
 		InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_UPDATE,
-							  true, oldslot, newslot, recheckIndexes,
+							  true, oldslot, newslot,
 							  ExecGetAllUpdatedCols(relinfo, estate),
 							  transition_capture);
 	}
@@ -2984,11 +2984,13 @@ ExecASDeleteTriggers(EState *estate, ResultRelInfo *relinfo,
  * back the concurrently updated tuple if any.
  */
 bool
-ExecBRDeleteTriggers(EState *estate, EPQState *epqstate,
-					 ResultRelInfo *relinfo,
-					 ItemPointer tupleid,
-					 HeapTuple fdw_trigtuple,
-					 TupleTableSlot **epqslot)
+ExecBRDeleteTriggersNew(EState *estate, EPQState *epqstate,
+						ResultRelInfo *relinfo,
+						ItemPointer tupleid,
+						HeapTuple fdw_trigtuple,
+						TupleTableSlot **epqslot,
+						TM_Result *tmresult,
+						TM_FailureData *tmfd)
 {
 	TupleTableSlot *slot = ExecGetTriggerOldSlot(estate, relinfo);
 	TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
@@ -3005,7 +3007,7 @@ ExecBRDeleteTriggers(EState *estate, EPQState *epqstate,
 
 		if (!GetTupleForTrigger(estate, epqstate, relinfo, tupleid,
 								LockTupleExclusive, slot, &epqslot_candidate,
-								NULL))
+								tmresult, tmfd))
 			return false;
 
 		/*
@@ -3069,6 +3071,21 @@ ExecBRDeleteTriggers(EState *estate, EPQState *epqstate,
 }
 
 /*
+ * ABI-compatible wrapper to emulate old version of the above function.
+ * Do not call this version in new code.
+ */
+bool
+ExecBRDeleteTriggers(EState *estate, EPQState *epqstate,
+					 ResultRelInfo *relinfo,
+					 ItemPointer tupleid,
+					 HeapTuple fdw_trigtuple,
+					 TupleTableSlot **epqslot)
+{
+	return ExecBRDeleteTriggersNew(estate, epqstate, relinfo, tupleid,
+								   fdw_trigtuple, epqslot, NULL, NULL);
+}
+
+/*
  * Note: is_crosspart_update must be true if the DELETE is being performed
  * as part of a cross-partition update.
  */
@@ -3095,6 +3112,7 @@ ExecARDeleteTriggers(EState *estate,
 							   tupleid,
 							   LockTupleExclusive,
 							   slot,
+							   NULL,
 							   NULL,
 							   NULL);
 		else
@@ -3232,12 +3250,13 @@ ExecASUpdateTriggers(EState *estate, ResultRelInfo *relinfo,
 }
 
 bool
-ExecBRUpdateTriggers(EState *estate, EPQState *epqstate,
-					 ResultRelInfo *relinfo,
-					 ItemPointer tupleid,
-					 HeapTuple fdw_trigtuple,
-					 TupleTableSlot *newslot,
-					 TM_FailureData *tmfd)
+ExecBRUpdateTriggersNew(EState *estate, EPQState *epqstate,
+						ResultRelInfo *relinfo,
+						ItemPointer tupleid,
+						HeapTuple fdw_trigtuple,
+						TupleTableSlot *newslot,
+						TM_Result *tmresult,
+						TM_FailureData *tmfd)
 {
 	TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 	TupleTableSlot *oldslot = ExecGetTriggerOldSlot(estate, relinfo);
@@ -3261,7 +3280,7 @@ ExecBRUpdateTriggers(EState *estate, EPQState *epqstate,
 		/* get a copy of the on-disk tuple we are planning to update */
 		if (!GetTupleForTrigger(estate, epqstate, relinfo, tupleid,
 								lockmode, oldslot, &epqslot_candidate,
-								tmfd))
+								tmresult, tmfd))
 			return false;		/* cancel the update action */
 
 		/*
@@ -3366,6 +3385,22 @@ ExecBRUpdateTriggers(EState *estate, EPQState *epqstate,
 }
 
 /*
+ * ABI-compatible wrapper to emulate old version of the above function.
+ * Do not call this version in new code.
+ */
+bool
+ExecBRUpdateTriggers(EState *estate, EPQState *epqstate,
+					 ResultRelInfo *relinfo,
+					 ItemPointer tupleid,
+					 HeapTuple fdw_trigtuple,
+					 TupleTableSlot *newslot,
+					 TM_FailureData *tmfd)
+{
+	return ExecBRUpdateTriggersNew(estate, epqstate, relinfo, tupleid,
+								   fdw_trigtuple, newslot, NULL, tmfd);
+}
+
+/*
  * Note: 'src_partinfo' and 'dst_partinfo', when non-NULL, refer to the source
  * and destination partitions, respectively, of a cross-partition update of
  * the root partitioned table mentioned in the query, given by 'relinfo'.
@@ -3415,6 +3450,7 @@ ExecARUpdateTriggers(EState *estate, ResultRelInfo *relinfo,
 							   tupleid,
 							   LockTupleExclusive,
 							   oldslot,
+							   NULL,
 							   NULL,
 							   NULL);
 		else if (fdw_trigtuple != NULL)
@@ -3571,6 +3607,7 @@ GetTupleForTrigger(EState *estate,
 				   LockTupleMode lockmode,
 				   TupleTableSlot *oldslot,
 				   TupleTableSlot **epqslot,
+				   TM_Result *tmresultp,
 				   TM_FailureData *tmfdp)
 {
 	Relation	relation = relinfo->ri_RelationDesc;
@@ -3598,6 +3635,8 @@ GetTupleForTrigger(EState *estate,
 								&tmfd);
 
 		/* Let the caller know about the status of this operation */
+		if (tmresultp)
+			*tmresultp = test;
 		if (tmfdp)
 			*tmfdp = tmfd;
 
@@ -3625,6 +3664,18 @@ GetTupleForTrigger(EState *estate,
 			case TM_Ok:
 				if (tmfd.traversed)
 				{
+					/*
+					 * Recheck the tuple using EPQ. For MERGE, we leave this
+					 * to the caller (it must do additional rechecking, and
+					 * might end up executing a different action entirely).
+					 */
+					if (estate->es_plannedstmt->commandType == CMD_MERGE)
+					{
+						if (tmresultp)
+							*tmresultp = TM_Updated;
+						return false;
+					}
+
 					*epqslot = EvalPlanQual(epqstate,
 											relation,
 											relinfo->ri_RangeTableIndex,
@@ -4805,7 +4856,7 @@ ExecISInsertTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
 	}
 
 	InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_INSERT,
-							 false, NULL, NULL, NIL, NULL, transition_capture);
+							 false, NULL, NULL, NULL, transition_capture);
     return IOT_FIRED;
 }
 
@@ -4831,7 +4882,7 @@ ExecISUpdateTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
 		return prevState;
 
 	InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_UPDATE,
-						 false, NULL, NULL, NIL,
+						 false, NULL, NULL,
 						 ExecGetAllUpdatedCols(relinfo, estate),
 						 transition_capture);
 	return IOT_FIRED;
@@ -4857,7 +4908,7 @@ ExecISDeleteTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
 		return prevState;
 
 	InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_DELETE,
-						  false, NULL, NULL, NIL, NULL, transition_capture);
+						  false, NULL, NULL, NULL, transition_capture);
 	return IOT_FIRED;
 }
 
@@ -6425,7 +6476,7 @@ static void
 InsteadofTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 					  int event, bool row_trigger,
 					  TupleTableSlot *oldslot, TupleTableSlot *newslot,
-					  List *recheckIndexes, Bitmapset *modifiedCols,
+					  Bitmapset *modifiedCols,
 					  TransitionCaptureState *transition_capture)
 {
 	Relation	rel = relinfo->ri_RelationDesc;
