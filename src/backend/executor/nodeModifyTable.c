@@ -2971,8 +2971,9 @@ lmerge_matched:
 				if (!ExecUpdatePrologue(context, resultRelInfo,
 										tupleid, NULL, newslot, &result))
 				{
-					/* Blocked by trigger, or concurrent update/delete */
-					break;
+					if (result == TM_Ok)
+						return true;	/* "do nothing" */
+					break;		/* concurrent update/delete */
 				}
 				result = ExecUpdateAct(context, resultRelInfo, tupleid, NULL,
 									   newslot, false, &updateCxt);
@@ -2989,8 +2990,9 @@ lmerge_matched:
 				if (!ExecDeletePrologue(context, resultRelInfo, tupleid,
 										NULL, NULL, &result))
 				{
-					/* Blocked by trigger, or concurrent update/delete */
-					break;
+					if (result == TM_Ok)
+						return true;	/* "do nothing" */
+					break;		/* concurrent update/delete */
 				}
 				result = ExecDeleteAct(context, resultRelInfo, tupleid, false);
 				if (result == TM_Ok)
