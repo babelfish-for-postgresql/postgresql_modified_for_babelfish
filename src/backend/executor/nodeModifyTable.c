@@ -2348,7 +2348,7 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 		sql_dialect == SQL_DIALECT_TSQL &&
 		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_INSTEAD))
 	{
-		ExecIRUpdateTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, slot, recheckIndexes, context->mtstate->mt_transition_capture);
+		ExecIRUpdateTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, slot, context->mtstate->mt_transition_capture);
 		if (canSetTag)
 			(estate->es_processed)++;
 		return NULL;

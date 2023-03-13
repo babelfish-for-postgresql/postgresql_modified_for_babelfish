@@ -102,7 +102,7 @@ static HeapTuple ExecCallTriggerFunc(TriggerData *trigdata,
 static void InsteadofTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 								  int event, bool row_trigger,
 								  TupleTableSlot *oldtup, TupleTableSlot *newtup,
-								  List *recheckIndexes, Bitmapset *modifiedCols,
+								  Bitmapset *modifiedCols,
 								  TransitionCaptureState *transition_capture);
 
 static void AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
@@ -2713,7 +2713,7 @@ ExecIRInsertTriggersTSQL(EState *estate, ResultRelInfo *relinfo,
 		(transition_capture && transition_capture->tcs_insert_new_table)){
 		InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_INSERT,
 							  true, NULL, slot,
-							  NULL, NULL,
+							  NULL,
 							  transition_capture);
 	}
 }
@@ -2739,13 +2739,14 @@ ExecIRDeleteTriggersTSQL(EState *estate, ResultRelInfo *relinfo,
 								LockTupleExclusive,
 								slot,
 								NULL,
+								NULL,
 								NULL);
 		else
 			ExecForceStoreHeapTuple(fdw_trigtuple, slot, false);
 
 		InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_DELETE,
 							true, slot, NULL,
-							NIL, NULL,
+							NULL,
 							transition_capture);
 	}
 }
@@ -2755,7 +2756,6 @@ void ExecIRUpdateTriggersTSQL(EState *estate,
 								 ItemPointer tupleid,
 								 HeapTuple fdw_trigtuple,
 								 TupleTableSlot *newslot,
-					 			 List *recheckIndexes,
 								 TransitionCaptureState *transition_capture)
 {
 	TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
@@ -2781,12 +2781,13 @@ void ExecIRUpdateTriggersTSQL(EState *estate,
 							   LockTupleExclusive,
 							   oldslot,
 							   NULL,
+							   NULL,
 							   NULL);
 		else if (fdw_trigtuple != NULL)
 			ExecForceStoreHeapTuple(fdw_trigtuple, oldslot, false);
 
 		InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_UPDATE,
-							  true, oldslot, newslot, recheckIndexes,
+							  true, oldslot, newslot,
 							  ExecGetAllUpdatedCols(relinfo, estate),
 							  transition_capture);
 	}
@@ -4766,7 +4767,7 @@ ExecISInsertTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
 	}
 
 	InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_INSERT,
-							 false, NULL, NULL, NIL, NULL, transition_capture);
+							 false, NULL, NULL, NULL, transition_capture);
     return IOT_FIRED;
 }
 
@@ -4792,7 +4793,7 @@ ExecISUpdateTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
 		return prevState;
 
 	InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_UPDATE,
-						 false, NULL, NULL, NIL,
+						 false, NULL, NULL,
 						 ExecGetAllUpdatedCols(relinfo, estate),
 						 transition_capture);
 	return IOT_FIRED;
@@ -4818,7 +4819,7 @@ ExecISDeleteTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
 		return prevState;
 
 	InsteadofTriggerSaveEvent(estate, relinfo, TRIGGER_EVENT_DELETE,
-						  false, NULL, NULL, NIL, NULL, transition_capture);
+						  false, NULL, NULL, NULL, transition_capture);
 	return IOT_FIRED;
 }
 
@@ -6386,7 +6387,7 @@ static void
 InsteadofTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 					  int event, bool row_trigger,
 					  TupleTableSlot *oldslot, TupleTableSlot *newslot,
-					  List *recheckIndexes, Bitmapset *modifiedCols,
+					  Bitmapset *modifiedCols,
 					  TransitionCaptureState *transition_capture)
 {
 	Relation	rel = relinfo->ri_RelationDesc;

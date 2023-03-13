@@ -215,7 +215,6 @@ extern void ExecIRUpdateTriggersTSQL(EState *estate,
 								 ItemPointer tupleid,
 								 HeapTuple fdw_trigtuple,
 								 TupleTableSlot *newslot,
-					 			 List *recheckIndexes,
 								 TransitionCaptureState *transition_capture);
 extern bool ExecIRInsertTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
