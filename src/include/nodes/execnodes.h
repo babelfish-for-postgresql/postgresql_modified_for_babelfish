@@ -700,6 +700,9 @@ typedef struct EState
 
 	/* List of ResultRelInfoExtra structs (see above) */
 	List	   *es_resultrelinfo_extra;
+
+	/* row count for babel node modify execution*/
+	int        tsql_row_count;
 } EState;
 
 
