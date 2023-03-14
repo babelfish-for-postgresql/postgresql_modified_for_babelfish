@@ -73,9 +73,15 @@
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
+#include "parser/parse_type.h"
+
+#include "tcop/cmdtag.h"
+#include "tcop/tcopprot.h"
+
 
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
+CreateFunctionStmt_hook_type CreateFunctionStmt_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -1656,7 +1662,15 @@ ProcessUtilitySlow(ParseState *pstate,
 				break;
 
 			case T_CreateFunctionStmt:	/* CREATE FUNCTION */
-				address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
+				if (sql_dialect == SQL_DIALECT_TSQL)
+				{
+						if (CreateFunctionStmt_hook)
+							(*CreateFunctionStmt_hook)(pstate, pstmt, queryString, false, context, params, queryEnv, dest, qc);
+				}
+				else
+				{
+					address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
+				}
 				break;
 
 			case T_AlterFunctionStmt:	/* ALTER FUNCTION */
