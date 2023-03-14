@@ -121,8 +121,9 @@ static bool
 isBabelfishConfigTable(TableInfo *tbinfo)
 {
 	/* We don't want to dump logins during logical database dump */
-	if (tbinfo->relkind != RELKIND_RELATION ||
-		(tbinfo && tbinfo->dobj.namespace &&
+	if (tbinfo == NULL || tbinfo->relkind != RELKIND_RELATION ||
+		(tbinfo->dobj.namespace &&
+		strcmp(tbinfo->dobj.namespace->dobj.name, "sys") == 0 &&
 		strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0))
 		return false;
 
