@@ -3793,11 +3793,6 @@ ExecModifyTable(PlanState *pstate)
 	 */
 	for (;;)
 	{
-		if (estate->es_processed == estate->tsql_row_count && estate->tsql_row_count > 0)
-		{
-			slot = NULL;
-			break;
-		}
 		/*
 		 * Reset the per-output-tuple exprcontext.  This is needed because
 		 * triggers expect to use that context as workspace.  It's a bit ugly
@@ -3813,6 +3808,12 @@ ExecModifyTable(PlanState *pstate)
 		 */
 		if (pstate->ps_ExprContext)
 			ResetExprContext(pstate->ps_ExprContext);
+
+		if (estate->es_processed == estate->tsql_row_count && estate->tsql_row_count > 0)
+		{
+			slot = NULL;
+			break;
+		}
 
 		if (tsql_insert_exec)
 		{
