@@ -628,7 +628,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %type <node>	xml_root_version opt_xml_root_standalone
 %type <node>	xmlexists_argument
 %type <ival>	document_or_content
-%type <boolean> xml_whitespace_option
+%type <boolean>	xml_indent_option xml_whitespace_option
 %type <list>	xmltable_column_list xmltable_column_option_list
 %type <node>	xmltable_column_el
 %type <defelt>	xmltable_column_option_el
@@ -722,7 +722,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 	HANDLER HAVING HEADER_P HOLD HOUR_P
 
 	IDENTITY_P IF_P ILIKE IMMEDIATE IMMUTABLE IMPLICIT_P IMPORT_P IN_P INCLUDE
-	INCLUDING INCREMENT INDEX INDEXES INHERIT INHERITS INITIALLY INLINE_P
+	INCLUDING INCREMENT INDENT INDEX INDEXES INHERIT INHERITS INITIALLY INLINE_P
 	INNER_P INOUT INPUT_P INSENSITIVE INSERT INSTEAD INT_P INTEGER
 	INTERSECT INTERVAL INTO INVOKER IS ISNULL ISOLATION
 
@@ -15708,13 +15708,14 @@ func_expr_common_subexpr:
 					$$ = makeXmlExpr(IS_XMLROOT, NULL, NIL,
 									 list_make3($3, $5, $6), @1);
 				}
-			| XMLSERIALIZE '(' document_or_content a_expr AS SimpleTypename ')'
+			| XMLSERIALIZE '(' document_or_content a_expr AS SimpleTypename xml_indent_option ')'
 				{
 					XmlSerialize *n = makeNode(XmlSerialize);
 
 					n->xmloption = $3;
 					n->expr = $4;
 					n->typeName = $6;
+					n->indent = $7;
 					n->location = @1;
 					$$ = (Node *) n;
 				}
@@ -15768,6 +15769,11 @@ xml_attribute_el: a_expr AS ColLabel
 
 document_or_content: DOCUMENT_P						{ $$ = XMLOPTION_DOCUMENT; }
 			| CONTENT_P								{ $$ = XMLOPTION_CONTENT; }
+		;
+
+xml_indent_option: INDENT							{ $$ = true; }
+			| NO INDENT								{ $$ = false; }
+			| /*EMPTY*/								{ $$ = false; }
 		;
 
 xml_whitespace_option: PRESERVE WHITESPACE_P		{ $$ = true; }
@@ -17071,6 +17077,7 @@ unreserved_keyword:
 			| INCLUDE
 			| INCLUDING
 			| INCREMENT
+			| INDENT
 			| INDEX
 			| INDEXES
 			| INHERIT
@@ -17627,6 +17634,7 @@ bare_label_keyword:
 			| INCLUDE
 			| INCLUDING
 			| INCREMENT
+			| INDENT
 			| INDEX
 			| INDEXES
 			| INHERIT
