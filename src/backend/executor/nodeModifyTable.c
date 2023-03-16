@@ -3809,6 +3809,13 @@ ExecModifyTable(PlanState *pstate)
 		if (pstate->ps_ExprContext)
 			ResetExprContext(pstate->ps_ExprContext);
 
+		if (sql_dialect == SQL_DIALECT_TSQL && check_rowcount_hook &&
+			 check_rowcount_hook(estate->es_processed))
+		{
+			slot = NULL;
+			break;
+		}
+
 		if (tsql_insert_exec)
 		{
 			context.planSlot = MakeSingleTupleTableSlot(tupdesc, &TTSOpsMinimalTuple);
