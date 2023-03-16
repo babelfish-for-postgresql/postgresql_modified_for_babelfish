@@ -3809,7 +3809,8 @@ ExecModifyTable(PlanState *pstate)
 		if (pstate->ps_ExprContext)
 			ResetExprContext(pstate->ps_ExprContext);
 
-		if (check_rowcount_hook && check_rowcount_hook(estate->es_processed))
+		if (sql_dialect == SQL_DIALECT_TSQL && check_rowcount_hook &&
+			 check_rowcount_hook(estate->es_processed))
 		{
 			slot = NULL;
 			break;
