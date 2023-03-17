@@ -109,6 +109,9 @@ char	   *localized_full_months[12 + 1];
 
 PGDLLIMPORT collation_cache_entry_hook_type collation_cache_entry_hook = NULL;
 
+/* is the databases's LC_CTYPE the C locale? */
+bool		database_ctype_is_c = false;
+
 /* indicates whether locale information cache is valid */
 static bool CurrentLocaleConvValid = false;
 static bool CurrentLCTimeValid = false;
