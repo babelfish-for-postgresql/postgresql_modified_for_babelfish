@@ -1686,10 +1686,10 @@ ProcessUtilitySlow(ParseState *pstate,
 					}
 
 					if (language_item)
-						*language = strVal(language_item->arg);
+						language = strVal(language_item->arg);
 					
 
-					if ((language && strcmp(language,"pltsql")) || sql_dialect == SQL_DIALECT_TSQL)
+					if ((language && !strcmp(language,"pltsql")) || sql_dialect == SQL_DIALECT_TSQL)
 					{
 							if (CreateFunctionStmt_hook)
 								(*CreateFunctionStmt_hook)(pstate, pstmt, queryString, false, context, params, queryEnv, dest, qc);
