@@ -15,11 +15,11 @@
 #define UTILITY_H
 
 #include "tcop/cmdtag.h"
-#include "tcop/tcopprot.h"
-#include "tcop/utility.h"
+//#include "tcop/tcopprot.h"
+//#include "tcop/utility.h"
 #include "tcop/dest.h"
-#include "tcop/cmdtag.h"
-#include "parser/parse_type.h"
+#include "parser/parse_node.h"
+//#include "parser/parse_type.h"
 #include "nodes/plannodes.h"
 #include "nodes/params.h"
 
