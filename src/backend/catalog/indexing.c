@@ -75,7 +75,8 @@ CatalogCloseIndexes(CatalogIndexState indstate)
  * This is effectively a cut-down version of ExecInsertIndexTuples.
  */
 static void
-CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple)
+CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple,
+				   TU_UpdateIndexes updateIndexes)
 {
 	int			i;
 	int			numIndexes;
@@ -85,6 +86,7 @@ CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple)
 	IndexInfo **indexInfoArray;
 	Datum		values[INDEX_MAX_KEYS];
 	bool		isnull[INDEX_MAX_KEYS];
+	bool		onlySummarized = (updateIndexes == TU_Summarizing);
 
 	/*
 	 * HOT update does not require index inserts. But with asserts enabled we
@@ -92,9 +94,12 @@ CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple)
 	 * table/index.
 	 */
 #ifndef USE_ASSERT_CHECKING
-	if (HeapTupleIsHeapOnly(heapTuple))
+	if (HeapTupleIsHeapOnly(heapTuple) && !onlySummarized)
 		return;
 #endif
+
+	/* When only updating summarized indexes, the tuple has to be HOT. */
+	Assert((!onlySummarized) || HeapTupleIsHeapOnly(heapTuple));
 
 	/*
 	 * Get information from the state structure.  Fall out if nothing to do.
@@ -138,12 +143,19 @@ CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple)
 
 		/* see earlier check above */
 #ifdef USE_ASSERT_CHECKING
-		if (HeapTupleIsHeapOnly(heapTuple))
+		if (HeapTupleIsHeapOnly(heapTuple) && !onlySummarized)
 		{
 			Assert(!ReindexIsProcessingIndex(RelationGetRelid(index)));
 			continue;
 		}
 #endif							/* USE_ASSERT_CHECKING */
+
+		/*
+		 * Skip insertions into non-summarizing indexes if we only need
+		 * to update summarizing indexes.
+		 */
+		if (onlySummarized && !indexInfo->ii_Summarizing)
+			continue;
 
 		/*
 		 * FormIndexDatum fills in its values and isnull parameters with the
@@ -235,7 +247,7 @@ CatalogTupleInsert(Relation heapRel, HeapTuple tup)
 
 	simple_heap_insert(heapRel, tup);
 
-	CatalogIndexInsert(indstate, tup);
+	CatalogIndexInsert(indstate, tup, TU_All);
 	CatalogCloseIndexes(indstate);
 }
 
@@ -259,7 +271,7 @@ CatalogTupleInsertWithInfo(Relation heapRel, HeapTuple tup,
 
 	simple_heap_insert(heapRel, tup);
 
-	CatalogIndexInsert(indstate, tup);
+	CatalogIndexInsert(indstate, tup, TU_All);
 }
 
 /*
@@ -314,7 +326,7 @@ CatalogTuplesMultiInsertWithInfo(Relation heapRel, TupleTableSlot **slot,
 
 		tuple = ExecFetchSlotHeapTuple(slot[i], true, &should_free);
 		tuple->t_tableOid = slot[i]->tts_tableOid;
-		CatalogIndexInsert(indstate, tuple);
+		CatalogIndexInsert(indstate, tuple, TU_All);
 
 		if (should_free)
 			heap_freetuple(tuple);
@@ -336,6 +348,7 @@ void
 CatalogTupleUpdate(Relation heapRel, ItemPointer otid, HeapTuple tup)
 {
 	CatalogIndexState indstate;
+	TU_UpdateIndexes updateIndexes = TU_All;
 
 	CatalogTupleCheckConstraints(heapRel, tup);
 
@@ -345,9 +358,9 @@ CatalogTupleUpdate(Relation heapRel, ItemPointer otid, HeapTuple tup)
 
 	indstate = CatalogOpenIndexes(heapRel);
 
-	simple_heap_update(heapRel, otid, tup);
+	simple_heap_update(heapRel, otid, tup, &updateIndexes);
 
-	CatalogIndexInsert(indstate, tup);
+	CatalogIndexInsert(indstate, tup, updateIndexes);
 	CatalogCloseIndexes(indstate);
 }
 
@@ -363,15 +376,17 @@ void
 CatalogTupleUpdateWithInfo(Relation heapRel, ItemPointer otid, HeapTuple tup,
 						   CatalogIndexState indstate)
 {
+	TU_UpdateIndexes updateIndexes = TU_All;
+
 	CatalogTupleCheckConstraints(heapRel, tup);
 
 	/* ENR carries catalog tuples themselves. Do not update.*/
 	if (ENRupdateTuple(heapRel, tup))
 		return;
 
-	simple_heap_update(heapRel, otid, tup);
+	simple_heap_update(heapRel, otid, tup, &updateIndexes);
 
-	CatalogIndexInsert(indstate, tup);
+	CatalogIndexInsert(indstate, tup, updateIndexes);
 }
 
 /*
