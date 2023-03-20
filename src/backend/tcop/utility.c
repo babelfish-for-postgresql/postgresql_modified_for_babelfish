@@ -73,7 +73,10 @@
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
+#include "parser/parse_type.h"
 
+#include "tcop/cmdtag.h"
+#include "tcop/tcopprot.h"
 
 
 /* Hook for plugins to get control in ProcessUtility() */
