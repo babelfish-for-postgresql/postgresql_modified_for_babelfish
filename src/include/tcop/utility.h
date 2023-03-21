@@ -14,14 +14,13 @@
 #ifndef UTILITY_H
 #define UTILITY_H
 
-#include "tcop/cmdtag.h"
-#include "tcop/tcopprot.h"
-//#include "tcop/utility.h"
-#include "tcop/dest.h"
+#include "nodes/params.h"
+#include "nodes/plannodes.h"
 #include "parser/parse_node.h"
 #include "parser/parse_type.h"
-#include "nodes/plannodes.h"
-#include "nodes/params.h"
+#include "tcop/cmdtag.h"
+#include "tcop/dest.h"
+#include "tcop/tcopprot.h"
 
 typedef enum
 {
@@ -121,10 +120,10 @@ typedef void (*CreateFunctionStmt_hook_type)(ParseState *pstate,
 											 const char *queryString,
 											 bool readOnlyTree,
 											 ProcessUtilityContext context,
-											 ParamListInfo params,
-											 QueryEnvironment *queryEnv,
-											 DestReceiver *dest,
-											 QueryCompletion *qc);
+											 ParamListInfo params);
+											 //QueryEnvironment *queryEnv,
+											 //DestReceiver *dest,
+											 //QueryCompletion *qc);
 extern PGDLLIMPORT CreateFunctionStmt_hook_type CreateFunctionStmt_hook;
 
 

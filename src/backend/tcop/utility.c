@@ -61,6 +61,7 @@
 #include "commands/view.h"
 #include "miscadmin.h"
 #include "parser/parser.h"
+#include "parser/parse_type.h"
 #include "parser/parse_utilcmd.h"
 #include "postmaster/bgwriter.h"
 #include "rewrite/rewriteDefine.h"
@@ -73,10 +74,6 @@
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
-#include "parser/parse_type.h"
-//#include "tcop/cmdtag.h"
-//#include "tcop/tcopprot.h"
-
 
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
@@ -1691,7 +1688,7 @@ ProcessUtilitySlow(ParseState *pstate,
 					if ((language && !strcmp(language,"pltsql")) || sql_dialect == SQL_DIALECT_TSQL)
 					{
 							if (CreateFunctionStmt_hook)
-								(*CreateFunctionStmt_hook)(pstate, pstmt, queryString, false, context, params, queryEnv, dest, qc);
+								(*CreateFunctionStmt_hook)(pstate, pstmt, queryString, false, context, params); //queryEnv, dest, qc);
 					}
 					else
 					{
