@@ -781,7 +781,10 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			if (sql_dialect != SQL_DIALECT_TSQL) {
 				PreventInTransactionBlock(isTopLevel, "CREATE DATABASE");
 			}
-			createdb(pstate, (CreatedbStmt *) parsetree);
+			else {
+				create_bbf_db(pstate, (CreatedbStmt *) parsetree);
+			}
+			//createdb(pstate, (CreatedbStmt *) parsetree);
 			break;
 
 		case T_AlterDatabaseStmt:
