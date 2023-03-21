@@ -121,9 +121,6 @@ typedef void (*CreateFunctionStmt_hook_type)(ParseState *pstate,
 											 bool readOnlyTree,
 											 ProcessUtilityContext context,
 											 ParamListInfo params);
-											 //QueryEnvironment *queryEnv,
-											 //DestReceiver *dest,
-											 //QueryCompletion *qc);
 extern PGDLLIMPORT CreateFunctionStmt_hook_type CreateFunctionStmt_hook;
 
 
