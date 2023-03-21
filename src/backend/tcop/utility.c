@@ -78,6 +78,7 @@
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
 CreateFunctionStmt_hook_type CreateFunctionStmt_hook = NULL;
+CreatedbStmt_hook_type CreatedbStmt_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -781,8 +782,12 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			if (sql_dialect != SQL_DIALECT_TSQL) {
 				PreventInTransactionBlock(isTopLevel, "CREATE DATABASE");
 			}
-			else {
-				create_bbf_db(pstate, (CreatedbStmt *) parsetree);
+			else 
+			{
+				if (CreateDbStmt_hook)
+					{
+						(*CreatedbStmt_hook)(pstate, stmt);
+					}
 			}
 			//createdb(pstate, (CreatedbStmt *) parsetree);
 			break;
@@ -1691,7 +1696,7 @@ ProcessUtilitySlow(ParseState *pstate,
 					if ((language && !strcmp(language,"pltsql")) || sql_dialect == SQL_DIALECT_TSQL)
 					{
 							if (CreateFunctionStmt_hook)
-								(*CreateFunctionStmt_hook)(pstate, pstmt, queryString, false, context, params); //queryEnv, dest, qc);
+								(*CreateFunctionStmt_hook)(pstate, pstmt, queryString, false, context, params); 
 					}
 					else
 					{

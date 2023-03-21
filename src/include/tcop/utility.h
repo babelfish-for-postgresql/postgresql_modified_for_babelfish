@@ -114,7 +114,6 @@ extern LogStmtLevel GetCommandLogLevel(Node *parsetree);
 
 extern bool CommandIsReadOnly(PlannedStmt *pstmt);
 
-
 typedef void (*CreateFunctionStmt_hook_type)(ParseState *pstate,
 											 PlannedStmt *pstmt,
 											 const char *queryString,
@@ -123,5 +122,7 @@ typedef void (*CreateFunctionStmt_hook_type)(ParseState *pstate,
 											 ParamListInfo params);
 extern PGDLLIMPORT CreateFunctionStmt_hook_type CreateFunctionStmt_hook;
 
+typedef void (*CreatedbStmt_hook_type)(ParseState *pstate, const CreatedbStmt *stmt);
+extern PGDLLIMPORT CreatedbStmt_hook_type CreatedbStmt_hook;
 
 #endif							/* UTILITY_H */
