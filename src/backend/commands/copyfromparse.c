@@ -147,6 +147,8 @@ if (1) \
 /* NOTE: there's a copy of this in copyto.c */
 static const char BinarySignature[11] = "PGCOPY\n\377\r\n\0";
 
+/* hooks */
+fill_missing_values_in_copyfrom_hook_type fill_missing_values_in_copyfrom_hook = NULL;
 
 /* non-export function prototypes */
 static bool CopyReadLine(CopyFromState cstate);
@@ -1022,6 +1024,9 @@ NextCopyFrom(CopyFromState cstate, ExprContext *econtext,
 		values[defmap[i]] = ExecEvalExpr(defexprs[i], econtext,
 										 &nulls[defmap[i]]);
 	}
+
+	if (fill_missing_values_in_copyfrom_hook)
+		fill_missing_values_in_copyfrom_hook(cstate->rel, values, nulls);
 
 	return true;
 }
