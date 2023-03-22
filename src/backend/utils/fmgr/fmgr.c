@@ -701,6 +701,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	int			sys_func_count = 0;
 	int			non_tsql_proc_count = 0;
 	void	   *newextra = NULL;
+	bool        started_trx = false;
 
 	if (!fcinfo->flinfo->fn_extra)
 	{
@@ -777,8 +778,14 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	{
 		HeapTuple	tuple;
 		Form_pg_proc procedureStruct;
+		if (!IsTransactionState())
+		{
+			started_trx = true;
+			StartTransactionCommand();
+		}
 		tuple = SearchSysCache1(PROCOID,
 								ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
+
 		if (!HeapTupleIsValid(tuple))
 			elog(ERROR, "cache lookup failed for function %u",
 				 fcinfo->flinfo->fn_oid);
@@ -812,7 +819,6 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		sql_dialect_value_old = sql_dialect;
 		sql_dialect = sql_dialect_value;
 		assign_sql_dialect(sql_dialect_value, newextra);
-
 	}
 
 	/* function manager hook */
@@ -859,6 +865,10 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		{
 			sql_dialect = sql_dialect_value_old;
 			assign_sql_dialect(sql_dialect_value_old, newextra);
+			if (started_trx)
+			{
+				CommitTransactionCommand();
+			}
 		}
 
 		PG_RE_THROW();
@@ -872,7 +882,10 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 
 		sql_dialect = sql_dialect_value_old;
 		assign_sql_dialect(sql_dialect_value_old, newextra);
-
+		if (started_trx)
+		{
+			CommitTransactionCommand();
+		}
 		if (sql_dialect_value == pg_dialect)
 			non_tsql_proc_entry_hook(non_tsql_proc_count * -1, sys_func_count * -1);
 	}
