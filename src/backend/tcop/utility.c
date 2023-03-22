@@ -76,6 +76,7 @@
 
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
+CreateDbStmt_hook_type CreateDbStmt_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -779,7 +780,12 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			if (sql_dialect != SQL_DIALECT_TSQL) {
 				PreventInTransactionBlock(isTopLevel, "CREATE DATABASE");
 			}
-			createdb(pstate, (CreatedbStmt *) parsetree);
+			else 
+			{
+				if (CreateDbStmt_hook)
+					(*CreateDbStmt_hook)(pstate, pstmt);
+			}
+			//createdb(pstate, (CreatedbStmt *) parsetree);
 			break;
 
 		case T_AlterDatabaseStmt:

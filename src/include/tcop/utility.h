@@ -14,6 +14,7 @@
 #ifndef UTILITY_H
 #define UTILITY_H
 
+#include "parser/parse_node.h"
 #include "tcop/cmdtag.h"
 #include "tcop/tcopprot.h"
 
@@ -108,5 +109,9 @@ CreateCommandName(Node *parsetree)
 extern LogStmtLevel GetCommandLogLevel(Node *parsetree);
 
 extern bool CommandIsReadOnly(PlannedStmt *pstmt);
+
+typedef void (*CreateDbStmt_hook_type)(ParseState *pstate, PlannedStmt *pstmt);
+extern PGDLLIMPORT CreateDbStmt_hook_type CreateDbStmt_hook;
+
 
 #endif							/* UTILITY_H */
