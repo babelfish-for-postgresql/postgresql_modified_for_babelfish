@@ -1808,15 +1808,16 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 		qry->hasModifyingCTE = pstate->p_hasModifyingCTE;
 	}
 
+	/* Push new stack item, used to save leftmost SELECT's namespace */
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		ns_stack_item.prev = set_op_ns_stack;
+		set_op_ns_stack = &ns_stack_item;
+	}
+
 	/*
 	 * Recursively transform the components of the tree.
 	 */
-	// if (sql_dialect == SQL_DIALECT_TSQL)
-	// {
-		ns_stack_item.prev = set_op_ns_stack;
-		set_op_ns_stack = &ns_stack_item;
-	// }
-
 	sostmt = castNode(SetOperationStmt,
 					  transformSetOperationTree(pstate, stmt, true, NULL));
 	Assert(sostmt);
@@ -1925,8 +1926,8 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	{
 		qry->targetList = leftmostQuery->targetList;
 		pstate->p_namespace = set_op_ns_stack->namespace;
+		set_op_ns_stack = set_op_ns_stack->prev;
 	}
-	set_op_ns_stack = set_op_ns_stack->prev;
 	
 
 	/*
