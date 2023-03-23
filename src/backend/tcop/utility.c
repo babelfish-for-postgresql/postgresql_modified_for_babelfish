@@ -77,6 +77,7 @@
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
 CreateDbStmt_hook_type CreateDbStmt_hook = NULL;
+DropDbStmt_hook_type DropDbStmt_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -785,7 +786,6 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 				if (CreateDbStmt_hook)
 					(*CreateDbStmt_hook)(pstate, pstmt);
 			}
-			// createdb(pstate, (CreatedbStmt *) parsetree);
 			break;
 
 		case T_AlterDatabaseStmt:
@@ -809,9 +809,13 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			 * transaction blocks to turn batch mode ON by default.
 			 */
 			if (sql_dialect != SQL_DIALECT_TSQL) {
-				PreventInTransactionBlock(isTopLevel, "DROP DATABASE");
+				DropDatabase(pstate, (DropdbStmt *) parsetree);
 			}
-			DropDatabase(pstate, (DropdbStmt *) parsetree);
+			else
+			{
+				if (DropDbStmt_hook)
+					(*DropDbStmt_hook)(pstmt);
+			}
 			break;
 
 			/* Query-level asynchronous notification */

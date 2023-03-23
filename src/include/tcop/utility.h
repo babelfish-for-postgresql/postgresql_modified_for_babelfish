@@ -113,5 +113,7 @@ extern bool CommandIsReadOnly(PlannedStmt *pstmt);
 typedef void (*CreateDbStmt_hook_type)(ParseState *pstate, PlannedStmt *pstmt);
 extern PGDLLIMPORT CreateDbStmt_hook_type CreateDbStmt_hook;
 
+typedef void (*DropDbStmt_hook_type)(PlannedStmt *pstmt);
+extern PGDLLIMPORT DropDbStmt_hook_type DropDbStmt_hook;
 
 #endif							/* UTILITY_H */
