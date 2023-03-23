@@ -9150,7 +9150,7 @@ ExecSetVariableStmt(VariableSetStmt *stmt, bool isTopLevel)
 				WarnNoTransactionBlock(isTopLevel, "SET LOCAL");
 			(void) set_config_option(stmt->name,
 									 ExtractSetVariableArgs(stmt),
-									 (superuser() ? PGC_SUSET : PGC_USERSET),
+									 GUC_CONTEXT_CONFIG,
 									 PGC_S_SESSION,
 									 action, true, 0, false);
 			break;
@@ -9235,7 +9235,7 @@ ExecSetVariableStmt(VariableSetStmt *stmt, bool isTopLevel)
 
 			(void) set_config_option(stmt->name,
 									 NULL,
-									 (superuser() ? PGC_SUSET : PGC_USERSET),
+									 GUC_CONTEXT_CONFIG,
 									 PGC_S_SESSION,
 									 action, true, 0, false);
 			break;
@@ -9283,7 +9283,7 @@ SetPGVariable(const char *name, List *args, bool is_local)
 	/* Note SET DEFAULT (argstring == NULL) is equivalent to RESET */
 	(void) set_config_option(name,
 							 argstring,
-							 (superuser() ? PGC_SUSET : PGC_USERSET),
+							 GUC_CONTEXT_CONFIG,
 							 PGC_S_SESSION,
 							 is_local ? GUC_ACTION_LOCAL : GUC_ACTION_SET,
 							 true, 0, false);
@@ -9329,7 +9329,7 @@ set_config_by_name(PG_FUNCTION_ARGS)
 	/* Note SET DEFAULT (argstring == NULL) is equivalent to RESET */
 	(void) set_config_option(name,
 							 value,
-							 (superuser() ? PGC_SUSET : PGC_USERSET),
+							 GUC_CONTEXT_CONFIG,
 							 PGC_S_SESSION,
 							 is_local ? GUC_ACTION_LOCAL : GUC_ACTION_SET,
 							 true, 0, false);
