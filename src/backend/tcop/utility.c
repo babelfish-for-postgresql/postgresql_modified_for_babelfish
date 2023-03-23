@@ -778,14 +778,14 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			 * transaction blocks to turn batch mode ON by default.
 			 */
 			if (sql_dialect != SQL_DIALECT_TSQL) {
-				PreventInTransactionBlock(isTopLevel, "CREATE DATABASE");
+				createdb(pstate, (CreatedbStmt *) parsetree);
 			}
 			else 
 			{
 				if (CreateDbStmt_hook)
 					(*CreateDbStmt_hook)(pstate, pstmt);
 			}
-			//createdb(pstate, (CreatedbStmt *) parsetree);
+			// createdb(pstate, (CreatedbStmt *) parsetree);
 			break;
 
 		case T_AlterDatabaseStmt:
