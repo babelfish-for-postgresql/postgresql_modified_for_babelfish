@@ -774,15 +774,10 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 						GUC_ACTION_SAVE);
 	}
 
-	if (set_sql_dialect)
+	if (set_sql_dialect && IsTransactionState())
 	{
 		HeapTuple	tuple;
 		Form_pg_proc procedureStruct;
-		if (!IsTransactionState())
-		{
-			started_trx = true;
-			StartTransactionCommand();
-		}
 		tuple = SearchSysCache1(PROCOID,
 								ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
 
@@ -865,10 +860,6 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		{
 			sql_dialect = sql_dialect_value_old;
 			assign_sql_dialect(sql_dialect_value_old, newextra);
-			if (started_trx)
-			{
-				CommitTransactionCommand();
-			}
 		}
 
 		PG_RE_THROW();
@@ -882,10 +873,6 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 
 		sql_dialect = sql_dialect_value_old;
 		assign_sql_dialect(sql_dialect_value_old, newextra);
-		if (started_trx)
-		{
-			CommitTransactionCommand();
-		}
 		if (sql_dialect_value == pg_dialect)
 			non_tsql_proc_entry_hook(non_tsql_proc_count * -1, sys_func_count * -1);
 	}

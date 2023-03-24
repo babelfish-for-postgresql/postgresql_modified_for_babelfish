@@ -79,7 +79,7 @@ pgstat_init_function_usage(FunctionCallInfo fcinfo,
 	PgStat_BackendFunctionEntry *pending;
 	bool		created_entry;
 
-	if (pre_function_call_hook)
+	if (pre_function_call_hook && IsTransactionState())
 	{
 		HeapTuple proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
 		if (HeapTupleIsValid(proctup))
