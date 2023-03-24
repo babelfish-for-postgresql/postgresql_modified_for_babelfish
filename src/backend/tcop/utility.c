@@ -780,7 +780,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			 */
 			if (sql_dialect != SQL_DIALECT_TSQL) {
 				createdb(pstate, (CreatedbStmt *) parsetree);
-				//gPreventInTransactionBlock(isTopLevel, "CREATE DATABASE");
+				PreventInTransactionBlock(isTopLevel, "CREATE DATABASE");
 			}
 			else 
 			{
