@@ -1743,7 +1743,8 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 			   *l;
 	List	   *targetvars,
 			   *targetnames,
-			   *sv_namespace;
+			   *sv_namespace,
+			   *sv_targetList;
 	int			sv_rtable_length;
 	ParseNamespaceItem *jnsitem;
 	ParseNamespaceColumn *sortnscolumns;
@@ -1808,7 +1809,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 		qry->hasModifyingCTE = pstate->p_hasModifyingCTE;
 	}
 
-	/* Push new stack item, used to save leftmost SELECT's namespace */
+	/* Push new stack item to save the leftmost SELECT's namespace */
 	if (sql_dialect == SQL_DIALECT_TSQL)
 	{
 		ns_stack_item.prev = set_op_ns_stack;
@@ -1924,6 +1925,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	/* tsql needs the leftmost query's targetlist and ns to handle ORDER BY */
 	if (sql_dialect == SQL_DIALECT_TSQL)
 	{
+		sv_targetList = qry->targetList;
 		qry->targetList = leftmostQuery->targetList;
 		pstate->p_namespace = set_op_ns_stack->namespace;
 		set_op_ns_stack = set_op_ns_stack->prev;
@@ -1944,6 +1946,20 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 										  EXPR_KIND_ORDER_BY,
 										  false /* allow SQL92 rules */ );
 
+	/* 
+	 * UNION ALL with Numeric types require the the TLE's var to have a typmod
+	 * of -1. Reset the targetlist to the dummy tl, but fill in ressortgroupref
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		forboth(l, qry->targetList, lct, sv_targetList)
+		{
+			TargetEntry *tle = (TargetEntry *) lfirst(l);
+			TargetEntry *sv_tle = (TargetEntry *) lfirst(lct);
+			sv_tle->ressortgroupref = tle->ressortgroupref;
+		}
+		qry->targetList = sv_targetList;
+	}
 	/* restore namespace, remove join RTE from rtable */
 	pstate->p_namespace = sv_namespace;
 	pstate->p_rtable = list_truncate(pstate->p_rtable, sv_rtable_length);
