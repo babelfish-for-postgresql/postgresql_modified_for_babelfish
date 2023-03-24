@@ -1923,9 +1923,9 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	addNSItemToQuery(pstate, jnsitem, false, false, true);
 	
 	/* tsql needs the leftmost query's targetlist and ns to handle ORDER BY */
+	sv_targetList = qry->targetList;
 	if (sql_dialect == SQL_DIALECT_TSQL)
 	{
-		sv_targetList = qry->targetList;
 		qry->targetList = leftmostQuery->targetList;
 		pstate->p_namespace = set_op_ns_stack->namespace;
 		set_op_ns_stack = set_op_ns_stack->prev;
