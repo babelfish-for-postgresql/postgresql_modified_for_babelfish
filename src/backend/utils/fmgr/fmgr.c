@@ -16,6 +16,7 @@
 #include "postgres.h"
 
 #include "access/detoast.h"
+#include "access/xact.h"
 #include "catalog/namespace.h"
 #include "catalog/pg_language.h"
 #include "catalog/pg_namespace.h"

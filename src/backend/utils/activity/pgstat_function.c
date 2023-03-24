@@ -23,6 +23,7 @@
 #include "utils/inval.h"
 #include "utils/pgstat_internal.h"
 #include "utils/syscache.h"
+#include "access/xact.h"
 
 
 /* ----------
