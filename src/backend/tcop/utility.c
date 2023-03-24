@@ -780,6 +780,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			 */
 			if (sql_dialect != SQL_DIALECT_TSQL) {
 				createdb(pstate, (CreatedbStmt *) parsetree);
+				PreventInTransactionBlock(isTopLevel, "CREATE DATABASE");
 			}
 			else 
 			{
@@ -810,6 +811,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			 */
 			if (sql_dialect != SQL_DIALECT_TSQL) {
 				DropDatabase(pstate, (DropdbStmt *) parsetree);
+				PreventInTransactionBlock(isTopLevel, "DROP DATABASE");
 			}
 			else
 			{
