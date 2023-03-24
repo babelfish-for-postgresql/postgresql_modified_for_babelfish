@@ -779,8 +779,8 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			 * transaction blocks to turn batch mode ON by default.
 			 */
 			if (sql_dialect != SQL_DIALECT_TSQL) {
-				createdb(pstate, (CreatedbStmt *) parsetree);
 				PreventInTransactionBlock(isTopLevel, "CREATE DATABASE");
+				createdb(pstate, (CreatedbStmt *) parsetree);
 			}
 			else 
 			{
@@ -810,8 +810,8 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			 * transaction blocks to turn batch mode ON by default.
 			 */
 			if (sql_dialect != SQL_DIALECT_TSQL) {
-				DropDatabase(pstate, (DropdbStmt *) parsetree);
 				PreventInTransactionBlock(isTopLevel, "DROP DATABASE");
+				DropDatabase(pstate, (DropdbStmt *) parsetree);
 			}
 			else
 			{
