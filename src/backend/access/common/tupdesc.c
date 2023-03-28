@@ -598,6 +598,8 @@ TupleDescInitEntry(TupleDesc desc,
 	Assert(PointerIsValid(desc));
 	Assert(attributeNumber >= 1);
 	Assert(attributeNumber <= desc->natts);
+	Assert(attdim >= 0);
+	Assert(attdim <= PG_INT16_MAX);
 
 	/*
 	 * initialize the attribute fields
@@ -668,6 +670,8 @@ TupleDescInitBuiltinEntry(TupleDesc desc,
 	Assert(PointerIsValid(desc));
 	Assert(attributeNumber >= 1);
 	Assert(attributeNumber <= desc->natts);
+	Assert(attdim >= 0);
+	Assert(attdim <= PG_INT16_MAX);
 
 	/* initialize the attribute fields */
 	att = TupleDescAttr(desc, attributeNumber - 1);
@@ -831,6 +835,10 @@ BuildDescForRelation(List *schema)
 
 		attcollation = GetColumnDefCollation(NULL, entry, atttypid);
 		attdim = list_length(entry->typeName->arrayBounds);
+		if (attdim > PG_INT16_MAX)
+			ereport(ERROR,
+					errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+					errmsg("too many array dimensions"));
 
 		if (entry->typeName->setof)
 			ereport(ERROR,
