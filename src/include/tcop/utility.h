@@ -119,7 +119,7 @@ typedef void (*CreateFunctionStmt_hook_type)(ParseState *pstate,
 											 const char *queryString,
 											 bool readOnlyTree,
 											 ProcessUtilityContext context,
-											 ParamListInfo params, int flag);
+											 ParamListInfo params);
 extern PGDLLIMPORT CreateFunctionStmt_hook_type CreateFunctionStmt_hook;
 
 #endif							/* UTILITY_H */

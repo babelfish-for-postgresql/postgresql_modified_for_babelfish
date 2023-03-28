@@ -1665,37 +1665,8 @@ ProcessUtilitySlow(ParseState *pstate,
 
 			case T_CreateFunctionStmt:	/* CREATE FUNCTION */
 				{
-					// CreateFunctionStmt *stmt = (CreateFunctionStmt *) parsetree;
-					// ListCell *option = NULL; 
-					
-					// DefElem    *language_item = NULL;
-					// char *language = NULL;
-		
-					// foreach(option, stmt->options)
-					// {
-					// 	DefElem *defel = (DefElem *)lfirst(option); 
-
-						
-					// 	if (strcmp(defel->defname, "language") == 0)
-					// 	{
-					// 		if (language_item)
-					// 			ereport(ERROR,
-					// 					(errcode(ERRCODE_SYNTAX_ERROR),
-					// 					errmsg("conflicting or redundant options"),
-					// 					parser_errposition(pstate, defel->location)));
-					// 		language_item = defel;
-					// 	}
-					// }
-
-					// if (language_item)
-					// 	language = strVal(language_item->arg);
-					
-
-					// if ((language && !strcmp(language,"pltsql")) || sql_dialect == SQL_DIALECT_TSQL)
-					// {
-							if (CreateFunctionStmt_hook)
-								(*CreateFunctionStmt_hook)(pstate, pstmt, queryString, false, context, params, true); 
-					//}
+					if (CreateFunctionStmt_hook)
+						(*CreateFunctionStmt_hook)(pstate, pstmt, queryString, false, context, params); 
 					else
 					{
 						address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
