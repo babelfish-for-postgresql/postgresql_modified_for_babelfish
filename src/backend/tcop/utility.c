@@ -604,13 +604,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 		case T_TransactionStmt:
 			{
 				TransactionStmt *stmt = (TransactionStmt *) parsetree;
-
-				// if (NestedTranCount > 0 || (sql_dialect == SQL_DIALECT_TSQL && !IsTransactionBlockActive()))
-				// {
-				// 	PLTsqlProcessTransaction(parsetree, params, qc);
-				// 	return;
-				// }
-
+				
 				switch (stmt->kind)
 				{
 						/*
