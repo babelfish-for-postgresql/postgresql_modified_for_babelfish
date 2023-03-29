@@ -76,6 +76,7 @@
 
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
+transactionStmt_hook_type transactionStmt_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -601,91 +602,99 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			 */
 		case T_TransactionStmt:
 			{
-				TransactionStmt *stmt = (TransactionStmt *) parsetree;
-
-				switch (stmt->kind)
+				if(NestedTranCount > 0 || (sql_dialect == SQL_DIALECT_TSQL && !IsTransactionBlockActive()))
 				{
-						/*
-						 * START TRANSACTION, as defined by SQL99: Identical
-						 * to BEGIN.  Same code for both.
-						 */
-					case TRANS_STMT_BEGIN:
-					case TRANS_STMT_START:
-						{
-							ListCell   *lc;
+					if (transactionStmt_hook)
+						(*transactionStmt_hook)(pstmt, params, qc); 
+				}
+				else
+				{
+					TransactionStmt *stmt = (TransactionStmt *) parsetree;
 
-							BeginTransactionBlock();
-							foreach(lc, stmt->options)
+					switch (stmt->kind)
+					{
+							/*
+							* START TRANSACTION, as defined by SQL99: Identical
+							* to BEGIN.  Same code for both.
+							*/
+						case TRANS_STMT_BEGIN:
+						case TRANS_STMT_START:
 							{
-								DefElem    *item = (DefElem *) lfirst(lc);
+								ListCell   *lc;
 
-								if (strcmp(item->defname, "transaction_isolation") == 0)
-									SetPGVariable("transaction_isolation",
-												  list_make1(item->arg),
-												  true);
-								else if (strcmp(item->defname, "transaction_read_only") == 0)
-									SetPGVariable("transaction_read_only",
-												  list_make1(item->arg),
-												  true);
-								else if (strcmp(item->defname, "transaction_deferrable") == 0)
-									SetPGVariable("transaction_deferrable",
-												  list_make1(item->arg),
-												  true);
+								BeginTransactionBlock();
+								foreach(lc, stmt->options)
+								{
+									DefElem    *item = (DefElem *) lfirst(lc);
+
+									if (strcmp(item->defname, "transaction_isolation") == 0)
+										SetPGVariable("transaction_isolation",
+													list_make1(item->arg),
+													true);
+									else if (strcmp(item->defname, "transaction_read_only") == 0)
+										SetPGVariable("transaction_read_only",
+													list_make1(item->arg),
+													true);
+									else if (strcmp(item->defname, "transaction_deferrable") == 0)
+										SetPGVariable("transaction_deferrable",
+													list_make1(item->arg),
+													true);
+								}
 							}
-						}
-						break;
+							break;
 
-					case TRANS_STMT_COMMIT:
-						if (!EndTransactionBlock(stmt->chain))
-						{
-							/* report unsuccessful commit in qc */
-							if (qc)
-								SetQueryCompletion(qc, CMDTAG_ROLLBACK, 0);
-						}
-						break;
+						case TRANS_STMT_COMMIT:
+							if (!EndTransactionBlock(stmt->chain))
+							{
+								/* report unsuccessful commit in qc */
+								if (qc)
+									SetQueryCompletion(qc, CMDTAG_ROLLBACK, 0);
+							}
+							break;
 
-					case TRANS_STMT_PREPARE:
-						if (!PrepareTransactionBlock(stmt->gid))
-						{
-							/* report unsuccessful commit in qc */
-							if (qc)
-								SetQueryCompletion(qc, CMDTAG_ROLLBACK, 0);
-						}
-						break;
+						case TRANS_STMT_PREPARE:
+							if (!PrepareTransactionBlock(stmt->gid))
+							{
+								/* report unsuccessful commit in qc */
+								if (qc)
+									SetQueryCompletion(qc, CMDTAG_ROLLBACK, 0);
+							}
+							break;
 
-					case TRANS_STMT_COMMIT_PREPARED:
-						PreventInTransactionBlock(isTopLevel, "COMMIT PREPARED");
-						FinishPreparedTransaction(stmt->gid, true);
-						break;
+						case TRANS_STMT_COMMIT_PREPARED:
+							PreventInTransactionBlock(isTopLevel, "COMMIT PREPARED");
+							FinishPreparedTransaction(stmt->gid, true);
+							break;
 
-					case TRANS_STMT_ROLLBACK_PREPARED:
-						PreventInTransactionBlock(isTopLevel, "ROLLBACK PREPARED");
-						FinishPreparedTransaction(stmt->gid, false);
-						break;
+						case TRANS_STMT_ROLLBACK_PREPARED:
+							PreventInTransactionBlock(isTopLevel, "ROLLBACK PREPARED");
+							FinishPreparedTransaction(stmt->gid, false);
+							break;
 
-					case TRANS_STMT_ROLLBACK:
-						UserAbortTransactionBlock(stmt->chain);
-						break;
+						case TRANS_STMT_ROLLBACK:
+							UserAbortTransactionBlock(stmt->chain);
+							break;
 
-					case TRANS_STMT_SAVEPOINT:
-						RequireTransactionBlock(isTopLevel, "SAVEPOINT");
-						DefineSavepoint(stmt->savepoint_name);
-						break;
+						case TRANS_STMT_SAVEPOINT:
+							RequireTransactionBlock(isTopLevel, "SAVEPOINT");
+							DefineSavepoint(stmt->savepoint_name);
+							break;
 
-					case TRANS_STMT_RELEASE:
-						RequireTransactionBlock(isTopLevel, "RELEASE SAVEPOINT");
-						ReleaseSavepoint(stmt->savepoint_name);
-						break;
+						case TRANS_STMT_RELEASE:
+							RequireTransactionBlock(isTopLevel, "RELEASE SAVEPOINT");
+							ReleaseSavepoint(stmt->savepoint_name);
+							break;
 
-					case TRANS_STMT_ROLLBACK_TO:
-						RequireTransactionBlock(isTopLevel, "ROLLBACK TO SAVEPOINT");
-						RollbackToSavepoint(stmt->savepoint_name);
+						case TRANS_STMT_ROLLBACK_TO:
+							RequireTransactionBlock(isTopLevel, "ROLLBACK TO SAVEPOINT");
+							RollbackToSavepoint(stmt->savepoint_name);
 
-						/*
-						 * CommitTransactionCommand is in charge of
-						 * re-defining the savepoint again
-						 */
-						break;
+							/*
+							* CommitTransactionCommand is in charge of
+							* re-defining the savepoint again
+							*/
+							break;
+					}
 				}
 			}
 			break;
@@ -1656,8 +1665,10 @@ ProcessUtilitySlow(ParseState *pstate,
 				break;
 
 			case T_CreateFunctionStmt:	/* CREATE FUNCTION */
-				address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
-				break;
+				{
+					address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
+					break;
+				}
 
 			case T_AlterFunctionStmt:	/* ALTER FUNCTION */
 				address = AlterFunction(pstate, (AlterFunctionStmt *) parsetree);
