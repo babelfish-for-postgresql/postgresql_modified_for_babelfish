@@ -23,6 +23,7 @@
 #include "utils/inval.h"
 #include "utils/pgstat_internal.h"
 #include "utils/syscache.h"
+#include "access/xact.h"
 
 
 /* ----------
@@ -79,7 +80,7 @@ pgstat_init_function_usage(FunctionCallInfo fcinfo,
 	PgStat_BackendFunctionEntry *pending;
 	bool		created_entry;
 
-	if (pre_function_call_hook)
+	if (pre_function_call_hook && IsTransactionState())
 	{
 		HeapTuple proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
 		if (HeapTupleIsValid(proctup))
