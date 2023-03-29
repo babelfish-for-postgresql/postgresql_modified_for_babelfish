@@ -76,6 +76,8 @@ typedef enum
 	PGC_USERSET
 } GucContext;
 
+#define GUC_CONTEXT_CONFIG (superuser() ? PGC_SUSET : PGC_USERSET)
+
 /*
  * The following type records the source of the current setting.  A
  * new setting can only take effect if the previous setting had the
