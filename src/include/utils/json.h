@@ -21,4 +21,11 @@ extern void escape_json(StringInfo buf, const char *str);
 extern char *JsonEncodeDateTime(char *buf, Datum value, Oid typid,
 								const int *tzp);
 extern void tsql_json_build_object(StringInfo result,Datum colname, Datum colval, Oid collation, bool is_null);
+extern bool to_json_is_immutable(Oid typoid);
+extern Datum json_build_object_worker(int nargs, Datum *args, bool *nulls,
+									  Oid *types, bool absent_on_null,
+									  bool unique_keys);
+extern Datum json_build_array_worker(int nargs, Datum *args, bool *nulls,
+									 Oid *types, bool absent_on_null);
+
 #endif							/* JSON_H */
