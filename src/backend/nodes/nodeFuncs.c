@@ -263,6 +263,9 @@ exprType(const Node *expr)
 		case T_JsonConstructorExpr:
 			type = ((const JsonConstructorExpr *) expr)->returning->typid;
 			break;
+		case T_JsonIsPredicate:
+			type = BOOLOID;
+			break;
 		default:
 			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(expr));
 			type = InvalidOid;	/* keep compiler quiet */
@@ -988,6 +991,9 @@ exprCollation(const Node *expr)
 					coll = InvalidOid;
 			}
 			break;
+		case T_JsonIsPredicate:
+			coll = InvalidOid;	/* result is always an boolean type */
+			break;
 		default:
 			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(expr));
 			coll = InvalidOid;	/* keep compiler quiet */
@@ -1215,6 +1221,9 @@ exprSetCollation(Node *expr, Oid collation)
 					Assert(!OidIsValid(collation)); /* result is always a
 													 * json[b] type */
 			}
+			break;
+		case T_JsonIsPredicate:
+			Assert(!OidIsValid(collation)); /* result is always boolean */
 			break;
 		default:
 			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(expr));
@@ -1663,6 +1672,9 @@ exprLocation(const Node *expr)
 			break;
 		case T_JsonConstructorExpr:
 			loc = ((const JsonConstructorExpr *) expr)->location;
+			break;
+		case T_JsonIsPredicate:
+			loc = ((const JsonIsPredicate *) expr)->location;
 			break;
 		default:
 			/* for any other node type it's just unknown... */
@@ -2417,6 +2429,8 @@ expression_tree_walker_impl(Node *node,
 					return true;
 			}
 			break;
+		case T_JsonIsPredicate:
+			return walker(((JsonIsPredicate *) node)->expr, context);
 		default:
 			elog(ERROR, "unrecognized node type: %d",
 				 (int) nodeTag(node));
@@ -3426,6 +3440,16 @@ expression_tree_mutator_impl(Node *node,
 
 				return (Node *) newnode;
 			}
+		case T_JsonIsPredicate:
+			{
+				JsonIsPredicate *pred = (JsonIsPredicate *) node;
+				JsonIsPredicate *newnode;
+
+				FLATCOPY(newnode, pred, JsonIsPredicate);
+				MUTATE(newnode->expr, pred->expr, Node *);
+
+				return (Node *) newnode;
+			}
 		default:
 			elog(ERROR, "unrecognized node type: %d",
 				 (int) nodeTag(node));
@@ -4273,6 +4297,8 @@ raw_expression_tree_walker_impl(Node *node,
 					return true;
 			}
 			break;
+		case T_JsonIsPredicate:
+			return walker(((JsonIsPredicate *) node)->expr, context);
 		default:
 			elog(ERROR, "unrecognized node type: %d",
 				 (int) nodeTag(node));
