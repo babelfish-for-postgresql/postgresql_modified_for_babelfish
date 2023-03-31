@@ -77,6 +77,9 @@ pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook
 /* Hook for plugins to get control after an insert row transform */
 post_transform_insert_row_hook_type post_transform_insert_row_hook = NULL;
 
+/* Hook for handle target table before transforming from clause */
+set_target_table_alternative_hook_type set_target_table_alternative_hook = NULL;
+
 /* Hook to save to a namespace stack for handling statements with set ops */
 push_namespace_stack_hook_type push_namespace_stack_hook = NULL;
 
@@ -1935,7 +1938,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	/* tsql needs the leftmost query's targetlist and ns to handle ORDER BY */
 	if (pre_transform_sort_clause_hook)
 	{
-		pre_transform_sort_clause_hook(qry, leftmostQuery);
+		pre_transform_sort_clause_hook(pstate, qry, leftmostQuery);
 	}
 	// sv_targetList = qry->targetList;
 	// if (sql_dialect == SQL_DIALECT_TSQL)

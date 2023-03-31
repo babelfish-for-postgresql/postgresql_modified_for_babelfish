@@ -16,13 +16,6 @@
 
 #include "parser/parse_node.h"
 
-typedef struct namespace_stack {
-	struct namespace_stack *prev;
-	List *namespace;
-} NamespaceStack;
-
-extern NamespaceStack *set_op_ns_stack;
-
 extern void transformFromClause(ParseState *pstate, List *frmList);
 extern int	setTargetTable(ParseState *pstate, RangeVar *relation,
 						   bool inh, bool alsoSource, AclMode requiredPerms);
@@ -61,7 +54,7 @@ extern bool targetIsInSortList(TargetEntry *tle, Oid sortop, List *sortList);
 typedef bool (*tle_name_comparison_hook_type)(const char *tlename, const char *identifier);
 extern PGDLLIMPORT tle_name_comparison_hook_type tle_name_comparison_hook;
 
-typedef bool (*post_transform_from_clause_hook_type)(ParseState *pstate);
+typedef void (*post_transform_from_clause_hook_type)(ParseState *pstate);
 extern PGDLLIMPORT post_transform_from_clause_hook_type post_transform_from_clause_hook;
 
 #endif							/* PARSE_CLAUSE_H */
