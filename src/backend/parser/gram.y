@@ -829,7 +829,6 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 
 /* Precedence: lowest to highest */
 %nonassoc	SET				/* see relation_expr_opt_alias */
-%right		FORMAT
 %left		UNION EXCEPT
 %left		INTERSECT
 %left		OR
