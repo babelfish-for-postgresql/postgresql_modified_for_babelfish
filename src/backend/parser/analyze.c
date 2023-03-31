@@ -1753,13 +1753,11 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	List	   *targetvars,
 			   *targetnames,
 			   *sv_namespace;
-			//    *sv_targetList;
 	int			sv_rtable_length;
 	ParseNamespaceItem *jnsitem;
 	ParseNamespaceColumn *sortnscolumns;
 	int			sortcolindex;
 	int			tllen;
-	// NamespaceStack ns_stack_item = {.prev = NULL, .namespace = NIL};
 
 	qry->commandType = CMD_SELECT;
 
@@ -1820,14 +1818,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 
 	/* Push new stack item to save the leftmost SELECT's namespace */
 	if(push_namespace_stack_hook)
-	{
 		push_namespace_stack_hook();
-	}
-	// if (sql_dialect == SQL_DIALECT_TSQL)
-	// {
-	// 	ns_stack_item.prev = set_op_ns_stack;
-	// 	set_op_ns_stack = &ns_stack_item;
-	// }
 
 	/*
 	 * Recursively transform the components of the tree.
@@ -1937,17 +1928,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	
 	/* tsql needs the leftmost query's targetlist and ns to handle ORDER BY */
 	if (pre_transform_sort_clause_hook)
-	{
 		pre_transform_sort_clause_hook(pstate, qry, leftmostQuery);
-	}
-	// sv_targetList = qry->targetList;
-	// if (sql_dialect == SQL_DIALECT_TSQL)
-	// {
-	// 	qry->targetList = leftmostQuery->targetList;
-	// 	pstate->p_namespace = set_op_ns_stack->namespace;
-	// 	set_op_ns_stack = set_op_ns_stack->prev;
-	// }
-	
 
 	/*
 	 * For now, we don't support resjunk sort clauses on the output of a
@@ -1968,19 +1949,8 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	 * of -1. Reset the targetlist to the dummy tl, but fill in ressortgroupref
 	 */
 	if (post_transform_sort_clause_hook)
-	{
 		post_transform_sort_clause_hook(qry);
-	}
-	// if (sql_dialect == SQL_DIALECT_TSQL)
-	// {
-	// 	forboth(l, qry->targetList, lct, sv_targetList)
-	// 	{
-	// 		TargetEntry *tle = (TargetEntry *) lfirst(l);
-	// 		TargetEntry *sv_tle = (TargetEntry *) lfirst(lct);
-	// 		sv_tle->ressortgroupref = tle->ressortgroupref;
-	// 	}
-	// 	qry->targetList = sv_targetList;
-	// }
+
 	/* restore namespace, remove join RTE from rtable */
 	pstate->p_namespace = sv_namespace;
 	pstate->p_rtable = list_truncate(pstate->p_rtable, sv_rtable_length);
