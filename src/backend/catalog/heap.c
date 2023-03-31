@@ -1067,6 +1067,47 @@ AddNewRelationType(const char *typeName,
 				   InvalidOid); /* rowtypes never have a collation */
 }
 
+/* -------------------------------
+ *      CheckTempTableDependencies
+ *
+ *		User-defined types in TSQL will have typacl set. Types created during
+ *		Babelfish initialization such as nvarchar will not, so we can use typacl
+ * 		to determine if a type is user-defined.
+ *
+ *      Return 1 if there are dependencies on:
+ *		- User defined data types
+ */
+static int CheckTempTableHasDependencies(TupleDesc tupdesc)
+{
+	int i;
+	int	natts = tupdesc->natts;
+
+	for (i = 0; i < natts; i++)
+	{
+		Oid atttypid = TupleDescAttr(tupdesc, i)->atttypid;
+		HeapTuple tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
+
+		if (HeapTupleIsValid(tup))
+		{
+			bool isnull;
+			Form_pg_type typtup = (Form_pg_type) GETSTRUCT(tup);
+			if (typtup->typtype != TYPTYPE_DOMAIN)
+			{
+				continue;
+			}
+
+			SysCacheGetAttr(TYPEOID, tup, Anum_pg_type_typacl, &isnull);
+			if (!isnull)
+			{
+				ReleaseSysCache(tup);
+				return 1;
+			}
+			ReleaseSysCache(tup);
+		}
+	}
+	return 0;
+}
+
 /* --------------------------------
  *		heap_create_with_catalog
  *
@@ -1142,8 +1183,11 @@ heap_create_with_catalog(const char *relname,
 		/*
 		 * in TSQL, temporary table name should start with '#'.
 		 * If temporary table name does not start with '#', assume it is a PG temporary table.
-		 * This can happen in the case of internal query to create PG temporary table for Babelfish */
-		if (relname != 0 && strlen(relname) >= 1 && relname[0] == '#')
+		 * This can happen in the case of internal query to create PG temporary table for Babelfish
+		 *
+		 * Also skip ENR for cases where dependent objects might be involved.
+		 */
+		if (relname != 0 && strlen(relname) >= 1 && relname[0] == '#' && !CheckTempTableHasDependencies(tupdesc))
 			is_enr = true;
 	}
 
