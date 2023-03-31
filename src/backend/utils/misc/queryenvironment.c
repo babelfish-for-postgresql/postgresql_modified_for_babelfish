@@ -33,6 +33,8 @@
 #include "catalog/pg_statistic.h"
 #include "catalog/pg_statistic_ext.h"
 #include "catalog/pg_type.h"
+#include "catalog/pg_depend.h"
+#include "catalog/pg_shdepend.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
 #include "utils/inval.h"
 #include "utils/syscache.h"
@@ -263,7 +265,9 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 				reloid != AttributeRelationId && 
 				reloid != ConstraintRelationId && 
 				reloid != StatisticRelationId &&
-				reloid != StatisticExtRelationId)
+				reloid != StatisticExtRelationId &&
+				reloid != DependRelationId &&
+				reloid != SharedDependRelationId)
 		return NULL;
 
 	switch (nkeys) {
@@ -313,6 +317,48 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 					if (enr->md.name && strcmp(enr->md.name, (char*)v1) == 0) {
 						*tuplist = enr->md.cattups[ENR_CATTUP_CLASS];
 						*tuplist_i = 0;
+						return true;
+					}
+				}
+			}
+			else if (reloid == DependRelationId)
+			{
+				ListCell   *lc;
+				foreach(lc, enr->md.cattups[ENR_CATTUP_DEPEND]) {
+					Form_pg_depend tup = (Form_pg_depend) GETSTRUCT((HeapTuple) lfirst(lc));
+					if (indexId == DependDependerIndexId &&
+						tup->classid == (Oid)v1 &&
+						tup->objid == (Oid)v2) {
+						*tuplist = enr->md.cattups[ENR_CATTUP_DEPEND];
+						*tuplist_i = foreach_current_index(lc);
+						return true;
+					}
+					else if (indexId == DependReferenceIndexId &&
+							 tup->refclassid == (Oid)v1 &&
+							 tup->refobjid == (Oid)v2) {
+						*tuplist = enr->md.cattups[ENR_CATTUP_DEPEND];
+						*tuplist_i = foreach_current_index(lc);
+						return true;
+					}
+				}
+			}
+			else if (reloid == SharedDependRelationId)
+			{
+				ListCell   *lc;
+				foreach(lc, enr->md.cattups[ENR_CATTUP_SHDEPEND]) {
+					Form_pg_shdepend tup = (Form_pg_shdepend) GETSTRUCT((HeapTuple) lfirst(lc));
+					if (indexId == SharedDependDependerIndexId &&
+						tup->classid == (Oid)v1 &&
+						tup->objid == (Oid)v2) {
+						*tuplist = enr->md.cattups[ENR_CATTUP_SHDEPEND];
+						*tuplist_i = foreach_current_index(lc);
+						return true;
+					}
+					else if (indexId == SharedDependReferenceIndexId &&
+							 tup->refclassid == (Oid)v1 &&
+							 tup->refobjid == (Oid)v2) {
+						*tuplist = enr->md.cattups[ENR_CATTUP_SHDEPEND];
+						*tuplist_i = foreach_current_index(lc);
 						return true;
 					}
 				}
@@ -465,6 +511,44 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 	return false;
 }
 
+static EphemeralNamedRelation find_enr(Oid catalog_oid, Oid oid, Oid sub_oid)
+{
+	QueryEnvironment		*queryEnv = currentQueryEnv;
+	ListCell   *curlc;
+
+	while (queryEnv)
+	{
+		switch (catalog_oid) {
+			case RelationRelationId:
+				return get_ENR_withoid(queryEnv, oid);
+			case TypeRelationId:
+				foreach(curlc, queryEnv->namedRelList) {
+					EphemeralNamedRelation tmp_enr;
+					ListCell *type_lc;
+
+					tmp_enr = (EphemeralNamedRelation) lfirst(curlc);
+					foreach(type_lc, tmp_enr->md.cattups[ENR_CATTUP_TYPE])
+					{
+						Form_pg_type tup = ((Form_pg_type)GETSTRUCT((HeapTuple)lfirst(type_lc)));
+						if (tup->oid == oid)
+							return tmp_enr;
+					}
+					foreach(type_lc, tmp_enr->md.cattups[ENR_CATTUP_ARRAYTYPE])
+					{
+						Form_pg_type tup = ((Form_pg_type)GETSTRUCT((HeapTuple)lfirst(type_lc)));
+						if (tup->oid == oid)
+							return tmp_enr;
+					}
+				}
+				break;
+			default:
+				break;
+		}
+		queryEnv = queryEnv->parentEnv;
+	}
+	return NULL;
+}
+
 /*
  * Workhorse for add/update/drop tuples in the ENR.
  *
@@ -500,7 +584,52 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					ret = true;
 				}
 				break;
-			case TypeRelationId:
+			case DependRelationId:
+				{
+					Form_pg_depend tf1 = (Form_pg_depend) GETSTRUCT((HeapTuple)tup);
+					if ((enr = find_enr(tf1->classid, tf1->objid, tf1->objsubid))) {
+						ListCell *curlc;
+						Form_pg_depend tf2; /* tuple forms*/
+
+						list_ptr = &enr->md.cattups[ENR_CATTUP_DEPEND];
+						foreach(curlc, enr->md.cattups[ENR_CATTUP_DEPEND]) {
+							tf2 = (Form_pg_depend) GETSTRUCT((HeapTuple)lfirst(curlc));
+							if (tf1->classid == tf2->classid &&
+								tf1->objid == tf2->objid &&
+								tf1->objsubid == tf2->objsubid) { 
+								lc = curlc;
+								break;
+							}
+						}
+						ret = true;
+					}
+					break;
+				}
+			case SharedDependRelationId:
+				{
+					Form_pg_shdepend tf1 = (Form_pg_shdepend) GETSTRUCT((HeapTuple)tup);
+					//Assert(((Form_pg_shdepend) GETSTRUCT(tup))->classid == RelationRelationId);
+					rel_oid = ((Form_pg_shdepend) GETSTRUCT(tup))->objid;
+					if ((enr = get_ENR_withoid(queryEnv, rel_oid))) {
+						ListCell *curlc;
+						Form_pg_shdepend tf2; /* tuple forms*/
+
+						list_ptr = &enr->md.cattups[ENR_CATTUP_SHDEPEND];
+						foreach(curlc, enr->md.cattups[ENR_CATTUP_SHDEPEND]) {
+							tf2 = (Form_pg_shdepend) GETSTRUCT((HeapTuple)lfirst(curlc));
+							if (tf1->dbid == tf2->dbid &&
+								tf1->classid == tf2->classid &&
+								tf1->objid == tf2->objid &&
+								tf1->objsubid == tf2->objsubid) { 
+								lc = curlc;
+								break;
+							}
+						}
+						ret = true;
+					}
+					break;
+				}
+		case TypeRelationId:
 				/* Composite type */
 				if (((Form_pg_type) GETSTRUCT(tup))->typelem == InvalidOid) {
 					rel_oid = ((Form_pg_type) GETSTRUCT(tup))->typrelid;
@@ -643,7 +772,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				case ENR_OP_DROP:
 					tmp = lfirst(lc);
 					*list_ptr = list_delete_ptr(*list_ptr, tmp);
-					CacheInvalidateHeapTuple(catalog_rel, tup, NULL); 
+					CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
 					heap_freetuple(tmp);
 					break;
 				default:
