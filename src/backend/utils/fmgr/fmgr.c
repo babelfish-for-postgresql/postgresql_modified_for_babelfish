@@ -16,6 +16,7 @@
 #include "postgres.h"
 
 #include "access/detoast.h"
+#include "access/xact.h"
 #include "catalog/namespace.h"
 #include "catalog/pg_language.h"
 #include "catalog/pg_namespace.h"
@@ -773,12 +774,13 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 						GUC_ACTION_SAVE);
 	}
 
-	if (set_sql_dialect)
+	if (set_sql_dialect && IsTransactionState())
 	{
 		HeapTuple	tuple;
 		Form_pg_proc procedureStruct;
 		tuple = SearchSysCache1(PROCOID,
 								ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
+
 		if (!HeapTupleIsValid(tuple))
 			elog(ERROR, "cache lookup failed for function %u",
 				 fcinfo->flinfo->fn_oid);
