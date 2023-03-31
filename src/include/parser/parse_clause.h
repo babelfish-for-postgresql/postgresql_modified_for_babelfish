@@ -61,4 +61,7 @@ extern bool targetIsInSortList(TargetEntry *tle, Oid sortop, List *sortList);
 typedef bool (*tle_name_comparison_hook_type)(const char *tlename, const char *identifier);
 extern PGDLLIMPORT tle_name_comparison_hook_type tle_name_comparison_hook;
 
+typedef bool (*post_transform_from_clause_hook_type)(ParseState *pstate);
+extern PGDLLIMPORT post_transform_from_clause_hook_type post_transform_from_clause_hook;
+
 #endif							/* PARSE_CLAUSE_H */

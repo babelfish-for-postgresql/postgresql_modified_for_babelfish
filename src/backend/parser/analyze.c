@@ -77,8 +77,14 @@ pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook
 /* Hook for plugins to get control after an insert row transform */
 post_transform_insert_row_hook_type post_transform_insert_row_hook = NULL;
 
-/* Hook for handle target table before transforming from clause */
-set_target_table_alternative_hook_type set_target_table_alternative_hook = NULL;
+/* Hook to save to a namespace stack for handling statements with set ops */
+push_namespace_stack_hook_type push_namespace_stack_hook = NULL;
+
+/* Hook to change a query's targetlist and namespace to handle set ops */
+pre_transform_sort_clause_hook_type pre_transform_sort_clause_hook = NULL;
+
+/* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
+post_transform_sort_clause_hook_type post_transform_sort_clause_hook = NULL;
 
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
@@ -1743,14 +1749,14 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 			   *l;
 	List	   *targetvars,
 			   *targetnames,
-			   *sv_namespace,
-			   *sv_targetList;
+			   *sv_namespace;
+			//    *sv_targetList;
 	int			sv_rtable_length;
 	ParseNamespaceItem *jnsitem;
 	ParseNamespaceColumn *sortnscolumns;
 	int			sortcolindex;
 	int			tllen;
-	NamespaceStack ns_stack_item = {.prev = NULL, .namespace = NIL};
+	// NamespaceStack ns_stack_item = {.prev = NULL, .namespace = NIL};
 
 	qry->commandType = CMD_SELECT;
 
@@ -1810,11 +1816,15 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	}
 
 	/* Push new stack item to save the leftmost SELECT's namespace */
-	if (sql_dialect == SQL_DIALECT_TSQL)
+	if(push_namespace_stack_hook)
 	{
-		ns_stack_item.prev = set_op_ns_stack;
-		set_op_ns_stack = &ns_stack_item;
+		push_namespace_stack_hook();
 	}
+	// if (sql_dialect == SQL_DIALECT_TSQL)
+	// {
+	// 	ns_stack_item.prev = set_op_ns_stack;
+	// 	set_op_ns_stack = &ns_stack_item;
+	// }
 
 	/*
 	 * Recursively transform the components of the tree.
@@ -1923,13 +1933,17 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	addNSItemToQuery(pstate, jnsitem, false, false, true);
 	
 	/* tsql needs the leftmost query's targetlist and ns to handle ORDER BY */
-	sv_targetList = qry->targetList;
-	if (sql_dialect == SQL_DIALECT_TSQL)
+	if (pre_transform_sort_clause_hook)
 	{
-		qry->targetList = leftmostQuery->targetList;
-		pstate->p_namespace = set_op_ns_stack->namespace;
-		set_op_ns_stack = set_op_ns_stack->prev;
+		pre_transform_sort_clause_hook(qry, leftmostQuery);
 	}
+	// sv_targetList = qry->targetList;
+	// if (sql_dialect == SQL_DIALECT_TSQL)
+	// {
+	// 	qry->targetList = leftmostQuery->targetList;
+	// 	pstate->p_namespace = set_op_ns_stack->namespace;
+	// 	set_op_ns_stack = set_op_ns_stack->prev;
+	// }
 	
 
 	/*
@@ -1950,16 +1964,20 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	 * UNION ALL with Numeric types require the the TLE's var to have a typmod
 	 * of -1. Reset the targetlist to the dummy tl, but fill in ressortgroupref
 	 */
-	if (sql_dialect == SQL_DIALECT_TSQL)
+	if (post_transform_sort_clause_hook)
 	{
-		forboth(l, qry->targetList, lct, sv_targetList)
-		{
-			TargetEntry *tle = (TargetEntry *) lfirst(l);
-			TargetEntry *sv_tle = (TargetEntry *) lfirst(lct);
-			sv_tle->ressortgroupref = tle->ressortgroupref;
-		}
-		qry->targetList = sv_targetList;
+		post_transform_sort_clause_hook(qry);
 	}
+	// if (sql_dialect == SQL_DIALECT_TSQL)
+	// {
+	// 	forboth(l, qry->targetList, lct, sv_targetList)
+	// 	{
+	// 		TargetEntry *tle = (TargetEntry *) lfirst(l);
+	// 		TargetEntry *sv_tle = (TargetEntry *) lfirst(lct);
+	// 		sv_tle->ressortgroupref = tle->ressortgroupref;
+	// 	}
+	// 	qry->targetList = sv_targetList;
+	// }
 	/* restore namespace, remove join RTE from rtable */
 	pstate->p_namespace = sv_namespace;
 	pstate->p_rtable = list_truncate(pstate->p_rtable, sv_rtable_length);
