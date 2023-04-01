@@ -602,11 +602,8 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			 */
 		case T_TransactionStmt:
 			{
-				if(NestedTranCount > 0 || (sql_dialect == SQL_DIALECT_TSQL && !IsTransactionBlockActive()))
-				{
-					if (transactionStmt_hook)
-						(*transactionStmt_hook)(pstmt, params, qc); 
-				}
+				if (transactionStmt_hook)
+					(*transactionStmt_hook)(pstmt, params, qc); 
 				else
 				{
 					TransactionStmt *stmt = (TransactionStmt *) parsetree;
@@ -1665,10 +1662,8 @@ ProcessUtilitySlow(ParseState *pstate,
 				break;
 
 			case T_CreateFunctionStmt:	/* CREATE FUNCTION */
-				{
 					address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
 					break;
-				}
 
 			case T_AlterFunctionStmt:	/* ALTER FUNCTION */
 				address = AlterFunction(pstate, (AlterFunctionStmt *) parsetree);
