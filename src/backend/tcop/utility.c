@@ -602,8 +602,11 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			 */
 		case T_TransactionStmt:
 			{
+				if (NestedTranCount > 0 || (sql_dialect == SQL_DIALECT_TSQL && !IsTransactionBlockActive()))
+				{
 				if (transactionStmt_hook)
 					(*transactionStmt_hook)(pstmt, params, qc); 
+				}
 				else
 				{
 					TransactionStmt *stmt = (TransactionStmt *) parsetree;
