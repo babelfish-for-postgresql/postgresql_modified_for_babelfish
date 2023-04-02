@@ -1665,8 +1665,8 @@ ProcessUtilitySlow(ParseState *pstate,
 				break;
 
 			case T_CreateFunctionStmt:	/* CREATE FUNCTION */
-					address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
-					break;
+				address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
+				break;
 
 			case T_AlterFunctionStmt:	/* ALTER FUNCTION */
 				address = AlterFunction(pstate, (AlterFunctionStmt *) parsetree);
