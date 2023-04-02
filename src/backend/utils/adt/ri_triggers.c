@@ -101,7 +101,7 @@ do																											\
 	bool reset_dialect = (sql_dialect == SQL_DIALECT_TSQL);                                         \
 	if (reset_dialect)																						\
 		set_config_option("babelfishpg_tsql.sql_dialect", "postgres",										\
-			(superuser() ? PGC_SUSET : PGC_USERSET),						\
+			GUC_CONTEXT_CONFIG,						\
 			PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);												\
 																											\
 	PG_TRY();																								\
@@ -112,14 +112,14 @@ do																											\
 	{																										\
 		if (reset_dialect)																					\
 			set_config_option("babelfishpg_tsql.sql_dialect", "tsql",										\
-							(superuser() ? PGC_SUSET : PGC_USERSET),		\
+							GUC_CONTEXT_CONFIG,		\
 							PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);								\
 		PG_RE_THROW();																						\
 	}																										\
 	PG_END_TRY();																							\
 	if (reset_dialect)																						\
 		set_config_option("babelfishpg_tsql.sql_dialect", "tsql",											\
-						(superuser() ? PGC_SUSET : PGC_USERSET),			\
+						GUC_CONTEXT_CONFIG,			\
 						PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);									\
 } while (0)
 
