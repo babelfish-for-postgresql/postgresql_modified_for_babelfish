@@ -57,4 +57,7 @@ extern ParseNamespaceItem *transformJsonTable(ParseState *pstate, JsonTable *jt)
 typedef bool (*tle_name_comparison_hook_type)(const char *tlename, const char *identifier);
 extern PGDLLIMPORT tle_name_comparison_hook_type tle_name_comparison_hook;
 
+typedef void (*sortby_nulls_hook_type)(SortGroupClause *sortcl, bool reverse);
+extern PGDLLIMPORT sortby_nulls_hook_type sortby_nulls_hook;
+
 #endif							/* PARSE_CLAUSE_H */
