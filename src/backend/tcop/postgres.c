@@ -27,6 +27,10 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
+#ifdef USE_VALGRIND
+#include <valgrind/valgrind.h>
+#endif
+
 #include "access/parallel.h"
 #include "access/printtup.h"
 #include "access/xact.h"
@@ -191,6 +195,36 @@ static void drop_unnamed_stmt(void);
 static void log_disconnections(int code, Datum arg);
 static void enable_statement_timeout(void);
 static void disable_statement_timeout(void);
+
+
+/* ----------------------------------------------------------------
+ *		infrastructure for valgrind debugging
+ * ----------------------------------------------------------------
+ */
+#ifdef USE_VALGRIND
+/* This variable should be set at the top of the main loop. */
+static unsigned int old_valgrind_error_count;
+
+/*
+ * If Valgrind detected any errors since old_valgrind_error_count was updated,
+ * report the current query as the cause.  This should be called at the end
+ * of message processing.
+ */
+static void
+valgrind_report_error_query(const char *query)
+{
+	unsigned int valgrind_error_count = VALGRIND_COUNT_ERRORS;
+
+	if (unlikely(valgrind_error_count != old_valgrind_error_count) &&
+		query != NULL)
+		VALGRIND_PRINTF("Valgrind detected %u error(s) during execution of \"%s\"\n",
+						valgrind_error_count - old_valgrind_error_count,
+						query);
+}
+
+#else							/* !USE_VALGRIND */
+#define valgrind_report_error_query(query) ((void) 0)
+#endif							/* USE_VALGRIND */
 
 
 /* ----------------------------------------------------------------
@@ -2046,6 +2080,8 @@ exec_bind_message(StringInfo input_message)
 	if (save_log_statement_stats)
 		ShowUsage("BIND MESSAGE STATISTICS");
 
+	valgrind_report_error_query(debug_query_string);
+
 	debug_query_string = NULL;
 }
 
@@ -2299,6 +2335,8 @@ exec_execute_message(const char *portal_name, long max_rows)
 
 	if (save_log_statement_stats)
 		ShowUsage("EXECUTE MESSAGE STATISTICS");
+
+	valgrind_report_error_query(debug_query_string);
 
 	debug_query_string = NULL;
 }
@@ -4327,6 +4365,12 @@ PostgresMain(const char *dbname, const char *username)
 		EmitErrorReport();
 
 		/*
+		 * If Valgrind noticed something during the erroneous query, print the
+		 * query string, assuming we have one.
+		 */
+		valgrind_report_error_query(debug_query_string);
+
+		/*
 		 * Make sure debug_query_string gets reset before we possibly clobber
 		 * the storage it points at.
 		 */
@@ -4410,6 +4454,13 @@ PostgresMain(const char *dbname, const char *username)
 		 * errors encountered in "idle" state don't provoke skip.
 		 */
 		doing_extended_query_message = false;
+
+		/*
+		 * For valgrind reporting purposes, the "current query" begins here.
+		 */
+#ifdef USE_VALGRIND
+		old_valgrind_error_count = VALGRIND_COUNT_ERRORS;
+#endif
 
 		/*
 		 * Release storage left over from prior query cycle, and create a new
@@ -4625,6 +4676,8 @@ PostgresMain(const char *dbname, const char *username)
 					else
 						exec_simple_query(query_string);
 
+					valgrind_report_error_query(query_string);
+
 					send_ready_for_query = true;
 				}
 				break;
@@ -4654,6 +4707,8 @@ PostgresMain(const char *dbname, const char *username)
 
 					exec_parse_message(query_string, stmt_name,
 									   paramTypes, numParams);
+
+					valgrind_report_error_query(query_string);
 				}
 				break;
 
@@ -4668,6 +4723,8 @@ PostgresMain(const char *dbname, const char *username)
 				 * the field extraction out-of-line
 				 */
 				exec_bind_message(&input_message);
+
+				/* exec_bind_message does valgrind_report_error_query */
 				break;
 
 			case 'E':			/* execute */
@@ -4685,6 +4742,8 @@ PostgresMain(const char *dbname, const char *username)
 					pq_getmsgend(&input_message);
 
 					exec_execute_message(portal_name, max_rows);
+
+					/* exec_execute_message does valgrind_report_error_query */
 				}
 				break;
 
@@ -4717,6 +4776,8 @@ PostgresMain(const char *dbname, const char *username)
 
 				/* commit the function-invocation transaction */
 				finish_xact_command();
+
+				valgrind_report_error_query("fastpath function call");
 
 				send_ready_for_query = true;
 				break;
@@ -4762,6 +4823,8 @@ PostgresMain(const char *dbname, const char *username)
 
 					if (whereToSendOutput == DestRemote)
 						pq_putemptymessage('3');	/* CloseComplete */
+
+					valgrind_report_error_query("CLOSE message");
 				}
 				break;
 
@@ -4794,6 +4857,8 @@ PostgresMain(const char *dbname, const char *username)
 											describe_type)));
 							break;
 					}
+
+					valgrind_report_error_query("DESCRIBE message");
 				}
 				break;
 
@@ -4806,6 +4871,7 @@ PostgresMain(const char *dbname, const char *username)
 			case 'S':			/* sync */
 				pq_getmsgend(&input_message);
 				finish_xact_command();
+				valgrind_report_error_query("SYNC message");
 				send_ready_for_query = true;
 				break;
 
