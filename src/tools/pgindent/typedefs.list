@@ -957,7 +957,6 @@ GenerationPointer
 GenericCosts
 GenericXLogState
 GeqoPrivateData
-GetEPQSlotArg
 GetForeignJoinPaths_function
 GetForeignModifyBatchSize_function
 GetForeignPaths_function
@@ -1403,7 +1402,6 @@ LagTracker
 LargeObjectDesc
 LastAttnumInfo
 Latch
-LazyTupleTableSlot
 LerpFunc
 LexDescr
 LexemeEntry
