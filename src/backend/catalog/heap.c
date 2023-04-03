@@ -1076,7 +1076,6 @@ AddNewRelationType(const char *typeName,
  *
  *      Return 1 if there are dependencies on:
  *		- User defined data types
- * 		- Functions
  */
 static int CheckTempTableHasDependencies(TupleDesc tupdesc)
 {

@@ -608,7 +608,6 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 			case SharedDependRelationId:
 				{
 					Form_pg_shdepend tf1 = (Form_pg_shdepend) GETSTRUCT((HeapTuple)tup);
-					//Assert(((Form_pg_shdepend) GETSTRUCT(tup))->classid == RelationRelationId);
 					rel_oid = ((Form_pg_shdepend) GETSTRUCT(tup))->objid;
 					if ((enr = get_ENR_withoid(queryEnv, rel_oid))) {
 						ListCell *curlc;
