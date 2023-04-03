@@ -1660,7 +1660,7 @@ ProcessUtilitySlow(ParseState *pstate,
 			case T_CreateFunctionStmt:	/* CREATE FUNCTION */
 				{
 					if (CreateFunctionStmt_hook)
-						(*CreateFunctionStmt_hook)(pstate, pstmt, queryString, false, context, params); 
+						(*CreateFunctionStmt_hook)(pstate, pstmt, queryString, context, params); 
 					else
 					{
 						address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
