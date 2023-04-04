@@ -209,6 +209,7 @@
 #include "utils/rls.h"
 #include "utils/syscache.h"
 #include "utils/timeout.h"
+#include "utils/usercontext.h"
 
 #define NAPTIME_PER_CYCLE 1000	/* max sleep time between cycles (1s) */
 
@@ -2399,6 +2400,7 @@ apply_handle_insert(StringInfo s)
 	LogicalRepRelMapEntry *rel;
 	LogicalRepTupleData newtup;
 	LogicalRepRelId relid;
+	UserContext		ucxt;
 	ApplyExecutionData *edata;
 	EState	   *estate;
 	TupleTableSlot *remoteslot;
@@ -2426,6 +2428,9 @@ apply_handle_insert(StringInfo s)
 		end_replication_step();
 		return;
 	}
+
+	/* Make sure that any user-supplied code runs as the table owner. */
+	SwitchToUntrustedUser(rel->localrel->rd_rel->relowner, &ucxt);
 
 	/* Set relation for error callback */
 	apply_error_callback_arg.rel = rel;
@@ -2455,6 +2460,8 @@ apply_handle_insert(StringInfo s)
 
 	/* Reset relation for error callback */
 	apply_error_callback_arg.rel = NULL;
+
+	RestoreUserContext(&ucxt);
 
 	logicalrep_rel_close(rel, NoLock);
 
@@ -2534,6 +2541,7 @@ apply_handle_update(StringInfo s)
 {
 	LogicalRepRelMapEntry *rel;
 	LogicalRepRelId relid;
+	UserContext		ucxt;
 	ApplyExecutionData *edata;
 	EState	   *estate;
 	LogicalRepTupleData oldtup;
@@ -2572,6 +2580,9 @@ apply_handle_update(StringInfo s)
 
 	/* Check if we can do the update. */
 	check_relation_updatable(rel);
+
+	/* Make sure that any user-supplied code runs as the table owner. */
+	SwitchToUntrustedUser(rel->localrel->rd_rel->relowner, &ucxt);
 
 	/* Initialize the executor state. */
 	edata = create_edata_for_relation(rel);
@@ -2631,6 +2642,8 @@ apply_handle_update(StringInfo s)
 
 	/* Reset relation for error callback */
 	apply_error_callback_arg.rel = NULL;
+
+	RestoreUserContext(&ucxt);
 
 	logicalrep_rel_close(rel, NoLock);
 
@@ -2718,6 +2731,7 @@ apply_handle_delete(StringInfo s)
 	LogicalRepRelMapEntry *rel;
 	LogicalRepTupleData oldtup;
 	LogicalRepRelId relid;
+	UserContext		ucxt;
 	ApplyExecutionData *edata;
 	EState	   *estate;
 	TupleTableSlot *remoteslot;
@@ -2752,6 +2766,9 @@ apply_handle_delete(StringInfo s)
 	/* Check if we can do the delete. */
 	check_relation_updatable(rel);
 
+	/* Make sure that any user-supplied code runs as the table owner. */
+	SwitchToUntrustedUser(rel->localrel->rd_rel->relowner, &ucxt);
+
 	/* Initialize the executor state. */
 	edata = create_edata_for_relation(rel);
 	estate = edata->estate;
@@ -2776,6 +2793,8 @@ apply_handle_delete(StringInfo s)
 
 	/* Reset relation for error callback */
 	apply_error_callback_arg.rel = NULL;
+
+	RestoreUserContext(&ucxt);
 
 	logicalrep_rel_close(rel, NoLock);
 
@@ -3230,7 +3249,8 @@ apply_handle_truncate(StringInfo s)
 						relids,
 						relids_logged,
 						DROP_RESTRICT,
-						restart_seqs);
+						restart_seqs,
+						true);
 	foreach(lc, remote_rels)
 	{
 		LogicalRepRelMapEntry *rel = lfirst(lc);
