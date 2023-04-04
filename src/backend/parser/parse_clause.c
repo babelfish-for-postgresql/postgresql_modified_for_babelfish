@@ -55,6 +55,8 @@
 tle_name_comparison_hook_type  tle_name_comparison_hook = NULL;
 post_transform_from_clause_hook_type  post_transform_from_clause_hook = NULL;
 
+sortby_nulls_hook_type  sortby_nulls_hook = NULL;
+
 static int	extractRemainingColumns(ParseNamespaceColumn *src_nscolumns,
 									List *src_colnames,
 									List **src_colnos,
@@ -3391,6 +3393,10 @@ addTargetToSortList(ParseState *pstate, TargetEntry *tle,
 			case SORTBY_NULLS_DEFAULT:
 				/* NULLS FIRST is default for DESC; other way for ASC */
 				sortcl->nulls_first = reverse;
+				if (sortby_nulls_hook)
+				{
+					sortby_nulls_hook(sortcl, reverse);
+				}
 				break;
 			case SORTBY_NULLS_FIRST:
 				sortcl->nulls_first = true;

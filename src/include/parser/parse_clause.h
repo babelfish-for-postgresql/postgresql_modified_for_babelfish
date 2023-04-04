@@ -57,4 +57,7 @@ extern PGDLLIMPORT tle_name_comparison_hook_type tle_name_comparison_hook;
 typedef void (*post_transform_from_clause_hook_type)(ParseState *pstate);
 extern PGDLLIMPORT post_transform_from_clause_hook_type post_transform_from_clause_hook;
 
+typedef void (*sortby_nulls_hook_type)(SortGroupClause *sortcl, bool reverse);
+extern PGDLLIMPORT sortby_nulls_hook_type sortby_nulls_hook;
+
 #endif							/* PARSE_CLAUSE_H */
