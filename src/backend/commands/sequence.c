@@ -384,7 +384,7 @@ fill_seq_fork_with_data(Relation rel, HeapTuple tuple, ForkNumber forkNum)
 
 	/* Initialize first page of relation with special magic number */
 
-	buf = ReadBufferExtended(rel, forkNum, P_NEW, RBM_NORMAL, NULL);
+	buf = ReadBufferExtended(rel, forkNum, P_NEW, RBM_ZERO_AND_LOCK, NULL);
 	Assert(BufferGetBlockNumber(buf) == 0);
 
 	page = BufferGetPage(buf);
@@ -394,8 +394,6 @@ fill_seq_fork_with_data(Relation rel, HeapTuple tuple, ForkNumber forkNum)
 	sm->magic = SEQ_MAGIC;
 
 	/* Now insert sequence tuple */
-
-	LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 
 	/*
 	 * Since VACUUM does not process sequences, we have to force the tuple to
