@@ -3432,3 +3432,9 @@ trace_recovery(int trace_level)
 
 	return trace_level;
 }
+
+bool
+error_stack_full(void)
+{
+	return (errordata_stack_depth+1 >= ERRORDATA_STACK_SIZE);
+}

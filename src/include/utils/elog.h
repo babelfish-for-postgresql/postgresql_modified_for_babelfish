@@ -470,4 +470,5 @@ extern void set_syslog_parameters(const char *ident, int facility);
  */
 extern void write_stderr(const char *fmt,...) pg_attribute_printf(1, 2);
 
+extern bool error_stack_full(void);
 #endif							/* ELOG_H */
