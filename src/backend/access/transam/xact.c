@@ -2726,8 +2726,7 @@ AbortTransaction(void)
 	pgstat_report_wait_end();
 	pgstat_progress_end_command();
 
-	/* Clean up buffer I/O and buffer context locks, too */
-	AbortBufferIO();
+	/* Clean up buffer context locks, too */
 	UnlockBuffers();
 
 	/* Reset WAL record construction state */
@@ -5087,7 +5086,6 @@ AbortSubTransaction(void)
 
 	pgstat_report_wait_end();
 	pgstat_progress_end_command();
-	AbortBufferIO();
 	UnlockBuffers();
 
 	/* Reset WAL record construction state */
