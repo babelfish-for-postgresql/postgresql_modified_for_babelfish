@@ -1781,6 +1781,8 @@ GetBulkInsertState(void)
 	bistate = (BulkInsertState) palloc(sizeof(BulkInsertStateData));
 	bistate->strategy = GetAccessStrategy(BAS_BULKWRITE);
 	bistate->current_buf = InvalidBuffer;
+	bistate->next_free = InvalidBlockNumber;
+	bistate->last_free = InvalidBlockNumber;
 	return bistate;
 }
 
