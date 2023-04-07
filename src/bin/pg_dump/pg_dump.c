@@ -29,6 +29,8 @@
  *
  *-------------------------------------------------------------------------
  */
+
+
 #include "postgres_fe.h"
 
 #include <unistd.h>
@@ -67,6 +69,7 @@
 #include "pg_dump.h"
 #include "storage/block.h"
 
+// #include "c.h"
 typedef struct
 {
 	Oid			roleoid;		/* role's OID */
@@ -2142,11 +2145,17 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	PQExpBuffer q = createPQExpBuffer();
 	PQExpBuffer insertStmt = NULL;
 	char	   *attgenerated;
+	char       **atttypnames;
 	PGresult   *res;
 	int			nfields,
 				i;
 	int			rows_per_statement = dopt->dump_inserts;
 	int			rows_this_statement = 0;
+	int 		ncol =0;
+	int 		nfield;
+	char* type;
+	bytea* value;
+	int typmod;
 
 	/*
 	 * If we're going to emit INSERTs with column names, the most efficient
@@ -2156,6 +2165,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	 * rather than the uninteresting-to-us value.
 	 */
 	attgenerated = (char *) pg_malloc(tbinfo->numatts * sizeof(char));
+	atttypnames = (char **) pg_malloc(3* tbinfo->numatts * sizeof(char *));
 	appendPQExpBufferStr(q, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
 	nfields = 0;
 	for (i = 0; i < tbinfo->numatts; i++)
@@ -2176,11 +2186,25 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			appendPQExpBufferStr(q, ", ");
 		if (tbinfo->attgenerated[i])
 			appendPQExpBufferStr(q, "NULL");
-		else
+		else{
 			appendPQExpBufferStr(q, fmtId(tbinfo->attnames[i]));
+			if (pg_strcasecmp(tbinfo->atttypnames[i],
+				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0){
+				appendPQExpBuffer(q, ", sys.SQL_VARIANT_PROPERTY(%s, 'BaseType')", tbinfo->attnames[i]);
+				appendPQExpBuffer(q, ", sys.sqlvariantsend(%s)", tbinfo->attnames[i]);
+				atttypnames[ncol++] = tbinfo->atttypnames[i];
+				ncol++;
+				// atttypnames[ncol++] = tbinfo->atttypnames[i];
+				// attgenerated[nfields] = tbinfo->attgenerated[i];
+				// atttypnames[nfields] = tbinfo->atttypnames[i];
+				// i--;
+			}
+		}
 		attgenerated[nfields] = tbinfo->attgenerated[i];
-		nfields++;
+		atttypnames[ncol] = tbinfo->atttypnames[i];
+		nfields++; ncol++;
 	}
+	pg_log_info("query: %s", q->data);
 	/* Servers before 9.4 will complain about zero-column SELECT */
 	if (nfields == 0)
 		appendPQExpBufferStr(q, "NULL");
@@ -2197,11 +2221,13 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		res = ExecuteSqlQuery(fout, "FETCH 100 FROM _pg_dump_cursor",
 							  PGRES_TUPLES_OK);
 
+		pg_log_info("nfields: %d, ncol: %d, res: %d", nfields, ncol, PQnfields(res));
 		/* cross-check field count, allowing for dummy NULL if any */
 		if (nfields != PQnfields(res) &&
 			!(nfields == 0 && PQnfields(res) == 1))
-			pg_fatal("wrong number of fields retrieved from table \"%s\"",
-					 tbinfo->dobj.name);
+			if(!(PQnfields(res) == ncol))
+				pg_fatal("wrong number of fields retrieved from table \"%s\"",
+						 tbinfo->dobj.name);
 
 		/*
 		 * First time through, we build as much of the INSERT statement as
@@ -2240,11 +2266,19 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				if (dopt->column_inserts)
 				{
 					appendPQExpBufferChar(insertStmt, '(');
-					for (int field = 0; field < nfields; field++)
+					// nfield = 0;
+					for (int field = 0; field < ncol; field++)
 					{
+						pg_log_info("colname: %s", PQfname(res, field));
 						if (field > 0)
 							appendPQExpBufferStr(insertStmt, ", ");
-						appendPQExpBufferStr(insertStmt,
+						if (pg_strcasecmp(atttypnames[field],
+							quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0){
+								appendPQExpBufferStr(insertStmt,
+											 fmtId(PQfname(res, field++)));
+								field++;
+						}
+						else appendPQExpBufferStr(insertStmt,
 											 fmtId(PQfname(res, field)));
 					}
 					appendPQExpBufferStr(insertStmt, ") ");
@@ -2283,11 +2317,16 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			else
 				archputs("\n\t(", fout);
 
-			for (int field = 0; field < nfields; field++)
+			nfield = 0;
+			for (int field = 0; field < ncol; field++)
 			{
+				// pg_log_info("colname: %s", PQfname(res, field));
+				if (pg_strcasecmp(PQfname(res, field),"sql_variant_property") == 0)
+						continue;
+
 				if (field > 0)
 					archputs(", ", fout);
-				if (attgenerated[field])
+				if (attgenerated[nfield])
 				{
 					archputs("DEFAULT", fout);
 					continue;
@@ -2348,7 +2387,80 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 						appendStringLiteralAH(q,
 											  PQgetvalue(res, tuple, field),
 											  fout);
-						archputs(q->data, fout);
+						if (pg_strcasecmp(atttypnames[field],
+							quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0){
+								archprintf(fout, "CAST(%s AS ", q->data);
+								type = PQgetvalue(res, tuple, field+1);
+								value = (bytea*) PQgetvalue(res, tuple, field+2);
+								// typmod = VARSIZE_ANY_EXHDR(value);
+								// pg_log_info("type: %s, value:%s byteavalue: %s, typmod: %d", type, PQgetvalue(res, tuple, field+2), value, typmod);
+								if(pg_strcasecmp(type, "datetime2")==0){
+									archprintf(fout, "%s.",fmtId("sys"));
+									archprintf(fout, "%s", fmtId(type));
+								}
+								else if(pg_strcasecmp(type, "datetime")==0){
+									archprintf(fout, "%s.",fmtId("sys"));
+									archprintf(fout, "%s", fmtId(type));
+								}
+								else if(pg_strcasecmp(type, "datetimeoffset")==0){
+									archprintf(fout, "%s.",fmtId("sys"));
+									archprintf(fout, "%s", fmtId(type));
+								}
+								else if(pg_strcasecmp(type, "smalldatetime")==0){
+									archprintf(fout, "%s.",fmtId("sys"));
+									archprintf(fout, "%s", fmtId(type));
+								}
+								else if(pg_strcasecmp(type, "nvarchar")==0){
+									archprintf(fout, "%s.",fmtId("sys"));
+									archprintf(fout, "%s(%d)", fmtId(type), typmod);
+								}
+								else if(pg_strcasecmp(type, "varbinary")==0){
+									// typmod = VARSIZE_ANY_EXHDR(PQgetvalue(res, tuple, field));
+									archprintf(fout, "%s.",fmtId("sys"));
+									// archprintf(fout, "%s(%d)", fmtId(type), typmod);
+								}
+								else if(pg_strcasecmp(type, "uniqueidentifier")==0){
+									archprintf(fout, "%s.",fmtId("sys"));
+									archprintf(fout, "%s", fmtId(type));
+								}
+								else if(pg_strcasecmp(type, "smallmoney")==0){
+									archprintf(fout, "%s.",fmtId("sys"));
+									archprintf(fout, "%s", fmtId(type));
+								}
+								else if(pg_strcasecmp(type, "tinyint")==0){
+									archprintf(fout, "%s.",fmtId("sys"));
+									archprintf(fout, "%s", fmtId(type));
+								}
+								else if(pg_strcasecmp(type, "binary")==0){
+									// typmod = VARSIZE_ANY_EXHDR(PQgetvalue(res, tuple, field));
+									archprintf(fout, "%s.",fmtId("sys"));
+									// archprintf(fout, "%s(%d)", fmtId(type), typmod);
+								}
+								else if(pg_strcasecmp(type, "money")==0){
+									archprintf(fout, "%s.",fmtId("sys"));
+									archprintf(fout, "%s", fmtId(type));
+								}
+								else if(pg_strcasecmp(type, "bit")==0){
+									archprintf(fout, "%s.",fmtId("sys"));
+									archprintf(fout, "%s", fmtId(type));
+								}
+								else if(pg_strcasecmp(type, "nchar")==0){
+									// typmod = VARSIZE_ANY_EXHDR(PQgetvalue(res, tuple, field));
+									archprintf(fout, "%s.",fmtId("sys"));
+									// archprintf(fout, "%s(%d)", fmtId(type), typmod);
+								}
+								else if(pg_strcasecmp(type, "char")==0){
+									// typmod = VARSIZE_ANY_EXHDR(PQgetvalue(res, tuple, field));
+									archprintf(fout, "%s.",fmtId("sys"));
+									// archprintf(fout, "%s(%d)", fmtId(type), typmod);
+								}
+								else 
+									archprintf(fout, "%s",type);
+								archputs(")", fout);
+								field = field+2;
+						}
+						else
+							archputs(q->data, fout);
 						break;
 				}
 			}
@@ -2366,8 +2478,9 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				/* Reset the row counter */
 				rows_this_statement = 0;
 			}
+			nfield++;
 		}
-
+		pg_log_info("%d",PQntuples(res));
 		if (PQntuples(res) <= 0)
 		{
 			PQclear(res);
