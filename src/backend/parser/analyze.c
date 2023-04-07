@@ -44,6 +44,7 @@
 #include "parser/parse_relation.h"
 #include "parser/parse_target.h"
 #include "parser/parse_type.h"
+#include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteManip.h"
 #include "utils/backend_status.h"
@@ -77,6 +78,15 @@ post_transform_insert_row_hook_type post_transform_insert_row_hook = NULL;
 
 /* Hook for handle target table before transforming from clause */
 set_target_table_alternative_hook_type set_target_table_alternative_hook = NULL;
+
+/* Hook to save to a namespace stack for handling statements with set ops */
+push_namespace_stack_hook_type push_namespace_stack_hook = NULL;
+
+/* Hook to change a query's targetlist and namespace to handle set ops */
+pre_transform_sort_clause_hook_type pre_transform_sort_clause_hook = NULL;
+
+/* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
+post_transform_sort_clause_hook_type post_transform_sort_clause_hook = NULL;
 
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
@@ -1760,6 +1770,10 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 		qry->hasModifyingCTE = pstate->p_hasModifyingCTE;
 	}
 
+	/* Push new stack item to save the leftmost SELECT's namespace */
+	if(push_namespace_stack_hook)
+		push_namespace_stack_hook();
+
 	/*
 	 * Recursively transform the components of the tree.
 	 */
@@ -1865,6 +1879,10 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 
 	/* add jnsitem to column namespace only */
 	addNSItemToQuery(pstate, jnsitem, false, false, true);
+	
+	/* tsql needs the leftmost query's targetlist and ns to handle ORDER BY */
+	if (pre_transform_sort_clause_hook)
+		pre_transform_sort_clause_hook(pstate, qry, leftmostQuery);
 
 	/*
 	 * For now, we don't support resjunk sort clauses on the output of a
@@ -1879,6 +1897,13 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 										  &qry->targetList,
 										  EXPR_KIND_ORDER_BY,
 										  false /* allow SQL92 rules */ );
+
+	/* 
+	 * UNION ALL with Numeric types require the the TLE's var to have a typmod
+	 * of -1. Reset the targetlist to the dummy tl, but fill in ressortgroupref
+	 */
+	if (post_transform_sort_clause_hook)
+		post_transform_sort_clause_hook(qry);
 
 	/* restore namespace, remove join RTE from rtable */
 	pstate->p_namespace = sv_namespace;

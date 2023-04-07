@@ -53,6 +53,7 @@
 #include "utils/syscache.h"
 
 tle_name_comparison_hook_type  tle_name_comparison_hook = NULL;
+post_transform_from_clause_hook_type  post_transform_from_clause_hook = NULL;
 
 static int	extractRemainingColumns(ParseNamespaceColumn *src_nscolumns,
 									List *src_colnames,
@@ -151,6 +152,13 @@ transformFromClause(ParseState *pstate, List *frmList)
 	 * but those should have been that way already.
 	 */
 	setNamespaceLateralState(pstate->p_namespace, false, true);
+
+	/* 
+	 * Save the namespace -- tsql needs the leftmost select's namespace to
+	 * resolve some ORDER BY clauses used with set operations (i.e. UNION) 
+	 */
+	if (post_transform_from_clause_hook)
+		post_transform_from_clause_hook(pstate);
 }
 
 /*
