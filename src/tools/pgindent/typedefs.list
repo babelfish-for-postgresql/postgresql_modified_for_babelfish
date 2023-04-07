@@ -2054,6 +2054,7 @@ PgStat_Kind
 PgStat_KindInfo
 PgStat_LocalState
 PgStat_PendingDroppedStatsItem
+PgStat_PendingIO
 PgStat_PendingWalStats
 PgStat_SLRUStats
 PgStat_ShmemControl
