@@ -1704,6 +1704,7 @@ PGEventResultDestroy
 PGFInfoFunction
 PGFileType
 PGFunction
+PGIOAlignedBlock
 PGLZ_HistEntry
 PGLZ_Strategy
 PGLoadBalanceType
