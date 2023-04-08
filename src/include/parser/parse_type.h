@@ -15,8 +15,6 @@
 
 #include "access/htup.h"
 #include "parser/parse_node.h"
-#include "tcop/cmdtag.h"
-#include "parser/parse_type.h"
 
 
 typedef HeapTuple Type;

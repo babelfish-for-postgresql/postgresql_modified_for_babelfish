@@ -61,7 +61,6 @@
 #include "commands/view.h"
 #include "miscadmin.h"
 #include "parser/parser.h"
-#include "parser/parse_type.h"
 #include "parser/parse_utilcmd.h"
 #include "postmaster/bgwriter.h"
 #include "rewrite/rewriteDefine.h"
@@ -1666,7 +1665,7 @@ ProcessUtilitySlow(ParseState *pstate,
 						address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
 					}
 					break;
-			}
+				}
 
 			case T_AlterFunctionStmt:	/* ALTER FUNCTION */
 				address = AlterFunction(pstate, (AlterFunctionStmt *) parsetree);
