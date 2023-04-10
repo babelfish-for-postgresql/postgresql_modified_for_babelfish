@@ -31,6 +31,7 @@
 #include "utils/datetime.h"
 #include "utils/memutils.h"
 #include "utils/tzparser.h"
+#include "parser/parser.h"
 
 static int	DecodeNumber(int flen, char *field, bool haveTextMonth,
 						 int fmask, int *tmask,
@@ -1972,6 +1973,12 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 					if (dterr)
 						return dterr;
 				}
+				/*
+				 * For date format like 'yyyy-mm-dd', we should return time 00:00:00.0000000
+				 * instead of marking it as invalid time format
+				 */
+				else if (sql_dialect == SQL_DIALECT_TSQL && nf == 1 && ftype[nf - 1] == DTK_DATE)
+					return 0;
 				/* otherwise, this is a time and/or time zone */
 				else
 				{
