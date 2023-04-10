@@ -602,99 +602,97 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			 */
 		case T_TransactionStmt:
 			{
-				if(sql_dialect != SQL_DIALECT_TSQL )
-				{
-					TransactionStmt *stmt = (TransactionStmt *) parsetree;
-
-					switch (stmt->kind)
-					{
-							/*
-							* START TRANSACTION, as defined by SQL99: Identical
-							* to BEGIN.  Same code for both.
-							*/
-						case TRANS_STMT_BEGIN:
-						case TRANS_STMT_START:
-							{
-								ListCell   *lc;
-
-								BeginTransactionBlock();
-								foreach(lc, stmt->options)
-								{
-									DefElem    *item = (DefElem *) lfirst(lc);
-
-									if (strcmp(item->defname, "transaction_isolation") == 0)
-										SetPGVariable("transaction_isolation",
-													list_make1(item->arg),
-													true);
-									else if (strcmp(item->defname, "transaction_read_only") == 0)
-										SetPGVariable("transaction_read_only",
-													list_make1(item->arg),
-													true);
-									else if (strcmp(item->defname, "transaction_deferrable") == 0)
-										SetPGVariable("transaction_deferrable",
-													list_make1(item->arg),
-													true);
-								}
-							}
-							break;
-
-						case TRANS_STMT_COMMIT:
-							if (!EndTransactionBlock(stmt->chain))
-							{
-								/* report unsuccessful commit in qc */
-								if (qc)
-									SetQueryCompletion(qc, CMDTAG_ROLLBACK, 0);
-							}
-							break;
-
-						case TRANS_STMT_PREPARE:
-							if (!PrepareTransactionBlock(stmt->gid))
-							{
-								/* report unsuccessful commit in qc */
-								if (qc)
-									SetQueryCompletion(qc, CMDTAG_ROLLBACK, 0);
-							}
-							break;
-
-						case TRANS_STMT_COMMIT_PREPARED:
-							PreventInTransactionBlock(isTopLevel, "COMMIT PREPARED");
-							FinishPreparedTransaction(stmt->gid, true);
-							break;
-
-						case TRANS_STMT_ROLLBACK_PREPARED:
-							PreventInTransactionBlock(isTopLevel, "ROLLBACK PREPARED");
-							FinishPreparedTransaction(stmt->gid, false);
-							break;
-
-						case TRANS_STMT_ROLLBACK:
-							UserAbortTransactionBlock(stmt->chain);
-							break;
-
-						case TRANS_STMT_SAVEPOINT:
-							RequireTransactionBlock(isTopLevel, "SAVEPOINT");
-							DefineSavepoint(stmt->savepoint_name);
-							break;
-
-						case TRANS_STMT_RELEASE:
-							RequireTransactionBlock(isTopLevel, "RELEASE SAVEPOINT");
-							ReleaseSavepoint(stmt->savepoint_name);
-							break;
-
-						case TRANS_STMT_ROLLBACK_TO:
-							RequireTransactionBlock(isTopLevel, "ROLLBACK TO SAVEPOINT");
-							RollbackToSavepoint(stmt->savepoint_name);
-
-							/*
-							* CommitTransactionCommand is in charge of
-							* re-defining the savepoint again
-							*/
-							break;
-					}
-				}
-				else
+				TransactionStmt *stmt = (TransactionStmt *) parsetree;
+				if(sql_dialect == SQL_DIALECT_TSQL )
 				{
 					if (transactionStmt_hook)
 						(*transactionStmt_hook)(pstmt, params, qc); 
+					break;
+				}
+
+				switch (stmt->kind)
+				{
+						/*
+						* START TRANSACTION, as defined by SQL99: Identical
+						* to BEGIN.  Same code for both.
+						*/
+					case TRANS_STMT_BEGIN:
+					case TRANS_STMT_START:
+						{
+							ListCell   *lc;
+
+							BeginTransactionBlock();
+							foreach(lc, stmt->options)
+							{
+								DefElem    *item = (DefElem *) lfirst(lc);
+
+								if (strcmp(item->defname, "transaction_isolation") == 0)
+									SetPGVariable("transaction_isolation",
+												list_make1(item->arg),
+												true);
+								else if (strcmp(item->defname, "transaction_read_only") == 0)
+									SetPGVariable("transaction_read_only",
+												list_make1(item->arg),
+												true);
+								else if (strcmp(item->defname, "transaction_deferrable") == 0)
+									SetPGVariable("transaction_deferrable",
+												list_make1(item->arg),
+												true);
+							}
+						}
+						break;
+
+					case TRANS_STMT_COMMIT:
+						if (!EndTransactionBlock(stmt->chain))
+						{
+							/* report unsuccessful commit in qc */
+							if (qc)
+								SetQueryCompletion(qc, CMDTAG_ROLLBACK, 0);
+						}
+						break;
+						
+					case TRANS_STMT_PREPARE:
+						if (!PrepareTransactionBlock(stmt->gid))
+						{
+							/* report unsuccessful commit in qc */
+							if (qc)
+								SetQueryCompletion(qc, CMDTAG_ROLLBACK, 0);
+						}
+						break;
+
+					case TRANS_STMT_COMMIT_PREPARED:
+						PreventInTransactionBlock(isTopLevel, "COMMIT PREPARED");
+						FinishPreparedTransaction(stmt->gid, true);
+						break;
+
+					case TRANS_STMT_ROLLBACK_PREPARED:
+						PreventInTransactionBlock(isTopLevel, "ROLLBACK PREPARED");
+						FinishPreparedTransaction(stmt->gid, false);
+						break;
+
+					case TRANS_STMT_ROLLBACK:
+						UserAbortTransactionBlock(stmt->chain);
+						break;
+
+					case TRANS_STMT_SAVEPOINT:
+						RequireTransactionBlock(isTopLevel, "SAVEPOINT");
+						DefineSavepoint(stmt->savepoint_name);
+						break;
+
+					case TRANS_STMT_RELEASE:
+						RequireTransactionBlock(isTopLevel, "RELEASE SAVEPOINT");
+						ReleaseSavepoint(stmt->savepoint_name);
+						break;
+
+					case TRANS_STMT_ROLLBACK_TO:
+						RequireTransactionBlock(isTopLevel, "ROLLBACK TO SAVEPOINT");
+						RollbackToSavepoint(stmt->savepoint_name);
+
+						/*
+						* CommitTransactionCommand is in charge of
+						* re-defining the savepoint again
+						*/
+						break;
 				}
 			}
 			break;
