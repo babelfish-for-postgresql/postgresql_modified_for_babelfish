@@ -559,6 +559,11 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 	qual = transformWhereClause(pstate, stmt->whereClause,
 								EXPR_KIND_WHERE, "WHERE");
 
+	qry->limitCount = transformLimitClause(pstate, stmt->limitCount,
+										EXPR_KIND_LIMIT, "LIMIT",
+										LIMIT_OPTION_COUNT);
+	qry->limitOption = LIMIT_OPTION_COUNT;
+
 	if (pre_transform_returning_hook)
 		(*pre_transform_returning_hook) (qry, stmt->returningList, pstate);
 	
@@ -2512,6 +2517,11 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 	else
 		qual = transformWhereClause(pstate, stmt->whereClause,
 								EXPR_KIND_WHERE, "WHERE");
+
+	qry->limitCount = transformLimitClause(pstate, stmt->limitCount,
+									EXPR_KIND_LIMIT, "LIMIT",
+									LIMIT_OPTION_COUNT);
+	qry->limitOption = LIMIT_OPTION_COUNT;
 
 	qry->returningList = transformReturningList(pstate, stmt->returningList);
 
