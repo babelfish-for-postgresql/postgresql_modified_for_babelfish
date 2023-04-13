@@ -76,6 +76,7 @@
 
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
+miscProcessUtility_hook_type miscProcessUtility_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -559,6 +560,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 	bool		isAtomicContext = (!(context == PROCESS_UTILITY_TOPLEVEL || context == PROCESS_UTILITY_QUERY_NONATOMIC) || IsTransactionBlock());
 	ParseState *pstate;
 	int			readonly_flags;
+	int flag = false;
 
 	/* This can recurse, so check for excessive recursion */
 	check_stack_depth();
@@ -593,6 +595,17 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 	pstate = make_parsestate(NULL);
 	pstate->p_sourcetext = queryString;
 	pstate->p_queryEnv = queryEnv;
+
+	if(sql_dialect == SQL_DIALECT_TSQL)
+	{
+		if(miscProcessUtility_hook)
+			(*miscProcessUtility_hook)(pstate, pstmt, queryString, context, params, qc, &flag);
+	}
+	
+	if(flag)
+	{
+		return;
+	}
 
 	switch (nodeTag(parsetree))
 	{
