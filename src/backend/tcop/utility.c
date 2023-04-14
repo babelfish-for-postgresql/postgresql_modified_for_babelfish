@@ -596,11 +596,9 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 	pstate->p_sourcetext = queryString;
 	pstate->p_queryEnv = queryEnv;
 
-	if(sql_dialect == SQL_DIALECT_TSQL)
-	{
-		if(miscProcessUtility_hook)
-			(*miscProcessUtility_hook)(pstate, pstmt, queryString, context, params, qc, &flag);
-	}
+	if(miscProcessUtility_hook)
+		(*miscProcessUtility_hook)(pstate, pstmt, queryString, context, params, qc, &flag);
+
 	
 	if(flag)
 	{
