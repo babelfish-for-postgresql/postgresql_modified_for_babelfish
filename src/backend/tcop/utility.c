@@ -599,7 +599,6 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 	if(miscProcessUtility_hook)
 		(*miscProcessUtility_hook)(pstate, pstmt, queryString, context, params, qc, &flag);
 
-	
 	if(flag)
 	{
 		return;
