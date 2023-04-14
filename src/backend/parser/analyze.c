@@ -686,6 +686,11 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 	icolumns = checkInsertTargets(pstate, stmt->cols, &attrnos);
 	Assert(list_length(icolumns) == list_length(attrnos));
 
+	qry->limitCount = transformLimitClause(pstate, stmt->limitCount,
+											EXPR_KIND_LIMIT, "LIMIT",
+											LIMIT_OPTION_COUNT);
+	qry->limitOption = LIMIT_OPTION_COUNT;
+
 	/*
 	 * For INSERT ... EXECUTE, transform the CallStmt/DoStmt, and attach it to
 	 * the Query's utilityStmt.

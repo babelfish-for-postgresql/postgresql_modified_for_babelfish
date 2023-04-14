@@ -3276,6 +3276,7 @@ _copyInsertStmt(const InsertStmt *from)
 	COPY_NODE_FIELD(withClause);
 	COPY_SCALAR_FIELD(override);
 	COPY_NODE_FIELD(execStmt);
+	COPY_NODE_FIELD(limitCount);
 
 	return newnode;
 }

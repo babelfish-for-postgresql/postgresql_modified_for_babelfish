@@ -1637,6 +1637,7 @@ typedef struct InsertStmt
 	WithClause *withClause;		/* WITH clause */
 	OverridingKind override;	/* OVERRIDING clause */
 	Node	   *execStmt; 		/* for INSERT ... EXECUTE */
+	Node       *limitCount;
 } InsertStmt;
 
 /* ----------------------
