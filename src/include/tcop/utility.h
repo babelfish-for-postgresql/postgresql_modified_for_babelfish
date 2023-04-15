@@ -109,4 +109,7 @@ extern LogStmtLevel GetCommandLogLevel(Node *parsetree);
 
 extern bool CommandIsReadOnly(PlannedStmt *pstmt);
 
+typedef void (*drop_extension_tds_fdw_hook_type) (void);
+extern PGDLLIMPORT drop_extension_tds_fdw_hook_type	drop_extension_tds_fdw_hook;
+
 #endif							/* UTILITY_H */

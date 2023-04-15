@@ -76,6 +76,11 @@
 
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
+/* 
+Hook for clearing sys.babelfish_server_options catalog when 
+DROP EXTENSION tds_fdw; is executed
+*/
+drop_extension_tds_fdw_hook_type drop_extension_tds_fdw_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -992,6 +997,9 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 		case T_DropStmt:
 			{
 				DropStmt   *stmt = (DropStmt *) parsetree;
+
+				if (strcmp(tolower(queryString), "drop extension tds_fdw cascade;") == 0 && drop_extension_tds_fdw_hook)
+						(*drop_extension_tds_fdw_hook)();
 
 				if (EventTriggerSupportsObjectType(stmt->removeType))
 					ProcessUtilitySlow(pstate, pstmt, queryString,
