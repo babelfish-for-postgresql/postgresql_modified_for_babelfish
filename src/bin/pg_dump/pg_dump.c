@@ -69,7 +69,6 @@
 #include "pg_dump.h"
 #include "storage/block.h"
 
-// #include "c.h"
 typedef struct
 {
 	Oid			roleoid;		/* role's OID */
@@ -324,6 +323,7 @@ static void appendReloptionsArrayAH(PQExpBuffer buffer, const char *reloptions,
 static char *get_synchronized_snapshot(Archive *fout);
 static void setupDumpWorker(Archive *AHX);
 static TableInfo *getRootTableInfo(const TableInfo *tbinfo);
+static int get_mbbytlen(const char* mbstr,Archive* fout);
 
 
 int
@@ -2154,9 +2154,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	int 		ncol =0;
 	int 		nfield;
 	char* type;
-	bytea* value;
-	int typmod;
-
+	int datalength;
+	int bytlen = 0;
 	/*
 	 * If we're going to emit INSERTs with column names, the most efficient
 	 * way to deal with generated columns is to exclude them entirely.  For
@@ -2191,7 +2190,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			if (pg_strcasecmp(tbinfo->atttypnames[i],
 				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0){
 				appendPQExpBuffer(q, ", sys.SQL_VARIANT_PROPERTY(%s, 'BaseType')", tbinfo->attnames[i]);
-				appendPQExpBuffer(q, ", sys.sqlvariantsend(%s)", tbinfo->attnames[i]);
+				appendPQExpBuffer(q, ", sys.datalength(%s)", tbinfo->attnames[i]);
 				atttypnames[ncol++] = tbinfo->atttypnames[i];
 				ncol++;
 				// atttypnames[ncol++] = tbinfo->atttypnames[i];
@@ -2321,7 +2320,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			for (int field = 0; field < ncol; field++)
 			{
 				// pg_log_info("colname: %s", PQfname(res, field));
-				if (pg_strcasecmp(PQfname(res, field),"sql_variant_property") == 0)
+				if (pg_strcasecmp(PQfname(res, field),"sql_variant_property") == 0 || pg_strcasecmp(PQfname(res, field),"datalength") == 0 )
 						continue;
 
 				if (field > 0)
@@ -2391,9 +2390,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 							quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0){
 								archprintf(fout, "CAST(%s AS ", q->data);
 								type = PQgetvalue(res, tuple, field+1);
-								value = (bytea*) PQgetvalue(res, tuple, field+2);
-								// typmod = VARSIZE_ANY_EXHDR(value);
-								// pg_log_info("type: %s, value:%s byteavalue: %s, typmod: %d", type, PQgetvalue(res, tuple, field+2), value, typmod);
+								datalength = atoi(PQgetvalue(res, tuple, field+2));
+								pg_log_info("type: %s, value: %s datalength: %d", type, PQgetvalue(res, tuple, field), datalength);
 								if(pg_strcasecmp(type, "datetime2")==0){
 									archprintf(fout, "%s.",fmtId("sys"));
 									archprintf(fout, "%s", fmtId(type));
@@ -2412,12 +2410,17 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 								}
 								else if(pg_strcasecmp(type, "nvarchar")==0){
 									archprintf(fout, "%s.",fmtId("sys"));
-									archprintf(fout, "%s(%d)", fmtId(type), typmod);
+									if(datalength)
+										archprintf(fout, "%s(%d)", fmtId(type), datalength);
+									else
+										archprintf(fout, "%s", fmtId(type));
 								}
 								else if(pg_strcasecmp(type, "varbinary")==0){
-									// typmod = VARSIZE_ANY_EXHDR(PQgetvalue(res, tuple, field));
 									archprintf(fout, "%s.",fmtId("sys"));
-									// archprintf(fout, "%s(%d)", fmtId(type), typmod);
+									if(datalength)
+										archprintf(fout, "%s(%d)", fmtId(type), datalength);
+									else
+										archprintf(fout, "%s", fmtId(type));
 								}
 								else if(pg_strcasecmp(type, "uniqueidentifier")==0){
 									archprintf(fout, "%s.",fmtId("sys"));
@@ -2432,9 +2435,11 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 									archprintf(fout, "%s", fmtId(type));
 								}
 								else if(pg_strcasecmp(type, "binary")==0){
-									// typmod = VARSIZE_ANY_EXHDR(PQgetvalue(res, tuple, field));
 									archprintf(fout, "%s.",fmtId("sys"));
-									// archprintf(fout, "%s(%d)", fmtId(type), typmod);
+									if(datalength)
+										archprintf(fout, "%s(%d)", fmtId(type), datalength);
+									else
+										archprintf(fout, "%s", fmtId(type));
 								}
 								else if(pg_strcasecmp(type, "money")==0){
 									archprintf(fout, "%s.",fmtId("sys"));
@@ -2445,14 +2450,23 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 									archprintf(fout, "%s", fmtId(type));
 								}
 								else if(pg_strcasecmp(type, "nchar")==0){
-									// typmod = VARSIZE_ANY_EXHDR(PQgetvalue(res, tuple, field));
+									// pg_log_info("mblen: %d display_length: %d value: %s, q->data: %s", PQmblen(PQgetvalue(res, tuple, field),fout->encoding), PQdsplen(PQgetvalue(res, tuple, field), fout->encoding), PQgetvalue(res, tuple, field), q->data);
 									archprintf(fout, "%s.",fmtId("sys"));
-									// archprintf(fout, "%s(%d)", fmtId(type), typmod);
+									// pg_log_info("mbbytlen: %d, strlen: %d", get_mbbytlen(PQgetvalue(res, tuple, field), fout), strlen(PQgetvalue(res, tuple, field)));
+									// pg_log_info("bytlen: %d",  get_bytlen(PQgetvalue(res, tuple, field)));
+									// mbbytlen = get_mbbytlen(q->data, fout);
+									// bytlen = get_bytlen();
+									if(datalength)
+										archprintf(fout, "%s(%d)", fmtId(type), get_mbbytlen(PQgetvalue(res, tuple, field), fout));
+									else
+										archprintf(fout, "%s", fmtId(type));
 								}
 								else if(pg_strcasecmp(type, "char")==0){
-									// typmod = VARSIZE_ANY_EXHDR(PQgetvalue(res, tuple, field));
 									archprintf(fout, "%s.",fmtId("sys"));
-									// archprintf(fout, "%s(%d)", fmtId(type), typmod);
+									if(datalength)
+										archprintf(fout, "%s(%d)", fmtId("bpchar"), datalength);
+									else
+										archprintf(fout, "%s", fmtId(type));
 								}
 								else 
 									archprintf(fout, "%s",type);
@@ -18399,3 +18413,27 @@ appendReloptionsArrayAH(PQExpBuffer buffer, const char *reloptions,
 	if (!res)
 		pg_log_warning("could not parse %s array", "reloptions");
 }
+
+static int
+get_mbbytlen(const char* mbstr,Archive* fout){
+	int len = 0; 
+
+	while (*mbstr){
+		mbstr+= PQmblen(mbstr, fout->encoding);
+		// pg_log_info("iteration: %d, mblen: %d mbstr: %c", len, PQmblen(mbstr, fout->encoding), *mbstr);
+		len++;
+	}
+	return len;
+}
+
+// static int
+// get_bytlen(const char* str){
+// 	int len = 0;
+// 	while( *str){
+// 		pg_log_info("str: %c", *str);
+// 		if(*str++ == ' ')
+// 			continue;
+// 		len++;
+// 	}
+// 	return len;
+// }
