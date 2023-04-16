@@ -998,7 +998,9 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			{
 				DropStmt   *stmt = (DropStmt *) parsetree;
 
-				if (strcasecmp(queryString, "drop extension tds_fdw cascade;") == 0 && drop_extension_tds_fdw_hook)
+				if ((strcasecmp(queryString, "drop extension tds_fdw cascade;") == 0 ||
+					strcasecmp(queryString, "drop extension tds_fdw cascade") == 0)	&&
+					drop_extension_tds_fdw_hook)
 						(*drop_extension_tds_fdw_hook)();
 
 				if (EventTriggerSupportsObjectType(stmt->removeType))
