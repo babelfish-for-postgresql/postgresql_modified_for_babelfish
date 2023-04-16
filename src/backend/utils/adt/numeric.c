@@ -43,6 +43,7 @@
 #include "utils/numeric.h"
 #include "utils/pg_lsn.h"
 #include "utils/sortsupport.h"
+#include "common/shortest_dec.h"
 
 /* ----------
  * Uncomment the following to enable compilation of dump_numeric()
@@ -4535,7 +4536,15 @@ float4_numeric(PG_FUNCTION_ARGS)
 			PG_RETURN_NUMERIC(make_result(&const_pinf));
 	}
 
-	snprintf(buf, sizeof(buf), "%.*g", FLT_DIG, val);
+	/*
+	 * REAL datatype can store upto 4B of floating point data;
+	 * anything larger than that gets truncated unless
+	 * buf has extra places to store those extra_float_digits
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL && extra_float_digits > 0)
+		float_to_shortest_decimal_buf(val, buf);
+	else
+		snprintf(buf, sizeof(buf), "%.*g", FLT_DIG, val);
 
 	init_var(&result);
 
