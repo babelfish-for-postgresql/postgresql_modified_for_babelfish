@@ -29,8 +29,6 @@
  *
  *-------------------------------------------------------------------------
  */
-
-
 #include "postgres_fe.h"
 
 #include <unistd.h>
@@ -324,7 +322,7 @@ static char *get_synchronized_snapshot(Archive *fout);
 static void setupDumpWorker(Archive *AHX);
 static TableInfo *getRootTableInfo(const TableInfo *tbinfo);
 static int get_mbbytlen(const char* mbstr,Archive* fout);
-
+static void cast_sqlvariant_to_basetype(PGresult* res, Archive* fout, PQExpBuffer q, int tuple, int field);
 
 int
 main(int argc, char **argv)
@@ -2151,11 +2149,10 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				i;
 	int			rows_per_statement = dopt->dump_inserts;
 	int			rows_this_statement = 0;
-	int 		ncol =0;
-	int 		nfield;
-	char* type;
-	int datalength;
-	int bytlen = 0;
+	int 		nfields_new = 0;
+	int 		orig_field = 0;
+	bool is_sqlvariant = false;
+
 	/*
 	 * If we're going to emit INSERTs with column names, the most efficient
 	 * way to deal with generated columns is to exclude them entirely.  For
@@ -2164,7 +2161,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	 * rather than the uninteresting-to-us value.
 	 */
 	attgenerated = (char *) pg_malloc(tbinfo->numatts * sizeof(char));
-	atttypnames = (char **) pg_malloc(3* tbinfo->numatts * sizeof(char *));
+	atttypnames = (char **) pg_malloc(tbinfo->numatts * sizeof(char *));
 	appendPQExpBufferStr(q, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
 	nfields = 0;
 	for (i = 0; i < tbinfo->numatts; i++)
@@ -2191,17 +2188,17 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0){
 				appendPQExpBuffer(q, ", sys.SQL_VARIANT_PROPERTY(%s, 'BaseType')", tbinfo->attnames[i]);
 				appendPQExpBuffer(q, ", sys.datalength(%s)", tbinfo->attnames[i]);
-				atttypnames[ncol++] = tbinfo->atttypnames[i];
-				ncol++;
-				// atttypnames[ncol++] = tbinfo->atttypnames[i];
+				nfields_new = nfields_new + 2;
+				// atttypnames[nfields_new++] = tbinfo->atttypnames[i];
+				// atttypnames[nfields_new++] = tbinfo->atttypnames[i];
 				// attgenerated[nfields] = tbinfo->attgenerated[i];
 				// atttypnames[nfields] = tbinfo->atttypnames[i];
 				// i--;
 			}
 		}
 		attgenerated[nfields] = tbinfo->attgenerated[i];
-		atttypnames[ncol] = tbinfo->atttypnames[i];
-		nfields++; ncol++;
+		atttypnames[nfields] = tbinfo->atttypnames[i];
+		nfields++; nfields_new++;
 	}
 	pg_log_info("query: %s", q->data);
 	/* Servers before 9.4 will complain about zero-column SELECT */
@@ -2220,11 +2217,11 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		res = ExecuteSqlQuery(fout, "FETCH 100 FROM _pg_dump_cursor",
 							  PGRES_TUPLES_OK);
 
-		pg_log_info("nfields: %d, ncol: %d, res: %d", nfields, ncol, PQnfields(res));
+		pg_log_info("nfields: %d, nfields_new: %d, res: %d", nfields, nfields_new, PQnfields(res));
 		/* cross-check field count, allowing for dummy NULL if any */
 		if (nfields != PQnfields(res) &&
 			!(nfields == 0 && PQnfields(res) == 1))
-			if(!(PQnfields(res) == ncol))
+			if(!(PQnfields(res) == nfields_new))
 				pg_fatal("wrong number of fields retrieved from table \"%s\"",
 						 tbinfo->dobj.name);
 
@@ -2265,17 +2262,17 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				if (dopt->column_inserts)
 				{
 					appendPQExpBufferChar(insertStmt, '(');
-					// nfield = 0;
-					for (int field = 0; field < ncol; field++)
+					orig_field = 0;
+					for (int field = 0; field < nfields_new; field++)
 					{
 						pg_log_info("colname: %s", PQfname(res, field));
 						if (field > 0)
 							appendPQExpBufferStr(insertStmt, ", ");
-						if (pg_strcasecmp(atttypnames[field],
+						if (pg_strcasecmp(atttypnames[orig_field++],
 							quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0){
 								appendPQExpBufferStr(insertStmt,
-											 fmtId(PQfname(res, field++)));
-								field++;
+											 fmtId(PQfname(res, field)));
+								field=field+2;
 						}
 						else appendPQExpBufferStr(insertStmt,
 											 fmtId(PQfname(res, field)));
@@ -2292,6 +2289,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 
 		for (int tuple = 0; tuple < PQntuples(res); tuple++)
 		{
+			pg_log_info("PQnutples: %d, tuple: %d", PQntuples(res), tuple);
 			/* Write the INSERT if not in the middle of a multi-row INSERT. */
 			if (rows_this_statement == 0)
 				archputs(insertStmt->data, fout);
@@ -2316,26 +2314,39 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			else
 				archputs("\n\t(", fout);
 
-			nfield = 0;
-			for (int field = 0; field < ncol; field++)
+			orig_field = 0;
+			for (int field = 0; field < nfields_new; field++)
 			{
-				// pg_log_info("colname: %s", PQfname(res, field));
-				if (pg_strcasecmp(PQfname(res, field),"sql_variant_property") == 0 || pg_strcasecmp(PQfname(res, field),"datalength") == 0 )
-						continue;
+				pg_log_info("orig_field: %d, field: %d, colname: %s", orig_field, field, PQfname(res, field));
+				if(is_sqlvariant){
+					field++;
+					is_sqlvariant = false;
+					continue;
+				}
+				pg_log_info("atttypename: %s", atttypnames[orig_field]);
+				if (pg_strcasecmp(atttypnames[orig_field],
+					quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
+					is_sqlvariant = true;
 
 				if (field > 0)
 					archputs(", ", fout);
-				if (attgenerated[nfield])
+				// pg_log_info("aaa");
+				if (attgenerated[orig_field])
 				{
 					archputs("DEFAULT", fout);
+					orig_field++;
 					continue;
 				}
+				// pg_log_info("aaa");
 				if (PQgetisnull(res, tuple, field))
 				{
+					pg_log_info("INSIDE NULL -> field: %d colname: %s", field, PQfname(res, field));
 					archputs("NULL", fout);
+					orig_field++;
 					continue;
 				}
 
+				// pg_log_info("aaa");
 				/* XXX This code is partially duplicated in ruleutils.c */
 				switch (PQftype(res, field))
 				{
@@ -2386,97 +2397,98 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 						appendStringLiteralAH(q,
 											  PQgetvalue(res, tuple, field),
 											  fout);
-						if (pg_strcasecmp(atttypnames[field],
-							quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0){
-								archprintf(fout, "CAST(%s AS ", q->data);
-								type = PQgetvalue(res, tuple, field+1);
-								datalength = atoi(PQgetvalue(res, tuple, field+2));
-								pg_log_info("type: %s, value: %s datalength: %d", type, PQgetvalue(res, tuple, field), datalength);
-								if(pg_strcasecmp(type, "datetime2")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "datetime")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "datetimeoffset")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "smalldatetime")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "nvarchar")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									if(datalength)
-										archprintf(fout, "%s(%d)", fmtId(type), datalength);
-									else
-										archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "varbinary")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									if(datalength)
-										archprintf(fout, "%s(%d)", fmtId(type), datalength);
-									else
-										archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "uniqueidentifier")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "smallmoney")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "tinyint")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "binary")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									if(datalength)
-										archprintf(fout, "%s(%d)", fmtId(type), datalength);
-									else
-										archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "money")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "bit")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "nchar")==0){
-									// pg_log_info("mblen: %d display_length: %d value: %s, q->data: %s", PQmblen(PQgetvalue(res, tuple, field),fout->encoding), PQdsplen(PQgetvalue(res, tuple, field), fout->encoding), PQgetvalue(res, tuple, field), q->data);
-									archprintf(fout, "%s.",fmtId("sys"));
-									// pg_log_info("mbbytlen: %d, strlen: %d", get_mbbytlen(PQgetvalue(res, tuple, field), fout), strlen(PQgetvalue(res, tuple, field)));
-									// pg_log_info("bytlen: %d",  get_bytlen(PQgetvalue(res, tuple, field)));
-									// mbbytlen = get_mbbytlen(q->data, fout);
-									// bytlen = get_bytlen();
-									if(datalength)
-										archprintf(fout, "%s(%d)", fmtId(type), get_mbbytlen(PQgetvalue(res, tuple, field), fout));
-									else
-										archprintf(fout, "%s", fmtId(type));
-								}
-								else if(pg_strcasecmp(type, "char")==0){
-									archprintf(fout, "%s.",fmtId("sys"));
-									if(datalength)
-										archprintf(fout, "%s(%d)", fmtId("bpchar"), datalength);
-									else
-										archprintf(fout, "%s", fmtId(type));
-								}
-								else 
-									archprintf(fout, "%s",type);
-								archputs(")", fout);
-								field = field+2;
-						}
+						if (is_sqlvariant)
+							// {
+								cast_sqlvariant_to_basetype(res, fout, q, tuple, field);
+							// 	type = PQgetvalue(res, tuple, field+1);
+							// 	datalength = atoi(PQgetvalue(res, tuple, field+2));
+							// 	pg_log_info("type: %s, value: %s datalength: %d", type, PQgetvalue(res, tuple, field), datalength);
+								
+							// 	if(pg_strcasecmp(type, "datetime2")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "datetime")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "datetimeoffset")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "smalldatetime")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "nvarchar")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		if(datalength)
+							// 			archprintf(fout, "%s(%d)", fmtId(type), datalength);
+							// 		else
+							// 			archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "varbinary")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		if(datalength)
+							// 			archprintf(fout, "%s(%d)", fmtId(type), datalength);
+							// 		else
+							// 			archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "uniqueidentifier")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "smallmoney")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "tinyint")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "binary")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		if(datalength)
+							// 			archprintf(fout, "%s(%d)", fmtId(type), datalength);
+							// 		else
+							// 			archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "money")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "bit")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "nchar")==0){
+							// 		// pg_log_info("mblen: %d display_length: %d value: %s, q->data: %s", PQmblen(PQgetvalue(res, tuple, field),fout->encoding), PQdsplen(PQgetvalue(res, tuple, field), fout->encoding), PQgetvalue(res, tuple, field), q->data);
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		// pg_log_info("mbbytlen: %d, strlen: %d", get_mbbytlen(PQgetvalue(res, tuple, field), fout), strlen(PQgetvalue(res, tuple, field)));
+							// 		// pg_log_info("bytlen: %d",  get_bytlen(PQgetvalue(res, tuple, field)));
+							// 		// mbbytlen = get_mbbytlen(q->data, fout);
+							// 		// bytlen = get_bytlen();
+							// 		if(datalength)
+							// 			archprintf(fout, "%s(%d)", fmtId(type), get_mbbytlen(PQgetvalue(res, tuple, field), fout));
+							// 		else
+							// 			archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else if(pg_strcasecmp(type, "char")==0){
+							// 		archprintf(fout, "%s.",fmtId("sys"));
+							// 		if(datalength)
+							// 			archprintf(fout, "%s(%d)", fmtId("bpchar"), datalength);
+							// 		else
+							// 			archprintf(fout, "%s", fmtId(type));
+							// 	}
+							// 	else 
+							// 		archprintf(fout, "%s",type);
+							// archputs(")", fout);
+						// }
 						else
 							archputs(q->data, fout);
 						break;
 				}
+				orig_field++;
 			}
 
 			/* Terminate the row ... */
@@ -2492,7 +2504,6 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				/* Reset the row counter */
 				rows_this_statement = 0;
 			}
-			nfield++;
 		}
 		pg_log_info("%d",PQntuples(res));
 		if (PQntuples(res) <= 0)
@@ -18415,8 +18426,9 @@ appendReloptionsArrayAH(PQExpBuffer buffer, const char *reloptions,
 }
 
 static int
-get_mbbytlen(const char* mbstr,Archive* fout){
-	int len = 0; 
+get_mbbytlen(const char* mbstr,Archive* fout)
+{
+	int len = 0;
 
 	while (*mbstr){
 		mbstr+= PQmblen(mbstr, fout->encoding);
@@ -18426,14 +18438,77 @@ get_mbbytlen(const char* mbstr,Archive* fout){
 	return len;
 }
 
-// static int
-// get_bytlen(const char* str){
-// 	int len = 0;
-// 	while( *str){
-// 		pg_log_info("str: %c", *str);
-// 		if(*str++ == ' ')
-// 			continue;
-// 		len++;
-// 	}
-// 	return len;
-// }
+static void
+cast_sqlvariant_to_basetype(PGresult* res, Archive* fout, PQExpBuffer q, int tuple, int field)
+{
+	char* value = PQgetvalue(res, tuple, field);
+	char* type = PQgetvalue(res, tuple, field+1);
+	int datalength = atoi(PQgetvalue(res, tuple, field+2));
+	int precision;
+	int scale;
+	// int typmod;
+	int i;
+	archprintf(fout, "CAST(%s AS ", q->data);
+
+	pg_log_info("type: %s, value: %s datalength: %d", type, PQgetvalue(res, tuple, field), datalength);
+	// add if condition for time
+	if(!pg_strcasecmp(type, "nvarchar") || !pg_strcasecmp(type, "varbinary")|| !pg_strcasecmp(type, "binary"))
+	{
+		archprintf(fout, "%s.",fmtId("sys"));
+		if(datalength)
+			archprintf(fout, "%s(%d)", fmtId(type), datalength);
+		else
+			archprintf(fout, "%s", fmtId(type));
+	}
+	else if(!pg_strcasecmp(type, "numeric") || !pg_strcasecmp(type, "decimal")){
+		scale = 0;
+		precision = strlen(value);
+		i = precision - 1;
+		if(value[0] == '-')
+			precision--;
+		while(i>=0){
+			if(value[i--]=='.'){
+				precision--;
+				break;
+			}
+			scale++;
+		}
+		if(i < 0) scale = 0;
+		// typmod = (((precision & 0xFFFF) << 16 ) | (scale & 0xFFFF));
+		pg_log_info("PRECISION: %d, SCALE: %d", precision, scale);
+		archprintf(fout, "%s(%d, %d)", fmtId(type), precision, scale);
+	}
+	else if(!pg_strcasecmp(type, "datetime") || !pg_strcasecmp(type, "datetimeoffset")
+		|| !pg_strcasecmp(type, "smalldatetime") || !pg_strcasecmp(type, "uniqueidentifier")
+		|| !pg_strcasecmp(type, "smallmoney") || !pg_strcasecmp(type, "tinyint")
+		|| !pg_strcasecmp(type, "money") || !pg_strcasecmp(type, "bit")
+		|| !pg_strcasecmp(type, "datetime2") || !pg_strcasecmp(type, "datetimeoffset"))
+	{
+		archprintf(fout, "%s.",fmtId("sys"));
+		archprintf(fout, "%s", fmtId(type));
+	}
+	else if(!pg_strcasecmp(type, "nchar")){
+		datalength = get_mbbytlen(PQgetvalue(res, tuple, field), fout);
+		archprintf(fout, "%s.",fmtId("sys"));
+		if(datalength)
+			archprintf(fout, "%s(%d)", fmtId(type), datalength);
+		else
+			archprintf(fout, "%s", fmtId(type));
+	}
+	else if(!pg_strcasecmp(type, "char")){
+		archprintf(fout, "%s.",fmtId("sys"));
+		if(datalength)
+			archprintf(fout, "%s(%d)", fmtId("bpchar"), datalength);
+		else
+			archprintf(fout, "%s", fmtId(type));
+	}
+	else
+		archprintf(fout, "%s",type);
+	archputs(")", fout);
+}
+
+// pg_log_info("mblen: %d display_length: %d value: %s, q->data: %s", PQmblen(PQgetvalue(res, tuple, field),fout->encoding), PQdsplen(PQgetvalue(res, tuple, field), fout->encoding), PQgetvalue(res, tuple, field), q->data);
+// pg_log_info("mbbytlen: %d, strlen: %d", get_mbbytlen(PQgetvalue(res, tuple, field), fout), strlen(PQgetvalue(res, tuple, field)));
+// pg_log_info("bytlen: %d",  get_bytlen(PQgetvalue(res, tuple, field)));
+// mbbytlen = get_mbbytlen(q->data, fout);
+// bytlen = get_bytlen();
