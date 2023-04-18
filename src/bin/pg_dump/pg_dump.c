@@ -322,8 +322,10 @@ static char *get_synchronized_snapshot(Archive *fout);
 static void setupDumpWorker(Archive *AHX);
 static TableInfo *getRootTableInfo(const TableInfo *tbinfo);
 static int get_mbbytlen(const char* mbstr,Archive* fout);
-static void cast_sqlvariant_to_basetype(PGresult* res, Archive* fout, PQExpBuffer q, int tuple, int field);
+static void cast_sqlvariant_to_basetype(PGresult* res, Archive* fout, 
+										PQExpBuffer q, int tuple, int field);
 static bool has_sqlvariant_column(TableInfo *tbinfo);
+
 
 int
 main(int argc, char **argv)
@@ -2496,7 +2498,7 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 	{
 		/* Dump/restore using COPY */
 		dumpFn = dumpTableData_copy;
-		
+
 		/*
 		 * When load-via-partition-root is set, get the root table name for
 		 * the partition table, so that we can reload data through the root
