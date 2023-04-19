@@ -65,6 +65,8 @@ pre_parse_analyze_hook_type pre_parse_analyze_hook = NULL;
 /* Hook to handle qualifiers in returning list for output clause */
 pre_transform_returning_hook_type pre_transform_returning_hook = NULL;
 
+post_transform_delete_hook_type post_transform_delete_hook = NULL;
+
 /* Hook to modify insert statement in output clause */
 pre_transform_insert_hook_type pre_transform_insert_hook = NULL;
 
@@ -559,11 +561,6 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 	qual = transformWhereClause(pstate, stmt->whereClause,
 								EXPR_KIND_WHERE, "WHERE");
 
-	qry->limitCount = transformLimitClause(pstate, stmt->limitCount,
-										EXPR_KIND_LIMIT, "LIMIT",
-										LIMIT_OPTION_COUNT);
-	qry->limitOption = LIMIT_OPTION_COUNT;
-
 	if (pre_transform_returning_hook)
 		(*pre_transform_returning_hook) (qry, stmt->returningList, pstate);
 	
@@ -583,6 +580,9 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 	/* this must be done after collations, for reliable comparison of exprs */
 	if (pstate->p_hasAggs)
 		parseCheckAggregates(pstate, qry);
+
+	if (post_transform_delete_hook)
+		(*post_transform_delete_hook) (pstate, stmt, qry);
 
 	return qry;
 }
@@ -679,17 +679,12 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 	qry->resultRelation = setTargetTable(pstate, stmt->relation,
 										 false, false, targetPerms);
 
-	if (pre_transform_insert_hook && stmt->withClause)
-		(*pre_transform_insert_hook) (stmt, RelationGetRelid(pstate->p_target_relation));
+	if (pre_transform_insert_hook)
+		(*pre_transform_insert_hook) (pstate, stmt, qry);
 	
 	/* Validate stmt->cols list, or build default list if no list given */
 	icolumns = checkInsertTargets(pstate, stmt->cols, &attrnos);
 	Assert(list_length(icolumns) == list_length(attrnos));
-
-	qry->limitCount = transformLimitClause(pstate, stmt->limitCount,
-											EXPR_KIND_LIMIT, "LIMIT",
-											LIMIT_OPTION_COUNT);
-	qry->limitOption = LIMIT_OPTION_COUNT;
 
 	/*
 	 * For INSERT ... EXECUTE, transform the CallStmt/DoStmt, and attach it to
@@ -2522,11 +2517,6 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 	else
 		qual = transformWhereClause(pstate, stmt->whereClause,
 								EXPR_KIND_WHERE, "WHERE");
-
-	qry->limitCount = transformLimitClause(pstate, stmt->limitCount,
-									EXPR_KIND_LIMIT, "LIMIT",
-									LIMIT_OPTION_COUNT);
-	qry->limitOption = LIMIT_OPTION_COUNT;
 
 	qry->returningList = transformReturningList(pstate, stmt->returningList);
 
