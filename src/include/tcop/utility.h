@@ -113,4 +113,8 @@ typedef void (*miscProcessUtility_hook_type)(ParseState *pstate, PlannedStmt *ps
 						  ParamListInfo params, QueryCompletion *qc, int *flag);
 extern PGDLLIMPORT miscProcessUtility_hook_type miscProcessUtility_hook;
 
+extern void PLTsqlProcessTransaction(Node *parsetree,
+						            ParamListInfo params,
+						 			QueryCompletion *qc);
+
 #endif							/* UTILITY_H */
