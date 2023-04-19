@@ -597,12 +597,8 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 	pstate->p_queryEnv = queryEnv;
 
 	if(bbfCustomProcessUtility_hook)
-		(*bbfCustomProcessUtility_hook)(pstate, pstmt, queryString, context, params, qc, &flag);
-
-	if(flag)
-	{
-		return;
-	}
+		if((*bbfCustomProcessUtility_hook)(pstate, pstmt, queryString, context, params, qc))
+			return;
 
 	switch (nodeTag(parsetree))
 	{
