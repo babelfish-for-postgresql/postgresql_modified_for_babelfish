@@ -76,7 +76,7 @@
 
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
-miscProcessUtility_hook_type miscProcessUtility_hook = NULL;
+bbfCustomProcessUtility_hook_type bbfCustomProcessUtility_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -596,8 +596,8 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 	pstate->p_sourcetext = queryString;
 	pstate->p_queryEnv = queryEnv;
 
-	if(miscProcessUtility_hook)
-		(*miscProcessUtility_hook)(pstate, pstmt, queryString, context, params, qc, &flag);
+	if(bbfCustomProcessUtility_hook)
+		(*bbfCustomProcessUtility_hook)(pstate, pstmt, queryString, context, params, qc, &flag);
 
 	if(flag)
 	{
