@@ -40,5 +40,7 @@ extern void setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout);
 extern void dumpBabelGUCs(Archive *fout);
 extern void fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields, char *attgenerated);
 extern void fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFrom);
+extern bool hasSqlvariantColumn(TableInfo *tbinfo);
+extern int dumpSqlvariantTableData(Archive *fout, const void *dcontext);
 
 #endif

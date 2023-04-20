@@ -320,11 +320,7 @@ static void appendReloptionsArrayAH(PQExpBuffer buffer, const char *reloptions,
 									const char *prefix, Archive *fout);
 static char *get_synchronized_snapshot(Archive *fout);
 static void setupDumpWorker(Archive *AHX);
-static TableInfo *getRootTableInfo(const TableInfo *tbinfo);
-static int get_mbbytlen(const char* mbstr,Archive* fout);
-static void cast_sqlvariant_to_basetype(PGresult* res, Archive* fout, 
-										PQExpBuffer q, int tuple, int field);
-static bool has_sqlvariant_column(TableInfo *tbinfo);
+// static TableInfo *getRootTableInfo(const TableInfo *tbinfo);
 
 
 int
@@ -2146,15 +2142,11 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	PQExpBuffer q = createPQExpBuffer();
 	PQExpBuffer insertStmt = NULL;
 	char	   *attgenerated;
-	char       **atttypnames;
 	PGresult   *res;
 	int			nfields,
 				i;
 	int			rows_per_statement = dopt->dump_inserts;
 	int			rows_this_statement = 0;
-	int 		nfields_new;
-	int 		orig_field;
-	bool 		is_sqlvariant = false;
 
 	/*
 	 * If we're going to emit INSERTs with column names, the most efficient
@@ -2164,10 +2156,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	 * rather than the uninteresting-to-us value.
 	 */
 	attgenerated = (char *) pg_malloc(tbinfo->numatts * sizeof(char));
-	atttypnames = (char **) pg_malloc(tbinfo->numatts * sizeof(char *));
 	appendPQExpBufferStr(q, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
 	nfields = 0;
-	nfields_new = 0;
 	for (i = 0; i < tbinfo->numatts; i++)
 	{
 		if (tbinfo->attisdropped[i])
@@ -2186,26 +2176,11 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			appendPQExpBufferStr(q, ", ");
 		if (tbinfo->attgenerated[i])
 			appendPQExpBufferStr(q, "NULL");
-		else{
+		else
 			appendPQExpBufferStr(q, fmtId(tbinfo->attnames[i]));
-			/* 
-			 * To find the basetype and bytelength of string data types we
-			 * invoke sys.sql_variant_property and sys.datalength function on
-			 * the sqlvariant column. These extra columns are carefully handled
-			 * so that they do not interfere with expected dump behaviour.
-			*/
-			if (pg_strcasecmp(tbinfo->atttypnames[i],
-				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0){
-					appendPQExpBuffer(q, ", sys.SQL_VARIANT_PROPERTY(%s, 'BaseType')", tbinfo->attnames[i]);
-					appendPQExpBuffer(q, ", sys.datalength(%s)", tbinfo->attnames[i]);
-					nfields_new = nfields_new + 2;
-			}
-		}
 		attgenerated[nfields] = tbinfo->attgenerated[i];
-		atttypnames[nfields] = tbinfo->atttypnames[i];
-		nfields++; nfields_new++;
+		nfields++;
 	}
-
 	/* Servers before 9.4 will complain about zero-column SELECT */
 	if (nfields == 0)
 		appendPQExpBufferStr(q, "NULL");
@@ -2225,9 +2200,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		/* cross-check field count, allowing for dummy NULL if any */
 		if (nfields != PQnfields(res) &&
 			!(nfields == 0 && PQnfields(res) == 1))
-			if(!(PQnfields(res) == nfields_new))
-				pg_fatal("wrong number of fields retrieved from table \"%s\"",
-						 tbinfo->dobj.name);
+			pg_fatal("wrong number of fields retrieved from table \"%s\"",
+					 tbinfo->dobj.name);
 
 		/*
 		 * First time through, we build as much of the INSERT statement as
@@ -2266,22 +2240,11 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				if (dopt->column_inserts)
 				{
 					appendPQExpBufferChar(insertStmt, '(');
-					orig_field = 0;
-					for (int field = 0; field < nfields_new; field++)
+					for (int field = 0; field < nfields; field++)
 					{
 						if (field > 0)
 							appendPQExpBufferStr(insertStmt, ", ");
-						if (pg_strcasecmp(atttypnames[orig_field++],
-							quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0){
-								appendPQExpBufferStr(insertStmt,
-											 fmtId(PQfname(res, field)));
-								/* 
-								 * skip over columns defined additionally for
-								 * sql_variant data type columns 
-								 */
-								field=field+2; 
-						}
-						else appendPQExpBufferStr(insertStmt,
+						appendPQExpBufferStr(insertStmt,
 											 fmtId(PQfname(res, field)));
 					}
 					appendPQExpBufferStr(insertStmt, ") ");
@@ -2320,32 +2283,18 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			else
 				archputs("\n\t(", fout);
 
-			orig_field = 0;
-			for (int field = 0; field < nfields_new; field++)
+			for (int field = 0; field < nfields; field++)
 			{
-				if(is_sqlvariant){
-					field++;
-					is_sqlvariant = false;
-					continue;
-				}
-				if (pg_strcasecmp(atttypnames[orig_field],
-					quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
-						is_sqlvariant = true;
-
 				if (field > 0)
 					archputs(", ", fout);
-
-				if (attgenerated[orig_field])
+				if (attgenerated[field])
 				{
 					archputs("DEFAULT", fout);
-					orig_field++;
 					continue;
 				}
-
 				if (PQgetisnull(res, tuple, field))
 				{
 					archputs("NULL", fout);
-					orig_field++;
 					continue;
 				}
 
@@ -2399,13 +2348,9 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 						appendStringLiteralAH(q,
 											  PQgetvalue(res, tuple, field),
 											  fout);
-						if (is_sqlvariant)
-								cast_sqlvariant_to_basetype(res, fout, q, tuple, field);
-						else
-							archputs(q->data, fout);
+						archputs(q->data, fout);
 						break;
 				}
-				orig_field++;
 			}
 
 			/* Terminate the row ... */
@@ -2456,7 +2401,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
  * getRootTableInfo:
  *     get the root TableInfo for the given partition table.
  */
-static TableInfo *
+TableInfo *
 getRootTableInfo(const TableInfo *tbinfo)
 {
 	TableInfo  *parentTbinfo;
@@ -2494,7 +2439,12 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 	/* We had better have loaded per-column details about this table */
 	Assert(tbinfo->interesting);
 
-	if (dopt->dump_inserts == 0 && !has_sqlvariant_column(tbinfo))
+	if(hasSqlvariantColumn(tbinfo)){
+		/* handle tables with sql_variant datatype columns separately */
+		dumpFn = dumpSqlvariantTableData;
+		copyStmt = NULL;
+	}
+	else if (dopt->dump_inserts == 0)
 	{
 		/* Dump/restore using COPY */
 		dumpFn = dumpTableData_copy;
@@ -18340,113 +18290,4 @@ appendReloptionsArrayAH(PQExpBuffer buffer, const char *reloptions,
 								fout->std_strings);
 	if (!res)
 		pg_log_warning("could not parse %s array", "reloptions");
-}
-
-
-/*
- * Returns true if any of the columns in table is a sqlvariant data type column
- */
-
-static bool
-has_sqlvariant_column(TableInfo *tbinfo){
-	for(int i=0; i<tbinfo->numatts; i++)
-		if (pg_strcasecmp(tbinfo->atttypnames[i],
-				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
-					return true;
-	return false;
-}
-
-/* 
- * returns the length of a multibyte string
- */
-static int
-get_mbbytlen(const char* mbstr,Archive* fout)
-{
-	int len = 0;
-
-	while (*mbstr){
-		mbstr+= PQmblen(mbstr, fout->encoding);
-		len++;
-	}
-	return len;
-}
-
-/*
- * Cast sql_variant column values to their basetype with corresponding metadata
- * so that the data can be restored correctly
- */
-static void
-cast_sqlvariant_to_basetype(PGresult* res, Archive* fout, PQExpBuffer q, int tuple, int field)
-{
-	char* value = PQgetvalue(res, tuple, field);
-	char* type = PQgetvalue(res, tuple, field+1);
-	int datalength = atoi(PQgetvalue(res, tuple, field+2));
-	int precision;
-	int scale;
-	int i;
-
-	archprintf(fout, "CAST(%s AS ", q->data);
-
-	/* data types defined in sys schema should be handled separately */
-	if(!pg_strcasecmp(type, "datetime") || !pg_strcasecmp(type, "datetimeoffset")
-		|| !pg_strcasecmp(type, "smalldatetime") || !pg_strcasecmp(type, "uniqueidentifier")
-		|| !pg_strcasecmp(type, "smallmoney") || !pg_strcasecmp(type, "tinyint")
-		|| !pg_strcasecmp(type, "money") || !pg_strcasecmp(type, "bit")
-		|| !pg_strcasecmp(type, "datetime2") || !pg_strcasecmp(type, "datetimeoffset"))
-	{
-		archprintf(fout, "%s.",fmtId("sys"));
-		archprintf(fout, "%s", fmtId(type));
-	}
-	/* typecast with appropriate typmod */
-	else if(!pg_strcasecmp(type, "nvarchar") || !pg_strcasecmp(type, "varbinary")|| !pg_strcasecmp(type, "binary"))
-	{
-		archprintf(fout, "%s.",fmtId("sys"));
-		if(datalength)
-			archprintf(fout, "%s(%d)", fmtId(type), datalength);
-		else
-			archprintf(fout, "%s", fmtId(type));
-	}
-	/* nchar to be handled separately for multi-byte chcaracters */
-	else if(!pg_strcasecmp(type, "nchar"))
-	{
-		datalength = get_mbbytlen(PQgetvalue(res, tuple, field), fout);
-		archprintf(fout, "%s.",fmtId("sys"));
-		if(datalength)
-			archprintf(fout, "%s(%d)", fmtId(type), datalength);
-		else
-			archprintf(fout, "%s", fmtId(type));
-	}
-	/* when basetype is char we typecast value to bpchar */
-	else if(!pg_strcasecmp(type, "char"))
-	{
-		archprintf(fout, "%s.",fmtId("sys"));
-		if(datalength)
-			archprintf(fout, "%s(%d)", fmtId("bpchar"), datalength);
-		else
-			archprintf(fout, "%s", fmtId(type));
-	}
-	/* typecast numeric/decimal values with appropriate scale and precision */
-	else if(!pg_strcasecmp(type, "numeric") || !pg_strcasecmp(type, "decimal")){
-		scale = 0;
-		precision = strlen(value);
-		i = precision - 1;
-
-		if(value[0] == '-')
-			precision--;
-
-		while(i>=0){
-			if(value[i--]=='.'){
-				precision--;
-				break;
-			}
-			scale++;
-		}
-		/* if no decimal found then scale will be zero */
-		if(i < 0) scale = 0;
-
-		archprintf(fout, "%s(%d, %d)", fmtId(type), precision, scale);
-	}
-	else
-		archprintf(fout, "%s",type);
-	archputs(")", fout);
 }
