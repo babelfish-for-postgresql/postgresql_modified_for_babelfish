@@ -65,6 +65,8 @@ pre_parse_analyze_hook_type pre_parse_analyze_hook = NULL;
 /* Hook to handle qualifiers in returning list for output clause */
 pre_transform_returning_hook_type pre_transform_returning_hook = NULL;
 
+post_transform_delete_hook_type post_transform_delete_hook = NULL;
+
 /* Hook to modify insert statement in output clause */
 pre_transform_insert_hook_type pre_transform_insert_hook = NULL;
 
@@ -579,6 +581,9 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 	if (pstate->p_hasAggs)
 		parseCheckAggregates(pstate, qry);
 
+	if (post_transform_delete_hook)
+		(*post_transform_delete_hook) (pstate, stmt, qry);
+
 	return qry;
 }
 
@@ -674,8 +679,8 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 	qry->resultRelation = setTargetTable(pstate, stmt->relation,
 										 false, false, targetPerms);
 
-	if (pre_transform_insert_hook && stmt->withClause)
-		(*pre_transform_insert_hook) (stmt, RelationGetRelid(pstate->p_target_relation));
+	if (pre_transform_insert_hook)
+		(*pre_transform_insert_hook) (pstate, stmt, qry);
 	
 	/* Validate stmt->cols list, or build default list if no list given */
 	icolumns = checkInsertTargets(pstate, stmt->cols, &attrnos);
