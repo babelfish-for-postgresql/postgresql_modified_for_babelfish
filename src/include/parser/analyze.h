@@ -33,9 +33,11 @@ extern PGDLLIMPORT pre_parse_analyze_hook_type pre_parse_analyze_hook;
 typedef void (*pre_transform_returning_hook_type) (Query *query, List *returningList, ParseState *pstate);
 extern PGDLLIMPORT pre_transform_returning_hook_type pre_transform_returning_hook;
 
-/* Hook to modify insert statement in output clause */
-typedef void (*pre_transform_insert_hook_type) (InsertStmt *stmt, Oid relid);
+typedef void (*post_transform_delete_hook_type) (ParseState *pstate, DeleteStmt *stmt, Query *query);
+extern PGDLLIMPORT post_transform_delete_hook_type post_transform_delete_hook;
 
+/* Hook to modify insert statement in output clause */
+typedef void (*pre_transform_insert_hook_type) (ParseState *pstate, InsertStmt *stmt, Query *query);
 extern PGDLLIMPORT pre_transform_insert_hook_type pre_transform_insert_hook;
 
 /* Hook to perform self-join transformation on UpdateStmt in output clause */

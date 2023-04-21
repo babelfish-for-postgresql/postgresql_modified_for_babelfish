@@ -1931,6 +1931,7 @@ typedef struct InsertStmt
 	WithClause *withClause;		/* WITH clause */
 	OverridingKind override;	/* OVERRIDING clause */
 	Node	   *execStmt; 		/* for INSERT ... EXECUTE */
+	Node       *limitCount;		/* used by INSERT TOP in T-SQL*/
 } InsertStmt;
 
 /* ----------------------
@@ -1945,6 +1946,7 @@ typedef struct DeleteStmt
 	Node	   *whereClause;	/* qualifications */
 	List	   *returningList;	/* list of expressions to return */
 	WithClause *withClause;		/* WITH clause */
+	Node	   *limitCount;		/* used with DELETE TOP in T-SQL */
 } DeleteStmt;
 
 /* ----------------------
@@ -1960,6 +1962,7 @@ typedef struct UpdateStmt
 	List	   *fromClause;		/* optional from clause for more tables */
 	List	   *returningList;	/* list of expressions to return */
 	WithClause *withClause;		/* WITH clause */
+	Node	   *limitCount;		/* used with UPDATE TOP in T-SQL */
 } UpdateStmt;
 
 /* ----------------------
