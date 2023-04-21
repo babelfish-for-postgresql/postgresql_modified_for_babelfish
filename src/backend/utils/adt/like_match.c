@@ -207,7 +207,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 		else if (*p == '[' && sql_dialect == SQL_DIALECT_TSQL)
 		{
 			bool find_match, reverse_mode;
-			char * p1, * prev;
+			const char * p1, * prev;
 			int p1len;
 			p1 = p;
 			p1len = plen;
