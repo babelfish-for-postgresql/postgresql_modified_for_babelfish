@@ -180,6 +180,12 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 
 					if (matched != LIKE_FALSE)
 						return matched; /* TRUE or ABORT */
+				} else if (firstpat == '[' && sql_dialect == SQL_DIALECT_TSQL)
+				{
+					int			matched = MatchText(t, tlen, p, plen,
+													locale, locale_is_c);
+					if (matched != LIKE_FALSE)
+						return matched; /* TRUE or ABORT */
 				}
 
 				NextChar(t, tlen);
@@ -197,6 +203,69 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 			NextChar(t, tlen);
 			NextByte(p, plen);
 			continue;
+		}
+		else if (*p == '[' && sql_dialect == SQL_DIALECT_TSQL)
+		{
+			bool find_match, reverse_mode;
+			char * p1, * prev;
+			int p1len;
+			p1 = p;
+			p1len = plen;
+			NextByte(p1, p1len);
+			reverse_mode = false;
+			while (p1len > 0 && *p1 != ']'){
+				NextByte(p1, p1len);
+			}
+			if (*p1 != ']')
+			{
+				if (GETCHAR(*p) != GETCHAR(*t))
+					return LIKE_FALSE;
+			}else{
+				find_match = false;
+				NextByte(p, plen);
+				if (*p == '^')
+				{
+					reverse_mode = true;
+					NextByte(p, plen);
+				}
+				while (plen > 0){
+					if (*p == ']')
+						break;
+					if (find_match)
+					{
+						NextByte(p, plen);
+						continue;
+					}
+					if (*p == '-' && prev &&
+						(
+							(*prev >= '0' && *prev <= '9')||
+							(*prev >= 'a' && *prev <= 'z')||
+							(*prev >= 'A' && *prev <= 'Z')
+						)
+					)
+					{
+						NextByte(p, plen);
+						if (GETCHAR(*t) >= *prev && GETCHAR(*t) <= *p)
+						{
+							find_match = true;
+						}
+					}
+					else if (GETCHAR(*p) == GETCHAR(*t))
+					{
+						find_match = true;
+					}
+					prev = p;
+					NextByte(p, plen);
+				}
+				if (!find_match && !reverse_mode)
+				{
+					return LIKE_FALSE;
+				}
+				if (find_match && reverse_mode)
+				{
+					return LIKE_FALSE;
+				}
+			}
 		}
 		else if (GETCHAR(*p) != GETCHAR(*t))
 		{
