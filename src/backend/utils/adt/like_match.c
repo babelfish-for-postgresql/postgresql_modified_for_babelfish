@@ -210,6 +210,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 			const char * p1, * prev;
 			int p1len;
 			p1 = p;
+			prev = NULL;
 			p1len = plen;
 			NextByte(p1, p1len);
 			reverse_mode = false;
