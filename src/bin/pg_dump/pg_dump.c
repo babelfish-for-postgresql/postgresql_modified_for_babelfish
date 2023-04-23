@@ -320,7 +320,6 @@ static void appendReloptionsArrayAH(PQExpBuffer buffer, const char *reloptions,
 									const char *prefix, Archive *fout);
 static char *get_synchronized_snapshot(Archive *fout);
 static void setupDumpWorker(Archive *AHX);
-// static TableInfo *getRootTableInfo(const TableInfo *tbinfo);
 
 
 int
@@ -2439,7 +2438,7 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 	/* We had better have loaded per-column details about this table */
 	Assert(tbinfo->interesting);
 
-	if(hasSqlvariantColumn(tbinfo)){
+	if(isBabelfishDatabase(fout) && hasSqlvariantColumn(tbinfo)){
 		/* handle tables with sql_variant datatype columns separately */
 		dumpFn = dumpSqlvariantTableData;
 		copyStmt = NULL;

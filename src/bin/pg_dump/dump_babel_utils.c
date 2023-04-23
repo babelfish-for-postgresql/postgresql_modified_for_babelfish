@@ -961,16 +961,14 @@ dumpSqlvariantTableData(Archive *fout, const void *dcontext)
 	DumpOptions *dopt = fout->dopt;
 	PQExpBuffer q = createPQExpBuffer();
 	PQExpBuffer insertStmt = NULL;
-	char	   *attgenerated;
-	bool	   *atttypnames;
-	PGresult   *res;
-	int			nfields,
-				i;
-	int			rows_per_statement = dopt->dump_inserts;
-	int			rows_this_statement = 0;
+	char		*attgenerated;
+	bool		*is_sqlvariant_column;
+	PGresult	*res;
+	int 		nfields, i;
+	int 		rows_per_statement = dopt->dump_inserts;
+	int 		rows_this_statement = 0;
 	int 		nfields_new;
 	int 		orig_field;
-	bool 		is_sqlvariant = false;
 
 	/*
 	 * If we're going to emit INSERTs with column names, the most efficient
@@ -980,8 +978,7 @@ dumpSqlvariantTableData(Archive *fout, const void *dcontext)
 	 * rather than the uninteresting-to-us value.
 	 */
 	attgenerated = (char *) pg_malloc(tbinfo->numatts * sizeof(char));
-	atttypnames = (bool *) pg_malloc(tbinfo->numatts * sizeof(bool));
-	atttypnames = memset(atttypnames, false, tbinfo->numatts * sizeof(bool));
+	is_sqlvariant_column = (bool *) pg_malloc0(3 * tbinfo->numatts * sizeof(bool));
 
 	appendPQExpBufferStr(q, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
 	nfields = 0;
@@ -1018,8 +1015,8 @@ dumpSqlvariantTableData(Archive *fout, const void *dcontext)
 			{
 					appendPQExpBuffer(q, ", sys.SQL_VARIANT_PROPERTY(%s, 'BaseType')", tbinfo->attnames[i]);
 					appendPQExpBuffer(q, ", sys.datalength(%s)", tbinfo->attnames[i]);
+					is_sqlvariant_column[nfields_new] = true;
 					nfields_new = nfields_new + 2;
-					atttypnames[nfields] = true;
 			}
 		}
 		attgenerated[nfields] = tbinfo->attgenerated[i];
@@ -1086,7 +1083,6 @@ dumpSqlvariantTableData(Archive *fout, const void *dcontext)
 				if (dopt->column_inserts)
 				{
 					appendPQExpBufferChar(insertStmt, '(');
-					orig_field = 0;
 					for (int field = 0; field < nfields_new; field++)
 					{
 						if (field > 0)
@@ -1097,7 +1093,7 @@ dumpSqlvariantTableData(Archive *fout, const void *dcontext)
 						 * skip over columns defined additionally for
 						 * sql_variant data type columns
 						 */
-						if (atttypnames[orig_field++])
+						if (is_sqlvariant_column[field])
 								field=field+2;
 					}
 					appendPQExpBufferStr(insertStmt, ") ");
@@ -1139,13 +1135,11 @@ dumpSqlvariantTableData(Archive *fout, const void *dcontext)
 			orig_field = 0;
 			for (int field = 0; field < nfields_new; field++)
 			{
-				if(is_sqlvariant){
+				if(field > 0 && is_sqlvariant_column[field - 1])
+				{
 					field++;
-					is_sqlvariant = false;
 					continue;
 				}
-				if (atttypnames[orig_field])
-					is_sqlvariant = true;
 
 				if (field > 0)
 					archputs(", ", fout);
@@ -1212,7 +1206,7 @@ dumpSqlvariantTableData(Archive *fout, const void *dcontext)
 						appendStringLiteralAH(q,
 											  PQgetvalue(res, tuple, field),
 											  fout);
-						if (is_sqlvariant)
+						if (is_sqlvariant_column[field])
 								castSqlvariantToBasetype(res, fout, q, tuple, field);
 						else
 							archputs(q->data, fout);
@@ -1261,7 +1255,7 @@ dumpSqlvariantTableData(Archive *fout, const void *dcontext)
 	if (insertStmt != NULL)
 		destroyPQExpBuffer(insertStmt);
 	free(attgenerated);
-	free(atttypnames);
+	free(is_sqlvariant_column);
 	return 1;
 }
 
@@ -1298,8 +1292,9 @@ getMbstrlen(const char* mbstr,Archive* fout)
 
 /*
  * castSqlvariantToBasetype:
- * Cast sql_variant column values to their basetype with corresponding metadata
- * so that the data can be restored correctly
+ * Modify INSERT query in dump file by adding a CAST expression for a sql_variant
+ * column data entry in order to preserve the metadata of data type otherwise
+ * lost during restore.
  */
 static void
 castSqlvariantToBasetype(PGresult* res, Archive* fout, PQExpBuffer q, int tuple, int field)
