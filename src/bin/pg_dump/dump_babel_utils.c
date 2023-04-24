@@ -124,7 +124,8 @@ isBabelfishConfigTable(TableInfo *tbinfo)
 	if (tbinfo == NULL || tbinfo->relkind != RELKIND_RELATION ||
 		(tbinfo->dobj.namespace &&
 		strcmp(tbinfo->dobj.namespace->dobj.name, "sys") == 0 &&
-		(strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)))
+		(strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0) &&
+		strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0))
 		return false;
 
 	if (catalog_table_include_oids.head != NULL &&
@@ -810,7 +811,7 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_
 		if (is_builtin_db)
 			appendPQExpBufferStr(buf, "LIMIT 0 ");
 	}
-	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0 || strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0)
+	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
 						  fmtQualifiedDumpable(tbinfo));
 	else
