@@ -1075,10 +1075,10 @@ AddNewRelationType(const char *typeName,
  *		Babelfish initialization such as nvarchar will not, so we can use typacl
  * 		to determine if a type is user-defined.
  *
- *      Return 1 if there are dependencies on:
+ *      Returns true if there are dependencies on
  *		- User defined data types
  */
-static int CheckTempTableHasDependencies(TupleDesc tupdesc)
+static bool CheckTempTableHasDependencies(TupleDesc tupdesc)
 {
 	int i;
 	int	natts = tupdesc->natts;
@@ -1094,6 +1094,7 @@ static int CheckTempTableHasDependencies(TupleDesc tupdesc)
 			Form_pg_type typtup = (Form_pg_type) GETSTRUCT(tup);
 			if (typtup->typtype != TYPTYPE_DOMAIN)
 			{
+				ReleaseSysCache(tup);
 				continue;
 			}
 
@@ -1101,12 +1102,12 @@ static int CheckTempTableHasDependencies(TupleDesc tupdesc)
 			if (!isnull)
 			{
 				ReleaseSysCache(tup);
-				return 1;
+				return true;
 			}
 			ReleaseSysCache(tup);
 		}
 	}
-	return 0;
+	return false;
 }
 
 /* --------------------------------
