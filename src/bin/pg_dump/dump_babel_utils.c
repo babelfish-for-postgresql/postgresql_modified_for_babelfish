@@ -1279,12 +1279,13 @@ hasSqlvariantColumn(TableInfo *tbinfo)
  * returns the length of a multibyte string
  */
 static int
-getMbstrlen(const char* mbstr,Archive* fout)
+getMbstrlen(const char* mbstr, Archive* fout)
 {
 	int len = 0;
-
+	if(*mbstr == NULL)
+		return 0;
 	while (*mbstr){
-		mbstr+= PQmblen(mbstr, fout->encoding);
+		mbstr += PQmblen(mbstr, fout->encoding);
 		len++;
 	}
 	return len;
