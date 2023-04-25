@@ -770,7 +770,6 @@ ExecInsert(ModifyTableState *mtstate,
 								resultRelInfo->ri_PlanSlots,
 								resultRelInfo->ri_NumSlots,
 								estate, canSetTag);
-				resultRelInfo->ri_NumSlots = 0;
 				flushed = true;
 			}
 
@@ -1157,6 +1156,14 @@ ExecBatchInsert(ModifyTableState *mtstate,
 
 	if (canSetTag && numInserted > 0)
 		estate->es_processed += numInserted;
+
+	/* Clean up all the slots, ready for the next batch */
+	for (i = 0; i < numSlots; i++)
+	{
+		ExecClearTuple(slots[i]);
+		ExecClearTuple(planSlots[i]);
+	}
+	resultRelInfo->ri_NumSlots = 0;
 }
 
 /* ----------------------------------------------------------------
@@ -1590,7 +1597,6 @@ ExecPendingInserts(EState *estate)
 						resultRelInfo->ri_PlanSlots,
 						resultRelInfo->ri_NumSlots,
 						estate, mtstate->canSetTag);
-		resultRelInfo->ri_NumSlots = 0;
 	}
 
 	list_free(estate->es_insert_pending_result_relations);
