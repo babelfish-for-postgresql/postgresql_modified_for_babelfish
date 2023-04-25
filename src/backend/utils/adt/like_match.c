@@ -207,14 +207,10 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 		else if (*p == '[' && sql_dialect == SQL_DIALECT_TSQL)
 		{
 			/* Tsql deal with [ and ] wild character */
-			bool find_match, reverse_mode;
-			const char * p1, * prev;
-			int p1len;
-			p1 = p;
-			prev = NULL;
-			p1len = plen;
+			bool find_match = false, reverse_mode = false;
+			const char * p1 = p, * prev = NULL;
+			int p1len = plen;
 			NextByte(p1, p1len);
-			reverse_mode = false;
 			while (p1len > 0 && *p1 != ']'){
 				NextByte(p1, p1len);
 			}
@@ -222,8 +218,9 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 			{
 				if (GETCHAR(*p) != GETCHAR(*t))
 					return LIKE_FALSE;
-			}else{
-				find_match = false;
+			}
+			else
+			{
 				NextByte(p, plen);
 				if (*p == '^')
 				{
