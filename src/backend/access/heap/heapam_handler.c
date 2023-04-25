@@ -225,8 +225,7 @@ heapam_tuple_satisfies_snapshot(Relation rel, TupleTableSlot *slot,
 	 * Caller should be holding pin, but not lock.
 	 */
 	LockBuffer(bslot->buffer, BUFFER_LOCK_SHARE);
-	res = table_tuple_satisfies_visibility(rel, bslot->base.tuple, snapshot,
-									   bslot->buffer);
+	res = HeapTupleSatisfiesVisibility(rel, bslot->base.tuple, snapshot, bslot->buffer);
 	LockBuffer(bslot->buffer, BUFFER_LOCK_UNLOCK);
 
 	return res;
@@ -836,7 +835,7 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
 
 		LockBuffer(buf, BUFFER_LOCK_SHARE);
 
-		switch (table_tuple_satisfies_vacuum(OldHeap, tuple, OldestXmin, buf))
+		switch (HeapTupleSatisfiesVacuum(OldHeap, tuple, OldestXmin, buf))
 		{
 			case HEAPTUPLE_DEAD:
 				/* Definitely dead */
@@ -1058,7 +1057,7 @@ heapam_scan_analyze_next_tuple(TableScanDesc scan, TransactionId OldestXmin,
 		targtuple->t_data = (HeapTupleHeader) PageGetItem(targpage, itemid);
 		targtuple->t_len = ItemIdGetLength(itemid);
 
-		switch (table_tuple_satisfies_vacuum(scan->rs_rd, targtuple, OldestXmin, hscan->rs_cbuf))
+		switch (HeapTupleSatisfiesVacuum(scan->rs_rd, targtuple, OldestXmin, hscan->rs_cbuf))
 		{
 			case HEAPTUPLE_LIVE:
 				sample_it = true;
@@ -1400,7 +1399,7 @@ heapam_index_build_range_scan(Relation heapRelation,
 			 * reltuples values, e.g. when there are many recently-dead
 			 * tuples.
 			 */
-			switch (table_tuple_satisfies_vacuum(heapRelation, heapTuple, OldestXmin, hscan->rs_cbuf))
+			switch (HeapTupleSatisfiesVacuum(heapRelation, heapTuple, OldestXmin, hscan->rs_cbuf))
 			{
 				case HEAPTUPLE_DEAD:
 					/* Definitely dead, we can ignore it */
@@ -2201,7 +2200,7 @@ heapam_scan_bitmap_next_block(TableScanDesc scan,
 			loctup.t_len = ItemIdGetLength(lp);
 			loctup.t_tableOid = scan->rs_rd->rd_id;
 			ItemPointerSet(&loctup.t_self, page, offnum);
-			valid = table_tuple_satisfies_visibility(scan->rs_rd, &loctup, snapshot, buffer);
+			valid = HeapTupleSatisfiesVisibility(scan->rs_rd, &loctup, snapshot, buffer);
 			if (valid)
 			{
 				hscan->rs_vistuples[ntup++] = offnum;
@@ -2522,8 +2521,7 @@ SampleHeapTupleVisible(TableScanDesc scan, Buffer buffer,
 	else
 	{
 		/* Otherwise, we have to check the tuple individually. */
-		return table_tuple_satisfies_visibility(scan->rs_rd, tuple, scan->rs_snapshot,
-											buffer);
+		return HeapTupleSatisfiesVisibility(scan->rs_rd, tuple, scan->rs_snapshot, buffer);
 	}
 }
 

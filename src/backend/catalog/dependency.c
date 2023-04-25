@@ -709,7 +709,7 @@ findDependentObjects(const ObjectAddress *object,
 				 * interesting anymore.  We test this by checking the
 				 * pg_depend entry (see notes below).
 				 */
-				if (!systable_recheck_tuple(scan, tup))
+				if (!scan->enr && !systable_recheck_tuple(scan, tup))
 				{
 					systable_endscan(scan);
 					ReleaseDeletionLock(&otherObject);

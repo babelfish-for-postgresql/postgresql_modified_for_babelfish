@@ -466,7 +466,7 @@ heapgetpage(TableScanDesc sscan, BlockNumber page)
 			if (all_visible)
 				valid = true;
 			else
-				valid = table_tuple_satisfies_visibility(scan->rs_base.rs_rd, &loctup, snapshot, buffer);
+				valid = HeapTupleSatisfiesVisibility(scan->rs_base.rs_rd, &loctup, snapshot, buffer);
 
 			HeapCheckForSerializableConflictOut(valid, scan->rs_base.rs_rd,
 												&loctup, buffer, snapshot);
@@ -708,10 +708,10 @@ heapgettup(HeapScanDesc scan,
 				/*
 				 * if current tuple qualifies, return it.
 				 */
-				valid = table_tuple_satisfies_visibility(scan->rs_base.rs_rd,
-														 tuple,
-														 snapshot,
-														 scan->rs_cbuf);
+				valid = HeapTupleSatisfiesVisibility(scan->rs_base.rs_rd,
+													 tuple,
+													 snapshot,
+													 scan->rs_cbuf);
 
 				HeapCheckForSerializableConflictOut(valid, scan->rs_base.rs_rd,
 													tuple, scan->rs_cbuf,
@@ -1620,10 +1620,10 @@ heap_fetch(Relation relation,
 	/*
 	 * check tuple visibility, then release lock
 	 */
-	valid = table_tuple_satisfies_visibility(relation,
-											 tuple,
-											 snapshot,
-											 buffer);
+	valid = HeapTupleSatisfiesVisibility(relation,
+										 tuple,
+										 snapshot,
+										 buffer);
 
 	if (valid)
 		PredicateLockTID(relation, &(tuple->t_self), snapshot,
@@ -1766,7 +1766,7 @@ heap_hot_search_buffer(ItemPointer tid, Relation relation, Buffer buffer,
 		if (!skip)
 		{
 			/* If it's visible per the snapshot, we must return it */
-			valid = table_tuple_satisfies_visibility(relation, heapTuple, snapshot, buffer);
+			valid = HeapTupleSatisfiesVisibility(relation, heapTuple, snapshot, buffer);
 
 			HeapCheckForSerializableConflictOut(valid, relation, heapTuple,
 												buffer, snapshot);
@@ -1913,7 +1913,7 @@ heap_get_latest_tid(TableScanDesc sscan,
 		 * Check tuple visibility; if visible, set it as the new result
 		 * candidate.
 		 */
-		valid = table_tuple_satisfies_visibility(relation, &tp, snapshot, buffer);
+		valid = HeapTupleSatisfiesVisibility(relation, &tp, snapshot, buffer);
 
 		HeapCheckForSerializableConflictOut(valid, relation, &tp, buffer, snapshot);
 		if (valid)
@@ -2740,7 +2740,7 @@ l1:
 		LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 	}
 
-	result = table_tuple_satisfies_update(relation, &tp, cid, buffer);
+	result = HeapTupleSatisfiesUpdate(relation, &tp, cid, buffer);
 
 	if (result == TM_Invisible)
 	{
@@ -2866,7 +2866,7 @@ l1:
 	if (crosscheck != InvalidSnapshot && result == TM_Ok)
 	{
 		/* Perform additional check for transaction-snapshot mode RI updates */
-		if (table_tuple_satisfies_visibility(relation, &tp, crosscheck, buffer))
+		if (HeapTupleSatisfiesVisibility(relation, &tp, crosscheck, buffer))
 			result = TM_Updated;
 	}
 
@@ -3301,7 +3301,7 @@ heap_update(Relation relation, ItemPointer otid, HeapTuple newtup,
 l2:
 	checked_lockers = false;
 	locker_remains = false;
-	result = table_tuple_satisfies_update(relation, &oldtup, cid, buffer);
+	result = HeapTupleSatisfiesUpdate(relation, &oldtup, cid, buffer);
 
 	/* see below about the "no wait" case */
 	Assert(result != TM_BeingModified || wait);
@@ -3493,7 +3493,7 @@ l2:
 	if (crosscheck != InvalidSnapshot && result == TM_Ok)
 	{
 		/* Perform additional check for transaction-snapshot mode RI updates */
-		if (table_tuple_satisfies_visibility(relation, &oldtup, crosscheck, buffer))
+		if (HeapTupleSatisfiesVisibility(relation, &oldtup, crosscheck, buffer))
 		{
 			result = TM_Updated;
 			Assert(!ItemPointerEquals(&oldtup.t_self, &oldtup.t_data->t_ctid));
@@ -4301,7 +4301,7 @@ heap_lock_tuple(Relation relation, HeapTuple tuple,
 	tuple->t_tableOid = RelationGetRelid(relation);
 
 l3:
-	result = table_tuple_satisfies_update(relation, tuple, cid, *buffer);
+	result = HeapTupleSatisfiesUpdate(relation, tuple, cid, *buffer);
 
 	if (result == TM_Invisible)
 	{
@@ -10045,7 +10045,7 @@ HeapCheckForSerializableConflictOut(bool visible, Relation relation,
 	 * been concurrently updated (by a separate transaction), the xmin of the
 	 * tuple will be used -- not the updater's xid.
 	 */
-	htsvResult = HeapTupleSatisfiesVacuum(tuple, TransactionXmin, buffer);
+	htsvResult = HeapTupleSatisfiesVacuum(relation, tuple, TransactionXmin, buffer);
 	switch (htsvResult)
 	{
 		case HEAPTUPLE_LIVE:
