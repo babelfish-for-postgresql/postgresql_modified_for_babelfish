@@ -2140,12 +2140,14 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	DumpOptions *dopt = fout->dopt;
 	PQExpBuffer q = createPQExpBuffer();
 	PQExpBuffer insertStmt = NULL;
-	char	   *attgenerated;
-	PGresult   *res;
-	int			nfields,
-				i;
-	int			rows_per_statement = dopt->dump_inserts;
-	int			rows_this_statement = 0;
+	char		*attgenerated;
+	bool		*is_sqlvariant_column;
+	PGresult	*res;
+	int 		nfields, i;
+	int 		rows_per_statement = dopt->dump_inserts;
+	int 		rows_this_statement = 0;
+	int 		nfields_new;
+	int 		orig_field;
 
 	/*
 	 * If we're going to emit INSERTs with column names, the most efficient
@@ -2155,8 +2157,10 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	 * rather than the uninteresting-to-us value.
 	 */
 	attgenerated = (char *) pg_malloc(tbinfo->numatts * sizeof(char));
+	is_sqlvariant_column = (bool *) pg_malloc0(3 * tbinfo->numatts * sizeof(bool));
 	appendPQExpBufferStr(q, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
 	nfields = 0;
+	nfields_new = 0;
 	for (i = 0; i < tbinfo->numatts; i++)
 	{
 		if (tbinfo->attisdropped[i])
@@ -2176,10 +2180,27 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		if (tbinfo->attgenerated[i])
 			appendPQExpBufferStr(q, "NULL");
 		else
+		{
 			appendPQExpBufferStr(q, fmtId(tbinfo->attnames[i]));
+			/*
+			 * To find the basetype and bytelength of string data types we
+			 * invoke sys.sql_variant_property and sys.datalength function on
+			 * the sqlvariant column. These extra columns are carefully handled
+			 * so that they do not interfere with expected dump behaviour.
+			*/
+			if (pg_strcasecmp(tbinfo->atttypnames[i],
+				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
+			{
+					appendPQExpBuffer(q, ", sys.SQL_VARIANT_PROPERTY(%s, 'BaseType')", tbinfo->attnames[i]);
+					appendPQExpBuffer(q, ", sys.datalength(%s)", tbinfo->attnames[i]);
+					is_sqlvariant_column[nfields_new] = true;
+					nfields_new = nfields_new + 2;
+			}
+		}
 		attgenerated[nfields] = tbinfo->attgenerated[i];
-		nfields++;
+		nfields++; nfields_new++;
 	}
+
 	/* Servers before 9.4 will complain about zero-column SELECT */
 	if (nfields == 0)
 		appendPQExpBufferStr(q, "NULL");
@@ -2199,7 +2220,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		/* cross-check field count, allowing for dummy NULL if any */
 		if (nfields != PQnfields(res) &&
 			!(nfields == 0 && PQnfields(res) == 1))
-			pg_fatal("wrong number of fields retrieved from table \"%s\"",
+				if(!(PQnfields(res) == nfields_new))
+					pg_fatal("wrong number of fields retrieved from table \"%s\"",
 					 tbinfo->dobj.name);
 
 		/*
@@ -2239,12 +2261,18 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				if (dopt->column_inserts)
 				{
 					appendPQExpBufferChar(insertStmt, '(');
-					for (int field = 0; field < nfields; field++)
+					for (int field = 0; field < nfields_new; field++)
 					{
 						if (field > 0)
 							appendPQExpBufferStr(insertStmt, ", ");
 						appendPQExpBufferStr(insertStmt,
-											 fmtId(PQfname(res, field)));
+							fmtId(PQfname(res, field)));
+						/*
+						 * skip over columns defined additionally for
+						 * sql_variant data type columns
+						 */
+						if (is_sqlvariant_column[field])
+								field=field+2;
 					}
 					appendPQExpBufferStr(insertStmt, ") ");
 				}
@@ -2255,7 +2283,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				appendPQExpBufferStr(insertStmt, "VALUES");
 			}
 		}
-
+		orig_field = 0;
 		for (int tuple = 0; tuple < PQntuples(res); tuple++)
 		{
 			/* Write the INSERT if not in the middle of a multi-row INSERT. */
@@ -2282,18 +2310,26 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			else
 				archputs("\n\t(", fout);
 
-			for (int field = 0; field < nfields; field++)
+			for (int field = 0; field < nfields_new; field++)
 			{
+				if(field > 0 && is_sqlvariant_column[field - 1])
+				{
+					field++;
+					continue;
+				}
+
 				if (field > 0)
 					archputs(", ", fout);
-				if (attgenerated[field])
+				if (attgenerated[orig_field])
 				{
 					archputs("DEFAULT", fout);
+					orig_field++;
 					continue;
 				}
 				if (PQgetisnull(res, tuple, field))
 				{
 					archputs("NULL", fout);
+					orig_field++;
 					continue;
 				}
 
@@ -2347,7 +2383,10 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 						appendStringLiteralAH(q,
 											  PQgetvalue(res, tuple, field),
 											  fout);
-						archputs(q->data, fout);
+						if (is_sqlvariant_column[field])
+							castSqlvariantToBasetype(res, fout, q, tuple, field);
+						else
+							archputs(q->data, fout);
 						break;
 				}
 			}
@@ -2392,7 +2431,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	if (insertStmt != NULL)
 		destroyPQExpBuffer(insertStmt);
 	free(attgenerated);
-
+	free(is_sqlvariant_column);
 	return 1;
 }
 
