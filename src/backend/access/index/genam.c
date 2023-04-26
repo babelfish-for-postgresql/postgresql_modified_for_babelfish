@@ -587,6 +587,10 @@ systable_recheck_tuple(SysScanDesc sysscan, HeapTuple tup)
 	Snapshot	freshsnap;
 	bool		result;
 
+	/* objects inside ENR are per-session and the check below cannot handle ENR */
+	if (sysscan->enr)
+		return true;
+
 	Assert(tup == ExecFetchSlotHeapTuple(sysscan->slot, false, NULL));
 
 	/*

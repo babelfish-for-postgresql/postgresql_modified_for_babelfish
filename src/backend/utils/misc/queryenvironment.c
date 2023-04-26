@@ -394,9 +394,8 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 						found = true;
 					}
 					else if (indexId == IndexRelidIndexId &&
-							tup->indexrelid == (Oid)v1) {
-						// *tuplist = enr->md.cattups[ENR_CATTUP_DEPEND];
-						// *tuplist_i = foreach_current_index(lc);
+							tup->indexrelid == (Oid)v1)
+					{
 						*tuplist = list_insert_nth(*tuplist, index++, lfirst(lc));
 						*tuplist_flags |= SYSSCAN_ENR_NEEDFREE;
 						found = true;

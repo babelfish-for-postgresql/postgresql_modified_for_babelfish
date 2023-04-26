@@ -709,7 +709,7 @@ findDependentObjects(const ObjectAddress *object,
 				 * interesting anymore.  We test this by checking the
 				 * pg_depend entry (see notes below).
 				 */
-				if (!scan->enr && !systable_recheck_tuple(scan, tup))
+				if (!systable_recheck_tuple(scan, tup))
 				{
 					systable_endscan(scan);
 					ReleaseDeletionLock(&otherObject);
@@ -898,7 +898,7 @@ findDependentObjects(const ObjectAddress *object,
 		 * if the pg_depend tuple we are looking at is still live. (If the
 		 * object got deleted, the tuple would have been deleted too.)
 		 */
-		if (!scan->enr && !systable_recheck_tuple(scan, tup))
+		if (!systable_recheck_tuple(scan, tup))
 		{
 			/* release the now-useless lock */
 			ReleaseDeletionLock(&otherObject);
