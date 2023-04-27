@@ -16,7 +16,6 @@
 
 #include "tcop/cmdtag.h"
 #include "tcop/tcopprot.h"
-#include "parser/parse_node.h"
 
 typedef enum
 {
@@ -109,7 +108,7 @@ CreateCommandName(Node *parsetree)
 extern LogStmtLevel GetCommandLogLevel(Node *parsetree);
 
 extern bool CommandIsReadOnly(PlannedStmt *pstmt);
-typedef bool (*bbfCustomProcessUtility_hook_type)(ParseState *pstate, PlannedStmt *pstmt, const char *queryString, ProcessUtilityContext context, 
+typedef bool (*bbfCustomProcessUtility_hook_type)(struct ParseState *pstate, PlannedStmt *pstmt, const char *queryString, ProcessUtilityContext context, 
 						  ParamListInfo params, QueryCompletion *qc);
 extern PGDLLIMPORT bbfCustomProcessUtility_hook_type bbfCustomProcessUtility_hook;
 
