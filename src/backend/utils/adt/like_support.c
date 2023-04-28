@@ -1052,37 +1052,17 @@ like_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
 		memcpy(patt, VARDATA_ANY(bstr), pattlen);
 		Assert((Pointer) bstr == DatumGetPointer(patt_const->constvalue));
 	}
-
-	/* TSQL uses the [ and ] characters as a kind of pattern matching
-	 * character.  This is not supported in the current version.
-	 */
-	if (sql_dialect == SQL_DIALECT_TSQL)
-	{
-		for (pos = 0; pos < pattlen; pos++)
-		{
-			/* [ and ] are special characters in LIKE for TSQL */
-			if (patt[pos] == '[' ||
-				patt[pos] == ']')
-			{
-				ereport(ERROR,
-						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-						 errmsg("pattern matching operators '[' and ']' are not supported for LIKE")));
-			}
-
-			/* Backslash escapes the next character */
-			if (patt[pos] == '\\')
-			{
-				pos++;
-				if (pos >= pattlen)
-					break;
-			}
-		}
-	}
 	
 	match = palloc(pattlen + 1);
 	match_pos = 0;
 	for (pos = 0; pos < pattlen; pos++)
 	{
+		/* [ and ] are special characters in LIKE for TSQL */
+		if ((patt[pos] == '[' ||
+			patt[pos] == ']') && sql_dialect == SQL_DIALECT_TSQL)
+		{
+			break;
+		}
 		/* % and _ are wildcard characters in LIKE */
 		if (patt[pos] == '%' ||
 			patt[pos] == '_')
