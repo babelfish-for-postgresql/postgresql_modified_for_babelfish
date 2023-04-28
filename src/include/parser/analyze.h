@@ -53,6 +53,20 @@ extern PGDLLIMPORT post_transform_insert_row_hook_type post_transform_insert_row
 typedef int (*set_target_table_alternative_hook_type) (ParseState *pstate, Node *stmt, CmdType command);
 extern PGDLLIMPORT set_target_table_alternative_hook_type set_target_table_alternative_hook;
 
+/* Hook for handle target table before transforming from clause */
+typedef void (*push_namespace_stack_hook_type) ();
+extern PGDLLIMPORT push_namespace_stack_hook_type push_namespace_stack_hook;
+
+/* Hook for handle target table before transforming from clause */
+typedef void (*pre_transform_sort_clause_hook_type) (ParseState *pstate, Query *qry, Query *leftmostQuery);
+extern PGDLLIMPORT pre_transform_sort_clause_hook_type pre_transform_sort_clause_hook;
+
+/* Hook for handle target table before transforming from clause */
+typedef void (*post_transform_sort_clause_hook_type) (Query *qry);
+extern PGDLLIMPORT post_transform_sort_clause_hook_type post_transform_sort_clause_hook;
+
+extern Query *parse_analyze_fixedparams(RawStmt *parseTree, const char *sourceText,
+										const Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);
 extern Query *parse_analyze(RawStmt *parseTree, const char *sourceText,
 							Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);
 extern Query *parse_analyze_varparams(RawStmt *parseTree, const char *sourceText,
