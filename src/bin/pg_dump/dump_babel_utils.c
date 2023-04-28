@@ -144,9 +144,7 @@ void
 dumpBabelGUCs(Archive *fout)
 {
 	char		*oid;
-	char		*migration_mode;
 	PQExpBuffer	qry;
-	PGresult	*res;
 
 	if (!isBabelfishDatabase(fout))
 		return;
@@ -160,17 +158,47 @@ dumpBabelGUCs(Archive *fout)
 		free(oid);
 	}
 
-	res = ExecuteSqlQuery(fout, "SHOW babelfishpg_tsql.migration_mode", PGRES_TUPLES_OK);
-	migration_mode = PQgetvalue(res, 0, 0);
-	pg_log_info("migration_mode: %s", migration_mode);
-
-	// appendPQExpBuffer(qry, "SET babelfishpg_tsql.migration_mode = %s;\n", migration_mode);
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
 				 ARCHIVE_OPTS(.tag = "BABELFISHGUCS",
 							  .description = "BABELFISHGUCS",
 							  .section = SECTION_PRE_DATA,
 							  .createStmt = qry->data));
 
+	destroyPQExpBuffer(qry);
+}
+
+void
+blockCrossMigrationDumpRestore(Archive *fout)
+{
+	PGresult	*res;
+	char		*migration_mode;
+	PQExpBuffer	qry;
+
+	if (!isBabelfishDatabase(fout))
+	return;
+
+	qry = createPQExpBuffer();
+	res = ExecuteSqlQuery(fout, "SHOW babelfishpg_tsql.migration_mode", PGRES_TUPLES_OK);
+
+	migration_mode = PQgetvalue(res, 0, 0);
+	pg_log_info("migration_mode: %s", migration_mode);
+	appendPQExpBuffer(qry, "DO $$\n"
+				"DECLARE\n"
+				"	restore_migration_mode varchar;\n"
+				"BEGIN\n"
+				"	SELECT INTO restore_migration_mode setting from pg_settings WHERE name = 'babelfishpg_tsql.migration_mode';\n"
+				"	IF restore_migration_mode::varchar = '%s' THEN\n"
+				"	SELECT pg_terminate_backend(pg_backend_pid());\n"
+				"	END IF;\n"
+				"END$$;\n", migration_mode);
+	
+	pg_log_info("yes: %s", qry->data);
+
+	ArchiveEntry(fout, nilCatalogId, createDumpId(),
+				 ARCHIVE_OPTS(.tag = "BABELFISHGUCS",
+				 .description = "BABELFISHGUCS",
+							  .section = SECTION_PRE_DATA,
+							  .createStmt = qry->data));
 	destroyPQExpBuffer(qry);
 	PQclear(res);
 }
