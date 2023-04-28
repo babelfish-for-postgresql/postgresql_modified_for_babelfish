@@ -28,6 +28,7 @@
 #include "catalog/storage.h"
 #include "catalog/storage_xlog.h"
 #include "miscadmin.h"
+#include "parser/parser.h"      /* sql_dialect */
 #include "storage/freespace.h"
 #include "storage/smgr.h"
 #include "utils/hsearch.h"
@@ -215,6 +216,24 @@ RelationDropStorage(Relation rel)
 	pending->nestLevel = GetCurrentTransactionNestLevel();
 	pending->next = pendingDeletes;
 	pendingDeletes = pending;
+
+	/*
+	 * BBF Table Variables were not registered in pendingDeletes in RelationCreateStorage().
+	 * This allows us to skip files from being unlinked automatically during AbortTransaction().
+	 * However, we need to unlink the files on explicit DROP TABLE command regardless
+	 * if the transaction state is committing or aborting.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(rel))
+	{
+		pending = (PendingRelDelete *)
+		MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
+		pending->relnode = rel->rd_node;
+		pending->backend = rel->rd_backend;
+		pending->atCommit = false;
+		pending->nestLevel = GetCurrentTransactionNestLevel();
+		pending->next = pendingDeletes;
+		pendingDeletes = pending;
+	}
 
 	/*
 	 * NOTE: if the relation was created in this transaction, it will now be

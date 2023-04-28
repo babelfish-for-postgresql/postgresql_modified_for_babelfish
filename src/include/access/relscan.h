@@ -177,6 +177,8 @@ typedef struct ParallelIndexScanDescData
 
 struct TupleTableSlot;
 
+#define SYSSCAN_ENR_NEEDFREE 0x1
+
 /* Struct for storage-or-index scans of system tables */
 typedef struct SysScanDescData
 {
@@ -189,6 +191,7 @@ typedef struct SysScanDescData
 	bool enr;
 	List *enr_tuplist;
 	int enr_tuplist_i;
+	int enr_tuplist_flags;
 }			SysScanDescData;
 
 #endif							/* RELSCAN_H */

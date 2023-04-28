@@ -4166,6 +4166,11 @@ InitTempTableNamespace(void)
 		/* Advance command counter to make namespace visible */
 		CommandCounterIncrement();
 	}
+	else if (sql_dialect == SQL_DIALECT_TSQL && get_namedRelList() != NIL)
+	{
+		/* Cannot wipe out any ENR relations if any */
+		;
+	}
 	else
 	{
 		/*

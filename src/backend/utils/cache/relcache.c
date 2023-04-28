@@ -1144,7 +1144,8 @@ retry:
 			relation->rd_islocaltemp = false;
 			break;
 		case RELPERSISTENCE_TEMP:
-			if (isTempOrTempToastNamespace(relation->rd_rel->relnamespace))
+			if (isTempOrTempToastNamespace(relation->rd_rel->relnamespace)
+				|| get_ENR(currentQueryEnv, relp->relname.data))
 			{
 				relation->rd_backend = BackendIdForTempRelations();
 				relation->rd_islocaltemp = true;
@@ -5812,8 +5813,9 @@ RelationGetIndexAttOptions(Relation relation, bool copy)
 int
 errtable(Relation rel)
 {
-	err_generic_string(PG_DIAG_SCHEMA_NAME,
-					   get_namespace_name(RelationGetNamespace(rel)));
+	if (get_namespace_name(RelationGetNamespace(rel)))
+		err_generic_string(PG_DIAG_SCHEMA_NAME,
+						   get_namespace_name(RelationGetNamespace(rel)));
 	err_generic_string(PG_DIAG_TABLE_NAME, RelationGetRelationName(rel));
 
 	return 0;					/* return value does not matter */
