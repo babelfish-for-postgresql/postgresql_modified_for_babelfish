@@ -160,7 +160,7 @@ statapprox_heap(Relation rel, output_type *stat)
 			 * bother distinguishing tuples inserted/deleted by our own
 			 * transaction.
 			 */
-			switch (HeapTupleSatisfiesVacuum(&tuple, OldestXmin, buf))
+			switch (HeapTupleSatisfiesVacuum(rel, &tuple, OldestXmin, buf))
 			{
 				case HEAPTUPLE_LIVE:
 				case HEAPTUPLE_DELETE_IN_PROGRESS:

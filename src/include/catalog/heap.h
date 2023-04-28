@@ -160,4 +160,5 @@ extern void StorePartitionBound(Relation rel, Relation parent,
 /* Hook for plugins to transform executable expressions in check constraint clause */
 typedef Node* (*transform_check_constraint_expr_hook_type) (Node *node);
 extern PGDLLIMPORT transform_check_constraint_expr_hook_type transform_check_constraint_expr_hook;
+
 #endif							/* HEAP_H */

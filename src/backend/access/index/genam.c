@@ -408,6 +408,7 @@ systable_beginscan(Relation heapRelation,
 	sysscan->enr = false;
 	sysscan->enr_tuplist = NULL;
 	sysscan->enr_tuplist_i = 0;
+	sysscan->enr_tuplist_flags = 0;
 
 	if (snapshot == NULL)
 	{
@@ -423,7 +424,7 @@ systable_beginscan(Relation heapRelation,
 	}
 
 	/* Catalog tuples for ENR are not in the on-disk catalogs */
-	if (ENRgetSystableScan(heapRelation, indexId, nkeys, key, &sysscan->enr_tuplist, &sysscan->enr_tuplist_i))
+	if (ENRgetSystableScan(heapRelation, indexId, nkeys, key, &sysscan->enr_tuplist, &sysscan->enr_tuplist_i, &sysscan->enr_tuplist_flags))
 	{
 		sysscan->enr = true;
 		index_close(sysscan->irel, AccessShareLock);
@@ -518,6 +519,9 @@ systable_getnext(SysScanDesc sysscan)
 
 	if (sysscan->enr)
 	{
+		/*
+		* This should only be used for read-only purposes. see comment in DeleteAttributeTuples()
+		*/
 		if (sysscan->enr_tuplist && sysscan->enr_tuplist_i < sysscan->enr_tuplist->length)
 		{
 			htup = lfirst(list_nth_cell(sysscan->enr_tuplist, sysscan->enr_tuplist_i++));
@@ -583,6 +587,10 @@ systable_recheck_tuple(SysScanDesc sysscan, HeapTuple tup)
 	Snapshot	freshsnap;
 	bool		result;
 
+	/* objects inside ENR are per-session and the check below cannot handle ENR */
+	if (sysscan->enr)
+		return true;
+
 	Assert(tup == ExecFetchSlotHeapTuple(sysscan->slot, false, NULL));
 
 	/*
@@ -618,6 +626,13 @@ systable_endscan(SysScanDesc sysscan)
 	{
 		ExecDropSingleTupleTableSlot(sysscan->slot);
 		sysscan->slot = NULL;
+	}
+
+	if (sysscan->enr_tuplist_flags & SYSSCAN_ENR_NEEDFREE)
+	{
+		Assert(sysscan->enr);
+		list_free(sysscan->enr_tuplist);
+		sysscan->enr_tuplist_flags &= ~SYSSCAN_ENR_NEEDFREE;
 	}
 
 	if (sysscan->irel && !sysscan->enr)
