@@ -919,7 +919,8 @@ main(int argc, char **argv)
 		dumpDatabase(fout);
 
 	dumpBabelGUCs(fout);
-	blockCrossMigrationDumpRestore(fout);
+	if (bbf_db_name != NULL)
+		blockCrossMigrationDumpRestore(fout);
 	/* Now the rearrangeable objects. */
 	for (i = 0; i < numObjs; i++)
 		dumpDumpableObject(fout, dobjs[i]);

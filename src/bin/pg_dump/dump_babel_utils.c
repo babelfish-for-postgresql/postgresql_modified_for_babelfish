@@ -171,7 +171,7 @@ void
 blockCrossMigrationDumpRestore(Archive *fout)
 {
 	PGresult	*res;
-	char		*migration_mode;
+	char		*dump_migration_mode;
 	PQExpBuffer	qry;
 
 	if (!isBabelfishDatabase(fout))
@@ -180,17 +180,21 @@ blockCrossMigrationDumpRestore(Archive *fout)
 	qry = createPQExpBuffer();
 	res = ExecuteSqlQuery(fout, "SHOW babelfishpg_tsql.migration_mode", PGRES_TUPLES_OK);
 
-	migration_mode = PQgetvalue(res, 0, 0);
-	pg_log_info("migration_mode: %s", migration_mode);
-	appendPQExpBuffer(qry, "DO $$\n"
-				"DECLARE\n"
-				"	restore_migration_mode varchar;\n"
-				"BEGIN\n"
-				"	SELECT INTO restore_migration_mode setting from pg_settings WHERE name = 'babelfishpg_tsql.migration_mode';\n"
-				"	IF restore_migration_mode::varchar = '%s' THEN\n"
-				"	SELECT pg_terminate_backend(pg_backend_pid());\n"
-				"	END IF;\n"
-				"END$$;\n", migration_mode);
+	dump_migration_mode = PQgetvalue(res, 0, 0);
+	pg_log_info("migration_mode: %s", dump_migration_mode);
+
+	appendPQExpBufferStr(qry, "\\SET ON_ERROR_STOP on\n\n");
+	appendPQExpBuffer(qry, "DO $$"
+				"\nDECLARE"
+				"\n	  restore_migration_mode VARCHAR;"
+				"\nBEGIN"
+				"\n   SELECT INTO restore_migration_mode setting from pg_settings WHERE name = 'babelfishpg_tsql.migration_mode';"
+				"\n   IF restore_migration_mode::VARCHAR != '%s' THEN"
+				"\n      RAISE 'backup and restore across different migration modes is not supported'" 
+				"\n   END IF;"
+				"\nEND$$;\n\n", dump_migration_mode);
+
+	appendPQExpBufferStr(qry, "\\SET ON_ERROR_STOP off\n");
 	
 	pg_log_info("yes: %s", qry->data);
 
