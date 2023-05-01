@@ -826,17 +826,17 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				case ENR_OP_ADD:
 					newtup = heap_copytuple(tup);
 					*list_ptr = list_insert_nth(*list_ptr, insert_at, newtup);
-					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL);
+					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL, true);
 					break;
 				case ENR_OP_UPDATE:
 					oldtup = lfirst(lc);
 					lfirst(lc) = heap_copytuple(tup);
-					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup);
+					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup, true);
 					break;
 				case ENR_OP_DROP:
 					tmp = lfirst(lc);
 					*list_ptr = list_delete_ptr(*list_ptr, tmp);
-					CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
+					CacheInvalidateHeapTuple(catalog_rel, tup, NULL, true);
 					heap_freetuple(tmp);
 					break;
 				default:
@@ -979,7 +979,7 @@ extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
 			{
 				htup = list_nth(*list_ptr, 0);
 				*list_ptr = list_delete_ptr(*list_ptr, htup);
-				CacheInvalidateHeapTuple(catalog_relation, htup, NULL);
+				CacheInvalidateHeapTuple(catalog_relation, htup, NULL, true);
 				heap_freetuple(htup); // heap_copytuple was called during ADD
 			}
 

@@ -2195,7 +2195,7 @@ heap_insert(Relation relation, HeapTuple tup, CommandId cid,
 	 * the heaptup data structure is all in local memory, not in the shared
 	 * buffer.
 	 */
-	CacheInvalidateHeapTuple(relation, heaptup, NULL);
+	CacheInvalidateHeapTuple(relation, heaptup, NULL, false);
 
 	/* Note: speculative insertions are counted too, even if aborted later */
 	pgstat_count_heap_insert(relation, 1);
@@ -2592,7 +2592,7 @@ heap_multi_insert(Relation relation, TupleTableSlot **slots, int ntuples,
 	if (IsCatalogRelation(relation))
 	{
 		for (i = 0; i < ntuples; i++)
-			CacheInvalidateHeapTuple(relation, heaptuples[i], NULL);
+			CacheInvalidateHeapTuple(relation, heaptuples[i], NULL, false);
 	}
 
 	/* copy t_self fields back to the caller's slots */
@@ -3057,7 +3057,7 @@ l1:
 	 * boundary. We have to do this before releasing the buffer because we
 	 * need to look at the contents of the tuple.
 	 */
-	CacheInvalidateHeapTuple(relation, &tp, NULL);
+	CacheInvalidateHeapTuple(relation, &tp, NULL, false);
 
 	/* Now we can release the buffer */
 	ReleaseBuffer(buffer);
@@ -3973,7 +3973,7 @@ l2:
 	 * both tuple versions in one call to inval.c so we can avoid redundant
 	 * sinval messages.)
 	 */
-	CacheInvalidateHeapTuple(relation, &oldtup, heaptup);
+	CacheInvalidateHeapTuple(relation, &oldtup, heaptup, false);
 
 	/* Now we can release the buffer(s) */
 	if (newbuf != buffer)
@@ -6094,7 +6094,7 @@ heap_inplace_update(Relation relation, HeapTuple tuple)
 	 * bothering with index updates either, so that's true a fortiori.
 	 */
 	if (!IsBootstrapProcessingMode())
-		CacheInvalidateHeapTuple(relation, tuple, NULL);
+		CacheInvalidateHeapTuple(relation, tuple, NULL,  false);
 }
 
 #define		FRM_NOOP				0x0001
