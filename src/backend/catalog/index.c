@@ -733,12 +733,23 @@ index_create(Relation heapRelation,
 	char		relkind;
 	TransactionId relfrozenxid;
 	MultiXactId relminmxid;
+	bool		is_enr = false;
 
 	/* constraint flags can only be set when a constraint is requested */
 	Assert((constr_flags == 0) ||
 		   ((flags & INDEX_CREATE_ADD_CONSTRAINT) != 0));
 	/* partitioned indexes must never be "built" by themselves */
 	Assert(!partitioned || (flags & INDEX_CREATE_SKIP_BUILD));
+
+	if (sql_dialect == SQL_DIALECT_TSQL && heapRelation->rd_rel->relpersistence == RELPERSISTENCE_TEMP)
+	{
+		/*
+ 		 * Index of Table Variables should also be in ENR and the index
+		 * can only be created as part of DECLARE @[name] TABLE;
+		 * when specifying PRIMARY KEYs and/or CONSTRAINTs.
+		 */
+		is_enr = (indexRelationName && strlen(indexRelationName) > 0 && indexRelationName[0] == '@');
+	}
 
 	relkind = partitioned ? RELKIND_PARTITIONED_INDEX : RELKIND_INDEX;
 	is_exclusion = (indexInfo->ii_ExclusionOps != NULL);
@@ -945,6 +956,21 @@ index_create(Relation heapRelation,
 	Assert(relfrozenxid == InvalidTransactionId);
 	Assert(relminmxid == InvalidMultiXactId);
 	Assert(indexRelationId == RelationGetRelid(indexRelation));
+
+	/*
+	 * If it's temp table, create ENR entry for it when using TSQL dialect.
+	 */
+	if (is_enr)
+	{
+		MemoryContext oldcontext = MemoryContextSwitchTo(CacheMemoryContext);
+		EphemeralNamedRelation enr = palloc0(sizeof(EphemeralNamedRelationData));
+		enr->md.name = palloc0(strlen(indexRelationName) + 1);
+		strncpy(enr->md.name, indexRelationName, strlen(indexRelationName) + 1);
+		enr->md.reliddesc = indexRelationId;
+		enr->md.enrtype = ENR_TSQL_TEMP;
+		register_ENR(currentQueryEnv, enr);
+		MemoryContextSwitchTo(oldcontext);
+	}
 
 	/*
 	 * Obtain exclusive lock on it.  Although no other transactions can see it
@@ -2346,7 +2372,8 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 	hasexprs = !heap_attisnull(tuple, Anum_pg_index_indexprs,
 							   RelationGetDescr(indexRelation));
 
-	CatalogTupleDelete(indexRelation, &tuple->t_self);
+	if (!ENRdropTuple(indexRelation, tuple))
+		CatalogTupleDelete(indexRelation, &tuple->t_self);
 
 	ReleaseSysCache(tuple);
 	table_close(indexRelation, RowExclusiveLock);

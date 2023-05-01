@@ -42,4 +42,10 @@ extern Oid	GetNewRelFileNode(Oid reltablespace, Relation pg_class,
 typedef bool (*IsExtendedCatalogHookType) (Oid relationId);
 extern IsExtendedCatalogHookType IsExtendedCatalogHook;
 
+typedef bool (*IsToastRelationHookType) (Relation relation);
+extern IsToastRelationHookType IsToastRelationHook;
+
+typedef bool (*IsToastClassHookType) (Form_pg_class pg_class_tup);
+extern IsToastClassHookType IsToastClassHook;
+
 #endif							/* CATALOG_H */

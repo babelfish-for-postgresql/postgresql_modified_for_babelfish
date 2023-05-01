@@ -431,7 +431,8 @@ heap_create(const char *relname,
 
 			case RELKIND_INDEX:
 			case RELKIND_SEQUENCE:
-				RelationCreateStorage(rel->rd_node, relpersistence);
+				RelationCreateStorage(rel->rd_node, relpersistence,
+					(sql_dialect != SQL_DIALECT_TSQL || !RelationIsBBFTableVariable(rel)));
 				break;
 
 			case RELKIND_RELATION:
@@ -1122,6 +1123,48 @@ AddNewRelationType(const char *typeName,
 				   InvalidOid); /* rowtypes never have a collation */
 }
 
+/* -------------------------------
+ *      CheckTempTableDependencies
+ *
+ *		User-defined types in TSQL will have typacl set. Types created during
+ *		Babelfish initialization such as nvarchar will not, so we can use typacl
+ * 		to determine if a type is user-defined.
+ *
+ *      Returns true if there are dependencies on
+ *		- User defined data types
+ */
+static bool CheckTempTableHasDependencies(TupleDesc tupdesc)
+{
+	int i;
+	int	natts = tupdesc->natts;
+
+	for (i = 0; i < natts; i++)
+	{
+		Oid atttypid = TupleDescAttr(tupdesc, i)->atttypid;
+		HeapTuple tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(atttypid));
+
+		if (HeapTupleIsValid(tup))
+		{
+			bool isnull;
+			Form_pg_type typtup = (Form_pg_type) GETSTRUCT(tup);
+			if (typtup->typtype != TYPTYPE_DOMAIN)
+			{
+				ReleaseSysCache(tup);
+				continue;
+			}
+
+			SysCacheGetAttr(TYPEOID, tup, Anum_pg_type_typacl, &isnull);
+			if (!isnull)
+			{
+				ReleaseSysCache(tup);
+				return true;
+			}
+			ReleaseSysCache(tup);
+		}
+	}
+	return false;
+}
+
 /* --------------------------------
  *		heap_create_with_catalog
  *
@@ -1194,9 +1237,13 @@ heap_create_with_catalog(const char *relname,
 		/*
 		 * in TSQL, temporary table name should start with '#'.
 		 * If temporary table name does not start with '#', assume it is a PG temporary table.
-		 * This can happen in the case of internal query to create PG temporary table for Babelfish */
-		if (relname != 0 && strlen(relname) >= 1 && relname[0] == '#')
-			is_enr = true;
+		 * This can happen in the case of internal query to create PG temporary table for Babelfish
+		 *
+		 * Also skip ENR for cases where a Temporary Table dependent objects might be involved.
+		 * On the other hand, all Table Variables are in ENR.
+		 */
+		if (relname && strlen(relname) > 0)
+			is_enr = (relname[0] == '@') || (relname[0] == '#' && !CheckTempTableHasDependencies(tupdesc));
 	}
 
 	pg_class_desc = table_open(RelationRelationId, RowExclusiveLock);
@@ -1646,9 +1693,19 @@ DeleteAttributeTuples(Oid relid)
 							  NULL, 1, key);
 
 	/* Delete all the matching tuples */
-	while ((atttup = systable_getnext(scan)) != NULL)
-		if (!ENRdropTuple(attrel, atttup))
+
+	/*
+	* ENR cannot handle sysscan while modifying the sysscan->enr_tuplist.
+	* Check the ENR specific code in systable_getnext() for more information.
+	* The enr_tuplist_i increases while list length decreases. It ends up deleting
+	* just half of the list. So we call a function to tell ENR drop then entire attribute list.
+	*/
+	if (scan->enr) {
+		ENRDropCatalogEntry(attrel, relid);
+	} else {
+		while ((atttup = systable_getnext(scan)) != NULL)
 			CatalogTupleDelete(attrel, &atttup->t_self);
+	}
 
 	/* Clean up after the scan */
 	systable_endscan(scan);
@@ -3224,11 +3281,11 @@ cookConstraint(ParseState *pstate,
 	 */
 	assign_expr_collations(pstate, expr);
 
-	/* 
-	 * If there is a LIKE operation within CHECK constraint, then call the hook to 
-	 * transform like node into ilike node for tsql compatibility. Since utility 
+	/*
+	 * If there is a LIKE operation within CHECK constraint, then call the hook to
+	 * transform like node into ilike node for tsql compatibility. Since utility
 	 * statements do not get planned, we invoke a hook here to carry out the
-	 * transformation. 
+	 * transformation.
 	 * Note that we cannot guarantee that this hook has not already
 	 * been invoked, but the invoked function must take care of preventing any
 	 * duplicated transformations.

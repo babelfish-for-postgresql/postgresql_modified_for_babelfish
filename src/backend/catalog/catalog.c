@@ -48,6 +48,8 @@
 #include "utils/syscache.h"
 
 IsExtendedCatalogHookType IsExtendedCatalogHook;
+IsToastRelationHookType IsToastRelationHook;
+IsToastClassHookType IsToastClassHook;
 
 /*
  * Parameters to determine when to emit a log message in
@@ -150,6 +152,10 @@ IsCatalogRelationOid(Oid relid)
 bool
 IsToastRelation(Relation relation)
 {
+	/* Allows extension to find toast table somewhere else. eg: ENR */
+	if (IsToastRelationHook && IsToastRelationHook(relation))
+		return true;
+
 	/*
 	 * What we actually check is whether the relation belongs to a pg_toast
 	 * namespace.  This should be equivalent because of restrictions that are
@@ -171,6 +177,10 @@ bool
 IsToastClass(Form_pg_class reltuple)
 {
 	Oid			relnamespace = reltuple->relnamespace;
+
+	/* Allows extension to find toast table somewhere else. eg: ENR */
+	if (IsToastClassHook && IsToastClassHook(reltuple))
+		return true;
 
 	return IsToastNamespace(relnamespace);
 }

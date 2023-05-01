@@ -41,6 +41,7 @@
 #include "commands/vacuum.h"
 #include "miscadmin.h"
 #include "optimizer/optimizer.h"
+#include "parser/parser.h"
 #include "pgstat.h"
 #include "storage/bufmgr.h"
 #include "storage/lmgr.h"
@@ -1374,6 +1375,7 @@ finish_heap_swap(Oid OIDOldHeap, Oid OIDNewHeap,
 	int			reindex_flags;
 	ReindexParams reindex_params = {0};
 	int			i;
+	const char *pg_toast_prefix = "pg_toast";
 
 	/* Report that we are now swapping relation files */
 	pgstat_progress_update_param(PROGRESS_CLUSTER_PHASE,
@@ -1516,15 +1518,17 @@ finish_heap_swap(Oid OIDOldHeap, Oid OIDNewHeap,
 											 NoLock);
 
 			/* rename the toast table ... */
-			snprintf(NewToastName, NAMEDATALEN, "pg_toast_%u",
-					 OIDOldHeap);
+			if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(newrel))
+				pg_toast_prefix = "@pg_toast";
+
+			snprintf(NewToastName, NAMEDATALEN, "%s_%u",
+					pg_toast_prefix, OIDOldHeap);
 			RenameRelationInternal(newrel->rd_rel->reltoastrelid,
 								   NewToastName, true, false);
 
 			/* ... and its valid index too. */
-			snprintf(NewToastName, NAMEDATALEN, "pg_toast_%u_index",
-					 OIDOldHeap);
-
+			snprintf(NewToastName, NAMEDATALEN, "%s_%u_index",
+					pg_toast_prefix, OIDOldHeap);
 			RenameRelationInternal(toastidx,
 								   NewToastName, true, true);
 
