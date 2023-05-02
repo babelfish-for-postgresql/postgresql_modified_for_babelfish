@@ -51,5 +51,5 @@ extern void castSqlvariantToBasetype(PGresult *res,
                                     int row,
                                     int field,
                                     int sqlvariant_pos);
-extern void blockCrossMigrationDumpRestore(Archive *fout);
+extern void dumpBabelMigrationModeCheck(Archive *fout);
 #endif

@@ -168,20 +168,19 @@ dumpBabelGUCs(Archive *fout)
 }
 
 void
-blockCrossMigrationDumpRestore(Archive *fout)
+dumpBabelMigrationModeCheck(Archive *fout)
 {
 	PGresult	*res;
 	char		*dump_migration_mode;
 	PQExpBuffer	qry;
 
-	if (!isBabelfishDatabase(fout))
+	if (!isBabelfishDatabase(fout) || !bbf_db_name)
 	return;
 
 	qry = createPQExpBuffer();
 	res = ExecuteSqlQuery(fout, "SHOW babelfishpg_tsql.migration_mode", PGRES_TUPLES_OK);
 
 	dump_migration_mode = PQgetvalue(res, 0, 0);
-	pg_log_info("migration_mode: %s", dump_migration_mode);
 
 	appendPQExpBufferStr(qry, "\\SET ON_ERROR_STOP on\n\n");
 	appendPQExpBuffer(qry, "DO $$"
@@ -195,12 +194,10 @@ blockCrossMigrationDumpRestore(Archive *fout)
 				"\nEND$$;\n\n", dump_migration_mode);
 
 	appendPQExpBufferStr(qry, "\\SET ON_ERROR_STOP off\n");
-	
-	pg_log_info("yes: %s", qry->data);
 
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
-				 ARCHIVE_OPTS(.tag = "BABELFISHGUCS",
-				 .description = "BABELFISHGUCS",
+				 ARCHIVE_OPTS(.tag = "BABELFISHCHECKS",
+				 .description = "BABELFISHCHECKS",
 							  .section = SECTION_PRE_DATA,
 							  .createStmt = qry->data));
 	destroyPQExpBuffer(qry);
