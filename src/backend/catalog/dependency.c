@@ -1351,7 +1351,10 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
-		CatalogTupleDelete(*depRel, &tup->t_self);
+		if (scan->enr)
+			ENRdropTuple(*depRel, tup);
+		else
+			CatalogTupleDelete(*depRel, &tup->t_self);
 	}
 
 	systable_endscan(scan);
@@ -1372,6 +1375,9 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 	DeleteComments(object->objectId, object->classId, object->objectSubId);
 	DeleteSecurityLabel(object);
 	DeleteInitPrivs(object);
+
+	// Delete from ENR - noop if not found from ENR
+	ENRDropEntry(object->objectId);
 
 	/*
 	 * CommandCounterIncrement here to ensure that preceding changes are all
@@ -1396,7 +1402,7 @@ doDeletion(const ObjectAddress *object, int flags)
 			{
 				char		relKind = get_rel_relkind(object->objectId);
 
-				if (flags & PERFORM_DELETION_SKIP_ENR && 
+				if (flags & PERFORM_DELETION_SKIP_ENR &&
 						!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(object->objectId)))
 					break;
 

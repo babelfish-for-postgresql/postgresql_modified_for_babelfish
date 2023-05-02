@@ -71,12 +71,17 @@
 #include "access/transam.h"
 #include "access/xact.h"
 #include "access/xlog.h"
+#include "parser/parser.h"
 #include "storage/bufmgr.h"
 #include "storage/procarray.h"
 #include "utils/builtins.h"
 #include "utils/combocid.h"
 #include "utils/snapmgr.h"
 
+table_variable_satisfies_visibility_hook_type table_variable_satisfies_visibility_hook = NULL;
+table_variable_satisfies_update_hook_type table_variable_satisfies_update_hook = NULL;
+table_variable_satisfies_vacuum_hook_type table_variable_satisfies_vacuum_hook = NULL;
+table_variable_satisfies_vacuum_horizon_hook_type table_variable_satisfies_vacuum_horizon_hook = NULL;
 
 /*
  * SetHintBits()
@@ -454,10 +459,14 @@ HeapTupleSatisfiesToast(HeapTuple htup, Snapshot snapshot,
  *	test for it themselves.)
  */
 TM_Result
-HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
+HeapTupleSatisfiesUpdate(Relation relation, HeapTuple htup, CommandId curcid,
 						 Buffer buffer)
 {
 	HeapTupleHeader tuple = htup->t_data;
+
+	/* See HeapTupleSatisfiesVisibility why */
+	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(relation))
+		return table_variable_satisfies_update_hook(htup, curcid, buffer);
 
 	Assert(ItemPointerIsValid(&htup->t_self));
 	Assert(htup->t_tableOid != InvalidOid);
@@ -1158,13 +1167,17 @@ HeapTupleSatisfiesMVCC(HeapTuple htup, Snapshot snapshot,
  * transaction has committed.
  */
 HTSV_Result
-HeapTupleSatisfiesVacuum(HeapTuple htup, TransactionId OldestXmin,
+HeapTupleSatisfiesVacuum(Relation relation, HeapTuple htup, TransactionId OldestXmin,
 						 Buffer buffer)
 {
 	TransactionId dead_after = InvalidTransactionId;
 	HTSV_Result res;
 
-	res = HeapTupleSatisfiesVacuumHorizon(htup, buffer, &dead_after);
+	/* See HeapTupleSatisfiesVisibility why */
+	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(relation))
+		return table_variable_satisfies_vacuum_hook(htup, OldestXmin, buffer);
+
+	res = HeapTupleSatisfiesVacuumHorizon(NULL, htup, buffer, &dead_after);
 
 	if (res == HEAPTUPLE_RECENTLY_DEAD)
 	{
@@ -1192,7 +1205,7 @@ HeapTupleSatisfiesVacuum(HeapTuple htup, TransactionId OldestXmin,
  * transaction aborted.
  */
 HTSV_Result
-HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *dead_after)
+HeapTupleSatisfiesVacuumHorizon(Relation relation, HeapTuple htup, Buffer buffer, TransactionId *dead_after)
 {
 	HeapTupleHeader tuple = htup->t_data;
 
@@ -1201,6 +1214,10 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
 	Assert(dead_after != NULL);
 
 	*dead_after = InvalidTransactionId;
+
+	/* See HeapTupleSatisfiesVisibility why */
+	if (sql_dialect == SQL_DIALECT_TSQL && relation && RelationIsBBFTableVariable(relation))
+		return table_variable_satisfies_vacuum_horizon_hook(htup, buffer, dead_after);
 
 	/*
 	 * Has inserting transaction committed?
@@ -1431,7 +1448,7 @@ HeapTupleSatisfiesNonVacuumable(HeapTuple htup, Snapshot snapshot,
 	TransactionId dead_after = InvalidTransactionId;
 	HTSV_Result res;
 
-	res = HeapTupleSatisfiesVacuumHorizon(htup, buffer, &dead_after);
+	res = HeapTupleSatisfiesVacuumHorizon(NULL, htup, buffer, &dead_after);
 
 	if (res == HEAPTUPLE_RECENTLY_DEAD)
 	{
@@ -1763,8 +1780,15 @@ HeapTupleSatisfiesHistoricMVCC(HeapTuple htup, Snapshot snapshot,
  *	if so, the indicated buffer is marked dirty.
  */
 bool
-HeapTupleSatisfiesVisibility(HeapTuple tup, Snapshot snapshot, Buffer buffer)
+HeapTupleSatisfiesVisibility(Relation relation, HeapTuple tup, Snapshot snapshot, Buffer buffer)
 {
+	/*
+	* Babelfish extension has a different type of heap table but non-transactional.
+	* It is not worth introducing a new table AM because the new table still uses heap format.
+	*/
+	if (sql_dialect == SQL_DIALECT_TSQL && relation && RelationIsBBFTableVariable(relation))
+		return table_variable_satisfies_visibility_hook(tup, snapshot, buffer);
+
 	switch (snapshot->snapshot_type)
 	{
 		case SNAPSHOT_MVCC:
@@ -1792,3 +1816,5 @@ HeapTupleSatisfiesVisibility(HeapTuple tup, Snapshot snapshot, Buffer buffer)
 
 	return false;				/* keep compiler quiet */
 }
+
+

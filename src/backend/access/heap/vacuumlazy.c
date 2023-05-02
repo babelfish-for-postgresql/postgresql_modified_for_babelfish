@@ -1662,7 +1662,7 @@ retry:
 		 * since heap_page_prune() looked.  Handle that here by restarting.
 		 * (See comments at the top of function for a full explanation.)
 		 */
-		res = HeapTupleSatisfiesVacuum(&tuple, vacrel->OldestXmin, buf);
+		res = HeapTupleSatisfiesVacuum(rel, &tuple, vacrel->OldestXmin, buf);
 
 		if (unlikely(res == HEAPTUPLE_DEAD))
 			goto retry;
@@ -2037,7 +2037,7 @@ lazy_scan_noprune(LVRelState *vacrel,
 		tuple.t_len = ItemIdGetLength(itemid);
 		tuple.t_tableOid = RelationGetRelid(vacrel->rel);
 
-		switch (HeapTupleSatisfiesVacuum(&tuple, vacrel->OldestXmin, buf))
+		switch (HeapTupleSatisfiesVacuum(vacrel->rel, &tuple, vacrel->OldestXmin, buf))
 		{
 			case HEAPTUPLE_DELETE_IN_PROGRESS:
 			case HEAPTUPLE_LIVE:
@@ -3273,7 +3273,7 @@ heap_page_is_all_visible(LVRelState *vacrel, Buffer buf,
 		tuple.t_len = ItemIdGetLength(itemid);
 		tuple.t_tableOid = RelationGetRelid(vacrel->rel);
 
-		switch (HeapTupleSatisfiesVacuum(&tuple, vacrel->OldestXmin, buf))
+		switch (HeapTupleSatisfiesVacuum(vacrel->rel, &tuple, vacrel->OldestXmin, buf))
 		{
 			case HEAPTUPLE_LIVE:
 				{

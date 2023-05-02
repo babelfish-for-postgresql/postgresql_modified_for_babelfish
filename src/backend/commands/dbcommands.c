@@ -359,7 +359,7 @@ ScanSourceDatabasePgClassPage(Page page, Buffer buf, Oid tbid, Oid dbid,
 		tuple.t_tableOid = RelationRelationId;
 
 		/* Skip tuples that are not visible to this snapshot. */
-		if (HeapTupleSatisfiesVisibility(&tuple, snapshot, buf))
+		if (HeapTupleSatisfiesVisibility(NULL, &tuple, snapshot, buf))
 		{
 			CreateDBRelInfo *relinfo;
 
