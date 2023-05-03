@@ -1036,7 +1036,7 @@ fixBbfSqlvariantData(Archive *fout, PGresult* res, PQExpBuffer q, char* attgener
 								fout);
 	castSqlvariantToBasetype(res, fout, q, tuple, *field);
 
-	*(orig_field)++;
+	*orig_field = *(orig_field) + 1;
 	*field = *(field) + 2;
 	return;
 }
