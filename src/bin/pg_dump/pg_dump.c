@@ -320,6 +320,7 @@ static void appendReloptionsArrayAH(PQExpBuffer buffer, const char *reloptions,
 									const char *prefix, Archive *fout);
 static char *get_synchronized_snapshot(Archive *fout);
 static void setupDumpWorker(Archive *AHX);
+static TableInfo *getRootTableInfo(const TableInfo *tbinfo);
 
 
 int
@@ -2140,15 +2141,16 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	DumpOptions *dopt = fout->dopt;
 	PQExpBuffer q = createPQExpBuffer();
 	PQExpBuffer insertStmt = NULL;
-	char		*attgenerated;
-	PGresult	*res;
+	char	   *attgenerated;
+	PGresult   *res;
 	int			nfields,
 				i;
 	int			rows_per_statement = dopt->dump_inserts;
 	int			rows_this_statement = 0;
+	int			orig_field;
 	bool		*is_sqlvariant_column;
 	bool 		has_sqlvariant_column;
-	int			orig_field;
+
 	/*
 	 * If we're going to emit INSERTs with column names, the most efficient
 	 * way to deal with generated columns is to exclude them entirely.  For
@@ -2156,11 +2158,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	 * actual column value --- but we can save a few cycles by fetching nulls
 	 * rather than the uninteresting-to-us value.
 	 */
-
-	bool run_loop = true; 
-
-	while(run_loop);
 	attgenerated = (char *) pg_malloc(tbinfo->numatts * sizeof(char));
+	is_sqlvariant_column = (bool *) pg_malloc0(3 * tbinfo->numatts * sizeof(bool));
 	appendPQExpBufferStr(q, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
 	nfields = 0;
 	for (i = 0; i < tbinfo->numatts; i++)
@@ -2186,27 +2185,19 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		attgenerated[nfields] = tbinfo->attgenerated[i];
 		nfields++;
 	}
-			pg_log_info("yes1");
-	pg_log_info("%s", "adii");
-	pg_log_info("%d", tbinfo->attnames);
+
 	fixCursorForBbfSqlvariantTableData(fout, tbinfo, q, &nfields,
-								&is_sqlvariant_column, &has_sqlvariant_column);
+								is_sqlvariant_column, &has_sqlvariant_column);
 	/* Servers before 9.4 will complain about zero-column SELECT */
-	pg_log_info("%s", "adii0");
-	pg_log_info("%d", tbinfo->attnames);
-	pg_log_info("%s", "adii1");
 	if (nfields == 0)
 		appendPQExpBufferStr(q, "NULL");
-	pg_log_info("%s", "adii");
 	appendPQExpBuffer(q, " FROM ONLY %s",
 					  fmtQualifiedDumpable(tbinfo));
-	pg_log_info("before while loop");
 	if (tdinfo->filtercond)
 		appendPQExpBuffer(q, " %s", tdinfo->filtercond);
 
 	fixCursorForBbfCatalogTableData(fout, tbinfo, q, &nfields, attgenerated);
 	ExecuteSqlStatement(fout, q->data);
-	pg_log_info("before while loop");
 
 	while (1)
 	{
@@ -2217,7 +2208,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		if (nfields != PQnfields(res) &&
 			!(nfields == 0 && PQnfields(res) == 1))
 			pg_fatal("wrong number of fields retrieved from table \"%s\"",
-					tbinfo->dobj.name);
+					 tbinfo->dobj.name);
 
 		/*
 		 * First time through, we build as much of the INSERT statement as
@@ -2237,7 +2228,6 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			 * for the partition table, so that we can reload data through the
 			 * root table.
 			 */
-			pg_log_info("yes2");
 			if (dopt->load_via_partition_root && tbinfo->ispartition)
 				targettab = getRootTableInfo(tbinfo);
 			else
@@ -2279,8 +2269,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				appendPQExpBufferStr(insertStmt, "VALUES");
 			}
 		}
-		pg_log_info("yes3");
-		orig_field = 0;
+
 		for (int tuple = 0; tuple < PQntuples(res); tuple++)
 		{
 			/* Write the INSERT if not in the middle of a multi-row INSERT. */
@@ -2307,11 +2296,12 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			else
 				archputs("\n\t(", fout);
 
+			orig_field = 0;
 			for (int field = 0; field < nfields; field++)
 			{
 				if(has_sqlvariant_column && is_sqlvariant_column[field])
 				{
-					fixBbfSqlvariantData(fout, res, q,attgenerated, tuple, &orig_field, &field);
+					fixBbfSqlvariantData(fout, res, q, attgenerated, tuple, &orig_field, &field);
 					continue;
 				}
 
@@ -2381,6 +2371,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 						archputs(q->data, fout);
 						break;
 				}
+			orig_field++;
 			}
 
 			/* Terminate the row ... */
@@ -2431,8 +2422,9 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 
 /*
  * getRootTableInfo:
+ *     get the root TableInfo for the given partition table.
  */
-TableInfo *
+static TableInfo *
 getRootTableInfo(const TableInfo *tbinfo)
 {
 	TableInfo  *parentTbinfo;
@@ -2470,12 +2462,7 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 	/* We had better have loaded per-column details about this table */
 	Assert(tbinfo->interesting);
 
-	if(isBabelfishDatabase(fout) && hasSqlvariantColumn(tbinfo)){
-		/* handle tables with sql_variant datatype columns separately */
-		dumpFn = dumpTableData_insert;
-		copyStmt = NULL;
-	}
-	else if (dopt->dump_inserts == 0)
+	if (dopt->dump_inserts == 0)
 	{
 		/* Dump/restore using COPY */
 		dumpFn = dumpTableData_copy;
@@ -2506,6 +2493,12 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 	else
 	{
 		/* Restore using INSERT */
+		dumpFn = dumpTableData_insert;
+		copyStmt = NULL;
+	}
+
+	if(isBabelfishDatabase(fout) && hasSqlvariantColumn(tbinfo)){
+		/* dump tables with sql_variant datatype columns using INSERT only */
 		dumpFn = dumpTableData_insert;
 		copyStmt = NULL;
 	}
