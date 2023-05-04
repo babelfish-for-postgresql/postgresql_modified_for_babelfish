@@ -168,32 +168,51 @@ dumpBabelGUCs(Archive *fout)
 }
 
 void
-dumpBabelMigrationModeCheck(Archive *fout)
+dumpBabelRestoreChecks(Archive *fout)
 {
-	PGresult	*res;
+	PGresult	*res_migration_mode;
+	PGresult	*res_server_version;
 	char		*dump_migration_mode;
+	char		*dump_server_version;
 	PQExpBuffer	qry;
 
 	if (!isBabelfishDatabase(fout) || !bbf_db_name)
 	return;
 
 	qry = createPQExpBuffer();
-	res = ExecuteSqlQuery(fout, "SHOW babelfishpg_tsql.migration_mode", PGRES_TUPLES_OK);
 
-	dump_migration_mode = PQgetvalue(res, 0, 0);
+	res_migration_mode = ExecuteSqlQuery(fout,
+					"SHOW babelfishpg_tsql.migration_mode", PGRES_TUPLES_OK);
+	res_server_version = ExecuteSqlQuery(fout,
+					"SHOW server_version", PGRES_TUPLES_OK);
 
-	appendPQExpBufferStr(qry, "\\SET ON_ERROR_STOP on\n\n");
+	dump_migration_mode = PQgetvalue(res_migration_mode, 0, 0);
+	dump_server_version = PQgetvalue(res_server_version, 0, 0);
+
+	appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP on\n\n");
 	appendPQExpBuffer(qry, "DO $$"
 				"\nDECLARE"
-				"\n	  restore_migration_mode VARCHAR;"
+				"\n    restore_migration_mode VARCHAR;"
 				"\nBEGIN"
-				"\n   SELECT INTO restore_migration_mode setting from pg_settings WHERE name = 'babelfishpg_tsql.migration_mode';"
-				"\n   IF restore_migration_mode::VARCHAR != '%s' THEN"
-				"\n      RAISE 'backup and restore across different migration modes is not supported'" 
-				"\n   END IF;"
-				"\nEND$$;\n\n", dump_migration_mode);
+				"\n    SELECT INTO restore_migration_mode setting from pg_settings"
+				"\n        WHERE name = 'babelfishpg_tsql.migration_mode';"
+				"\n    IF restore_migration_mode::VARCHAR != '%s' THEN"
+				"\n        RAISE 'Backup and restore across different migration modes is not supported';" 
+				"\n    END IF;"
+				"\nEND$$;\n\n"
+				"DO $$"
+				"\nDECLARE"
+				"\n    restore_server_version VARCHAR;"
+				"\nBEGIN"
+				"\n    SELECT INTO restore_server_version setting from pg_settings"
+				"\n        WHERE name = 'server_version';"
+				"\n    IF restore_server_version::VARCHAR != '%s' THEN"
+				"\n        RAISE 'Backup and restore across different Postgres versions is not supported';" 
+				"\n    END IF;"
+				"\nEND$$;\n\n"				
+				, dump_migration_mode, dump_server_version);
 
-	appendPQExpBufferStr(qry, "\\SET ON_ERROR_STOP off\n");
+	appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP off\n");
 
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
 				 ARCHIVE_OPTS(.tag = "BABELFISHCHECKS",
@@ -201,7 +220,8 @@ dumpBabelMigrationModeCheck(Archive *fout)
 							  .section = SECTION_PRE_DATA,
 							  .createStmt = qry->data));
 	destroyPQExpBuffer(qry);
-	PQclear(res);
+	PQclear(res_migration_mode);
+	PQclear(res_server_version);
 }
 
 /*
