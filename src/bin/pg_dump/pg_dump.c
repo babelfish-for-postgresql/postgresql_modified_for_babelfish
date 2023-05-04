@@ -2147,6 +2147,16 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				i;
 	int			rows_per_statement = dopt->dump_inserts;
 	int			rows_this_statement = 0;
+	/*
+	 * sqlvar_metadata_pos stores the position of the extra columns added in
+	 * fixCursorForBbfSqlvariantTableData which fetch the metadata of sql_variant
+	 * column values. The array is NULL if no sql_variant columns are present in
+	 * the table, and the value stored is 0 if it is not a sql_variant column.
+	 */
+	int			*sqlvar_metadata_pos = NULL;
+	/* Total number of columns in select cursor including sql_variant metadata
+	columns, if they exist. */
+	int			nfields_new = 0;
 
 	/*
 	 * If we're going to emit INSERTs with column names, the most efficient
@@ -2181,6 +2191,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		attgenerated[nfields] = tbinfo->attgenerated[i];
 		nfields++;
 	}
+	nfields_new = fixCursorForBbfSqlvariantTableData(fout, tbinfo, q, nfields,
+										&sqlvar_metadata_pos);
 	/* Servers before 9.4 will complain about zero-column SELECT */
 	if (nfields == 0)
 		appendPQExpBufferStr(q, "NULL");
@@ -2200,8 +2212,9 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		/* cross-check field count, allowing for dummy NULL if any */
 		if (nfields != PQnfields(res) &&
 			!(nfields == 0 && PQnfields(res) == 1))
-			pg_fatal("wrong number of fields retrieved from table \"%s\"",
-					 tbinfo->dobj.name);
+				if(nfields_new != PQnfields(res))
+					pg_fatal("wrong number of fields retrieved from table \"%s\"",
+							 tbinfo->dobj.name);
 
 		/*
 		 * First time through, we build as much of the INSERT statement as
@@ -2298,6 +2311,12 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 					continue;
 				}
 
+				if(sqlvar_metadata_pos && sqlvar_metadata_pos[field] > 0)
+				{
+					castSqlvariantToBasetype(res, fout, tuple, field,
+										sqlvar_metadata_pos[field]);
+					continue;
+				}
 				/* XXX This code is partially duplicated in ruleutils.c */
 				switch (PQftype(res, field))
 				{
@@ -2393,6 +2412,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	if (insertStmt != NULL)
 		destroyPQExpBuffer(insertStmt);
 	free(attgenerated);
+	if(sqlvar_metadata_pos)
+		free(sqlvar_metadata_pos);
 
 	return 1;
 }
@@ -2470,6 +2491,12 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 	else
 	{
 		/* Restore using INSERT */
+		dumpFn = dumpTableData_insert;
+		copyStmt = NULL;
+	}
+
+	if(isBabelfishDatabase(fout) && hasSqlvariantColumn(tbinfo)){
+		/* dump tables with sql_variant datatype columns using INSERT only */
 		dumpFn = dumpTableData_insert;
 		copyStmt = NULL;
 	}
