@@ -39,7 +39,6 @@ static SimpleOidList catalog_table_include_oids = {NULL, NULL};
 static char *getMinOid(Archive *fout);
 static bool isBabelfishConfigTable(TableInfo *tbinfo);
 static void addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_builtin_db);
-// static void castSqlvariantToBasetype(PGresult *res, Archive *fout, int row, int field);
 static int getMbstrlen(const char *mbstr,Archive *fout);
 
 static char *
@@ -986,20 +985,20 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 									TableInfo *tbinfo,
 									PQExpBuffer query,
 									int nfields,
-									int **sqlvar_metdata_pos)
+									int **sqlvar_metadata_pos)
 {
 	int orig_nfields = 0;
 	PQExpBuffer buf = createPQExpBuffer();
 
 	if (!isBabelfishDatabase(fout) || !hasSqlvariantColumn(tbinfo))
-		return 0;
+		return nfields;
 
-	*sqlvar_metdata_pos = (int *) pg_malloc0(3 * tbinfo->numatts * sizeof(int));
+	*sqlvar_metadata_pos = (int *) pg_malloc0(tbinfo->numatts * sizeof(int));
 	for (int i = 0; i < tbinfo->numatts; i++)
 	{
 		if (tbinfo->attisdropped[i])
 			continue;
-		if (tbinfo->attgenerated[i] && fout->dopt->column_inserts)
+		if (tbinfo->attgenerated[i])
 			continue;
 
 		/* Skip TSQL ROWVERSION/TIMESTAMP column, it should be re-generated during restore. */
@@ -1019,14 +1018,15 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 		if (pg_strcasecmp(tbinfo->atttypnames[i],
 			quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
 		{
-			appendPQExpBuffer(buf, ", sys.SQL_VARIANT_PROPERTY(%s, 'BaseType')", tbinfo->attnames[i]);
+			appendPQExpBuffer(buf, ", sys.SQL_VARIANT_PROPERTY(%s, 'BaseType')", fmtId(tbinfo->attnames[i]));
 			appendPQExpBuffer(buf, ", sys.datalength(%s)", fmtId(tbinfo->attnames[i]));
-			(*sqlvar_metdata_pos)[orig_nfields] = nfields;
+			(*sqlvar_metadata_pos)[orig_nfields] = nfields;
 			nfields = nfields + 2;
 		}
 		orig_nfields++;
 	}
-	appendPQExpBuffer(query, buf->data);
+	appendPQExpBufferStr(query, buf->data);
+	destroyPQExpBuffer(buf);
 	return nfields;
 }
 

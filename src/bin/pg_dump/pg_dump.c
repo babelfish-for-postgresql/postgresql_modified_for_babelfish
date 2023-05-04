@@ -2148,12 +2148,12 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	int			rows_per_statement = dopt->dump_inserts;
 	int			rows_this_statement = 0;
 	/*
-	 * sqlvar_metdata_pos stores the position of the extra columns added in
+	 * sqlvar_metadata_pos stores the position of the extra columns added in
 	 * fixCursorForBbfSqlvariantTableData which fetch the metadata of sql_variant
 	 * column values. The array is NULL if no sql_variant columns are present in
 	 * the table, and the value stored is 0 if it is not a sql_variant column.
 	 */
-	int			*sqlvar_metdata_pos = NULL;
+	int			*sqlvar_metadata_pos = NULL;
 	/* Total number of columns in select cursor including sql_variant metadata
 	columns, if they exist. */
 	int			nfields_new = 0;
@@ -2192,7 +2192,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		nfields++;
 	}
 	nfields_new = fixCursorForBbfSqlvariantTableData(fout, tbinfo, q, nfields,
-										&sqlvar_metdata_pos);
+										&sqlvar_metadata_pos);
 	/* Servers before 9.4 will complain about zero-column SELECT */
 	if (nfields == 0)
 		appendPQExpBufferStr(q, "NULL");
@@ -2311,10 +2311,10 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 					continue;
 				}
 
-				if(sqlvar_metdata_pos && sqlvar_metdata_pos[field])
+				if(sqlvar_metadata_pos && sqlvar_metadata_pos[field] > 0)
 				{
 					castSqlvariantToBasetype(res, fout, tuple, field,
-										sqlvar_metdata_pos[field]);
+										sqlvar_metadata_pos[field]);
 					continue;
 				}
 				/* XXX This code is partially duplicated in ruleutils.c */
@@ -2412,8 +2412,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	if (insertStmt != NULL)
 		destroyPQExpBuffer(insertStmt);
 	free(attgenerated);
-	if(sqlvar_metdata_pos)
-		free(sqlvar_metdata_pos);
+	if(sqlvar_metadata_pos)
+		free(sqlvar_metadata_pos);
 
 	return 1;
 }
