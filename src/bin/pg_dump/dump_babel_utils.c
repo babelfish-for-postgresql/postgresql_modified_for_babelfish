@@ -39,8 +39,8 @@ static SimpleOidList catalog_table_include_oids = {NULL, NULL};
 static char *getMinOid(Archive *fout);
 static bool isBabelfishConfigTable(TableInfo *tbinfo);
 static void addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_builtin_db);
-static void castSqlvariantToBasetype(PGresult* res, Archive* fout, PQExpBuffer q, int tuple, int field);
-static int getMbstrlen(const char* mbstr,Archive* fout);
+// static void castSqlvariantToBasetype(PGresult *res, Archive *fout, int row, int field);
+static int getMbstrlen(const char *mbstr,Archive *fout);
 
 static char *
 getMinOid(Archive *fout)
@@ -946,22 +946,55 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 }
 
 /*
+ * hasSqlvariantColumn:
+ * Returns true if any of the columns in table is a sqlvariant data type column
+ */
+bool
+hasSqlvariantColumn(TableInfo *tbinfo)
+{
+	for (int i = 0; i < tbinfo->numatts; i++)
+		if (pg_strcasecmp(tbinfo->atttypnames[i],
+				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
+					return true;
+	return false;
+}
+
+/*
+ * getMbstrlen:
+ * returns the length of a multibyte string
+ */
+static int
+getMbstrlen(const char *mbstr, Archive *fout)
+{
+	int len = 0;
+	if (!mbstr)
+		return 0;
+	while (*mbstr){
+		mbstr += PQmblen(mbstr, fout->encoding);
+		len++;
+	}
+	return len;
+}
+
+/*
  * fixCursorForBbfSqlvariantTableData:
  * Prepare custom cursor for all Babelfish tables with atleast one sql_variant
  * datatype column to correctly dump sql_variant data.
  */
-void
-fixCursorForBbfSqlvariantTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields, bool *is_sqlvariant_column, bool *has_sqlvariant_column)
+int
+fixCursorForBbfSqlvariantTableData( Archive *fout,
+									TableInfo *tbinfo,
+									PQExpBuffer query,
+									int nfields,
+									int **sqlvar_metdata_pos)
 {
-	int nfields_new = 0;
-	*(has_sqlvariant_column) = hasSqlvariantColumn(tbinfo);
-	
-	if(!has_sqlvariant_column || !isBabelfishDatabase(fout))
-		return;
+	int orig_nfields = 0;
+	PQExpBuffer buf = createPQExpBuffer();
 
-	resetPQExpBuffer(buf);
-	appendPQExpBufferStr(buf, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
+	if (!isBabelfishDatabase(fout) || !hasSqlvariantColumn(tbinfo))
+		return 0;
 
+	*sqlvar_metdata_pos = (int *) pg_malloc0(3 * tbinfo->numatts * sizeof(int));
 	for (int i = 0; i < tbinfo->numatts; i++)
 	{
 		if (tbinfo->attisdropped[i])
@@ -976,101 +1009,25 @@ fixCursorForBbfSqlvariantTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer
 				quote_all_identifiers ? "\"sys\".\"timestamp\"" : "sys.timestamp") == 0)
 			continue;
 
-		if (nfields_new > 0)
-			appendPQExpBufferStr(buf, ", ");
-		if (tbinfo->attgenerated[i])
-			appendPQExpBufferStr(buf, "NULL");
-		else
-		{
-			appendPQExpBufferStr(buf, fmtId(tbinfo->attnames[i]));
-			/*
-			 * To find the basetype and bytelength of string data types we
-			 * invoke sys.sql_variant_property and sys.datalength function on
-			 * the sqlvariant column. These extra columns are carefully handled
-			 * so that they do not interfere with expected dump behaviour.
-			*/
-			if (pg_strcasecmp(tbinfo->atttypnames[i],
-				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
-			{
-					appendPQExpBuffer(buf, ", sys.SQL_VARIANT_PROPERTY(%s, 'BaseType')", tbinfo->attnames[i]);
-					appendPQExpBuffer(buf, ", sys.datalength(%s)", fmtId(tbinfo->attnames[i]));
-					is_sqlvariant_column[nfields_new] = true;
-					nfields_new = nfields_new + 2;
-			}
-		}
-		nfields_new++;
-	}
-	*(nfields) = nfields_new;
-	return;
-}
-
-/*
- * fixBbfSqlvariantData:
- * Modify the values in INSERT query that dump sql_variant column table data so
- * that metadata is preserved during restore. If default value is not used or 
- * the value is not NULL, we add a cast expression to typecast the value to its
- * appropriate basetype.
- */
-void
-fixBbfSqlvariantData(Archive *fout, PGresult* res, PQExpBuffer q, char* attgenerated, int tuple, int *orig_field, int *field)
-{
-	if (*field > 0)
-		archputs(", ", fout);
-	if (attgenerated[*orig_field])
-	{
-		archputs("DEFAULT", fout);
-		(*orig_field)++;
-		*field = *(field) + 2;
-		return;
-	}
-	if (PQgetisnull(res, tuple, *field))
-	{
-		archputs("NULL", fout);
-		(*orig_field)++;
-		*field = *(field) + 2;
-		return;
-	}
-	resetPQExpBuffer(q);
-	appendStringLiteralAH(q,
-				PQgetvalue(res, tuple, *field),
-								fout);
-	castSqlvariantToBasetype(res, fout, q, tuple, *field);
-
-	*orig_field = *(orig_field) + 1;
-	*field = *(field) + 2;
-	return;
-}
-
-/*
- * hasSqlvariantColumn:
- * Returns true if any of the columns in table is a sqlvariant data type column
- */
-
-bool
-hasSqlvariantColumn(TableInfo *tbinfo)
-{
-	for(int i=0; i<tbinfo->numatts; i++)
+		/*
+			* To find the basetype and bytelength of string data types we
+			* invoke sys.sql_variant_property and sys.datalength function on
+			* the sqlvariant column. These extra columns are added at the end of
+			* the select cursor query so that they do not interfere with
+			* expected dump behaviour.
+		*/
 		if (pg_strcasecmp(tbinfo->atttypnames[i],
-				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
-					return true;
-	return false;
-}
-
-/*
- * getMbstrlen:
- * returns the length of a multibyte string
- */
-static int
-getMbstrlen(const char* mbstr, Archive* fout)
-{
-	int len = 0;
-	if(!mbstr)
-		return 0;
-	while (*mbstr){
-		mbstr += PQmblen(mbstr, fout->encoding);
-		len++;
+			quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
+		{
+			appendPQExpBuffer(buf, ", sys.SQL_VARIANT_PROPERTY(%s, 'BaseType')", tbinfo->attnames[i]);
+			appendPQExpBuffer(buf, ", sys.datalength(%s)", fmtId(tbinfo->attnames[i]));
+			(*sqlvar_metdata_pos)[orig_nfields] = nfields;
+			nfields = nfields + 2;
+		}
+		orig_nfields++;
 	}
-	return len;
+	appendPQExpBuffer(query, buf->data);
+	return nfields;
 }
 
 /*
@@ -1079,20 +1036,28 @@ getMbstrlen(const char* mbstr, Archive* fout)
  * column data entry in order to preserve the metadata of data type otherwise
  * lost during restore.
  */
-static void
-castSqlvariantToBasetype(PGresult* res, Archive* fout, PQExpBuffer q, int tuple, int field)
+void
+castSqlvariantToBasetype(PGresult *res,
+						Archive *fout,
+						int row, /* row number */
+						int field, /* column number */
+						int sqlvariant_pos) /* position of columns with metadata of sql_variant column at field */
 {
-	char* value = PQgetvalue(res, tuple, field);
-	char* type = PQgetvalue(res, tuple, field+1);
-	int datalength = atoi(PQgetvalue(res, tuple, field+2));
+	PQExpBuffer q;
+	char* value = PQgetvalue(res, row, field);
+	char* type = PQgetvalue(res, row, sqlvariant_pos);
+	int datalength = atoi(PQgetvalue(res, row, sqlvariant_pos + 1));
 	int precision;
 	int scale;
 	int i;
 
+	q = createPQExpBuffer();
+	appendStringLiteralAH(q,
+				PQgetvalue(res, row, field),
+								fout);
 	archprintf(fout, "CAST(%s AS ", q->data);
-
 	/* data types defined in sys schema should be handled separately */
-	if(!pg_strcasecmp(type, "datetime") || !pg_strcasecmp(type, "datetimeoffset")
+	if (!pg_strcasecmp(type, "datetime") || !pg_strcasecmp(type, "datetimeoffset")
 		|| !pg_strcasecmp(type, "smalldatetime") || !pg_strcasecmp(type, "uniqueidentifier")
 		|| !pg_strcasecmp(type, "smallmoney") || !pg_strcasecmp(type, "tinyint")
 		|| !pg_strcasecmp(type, "money") || !pg_strcasecmp(type, "bit")
@@ -1102,55 +1067,56 @@ castSqlvariantToBasetype(PGresult* res, Archive* fout, PQExpBuffer q, int tuple,
 		archprintf(fout, "%s", fmtId(type));
 	}
 	/* typecast with appropriate typmod */
-	else if(!pg_strcasecmp(type, "nvarchar") || !pg_strcasecmp(type, "varbinary")|| !pg_strcasecmp(type, "binary"))
+	else if (!pg_strcasecmp(type, "nvarchar") || !pg_strcasecmp(type, "varbinary")|| !pg_strcasecmp(type, "binary"))
 	{
 		archprintf(fout, "%s.",fmtId("sys"));
-		if(datalength)
+		if (datalength)
 			archprintf(fout, "%s(%d)", fmtId(type), datalength);
 		else
 			archprintf(fout, "%s", fmtId(type));
 	}
 	/* nchar to be handled separately for multi-byte chcaracters */
-	else if(!pg_strcasecmp(type, "nchar"))
+	else if (!pg_strcasecmp(type, "nchar"))
 	{
-		datalength = getMbstrlen(PQgetvalue(res, tuple, field), fout);
+		datalength = getMbstrlen(value, fout);
 		archprintf(fout, "%s.",fmtId("sys"));
-		if(datalength)
+		if (datalength)
 			archprintf(fout, "%s(%d)", fmtId(type), datalength);
 		else
 			archprintf(fout, "%s", fmtId(type));
 	}
 	/* when basetype is char we typecast value to bpchar */
-	else if(!pg_strcasecmp(type, "char"))
+	else if (!pg_strcasecmp(type, "char"))
 	{
 		archprintf(fout, "%s.",fmtId("sys"));
-		if(datalength)
+		if (datalength)
 			archprintf(fout, "%s(%d)", fmtId("bpchar"), datalength);
 		else
 			archprintf(fout, "%s", fmtId(type));
 	}
 	/* typecast numeric/decimal values with appropriate scale and precision */
-	else if(!pg_strcasecmp(type, "numeric") || !pg_strcasecmp(type, "decimal")){
+	else if (!pg_strcasecmp(type, "numeric") || !pg_strcasecmp(type, "decimal")){
 		scale = 0;
 		precision = strlen(value);
 		i = precision - 1;
 
-		if(value[0] == '-')
+		if (value[0] == '-')
 			precision--;
 
-		while(i>=0){
-			if(value[i--]=='.'){
+		while (i >= 0){
+			if (value[i--] == '.'){
 				precision--;
 				break;
 			}
 			scale++;
 		}
 		/* if no decimal found then scale will be zero */
-		if(i < 0) scale = 0;
+		if (i < 0) scale = 0;
 
 		archprintf(fout, "%s(%d, %d)", fmtId(type), precision, scale);
 	}
 	else
 		archprintf(fout, "%s",type);
 	archputs(")", fout);
+	destroyPQExpBuffer(q);
 }

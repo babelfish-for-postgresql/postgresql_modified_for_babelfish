@@ -41,7 +41,15 @@ extern void dumpBabelGUCs(Archive *fout);
 extern void fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields, char *attgenerated);
 extern void fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFrom);
 extern bool hasSqlvariantColumn(TableInfo *tbinfo);
-extern void fixBbfSqlvariantData(Archive *fout, PGresult* res, PQExpBuffer q, char* attgenerated, int tuple, int *orig_field, int *field);
-extern void fixCursorForBbfSqlvariantTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields, bool *is_sqlvariant_column, bool *has_sqlvariant_column);
+extern int fixCursorForBbfSqlvariantTableData(Archive *fout,
+                                            TableInfo *tbinfo,
+                                            PQExpBuffer query,
+                                            int nfields,
+                                            int **sqlvar_metdata_pos);
+extern void castSqlvariantToBasetype(PGresult *res,
+                                    Archive *fout,
+                                    int row,
+                                    int field,
+                                    int sqlvariant_pos);
 
 #endif

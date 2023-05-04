@@ -2147,9 +2147,16 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				i;
 	int			rows_per_statement = dopt->dump_inserts;
 	int			rows_this_statement = 0;
-	int			orig_field;
-	bool		*is_sqlvariant_column;
-	bool 		has_sqlvariant_column;
+	/*
+	 * sqlvar_metdata_pos stores the position of the extra columns added in
+	 * fixCursorForBbfSqlvariantTableData which fetch the metadata of sql_variant
+	 * column values. The array is NULL if no sql_variant columns are present in
+	 * the table, and the value stored is 0 if it is not a sql_variant column.
+	 */
+	int			*sqlvar_metdata_pos = NULL;
+	/* Total number of columns in select cursor including sql_variant metadata
+	columns, if they exist. */
+	int			nfields_new = 0;
 
 	/*
 	 * If we're going to emit INSERTs with column names, the most efficient
@@ -2159,7 +2166,6 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	 * rather than the uninteresting-to-us value.
 	 */
 	attgenerated = (char *) pg_malloc(tbinfo->numatts * sizeof(char));
-	is_sqlvariant_column = (bool *) pg_malloc0(3 * tbinfo->numatts * sizeof(bool));
 	appendPQExpBufferStr(q, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
 	nfields = 0;
 	for (i = 0; i < tbinfo->numatts; i++)
@@ -2185,9 +2191,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		attgenerated[nfields] = tbinfo->attgenerated[i];
 		nfields++;
 	}
-
-	fixCursorForBbfSqlvariantTableData(fout, tbinfo, q, &nfields,
-								is_sqlvariant_column, &has_sqlvariant_column);
+	nfields_new = fixCursorForBbfSqlvariantTableData(fout, tbinfo, q, nfields,
+										&sqlvar_metdata_pos);
 	/* Servers before 9.4 will complain about zero-column SELECT */
 	if (nfields == 0)
 		appendPQExpBufferStr(q, "NULL");
@@ -2207,8 +2212,9 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		/* cross-check field count, allowing for dummy NULL if any */
 		if (nfields != PQnfields(res) &&
 			!(nfields == 0 && PQnfields(res) == 1))
-			pg_fatal("wrong number of fields retrieved from table \"%s\"",
-					 tbinfo->dobj.name);
+				if(nfields_new != PQnfields(res))
+					pg_fatal("wrong number of fields retrieved from table \"%s\"",
+							 tbinfo->dobj.name);
 
 		/*
 		 * First time through, we build as much of the INSERT statement as
@@ -2253,12 +2259,6 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 							appendPQExpBufferStr(insertStmt, ", ");
 						appendPQExpBufferStr(insertStmt,
 											 fmtId(PQfname(res, field)));
-						/*
-						 * skip over columns defined additionally for
-						 * sql_variant data type columns
-						 */
-						if (has_sqlvariant_column && is_sqlvariant_column[field])
-								field=field+2;
 					}
 					appendPQExpBufferStr(insertStmt, ") ");
 				}
@@ -2296,15 +2296,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			else
 				archputs("\n\t(", fout);
 
-			orig_field = 0;
 			for (int field = 0; field < nfields; field++)
 			{
-				if(has_sqlvariant_column && is_sqlvariant_column[field])
-				{
-					fixBbfSqlvariantData(fout, res, q, attgenerated, tuple, &orig_field, &field);
-					continue;
-				}
-
 				if (field > 0)
 					archputs(", ", fout);
 				if (attgenerated[field])
@@ -2318,6 +2311,12 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 					continue;
 				}
 
+				if(sqlvar_metdata_pos && sqlvar_metdata_pos[field])
+				{
+					castSqlvariantToBasetype(res, fout, tuple, field,
+										sqlvar_metdata_pos[field]);
+					continue;
+				}
 				/* XXX This code is partially duplicated in ruleutils.c */
 				switch (PQftype(res, field))
 				{
@@ -2371,7 +2370,6 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 						archputs(q->data, fout);
 						break;
 				}
-			orig_field++;
 			}
 
 			/* Terminate the row ... */
@@ -2414,8 +2412,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	if (insertStmt != NULL)
 		destroyPQExpBuffer(insertStmt);
 	free(attgenerated);
-	if(has_sqlvariant_column)
-		free(is_sqlvariant_column);
+	if(sqlvar_metdata_pos)
+		free(sqlvar_metdata_pos);
 
 	return 1;
 }
