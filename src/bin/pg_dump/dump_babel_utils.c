@@ -170,27 +170,25 @@ dumpBabelGUCs(Archive *fout)
 void
 dumpBabelRestoreChecks(Archive *fout)
 {
-	PGresult	*res_migration_mode;
+	PGresult	*res;
 	PGresult	*res_server_version;
 	char		*dump_migration_mode;
 	char		*dump_server_version;
 	PQExpBuffer	qry;
 
-	if (!isBabelfishDatabase(fout) || !bbf_db_name)
+	if (!isBabelfishDatabase(fout))
 	return;
 
 	qry = createPQExpBuffer();
 
-	res_migration_mode = ExecuteSqlQuery(fout,
-					"SHOW babelfishpg_tsql.migration_mode", PGRES_TUPLES_OK);
-	res_server_version = ExecuteSqlQuery(fout,
+	res = ExecuteSqlQuery(fout,
 					"SHOW server_version", PGRES_TUPLES_OK);
 
-	dump_migration_mode = PQgetvalue(res_migration_mode, 0, 0);
-	dump_server_version = PQgetvalue(res_server_version, 0, 0);
+	dump_server_version = PQgetvalue(res, 0, 0);
 
 	appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP on\n\n");
-	appendPQExpBuffer(qry, "DO $$"
+	appendPQExpBuffer(qry,
+				"DO $$"
 				"\nDECLARE"
 				"\n    restore_migration_mode VARCHAR;"
 				"\nBEGIN"
@@ -200,7 +198,14 @@ dumpBabelRestoreChecks(Archive *fout)
 				"\n        RAISE 'Backup and restore across different migration modes is not supported';" 
 				"\n    END IF;"
 				"\nEND$$;\n\n"
-				"DO $$"
+				, dump_server_version);
+
+	/* Migration Mode Check is only applicable for Database Level dump/restore. */
+	if (bbf_db_name != NULL){
+		res =  ExecuteSqlQuery(fout,
+					"SHOW babelfishpg_tsql.migration_mode", PGRES_TUPLES_OK);
+		dump_migration_mode = PQgetvalue(res, 0, 0);
+		appendPQExpBuffer(qry, "DO $$"
 				"\nDECLARE"
 				"\n    restore_server_version VARCHAR;"
 				"\nBEGIN"
@@ -209,9 +214,9 @@ dumpBabelRestoreChecks(Archive *fout)
 				"\n    IF restore_server_version::VARCHAR != '%s' THEN"
 				"\n        RAISE 'Backup and restore across different Postgres versions is not supported';" 
 				"\n    END IF;"
-				"\nEND$$;\n\n"				
-				, dump_migration_mode, dump_server_version);
-
+				"\nEND$$;\n\n"	
+				, dump_migration_mode);
+	}
 	appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP off\n");
 
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
@@ -220,8 +225,7 @@ dumpBabelRestoreChecks(Archive *fout)
 							  .section = SECTION_PRE_DATA,
 							  .createStmt = qry->data));
 	destroyPQExpBuffer(qry);
-	PQclear(res_migration_mode);
-	PQclear(res_server_version);
+	PQclear(res);
 }
 
 /*
