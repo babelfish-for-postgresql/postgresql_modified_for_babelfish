@@ -171,7 +171,6 @@ void
 dumpBabelRestoreChecks(Archive *fout)
 {
 	PGresult	*res;
-	PGresult	*res_server_version;
 	char		*dump_migration_mode;
 	char		*dump_server_version;
 	PQExpBuffer	qry;
