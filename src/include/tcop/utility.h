@@ -109,4 +109,7 @@ extern LogStmtLevel GetCommandLogLevel(Node *parsetree);
 
 extern bool CommandIsReadOnly(PlannedStmt *pstmt);
 
+typedef void (*transactionStmt_hook_type)(PlannedStmt *pstmt, ParamListInfo params, QueryCompletion *qc);
+extern PGDLLIMPORT transactionStmt_hook_type transactionStmt_hook;
+
 #endif							/* UTILITY_H */

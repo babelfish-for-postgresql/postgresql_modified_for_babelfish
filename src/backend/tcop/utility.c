@@ -76,6 +76,7 @@
 
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
+transactionStmt_hook_type transactionStmt_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -602,6 +603,12 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 		case T_TransactionStmt:
 			{
 				TransactionStmt *stmt = (TransactionStmt *) parsetree;
+				if(sql_dialect == SQL_DIALECT_TSQL )
+				{
+					if (transactionStmt_hook)
+						(*transactionStmt_hook)(pstmt, params, qc); 
+					break;
+				}
 
 				switch (stmt->kind)
 				{
@@ -643,7 +650,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 								SetQueryCompletion(qc, CMDTAG_ROLLBACK, 0);
 						}
 						break;
-
+						
 					case TRANS_STMT_PREPARE:
 						if (!PrepareTransactionBlock(stmt->gid))
 						{
