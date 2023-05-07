@@ -76,6 +76,7 @@
 
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
+CreateFunctionStmt_hook_type CreateFunctionStmt_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -602,7 +603,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 		case T_TransactionStmt:
 			{
 				TransactionStmt *stmt = (TransactionStmt *) parsetree;
-
+				
 				switch (stmt->kind)
 				{
 						/*
@@ -1656,8 +1657,15 @@ ProcessUtilitySlow(ParseState *pstate,
 				break;
 
 			case T_CreateFunctionStmt:	/* CREATE FUNCTION */
-				address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
-				break;
+				{
+					if (CreateFunctionStmt_hook)
+						(*CreateFunctionStmt_hook)(pstate, pstmt, queryString, context, params); 
+					else
+					{
+						address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
+					}
+					break;
+				}
 
 			case T_AlterFunctionStmt:	/* ALTER FUNCTION */
 				address = AlterFunction(pstate, (AlterFunctionStmt *) parsetree);
