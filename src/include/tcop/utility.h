@@ -112,8 +112,4 @@ typedef bool (*bbfCustomProcessUtility_hook_type)(struct ParseState *pstate, Pla
 						  ParamListInfo params, QueryCompletion *qc);
 extern PGDLLIMPORT bbfCustomProcessUtility_hook_type bbfCustomProcessUtility_hook;
 
-void PLTsqlProcessTransaction(Node *parsetree,
-						            ParamListInfo params,
-						 			QueryCompletion *qc);
-
 #endif							/* UTILITY_H */
