@@ -125,7 +125,8 @@ isBabelfishConfigTable(TableInfo *tbinfo)
 	if (tbinfo == NULL || tbinfo->relkind != RELKIND_RELATION ||
 		(tbinfo->dobj.namespace &&
 		strcmp(tbinfo->dobj.namespace->dobj.name, "sys") == 0 &&
-		strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0))
+		(strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0 ||
+		strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0)))
 		return false;
 
 	if (catalog_table_include_oids.head != NULL &&
