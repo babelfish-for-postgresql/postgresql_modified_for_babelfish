@@ -14114,7 +14114,7 @@ GenericType:
 					if (fix_domain_typmods_hook)
 						(*fix_domain_typmods_hook)($$);
 				}
-			| type_function_name attrs opt_type_modifiers WITHOUT TIME ZONE
+			| type_function_name attrs opt_type_modifiers WITHOUT_LA TIME ZONE
 				{
 					/*
 					 * This gram rule should only be allowed when we restore
