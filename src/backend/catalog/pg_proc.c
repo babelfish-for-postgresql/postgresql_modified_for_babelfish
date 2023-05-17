@@ -696,7 +696,6 @@ ProcedureCreate(const char *procedureName,
 			{
 				save_nestlevel = NewGUCNestLevel();
 				ProcessGUCArray(set_items,
-								NULL,
 								GUC_CONTEXT_CONFIG,
 								PGC_S_SESSION,
 								GUC_ACTION_SAVE);
