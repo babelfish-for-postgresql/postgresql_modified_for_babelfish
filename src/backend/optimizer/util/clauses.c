@@ -418,6 +418,12 @@ contain_mutable_functions_walker(Node *node, void *context)
 		/* Check all subnodes */
 	}
 
+	if (IsA(node, SQLValueFunction))
+	{
+		/* all variants of SQLValueFunction are stable */
+		return true;
+	}
+
 	if (IsA(node, NextValueExpr))
 	{
 		/* NextValueExpr is volatile */
@@ -566,8 +572,8 @@ contain_volatile_functions_walker(Node *node, void *context)
 
 	/*
 	 * See notes in contain_mutable_functions_walker about why we treat
-	 * MinMaxExpr, XmlExpr, and CoerceToDomain as immutable.  Hence, none of
-	 * them are of interest here.
+	 * MinMaxExpr, XmlExpr, and CoerceToDomain as immutable, while
+	 * SQLValueFunction is stable.  Hence, none of them are of interest here.
 	 */
 
 	/* Recurse to check arguments */
@@ -612,9 +618,10 @@ contain_volatile_functions_not_nextval_walker(Node *node, void *context)
 
 	/*
 	 * See notes in contain_mutable_functions_walker about why we treat
-	 * MinMaxExpr, XmlExpr, and CoerceToDomain as immutable.  Hence, none of
-	 * them are of interest here.  Also, since we're intentionally ignoring
-	 * nextval(), presumably we should ignore NextValueExpr.
+	 * MinMaxExpr, XmlExpr, and CoerceToDomain as immutable, while
+	 * SQLValueFunction is stable.  Hence, none of them are of interest here.
+	 * Also, since we're intentionally ignoring nextval(), presumably we
+	 * should ignore NextValueExpr.
 	 */
 
 	/* Recurse to check arguments */
@@ -760,8 +767,8 @@ max_parallel_hazard_walker(Node *node, max_parallel_hazard_context *context)
 	 * (Note: in principle that's wrong because a domain constraint could
 	 * contain a parallel-unsafe function; but useful constraints probably
 	 * never would have such, and assuming they do would cripple use of
-	 * parallel query in the presence of domain types.)  NextValueExpr is
-	 * parallel-unsafe.
+	 * parallel query in the presence of domain types.)  SQLValueFunction
+	 * should be safe in all cases.  NextValueExpr is parallel-unsafe.
 	 */
 	if (IsA(node, CoerceToDomain))
 	{
@@ -1208,6 +1215,7 @@ contain_leaked_vars_walker(Node *node, void *context)
 		case T_CaseExpr:
 		case T_CaseTestExpr:
 		case T_RowExpr:
+		case T_SQLValueFunction:
 		case T_NullTest:
 		case T_BooleanTest:
 		case T_NextValueExpr:
@@ -3249,6 +3257,23 @@ eval_const_expressions_mutator(Node *node,
 				newcoalesce->location = coalesceexpr->location;
 				newcoalesce->tsql_is_null = coalesceexpr->tsql_is_null;
 				return (Node *) newcoalesce;
+			}
+		case T_SQLValueFunction:
+			{
+				/*
+				 * All variants of SQLValueFunction are stable, so if we are
+				 * estimating the expression's value, we should evaluate the
+				 * current function value.  Otherwise just copy.
+				 */
+				SQLValueFunction *svf = (SQLValueFunction *) node;
+
+				if (context->estimate)
+					return (Node *) evaluate_expr((Expr *) svf,
+												  svf->type,
+												  svf->typmod,
+												  InvalidOid);
+				else
+					return copyObject((Node *) svf);
 			}
 		case T_FieldSelect:
 			{
