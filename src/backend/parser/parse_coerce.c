@@ -38,6 +38,7 @@ determine_datatype_precedence_hook_type determine_datatype_precedence_hook = NUL
 coerce_string_literal_hook_type coerce_string_literal_hook = NULL;
 validate_implicit_conversion_from_string_literal_hook_type validate_implicit_conversion_from_string_literal_hook = NULL;
 select_common_type_hook_type select_common_type_hook = NULL;
+select_common_typmod_hook_type select_common_typmod_hook = NULL;
 
 static Node *coerce_type_typmod(Node *node,
 								Oid targetTypeId, int32 targetTypMod,
@@ -1725,6 +1726,13 @@ select_common_typmod(ParseState *pstate, List *exprs, Oid common_type)
 	ListCell   *lc;
 	bool		first = true;
 	int32		result = -1;
+
+	if (select_common_typmod_hook)
+	{
+		result = (*select_common_typmod_hook)(pstate, exprs, common_type);
+		if (result != -1)
+			return result;
+	}
 
 	foreach(lc, exprs)
 	{
