@@ -531,6 +531,7 @@ does_not_exist_skipping(ObjectType objtype, Node *object, Relation relation)
 		case OBJECT_TABLE:
 		case OBJECT_TABLESPACE:
 		case OBJECT_VIEW:
+
 			/*
 			 * These are handled elsewhere, so if someone gets here the code
 			 * is probably wrong or should be revisited.

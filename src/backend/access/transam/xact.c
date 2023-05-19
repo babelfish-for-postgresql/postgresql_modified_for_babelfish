@@ -3159,10 +3159,9 @@ CommitTransactionCommand(void)
 			break;
 
 			/*
-			 * The user issued a SAVEPOINT inside a transaction block.
-			 * Start a subtransaction.  (DefineSavepoint already did
-			 * PushTransaction, so as to have someplace to put the SUBBEGIN
-			 * state.)
+			 * The user issued a SAVEPOINT inside a transaction block. Start a
+			 * subtransaction.  (DefineSavepoint already did PushTransaction,
+			 * so as to have someplace to put the SUBBEGIN state.)
 			 */
 		case TBLOCK_SUBBEGIN:
 			StartSubTransaction();
@@ -4703,9 +4702,9 @@ RollbackAndReleaseCurrentSubTransaction(void)
 
 	s = CurrentTransactionState;	/* changed by pop */
 	Assert(s->blockState == TBLOCK_SUBINPROGRESS ||
-				s->blockState == TBLOCK_INPROGRESS ||
-				s->blockState == TBLOCK_IMPLICIT_INPROGRESS ||
-				s->blockState == TBLOCK_STARTED);
+		   s->blockState == TBLOCK_INPROGRESS ||
+		   s->blockState == TBLOCK_IMPLICIT_INPROGRESS ||
+		   s->blockState == TBLOCK_STARTED);
 }
 
 /*

@@ -2403,7 +2403,7 @@ apply_handle_insert(StringInfo s)
 	LogicalRepRelMapEntry *rel;
 	LogicalRepTupleData newtup;
 	LogicalRepRelId relid;
-	UserContext		ucxt;
+	UserContext ucxt;
 	ApplyExecutionData *edata;
 	EState	   *estate;
 	TupleTableSlot *remoteslot;
@@ -2551,7 +2551,7 @@ apply_handle_update(StringInfo s)
 {
 	LogicalRepRelMapEntry *rel;
 	LogicalRepRelId relid;
-	UserContext		ucxt;
+	UserContext ucxt;
 	ApplyExecutionData *edata;
 	EState	   *estate;
 	LogicalRepTupleData oldtup;
@@ -2748,7 +2748,7 @@ apply_handle_delete(StringInfo s)
 	LogicalRepRelMapEntry *rel;
 	LogicalRepTupleData oldtup;
 	LogicalRepRelId relid;
-	UserContext		ucxt;
+	UserContext ucxt;
 	ApplyExecutionData *edata;
 	EState	   *estate;
 	TupleTableSlot *remoteslot;
@@ -3098,8 +3098,8 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 					if (map)
 					{
 						TupleConversionMap *PartitionToRootMap =
-						convert_tuples_by_name(RelationGetDescr(partrel),
-											   RelationGetDescr(parentrel));
+							convert_tuples_by_name(RelationGetDescr(partrel),
+												   RelationGetDescr(parentrel));
 
 						remoteslot =
 							execute_attr_map_slot(PartitionToRootMap->attrMap,
@@ -3433,7 +3433,7 @@ get_flush_position(XLogRecPtr *write, XLogRecPtr *flush,
 	dlist_foreach_modify(iter, &lsn_mapping)
 	{
 		FlushPosition *pos =
-		dlist_container(FlushPosition, node, iter.cur);
+			dlist_container(FlushPosition, node, iter.cur);
 
 		*write = pos->remote_end;
 
@@ -4738,11 +4738,11 @@ ApplyWorkerMain(Datum main_arg)
 
 		ereport(DEBUG1,
 				(errmsg_internal("logical replication apply worker for subscription \"%s\" two_phase is %s",
-						MySubscription->name,
-						MySubscription->twophasestate == LOGICALREP_TWOPHASE_STATE_DISABLED ? "DISABLED" :
-						MySubscription->twophasestate == LOGICALREP_TWOPHASE_STATE_PENDING ? "PENDING" :
-						MySubscription->twophasestate == LOGICALREP_TWOPHASE_STATE_ENABLED ? "ENABLED" :
-						"?")));
+								 MySubscription->name,
+								 MySubscription->twophasestate == LOGICALREP_TWOPHASE_STATE_DISABLED ? "DISABLED" :
+								 MySubscription->twophasestate == LOGICALREP_TWOPHASE_STATE_PENDING ? "PENDING" :
+								 MySubscription->twophasestate == LOGICALREP_TWOPHASE_STATE_ENABLED ? "ENABLED" :
+								 "?")));
 	}
 	else
 	{
@@ -5116,10 +5116,10 @@ get_transaction_apply_action(TransactionId xid, ParallelApplyWorkerInfo **winfo)
 	}
 
 	/*
-	 * If we are processing this transaction using a parallel apply worker then
-	 * either we send the changes to the parallel worker or if the worker is busy
-	 * then serialize the changes to the file which will later be processed by
-	 * the parallel worker.
+	 * If we are processing this transaction using a parallel apply worker
+	 * then either we send the changes to the parallel worker or if the worker
+	 * is busy then serialize the changes to the file which will later be
+	 * processed by the parallel worker.
 	 */
 	*winfo = pa_find_worker(xid);
 
@@ -5133,9 +5133,10 @@ get_transaction_apply_action(TransactionId xid, ParallelApplyWorkerInfo **winfo)
 	}
 
 	/*
-	 * If there is no parallel worker involved to process this transaction then
-	 * we either directly apply the change or serialize it to a file which will
-	 * later be applied when the transaction finish message is processed.
+	 * If there is no parallel worker involved to process this transaction
+	 * then we either directly apply the change or serialize it to a file
+	 * which will later be applied when the transaction finish message is
+	 * processed.
 	 */
 	else if (in_streamed_transaction)
 	{
