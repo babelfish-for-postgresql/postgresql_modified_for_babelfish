@@ -1931,7 +1931,6 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	/* add jnsitem to column namespace only */
 	addNSItemToQuery(pstate, jnsitem, false, false, true);
 	
-	/* tsql needs the leftmost query's targetlist and ns to handle ORDER BY */
 	if (pre_transform_sort_clause_hook)
 		pre_transform_sort_clause_hook(pstate, qry, leftmostQuery);
 
@@ -1949,13 +1948,6 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 										  EXPR_KIND_ORDER_BY,
 										  false /* allow SQL92 rules */ );
 
-	/* 
-	 * UNION ALL with Numeric types require the the TLE's var to have a typmod
-	 * of -1. Reset the targetlist to the dummy tl, but fill in ressortgroupref
-	 */
-	if (post_transform_sort_clause_hook)
-		post_transform_sort_clause_hook(qry);
-
 	/* restore namespace, remove join RTE from rtable */
 	pstate->p_namespace = sv_namespace;
 	pstate->p_rtable = list_truncate(pstate->p_rtable, sv_rtable_length);
@@ -1968,6 +1960,9 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 				 errhint("Add the expression/function to every SELECT, or move the UNION into a FROM clause."),
 				 parser_errposition(pstate,
 									exprLocation(list_nth(qry->targetList, tllen)))));
+
+	if (post_transform_sort_clause_hook)
+		post_transform_sort_clause_hook(qry);
 
 	qry->limitOffset = transformLimitClause(pstate, limitOffset,
 											EXPR_KIND_OFFSET, "OFFSET",
