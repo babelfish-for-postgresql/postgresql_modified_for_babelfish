@@ -102,14 +102,16 @@ getLanguageName(Archive *fout, Oid langid)
 bool
 isBabelfishDatabase(Archive *fout)
 {
-	PGresult *res;
-	int		 ntups;
-
-	res = ExecuteSqlQuery(fout, "SELECT extname FROM pg_extension WHERE extname = 'babelfishpg_tsql';", PGRES_TUPLES_OK);
-	ntups = PQntuples(res);
-	PQclear(res);
-
-	return ntups != 0;
+	if (babelfish_status == -1) 
+	{
+		PGresult *res;
+		int		 ntups;
+		res = ExecuteSqlQuery(fout, "SELECT extname FROM pg_extension WHERE extname = 'babelfishpg_tsql';", PGRES_TUPLES_OK);
+		ntups = PQntuples(res);
+		babelfish_status = (ntups != 0);
+		PQclear(res);
+	}
+	return (babelfish_status == 1);
 }
 
 /*
