@@ -41,6 +41,9 @@ static bool isBabelfishConfigTable(TableInfo *tbinfo);
 static void addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_builtin_db);
 static int getMbstrlen(const char *mbstr,Archive *fout);
 
+static int babelfish_status = -1;
+
+
 static char *
 getMinOid(Archive *fout)
 {
