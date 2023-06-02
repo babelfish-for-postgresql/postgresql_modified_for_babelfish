@@ -152,10 +152,9 @@ SB_lower_char(unsigned char c, pg_locale_t locale, bool locale_is_c)
 static inline int
 GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation)
 {
-	pg_locale_t locale;
-	if ((sql_dialect == SQL_DIALECT_TSQL) || (collation && !lc_ctype_is_c(collation)))
+	if (collation && !lc_ctype_is_c(collation))
 	{
-		locale = pg_newlocale_from_collation(collation);
+		pg_locale_t locale = pg_newlocale_from_collation(collation);
 
 		if (locale && !locale->deterministic)
 			ereport(ERROR,
@@ -164,11 +163,11 @@ GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation
 	}
 
 	if (pg_database_encoding_max_length() == 1)
-		return SB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true, collation);
+		return SB_MatchText(s, slen, p, plen, 0, true, collation);
 	else if (GetDatabaseEncoding() == PG_UTF8)
-		return UTF8_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true, collation);
+		return UTF8_MatchText(s, slen, p, plen, 0, true, collation);
 	else
-		return MB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true, collation);
+		return MB_MatchText(s, slen, p, plen, 0, true, collation);
 }
 
 static inline int
@@ -222,9 +221,9 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 		s = VARDATA_ANY(str);
 		slen = VARSIZE_ANY_EXHDR(str);
 		if (GetDatabaseEncoding() == PG_UTF8)
-			return UTF8_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true, collation);
+			return UTF8_MatchText(s, slen, p, plen, 0, true, collation);
 		else
-			return MB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true, collation);
+			return MB_MatchText(s, slen, p, plen, 0, true, collation);
 	}
 	else
 	{
