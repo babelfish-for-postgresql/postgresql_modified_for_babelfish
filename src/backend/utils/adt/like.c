@@ -25,50 +25,30 @@
 #include "parser/parser.h"
 #include "utils/builtins.h"
 #include "utils/pg_locale.h"
+#include "utils/varlena.h"
 
 
 #define LIKE_TRUE						1
 #define LIKE_FALSE						0
 #define LIKE_ABORT						(-1)
 
-static int varstr_cmp(const char *arg1, int len1, const char *arg2, int len2, pg_locale_t locale);
 
 static int	SB_MatchText(const char *t, int tlen, const char *p, int plen,
-						 pg_locale_t locale, bool locale_is_c);
+						 pg_locale_t locale, bool locale_is_c, Oid collation);
 static text *SB_do_like_escape(text *, text *);
 
 static int	MB_MatchText(const char *t, int tlen, const char *p, int plen,
-						 pg_locale_t locale, bool locale_is_c);
+						 pg_locale_t locale, bool locale_is_c, Oid collation);
 static text *MB_do_like_escape(text *, text *);
 
 static int	UTF8_MatchText(const char *t, int tlen, const char *p, int plen,
-						   pg_locale_t locale, bool locale_is_c);
+						   pg_locale_t locale, bool locale_is_c, Oid collation);
 
 static int	SB_IMatchText(const char *t, int tlen, const char *p, int plen,
-						  pg_locale_t locale, bool locale_is_c);
+						  pg_locale_t locale, bool locale_is_c, Oid collation);
 
 static int	GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation);
 static int	Generic_Text_IC_like(text *str, text *pat, Oid collation);
-
-static int varstr_cmp(const char *arg1, int len1, const char *arg2, int len2, pg_locale_t mylocale)
-{
-	int         result;
-	int32_t		ulen1,
-				ulen2;
-	UChar	   *uchar1,
-				*uchar2;
-
-	ulen1 = icu_to_uchar(&uchar1, arg1, len1);
-	ulen2 = icu_to_uchar(&uchar2, arg2, len2);
-
-	result = ucol_strcoll(mylocale->info.icu.ucol,
-							 uchar1, ulen1,
-							 uchar2, ulen2);
-
-	pfree(uchar1);
-	pfree(uchar2);
-	return result;
-}
 
 /*--------------------
  * Support routine for MatchText. Compares given multibyte streams
@@ -184,11 +164,11 @@ GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation
 	}
 
 	if (pg_database_encoding_max_length() == 1)
-		return SB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true);
+		return SB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true, collation);
 	else if (GetDatabaseEncoding() == PG_UTF8)
-		return UTF8_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true);
+		return UTF8_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true, collation);
 	else
-		return MB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true);
+		return MB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true, collation);
 }
 
 static inline int
@@ -242,9 +222,9 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 		s = VARDATA_ANY(str);
 		slen = VARSIZE_ANY_EXHDR(str);
 		if (GetDatabaseEncoding() == PG_UTF8)
-			return UTF8_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true);
+			return UTF8_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true, collation);
 		else
-			return MB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true);
+			return MB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true, collation);
 	}
 	else
 	{
@@ -252,7 +232,7 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 		plen = VARSIZE_ANY_EXHDR(pat);
 		s = VARDATA_ANY(str);
 		slen = VARSIZE_ANY_EXHDR(str);
-		return SB_IMatchText(s, slen, p, plen, locale, locale_is_c);
+		return SB_IMatchText(s, slen, p, plen, locale, locale_is_c, collation);
 	}
 }
 
@@ -360,7 +340,7 @@ bytealike(PG_FUNCTION_ARGS)
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (SB_MatchText(s, slen, p, plen, 0, true) == LIKE_TRUE);
+	result = (SB_MatchText(s, slen, p, plen, 0, true, PG_GET_COLLATION()) == LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -381,7 +361,7 @@ byteanlike(PG_FUNCTION_ARGS)
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (SB_MatchText(s, slen, p, plen, 0, true) != LIKE_TRUE);
+	result = (SB_MatchText(s, slen, p, plen, 0, true, PG_GET_COLLATION()) != LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }

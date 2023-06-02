@@ -78,7 +78,7 @@
 
 static int
 MatchText(const char *t, int tlen, const char *p, int plen,
-		  pg_locale_t locale, bool locale_is_c)
+		  pg_locale_t locale, bool locale_is_c, Oid cid)
 {
 	/* Fast path for match-everything pattern */
 	if (plen == 1 && *p == '%')
@@ -176,14 +176,14 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 				if (GETCHAR(*t) == firstpat)
 				{
 					int			matched = MatchText(t, tlen, p, plen,
-													locale, locale_is_c);
+													locale, locale_is_c, cid);
 
 					if (matched != LIKE_FALSE)
 						return matched; /* TRUE or ABORT */
 				} else if (firstpat == '[' && sql_dialect == SQL_DIALECT_TSQL)
 				{
 					int			matched = MatchText(t, tlen, p, plen,
-													locale, locale_is_c);
+													locale, locale_is_c, cid);
 					if (matched != LIKE_FALSE)
 						return matched; /* TRUE or ABORT */
 				}
@@ -228,7 +228,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 				if (*p == '-' && prev)
 				{
 					NextByte(p, plen);
-					if (varstr_cmp(t, 1, prev, 1, locale) >= 0 && varstr_cmp(t, 1, p, 1, locale) <= 0)
+					if (varstr_cmp(t, 1, prev, 1, cid) >= 0 && varstr_cmp(t, 1, p, 1, cid) <= 0)
 					{
 						find_match = true;
 					}
