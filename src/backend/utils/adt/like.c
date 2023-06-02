@@ -31,6 +31,7 @@
 #define LIKE_FALSE						0
 #define LIKE_ABORT						(-1)
 
+static int varstr_cmp(const char *arg1, int len1, const char *arg2, int len2, pg_locale_t locale);
 
 static int	SB_MatchText(const char *t, int tlen, const char *p, int plen,
 						 pg_locale_t locale, bool locale_is_c);
@@ -48,6 +49,26 @@ static int	SB_IMatchText(const char *t, int tlen, const char *p, int plen,
 
 static int	GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation);
 static int	Generic_Text_IC_like(text *str, text *pat, Oid collation);
+
+static int varstr_cmp(const char *arg1, int len1, const char *arg2, int len2, pg_locale_t mylocale)
+{
+	int         result;
+	int32_t		ulen1,
+				ulen2;
+	UChar	   *uchar1,
+				*uchar2;
+
+	ulen1 = icu_to_uchar(&uchar1, arg1, len1);
+	ulen2 = icu_to_uchar(&uchar2, arg2, len2);
+
+	result = ucol_strcoll(mylocale->info.icu.ucol,
+							 uchar1, ulen1,
+							 uchar2, ulen2);
+
+	pfree(uchar1);
+	pfree(uchar2);
+	return result;
+}
 
 /*--------------------
  * Support routine for MatchText. Compares given multibyte streams
@@ -151,9 +172,10 @@ SB_lower_char(unsigned char c, pg_locale_t locale, bool locale_is_c)
 static inline int
 GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation)
 {
-	if (collation && !lc_ctype_is_c(collation))
+	pg_locale_t locale;
+	if ((sql_dialect == SQL_DIALECT_TSQL) || (collation && !lc_ctype_is_c(collation)))
 	{
-		pg_locale_t locale = pg_newlocale_from_collation(collation);
+		locale = pg_newlocale_from_collation(collation);
 
 		if (locale && !locale->deterministic)
 			ereport(ERROR,
@@ -162,11 +184,11 @@ GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation
 	}
 
 	if (pg_database_encoding_max_length() == 1)
-		return SB_MatchText(s, slen, p, plen, 0, true);
+		return SB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true);
 	else if (GetDatabaseEncoding() == PG_UTF8)
-		return UTF8_MatchText(s, slen, p, plen, 0, true);
+		return UTF8_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true);
 	else
-		return MB_MatchText(s, slen, p, plen, 0, true);
+		return MB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true);
 }
 
 static inline int
@@ -220,9 +242,9 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 		s = VARDATA_ANY(str);
 		slen = VARSIZE_ANY_EXHDR(str);
 		if (GetDatabaseEncoding() == PG_UTF8)
-			return UTF8_MatchText(s, slen, p, plen, 0, true);
+			return UTF8_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true);
 		else
-			return MB_MatchText(s, slen, p, plen, 0, true);
+			return MB_MatchText(s, slen, p, plen, sql_dialect == SQL_DIALECT_TSQL ? locale : 0, true);
 	}
 	else
 	{

@@ -208,57 +208,49 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 		{
 			/* Tsql deal with [ and ] wild character */
 			bool find_match = false, reverse_mode = false;
-			const char * p1 = p, * prev = NULL;
-			int p1len = plen;
-			NextByte(p1, p1len);
-			while (p1len > 0 && *p1 != ']'){
-				NextByte(p1, p1len);
-			}
-			if (*p1 != ']')
+			const char * prev = NULL;
+
+			NextByte(p, plen);
+			if (*p == '^')
 			{
-				if (GETCHAR(*p) != GETCHAR(*t))
-					return LIKE_FALSE;
-			}
-			else
-			{
+				reverse_mode = true;
 				NextByte(p, plen);
-				if (*p == '^')
+			}
+			while (plen > 0)
+			{
+				if (*p == ']')
+					break;
+				if (find_match)
 				{
-					reverse_mode = true;
 					NextByte(p, plen);
+					continue;
 				}
-				while (plen > 0)
+				if (*p == '-' && prev)
 				{
-					if (*p == ']')
-						break;
-					if (find_match)
-					{
-						NextByte(p, plen);
-						continue;
-					}
-					if (*p == '-' && prev)
-					{
-						NextByte(p, plen);
-						if (GETCHAR(*t) >= *prev && GETCHAR(*t) <= *p)
-						{
-							find_match = true;
-						}
-					}
-					else if (GETCHAR(*p) == GETCHAR(*t))
+					NextByte(p, plen);
+					if (varstr_cmp(t, 1, prev, 1, locale) >= 0 && varstr_cmp(t, 1, p, 1, locale) <= 0)
 					{
 						find_match = true;
 					}
+				}
+				else if (GETCHAR(*p) == GETCHAR(*t))
+				{
 					prev = p;
 					NextByte(p, plen);
+					if (*p != '-')
+						find_match = true;
+					continue;
 				}
-				if (!find_match && !reverse_mode)
-				{
-					return LIKE_FALSE;
-				}
-				if (find_match && reverse_mode)
-				{
-					return LIKE_FALSE;
-				}
+				prev = p;
+				NextByte(p, plen);
+			}
+			if (!find_match && !reverse_mode)
+			{
+				return LIKE_FALSE;
+			}
+			if (find_match && reverse_mode)
+			{
+				return LIKE_FALSE;
 			}
 		}
 		else if (GETCHAR(*p) != GETCHAR(*t))
