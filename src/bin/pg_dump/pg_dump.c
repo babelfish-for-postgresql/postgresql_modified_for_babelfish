@@ -2536,6 +2536,7 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 	}
 
 	if (bbfIsDumpWithInsert(fout, tbinfo))
+	{
 		/* dump tables with sql_variant datatype columns using INSERT only */
 		dumpFn = dumpTableData_insert;
 		copyStmt = NULL;

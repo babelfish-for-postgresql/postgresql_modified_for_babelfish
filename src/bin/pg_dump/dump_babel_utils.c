@@ -951,6 +951,20 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 }
 
 /*
+ * bbfIsDumpWithInsert:
+ * returns true if table in Babelfish Database is to be dumped with INSERT mode
+ */
+bool bbfIsDumpWithInsert(Archive *fout, TableInfo *tbinfo)
+{
+	return (isBabelfishDatabase(fout) &&
+			(hasSqlvariantColumn(tbinfo) ||
+				pg_strcasecmp(fmtQualifiedDumpable(tbinfo),
+					quote_all_identifiers ?
+					"\"sys\".\"babelfish_authid_login_ext\"" :
+					"sys.babelfish_authid_login_ext") == 0));
+}
+
+/*
  * hasSqlvariantColumn:
  * Returns true if any of the columns in table is a sqlvariant data type column
  */
