@@ -41,6 +41,9 @@ static bool isBabelfishConfigTable(TableInfo *tbinfo);
 static void addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_builtin_db);
 static int getMbstrlen(const char *mbstr,Archive *fout);
 
+static int babelfish_status = -1;
+
+
 static char *
 getMinOid(Archive *fout)
 {
@@ -102,14 +105,16 @@ getLanguageName(Archive *fout, Oid langid)
 bool
 isBabelfishDatabase(Archive *fout)
 {
-	PGresult *res;
-	int		 ntups;
-
-	res = ExecuteSqlQuery(fout, "SELECT extname FROM pg_extension WHERE extname = 'babelfishpg_tsql';", PGRES_TUPLES_OK);
-	ntups = PQntuples(res);
-	PQclear(res);
-
-	return ntups != 0;
+	if (babelfish_status == -1) 
+	{
+		PGresult *res;
+		int		 ntups;
+		res = ExecuteSqlQuery(fout, "SELECT extname FROM pg_extension WHERE extname = 'babelfishpg_tsql';", PGRES_TUPLES_OK);
+		ntups = PQntuples(res);
+		babelfish_status = (ntups != 0);
+		PQclear(res);
+	}
+	return (babelfish_status == 1);
 }
 
 /*
@@ -943,6 +948,20 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 		appendPQExpBufferStr(copyBuf, ") TO stdout;");
 	}
 	destroyPQExpBuffer(q);
+}
+
+/*
+ * bbfIsDumpWithInsert:
+ * returns true if table in Babelfish Database is to be dumped with INSERT mode
+ */
+bool bbfIsDumpWithInsert(Archive *fout, TableInfo *tbinfo)
+{
+	return (isBabelfishDatabase(fout) &&
+			(hasSqlvariantColumn(tbinfo) ||
+				pg_strcasecmp(fmtQualifiedDumpable(tbinfo),
+					quote_all_identifiers ?
+					"\"sys\".\"babelfish_authid_login_ext\"" :
+					"sys.babelfish_authid_login_ext") == 0));
 }
 
 /*
