@@ -771,8 +771,7 @@ main(int argc, char **argv)
 
 	pg_log_info("last built-in OID is %u", g_last_builtin_oid);
 
-	if (bbf_db_name != NULL)
-		prepareForLogicalDatabaseDump(fout, &schema_include_patterns);
+	prepareForBabelfishDatabaseDump(fout, &schema_include_patterns);
 
 	/* Expand schema selection patterns into OID lists */
 	if (schema_include_patterns.head != NULL)
@@ -2148,6 +2147,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 				i;
 	int			rows_per_statement = dopt->dump_inserts;
 	int			rows_this_statement = 0;
+	bool dump_with_inserts = bbfIsDumpWithInsert(fout, tbinfo);
+
 	/*
 	 * sqlvar_metadata_pos stores the position of the extra columns added in
 	 * fixCursorForBbfSqlvariantTableData which fetch the metadata of sql_variant
@@ -2173,7 +2174,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	{
 		if (tbinfo->attisdropped[i])
 			continue;
-		if (tbinfo->attgenerated[i] && dopt->column_inserts)
+		if (tbinfo->attgenerated[i] && (dopt->column_inserts || dump_with_inserts))
 			continue;
 
 		/* Skip TSQL ROWVERSION/TIMESTAMP column, it should be re-generated during restore. */
@@ -2253,7 +2254,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 			else
 			{
 				/* append the list of column names if required */
-				if (dopt->column_inserts)
+				if (dopt->column_inserts || dump_with_inserts)
 				{
 					appendPQExpBufferChar(insertStmt, '(');
 					for (int field = 0; field < nfields; field++)
@@ -2533,8 +2534,12 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 		copyStmt = NULL;
 	}
 
-	if(isBabelfishDatabase(fout) && hasSqlvariantColumn(tbinfo)){
-		/* dump tables with sql_variant datatype columns using INSERT only */
+	if (bbfIsDumpWithInsert(fout, tbinfo))
+	{
+		/*
+		 * dump tables in Babelfish Database with sql_variant datatype columns and
+		 * sys.babelfish_authid_login_ext Babelfish catalog table using INSERT only
+		 */
 		dumpFn = dumpTableData_insert;
 		copyStmt = NULL;
 	}
@@ -18048,7 +18053,7 @@ getDependencies(Archive *fout)
 		/* Standalone T-SQL table-type as a function's argument or multi-statement TVF */
 		fixTsqlTableTypeDependency(fout, dobj, refdobj, deptype);
 	}
-	
+
 	if (bbf_db_name != NULL)
 		setBabelfishDependenciesForLogicalDatabaseDump(fout);
 

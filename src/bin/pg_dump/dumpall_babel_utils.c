@@ -26,20 +26,75 @@
 /* Babelfish virtual database to dump */
 char *bbf_db_name = NULL;
 
+/* enum to check if database to be dumped is a Babelfish Database */
+typedef enum {
+	NONE, OFF, ON
+} babelfish_status;
+
+static babelfish_status bbf_status = NONE;
+
 /*
- * Returns query to fetch default Babelfish users of specified logical database.
- * For a database DB, default roles will be: DB_dbo, DB_db_owner, DB_guest
- * drop_query decides whether the query is to DROP the roles.
+ * isBabelfishDatabase:
+ * returns true if current database has "babelfishpg_tsql"
+ * extension installed, false otherwise.
+ */
+bool
+isBabelfishDatabase(PGconn *conn)
+{
+	if(bbf_status == NONE)
+	{
+		PGresult *res;
+		int		 ntups;
+		res = PQexec(conn, "SELECT extname FROM pg_extension WHERE extname = 'babelfishpg_tsql';");
+		ntups = PQntuples(res);
+		if (ntups != 0)
+			bbf_status = ON;
+		else
+			bbf_status = OFF;
+		PQclear(res);
+	}
+	return (bbf_status == ON);
+}
+
+/*
+ * Returns query to fetch default Babelfish users of specified physical/logical
+ * database. For a database, default roles will be: DB_dbo, DB_db_owner,
+ * DB_guest drop_query decides whether the query is to DROP the roles.
  */
 void
-getBabelfishRolesQuery(PQExpBuffer buf, char *role_catalog, bool drop_query)
+getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog, 
+						bool drop_query, int binary_upgrade)
 {
 	char	*escaped_bbf_db_name;
 	bool	is_builtin_db = false;
 
-	if (!bbf_db_name)
+	if(!isBabelfishDatabase(conn) || binary_upgrade)
 		return;
 
+	if (!bbf_db_name)
+	{
+		/* Modify role query for physical database dump. */
+		resetPQExpBuffer(buf);
+		printfPQExpBuffer(buf,
+					"SELECT oid, rolname, rolsuper, rolinherit, "
+					"rolcreaterole, rolcreatedb, "
+					"rolcanlogin, rolconnlimit, rolpassword, "
+					"rolvaliduntil, rolreplication, rolbypassrls, "
+					"pg_catalog.shobj_description(oid, '%s') as rolcomment, "
+					"rolname = current_user AS is_current_user "
+					"FROM %s "
+					"WHERE rolname !~ '^pg_' "
+					"AND rolname NOT IN ('rds_ad', 'rds_iam', 'rds_password', "
+					"'rds_replication', 'rds_superuser', 'rdsadmin',"
+					"'rdswriteforwarduser', 'sysadmin', "
+					"'master_db_owner', 'master_dbo', 'master_guest', "
+					"'msdb_db_owner', 'msdb_dbo', 'msdb_guest',"
+					"'tempdb_db_owner', 'tempdb_dbo', 'tempdb_guest') "
+					"ORDER BY 2", role_catalog, role_catalog);
+		return;
+	}
+
+	/* Modify role query for logical database dump. */
 	is_builtin_db = (pg_strcasecmp(bbf_db_name, "master") == 0 ||
 			pg_strcasecmp(bbf_db_name, "tempdb") == 0 ||
 			pg_strcasecmp(bbf_db_name, "msdb") == 0)
@@ -93,14 +148,35 @@ getBabelfishRolesQuery(PQExpBuffer buf, char *role_catalog, bool drop_query)
  * to Babelfish users of specified logical database.
  */
 void
-getBabelfishRoleMembershipQuery(PQExpBuffer buf, char *role_catalog)
+getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
+								char *role_catalog, int binary_upgrade)
 {
 	char	*escaped_bbf_db_name;
 
-	if (!bbf_db_name)
+	if(!isBabelfishDatabase(conn) || binary_upgrade)
 		return;
 
-	/*
+	if (!bbf_db_name)
+	{
+		/* Modify role query for physical database dump. */
+		resetPQExpBuffer(buf);
+		printfPQExpBuffer(buf, "SELECT ur.rolname AS roleid, "
+					"um.rolname AS member, "
+					"a.admin_option, "
+					"ug.rolname AS grantor "
+					"FROM pg_auth_members a "
+					"LEFT JOIN %s ur on ur.oid = a.roleid "
+					"LEFT JOIN %s um on um.oid = a.member "
+					"LEFT JOIN %s ug on ug.oid = a.grantor "
+					"WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_')"
+					"AND um.rolname NOT IN ('rds_ad', 'rds_iam', 'rds_password', "
+					"'rds_replication','rds_superuser', 'rdsadmin')"
+					"ORDER BY 1,2,3", role_catalog, role_catalog, role_catalog);
+		return;
+	}
+
+	/* 
+	 * Modify role query for logical database dump.
 	 * Get escaped bbf_db_name to handle special characters in it.
 	 * 2*strlen+1 bytes are required for PQescapeString according to the documentation.
 	 */

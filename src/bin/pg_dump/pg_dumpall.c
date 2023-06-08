@@ -694,7 +694,7 @@ dropRoles(PGconn *conn)
 						  "FROM %s "
 						  "ORDER BY 1", role_catalog);
 
-	getBabelfishRolesQuery(buf, role_catalog, 1);
+	getBabelfishRolesQuery(conn, buf, role_catalog, 1, binary_upgrade);
 	res = executeQuery(conn, buf->data);
 
 	i_rolname = PQfnumber(res, "rolname");
@@ -742,6 +742,7 @@ dumpRoles(PGconn *conn)
 				i_rolcomment,
 				i_is_current_user;
 	int			i;
+	bool		is_bbf_db = isBabelfishDatabase(conn);
 
 	/* note: rolconfig is dumped later */
 	if (server_version >= 90600)
@@ -777,7 +778,7 @@ dumpRoles(PGconn *conn)
 						  "FROM %s "
 						  "ORDER BY 2", role_catalog, role_catalog);
 
-	getBabelfishRolesQuery(buf, role_catalog, 0);
+	getBabelfishRolesQuery(conn, buf, role_catalog, 0, binary_upgrade);
 	res = executeQuery(conn, buf->data);
 
 	i_oid = PQfnumber(res, "oid");
@@ -836,11 +837,13 @@ dumpRoles(PGconn *conn)
 			appendPQExpBuffer(buf, "CREATE ROLE %s;\n", fmtId(rolename));
 		appendPQExpBuffer(buf, "ALTER ROLE %s WITH", fmtId(rolename));
 
-		if (strcmp(PQgetvalue(res, i, i_rolsuper), "t") == 0)
-			appendPQExpBufferStr(buf, " SUPERUSER");
-		else
-			appendPQExpBufferStr(buf, " NOSUPERUSER");
-
+		if(binary_upgrade && !is_bbf_db)
+		{
+			if (strcmp(PQgetvalue(res, i, i_rolsuper), "t") == 0)
+				appendPQExpBufferStr(buf, " SUPERUSER");
+			else
+				appendPQExpBufferStr(buf, " NOSUPERUSER");
+		}
 		if (strcmp(PQgetvalue(res, i, i_rolinherit), "t") == 0)
 			appendPQExpBufferStr(buf, " INHERIT");
 		else
@@ -861,10 +864,13 @@ dumpRoles(PGconn *conn)
 		else
 			appendPQExpBufferStr(buf, " NOLOGIN");
 
-		if (strcmp(PQgetvalue(res, i, i_rolreplication), "t") == 0)
-			appendPQExpBufferStr(buf, " REPLICATION");
-		else
-			appendPQExpBufferStr(buf, " NOREPLICATION");
+		if(binary_upgrade && !is_bbf_db)
+		{
+			if (strcmp(PQgetvalue(res, i, i_rolreplication), "t") == 0)
+				appendPQExpBufferStr(buf, " REPLICATION");
+			else
+				appendPQExpBufferStr(buf, " NOREPLICATION");
+		}
 
 		if (strcmp(PQgetvalue(res, i, i_rolbypassrls), "t") == 0)
 			appendPQExpBufferStr(buf, " BYPASSRLS");
@@ -895,6 +901,19 @@ dumpRoles(PGconn *conn)
 			appendPQExpBufferStr(buf, ";\n");
 		}
 
+		if(!binary_upgrade && is_bbf_db)
+		{
+			appendPQExpBuffer(buf, "ALTER ROLE %s WITH", fmtId(rolename));
+			if (strcmp(PQgetvalue(res, i, i_rolsuper), "t") == 0)
+				appendPQExpBufferStr(buf, " SUPERUSER");
+			else
+				appendPQExpBufferStr(buf, " NOSUPERUSER");
+			if (strcmp(PQgetvalue(res, i, i_rolreplication), "t") == 0)
+				appendPQExpBufferStr(buf, " REPLICATION");
+			else
+				appendPQExpBufferStr(buf, " NOREPLICATION");
+			appendPQExpBufferStr(buf, ";\n");
+		}
 		if (!no_security_labels)
 			buildShSecLabels(conn, "pg_authid", auth_oid,
 							 "ROLE", rolename,
@@ -945,7 +964,7 @@ dumpRoleMembership(PGconn *conn)
 					  "LEFT JOIN %s ug on ug.oid = a.grantor "
 					  "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_')"
 					  "ORDER BY 1,2,3", role_catalog, role_catalog, role_catalog);
-	getBabelfishRoleMembershipQuery(buf, role_catalog);
+	getBabelfishRoleMembershipQuery(conn, buf, role_catalog, binary_upgrade);
 	res = executeQuery(conn, buf->data);
 
 	if (PQntuples(res) > 0)
@@ -970,7 +989,9 @@ dumpRoleMembership(PGconn *conn)
 		{
 			char	   *grantor = PQgetvalue(res, i, 3);
 
-			fprintf(OPF, " GRANTED BY %s", fmtId(grantor));
+			if(binary_upgrade && !isBabelfishDatabase(conn)){
+				fprintf(OPF, " GRANTED BY %s", fmtId(grantor));
+			}
 		}
 		fprintf(OPF, ";\n");
 	}
