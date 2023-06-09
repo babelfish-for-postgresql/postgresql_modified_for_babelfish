@@ -743,7 +743,6 @@ dumpRoles(PGconn *conn)
 				i_is_current_user;
 	int			i;
 	bool		is_bbf_db = isBabelfishDatabase(conn);
-	bool		is_debug = true;
 
 	/* note: rolconfig is dumped later */
 	if (server_version >= 90600)
@@ -825,7 +824,6 @@ dumpRoles(PGconn *conn)
 							  auth_oid);
 		}
 
-		while (is_debug);
 
 		/*
 		 * We dump CREATE ROLE followed by ALTER ROLE to ensure that the role
