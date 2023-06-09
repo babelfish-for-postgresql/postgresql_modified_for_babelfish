@@ -743,6 +743,7 @@ dumpRoles(PGconn *conn)
 				i_is_current_user;
 	int			i;
 	bool		is_bbf_db = isBabelfishDatabase(conn);
+	bool		is_debug = true;
 
 	/* note: rolconfig is dumped later */
 	if (server_version >= 90600)
@@ -824,6 +825,8 @@ dumpRoles(PGconn *conn)
 							  auth_oid);
 		}
 
+		while (is_debug);
+
 		/*
 		 * We dump CREATE ROLE followed by ALTER ROLE to ensure that the role
 		 * will acquire the right properties even if it already exists (ie, it
@@ -837,7 +840,7 @@ dumpRoles(PGconn *conn)
 			appendPQExpBuffer(buf, "CREATE ROLE %s;\n", fmtId(rolename));
 		appendPQExpBuffer(buf, "ALTER ROLE %s WITH", fmtId(rolename));
 
-		if(binary_upgrade && !is_bbf_db)
+		if (binary_upgrade || !is_bbf_db)
 		{
 			if (strcmp(PQgetvalue(res, i, i_rolsuper), "t") == 0)
 				appendPQExpBufferStr(buf, " SUPERUSER");
@@ -864,7 +867,7 @@ dumpRoles(PGconn *conn)
 		else
 			appendPQExpBufferStr(buf, " NOLOGIN");
 
-		if(binary_upgrade && !is_bbf_db)
+		if (binary_upgrade || !is_bbf_db)
 		{
 			if (strcmp(PQgetvalue(res, i, i_rolreplication), "t") == 0)
 				appendPQExpBufferStr(buf, " REPLICATION");
@@ -901,7 +904,7 @@ dumpRoles(PGconn *conn)
 			appendPQExpBufferStr(buf, ";\n");
 		}
 
-		if(!binary_upgrade && is_bbf_db)
+		if ((!binary_upgrade) && is_bbf_db)
 		{
 			appendPQExpBuffer(buf, "ALTER ROLE %s WITH", fmtId(rolename));
 			if (strcmp(PQgetvalue(res, i, i_rolsuper), "t") == 0)
