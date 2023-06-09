@@ -668,6 +668,9 @@ prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_
 	int 		ntups;
 	int 		i;
 
+	if (fout->dopt->binary_upgrade)
+		return;
+
 	if (!isBabelfishDatabase(fout))
 	{
 		pg_log_error("\"%s\" is not a Babelfish Database.", fout->dopt->cparams.dbname);
