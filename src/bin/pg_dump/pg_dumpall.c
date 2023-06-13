@@ -838,6 +838,15 @@ dumpRoles(PGconn *conn)
 			appendPQExpBuffer(buf, "CREATE ROLE %s;\n", fmtId(rolename));
 		appendPQExpBuffer(buf, "ALTER ROLE %s WITH", fmtId(rolename));
 
+		/*
+		 * Since ALTER ROLE command options SUPERUSER/NOSUPERUSER and
+		 * REPLICATION/NOREPLICATION requires superuser permissions, for
+		 * Babelfish Database dump we add another ALTER ROLE command for these
+		 * two options so that other options do not get affected if superuser
+		 * permissions are not present. The second command might throw an error
+		 * in that case but that won't affect the functionality.
+		 */
+
 		if (binary_upgrade || !is_bbf_db)
 		{
 			if (strcmp(PQgetvalue(res, i, i_rolsuper), "t") == 0)
@@ -990,7 +999,10 @@ dumpRoleMembership(PGconn *conn)
 		{
 			char	   *grantor = PQgetvalue(res, i, 3);
 
-			if(binary_upgrade && !isBabelfishDatabase(conn)){
+			/* 
+			 * Do not add GRANTED BY clause for Babelfish Database dump.
+			 */
+			if(binary_upgrade || !isBabelfishDatabase(conn)){
 				fprintf(OPF, " GRANTED BY %s", fmtId(grantor));
 			}
 		}
