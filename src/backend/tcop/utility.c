@@ -76,6 +76,7 @@
 
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
+bbfCustomProcessUtility_hook_type bbfCustomProcessUtility_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -593,6 +594,10 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 	pstate = make_parsestate(NULL);
 	pstate->p_sourcetext = queryString;
 	pstate->p_queryEnv = queryEnv;
+
+	if(bbfCustomProcessUtility_hook)
+		if((*bbfCustomProcessUtility_hook)(pstate, pstmt, queryString, context, params, qc))
+			return;
 
 	switch (nodeTag(parsetree))
 	{
