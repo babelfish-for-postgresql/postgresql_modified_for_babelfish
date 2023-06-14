@@ -1033,7 +1033,13 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 
 /*
  * bbfIsDumpWithInsert:
- * returns true if table in Babelfish Database is to be dumped with INSERT mode
+ * Returns true if table in Babelfish Database is to be dumped with INSERT mode.
+ * Currently we dump tables with sql_variant columns with INSERT operations to
+ * correctly restore the metadata of the base datatype, which is not directly
+ * posible with COPY statements. We also dump sys.babelfish_authid_login_ext
+ * with INSERT statements so that if target database already has a login with
+ * same name as in the source database, only that INSERT query with fail and won't
+ * affect the other entries of the catalog table. 
  */
 bool bbfIsDumpWithInsert(Archive *fout, TableInfo *tbinfo)
 {

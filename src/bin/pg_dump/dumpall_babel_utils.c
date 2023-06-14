@@ -84,9 +84,7 @@ getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog,
 					"rolname = current_user AS is_current_user "
 					"FROM %s "
 					"WHERE rolname !~ '^pg_' "
-					"AND rolname NOT IN ('rds_ad', 'rds_iam', 'rds_password', "
-					"'rds_replication', 'rds_superuser', 'rdsadmin',"
-					"'rdswriteforwarduser', 'sysadmin', "
+					"AND rolname NOT IN ('sysadmin', "
 					"'master_db_owner', 'master_dbo', 'master_guest', "
 					"'msdb_db_owner', 'msdb_dbo', 'msdb_guest',"
 					"'tempdb_db_owner', 'tempdb_dbo', 'tempdb_guest') "
@@ -169,8 +167,6 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 					"LEFT JOIN %s um on um.oid = a.member "
 					"LEFT JOIN %s ug on ug.oid = a.grantor "
 					"WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_')"
-					"AND um.rolname NOT IN ('rds_ad', 'rds_iam', 'rds_password', "
-					"'rds_replication','rds_superuser', 'rdsadmin')"
 					"ORDER BY 1,2,3", role_catalog, role_catalog, role_catalog);
 		return;
 	}
