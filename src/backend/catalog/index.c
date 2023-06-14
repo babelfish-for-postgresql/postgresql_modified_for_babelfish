@@ -2198,6 +2198,9 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 	userHeapRelation = table_open(heapId, lockmode);
 	userIndexRelation = index_open(indexId, lockmode);
 
+	if (drop_relation_refcnt_hook)
+		drop_relation_refcnt_hook(userIndexRelation);
+
 	/*
 	 * We might still have open queries using it in our own session, which the
 	 * above locking won't prevent, so test explicitly.
