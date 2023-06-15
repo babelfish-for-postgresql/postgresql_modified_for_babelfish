@@ -13,10 +13,14 @@
 #define DUMPALL_BABEL_UTILS_H
 
 #include "pqexpbuffer.h"
+#include "pg_backup.h"
 
 extern char *bbf_db_name;
 
-extern void getBabelfishRolesQuery(PQExpBuffer buf, char *role_catalog, bool drop_query);
-extern void getBabelfishRoleMembershipQuery(PQExpBuffer buf, char *role_catalog);
+extern void getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf,
+        char *role_catalog, bool drop_query, int binary_upgrade);
+extern void getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
+        char *role_catalog, int binary_upgrade);
+extern bool isBabelfishDatabase(PGconn *conn);
 
 #endif

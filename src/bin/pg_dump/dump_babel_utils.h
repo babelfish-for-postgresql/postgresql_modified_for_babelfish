@@ -35,12 +35,13 @@ extern void setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const 
 extern void dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf);
 extern void updateExtConfigArray(Archive *fout, char ***extconfigarray, int nconfigitems);
 extern char *babelfish_handle_view_def(Archive *fout, char *view_def);
-extern void prepareForLogicalDatabaseDump(Archive *fout, SimpleStringList *schema_include_patterns);
+extern void prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_patterns);
 extern void setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout);
 extern void dumpBabelGUCs(Archive *fout);
 extern void fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields, char *attgenerated);
 extern void fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFrom);
 extern bool hasSqlvariantColumn(TableInfo *tbinfo);
+extern bool bbfIsDumpWithInsert(Archive *fout, TableInfo *tbinfo);
 extern int fixCursorForBbfSqlvariantTableData(Archive *fout,
                                             TableInfo *tbinfo,
                                             PQExpBuffer query,
