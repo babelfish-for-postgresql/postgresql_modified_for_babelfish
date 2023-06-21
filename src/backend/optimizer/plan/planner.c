@@ -1220,6 +1220,9 @@ preprocess_qual_conditions(PlannerInfo *root, Node *jtnode)
 		preprocess_qual_conditions(root, j->larg);
 		preprocess_qual_conditions(root, j->rarg);
 
+		if(planner_node_transformer_hook)
+			j->quals = planner_node_transformer_hook(root, j->quals, EXPRKIND_QUAL);
+
 		j->quals = preprocess_expression(root, j->quals, EXPRKIND_QUAL);
 	}
 	else
