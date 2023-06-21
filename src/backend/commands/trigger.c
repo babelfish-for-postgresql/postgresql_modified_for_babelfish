@@ -5575,7 +5575,7 @@ AfterTriggerFreeQuery(AfterTriggersQueryData *qs, bool free_tables)
 		tuplestore_end(ts);
 
 	/* Babelfish triggers will remove transition tables later */
-	if (!free_tables)
+	if (!free_tables && afterTriggers.query_depth >= compositeTriggers.triggers->query_depth)
 	{
 		qs->tables = NIL;
 		return;
@@ -7371,7 +7371,7 @@ void EndCompositeTriggers(bool error)
 		 * to avoid seg fault issues.
 		 */ 
 		if (afterTriggers.query_depth < afterTriggers.maxquerydepth && afterTriggers.query_depth >= triggers->query_depth)
-			afterTriggers.query_stack[afterTriggers.query_depth].tables = NIL;
+			afterTriggers.query_stack[triggers->query_depth].tables = NIL;
 
 		pfree(triggers);
 	}
