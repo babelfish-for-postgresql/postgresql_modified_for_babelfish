@@ -85,9 +85,6 @@ set_target_table_alternative_hook_type set_target_table_alternative_hook = NULL;
 /* Hook to save to a namespace stack for handling statements with set ops */
 pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook = NULL;
 
-/* Hook to change a query's targetlist and namespace to handle set ops */
-pre_transform_sort_clause_hook_type pre_transform_sort_clause_hook = NULL;
-
 /* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
 post_transform_sort_clause_hook_type post_transform_sort_clause_hook = NULL;
 
@@ -1806,7 +1803,6 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	stmt->lockingClause = NIL;
 	stmt->withClause = NULL;
 
-
 	/* We don't support FOR UPDATE/SHARE with set ops at the moment. */
 	if (lockingClause)
 		ereport(ERROR,
@@ -1888,10 +1884,6 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 							  (AttrNumber) pstate->p_next_resno++,
 							  colName,
 							  false);
-		// if (sql_dialect == SQL_DIALECT_TSQL)
-		// {
-		// 	tle->ressortgroupref = lefttle->ressortgroupref;
-		// }
 		qry->targetList = lappend(qry->targetList, tle);
 		targetvars = lappend(targetvars, var);
 		targetnames = lappend(targetnames, makeString(colName));
@@ -1934,9 +1926,6 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 
 	/* add jnsitem to column namespace only */
 	addNSItemToQuery(pstate, jnsitem, false, false, true);
-	
-	// if (pre_transform_sort_clause_hook)
-	// 	pre_transform_sort_clause_hook(pstate, qry, leftmostQuery);
 
 	/*
 	 * For now, we don't support resjunk sort clauses on the output of a
@@ -1946,17 +1935,14 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	 */
 	tllen = list_length(qry->targetList);
 
-	// if (sql_dialect == SQL_DIALECT_TSQL)
-	// {
-	// 	qry->sortClause = leftmostQuery->sortClause;
-	// } else
-	// {
-		qry->sortClause = transformSortClause(pstate,
-											sortClause,
-											&qry->targetList,
-											EXPR_KIND_ORDER_BY,
-											false /* allow SQL92 rules */ );
-	// }
+	qry->sortClause = transformSortClause(pstate,
+										sortClause,
+										&qry->targetList,
+										EXPR_KIND_ORDER_BY,
+										false /* allow SQL92 rules */ );
+
+	if (post_transform_sort_clause_hook)
+		post_transform_sort_clause_hook(qry, leftmostQuery);
 
 	/* restore namespace, remove join RTE from rtable */
 	pstate->p_namespace = sv_namespace;
@@ -1970,9 +1956,6 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 				 errhint("Add the expression/function to every SELECT, or move the UNION into a FROM clause."),
 				 parser_errposition(pstate,
 									exprLocation(list_nth(qry->targetList, tllen)))));
-
-	if (post_transform_sort_clause_hook)
-		post_transform_sort_clause_hook(qry, leftmostQuery);
 
 	qry->limitOffset = transformLimitClause(pstate, limitOffset,
 											EXPR_KIND_OFFSET, "OFFSET",
