@@ -78,7 +78,7 @@
 
 static int
 MatchText(const char *t, int tlen, const char *p, int plen,
-		  pg_locale_t locale, bool locale_is_c, Oid cid)
+		  pg_locale_t locale, bool locale_is_c)
 {
 	/* Fast path for match-everything pattern */
 	if (plen == 1 && *p == '%')
@@ -176,14 +176,14 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 				if (GETCHAR(*t) == firstpat)
 				{
 					int			matched = MatchText(t, tlen, p, plen,
-													locale, locale_is_c, cid);
+													locale, locale_is_c);
 
 					if (matched != LIKE_FALSE)
 						return matched; /* TRUE or ABORT */
 				} else if (firstpat == '[' && sql_dialect == SQL_DIALECT_TSQL)
 				{
 					int			matched = MatchText(t, tlen, p, plen,
-													locale, locale_is_c, cid);
+													locale, locale_is_c);
 					if (matched != LIKE_FALSE)
 						return matched; /* TRUE or ABORT */
 				}
@@ -207,8 +207,11 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 		else if (*p == '[' && sql_dialect == SQL_DIALECT_TSQL)
 		{
 			/* Tsql deal with [ and ] wild character */
+			Oid cid;
 			bool find_match = false, reverse_mode = false;
 			const char * prev = NULL;
+			if (get_like_collation_hook)
+				cid = get_like_collation_hook();
 
 			NextByte(p, plen);
 			if (*p == '^')

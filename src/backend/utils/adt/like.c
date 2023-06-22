@@ -34,18 +34,18 @@
 
 
 static int	SB_MatchText(const char *t, int tlen, const char *p, int plen,
-						 pg_locale_t locale, bool locale_is_c, Oid collation);
+						 pg_locale_t locale, bool locale_is_c);
 static text *SB_do_like_escape(text *, text *);
 
 static int	MB_MatchText(const char *t, int tlen, const char *p, int plen,
-						 pg_locale_t locale, bool locale_is_c, Oid collation);
+						 pg_locale_t locale, bool locale_is_c);
 static text *MB_do_like_escape(text *, text *);
 
 static int	UTF8_MatchText(const char *t, int tlen, const char *p, int plen,
-						   pg_locale_t locale, bool locale_is_c, Oid collation);
+						   pg_locale_t locale, bool locale_is_c);
 
 static int	SB_IMatchText(const char *t, int tlen, const char *p, int plen,
-						  pg_locale_t locale, bool locale_is_c, Oid collation);
+						  pg_locale_t locale, bool locale_is_c);
 
 static int	GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation);
 static int	Generic_Text_IC_like(text *str, text *pat, Oid collation);
@@ -162,12 +162,17 @@ GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation
 					 errmsg("nondeterministic collations are not supported for LIKE")));
 	}
 
+	if (sql_dialect == SQL_DIALECT_TSQL && set_like_collation_hook)
+	{
+		set_like_collation_hook(collation);
+	}
+
 	if (pg_database_encoding_max_length() == 1)
-		return SB_MatchText(s, slen, p, plen, 0, true, collation);
+		return SB_MatchText(s, slen, p, plen, 0, true);
 	else if (GetDatabaseEncoding() == PG_UTF8)
-		return UTF8_MatchText(s, slen, p, plen, 0, true, collation);
+		return UTF8_MatchText(s, slen, p, plen, 0, true);
 	else
-		return MB_MatchText(s, slen, p, plen, 0, true, collation);
+		return MB_MatchText(s, slen, p, plen, 0, true);
 }
 
 static inline int
@@ -202,6 +207,11 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("nondeterministic collations are not supported for ILIKE")));
 
+	if (sql_dialect == SQL_DIALECT_TSQL && set_like_collation_hook)
+	{
+		set_like_collation_hook(collation);
+	}
+
 	/*
 	 * For efficiency reasons, in the single byte case we don't call lower()
 	 * on the pattern and text, but instead call SB_lower_char on each
@@ -221,9 +231,9 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 		s = VARDATA_ANY(str);
 		slen = VARSIZE_ANY_EXHDR(str);
 		if (GetDatabaseEncoding() == PG_UTF8)
-			return UTF8_MatchText(s, slen, p, plen, 0, true, collation);
+			return UTF8_MatchText(s, slen, p, plen, 0, true);
 		else
-			return MB_MatchText(s, slen, p, plen, 0, true, collation);
+			return MB_MatchText(s, slen, p, plen, 0, true);
 	}
 	else
 	{
@@ -231,7 +241,7 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 		plen = VARSIZE_ANY_EXHDR(pat);
 		s = VARDATA_ANY(str);
 		slen = VARSIZE_ANY_EXHDR(str);
-		return SB_IMatchText(s, slen, p, plen, locale, locale_is_c, collation);
+		return SB_IMatchText(s, slen, p, plen, locale, locale_is_c);
 	}
 }
 
@@ -339,7 +349,12 @@ bytealike(PG_FUNCTION_ARGS)
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (SB_MatchText(s, slen, p, plen, 0, true, PG_GET_COLLATION()) == LIKE_TRUE);
+	if (sql_dialect == SQL_DIALECT_TSQL && set_like_collation_hook)
+	{
+		set_like_collation_hook(PG_GET_COLLATION());
+	}
+
+	result = (SB_MatchText(s, slen, p, plen, 0, true) == LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -360,7 +375,12 @@ byteanlike(PG_FUNCTION_ARGS)
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (SB_MatchText(s, slen, p, plen, 0, true, PG_GET_COLLATION()) != LIKE_TRUE);
+	if (sql_dialect == SQL_DIALECT_TSQL && set_like_collation_hook)
+	{
+		set_like_collation_hook(PG_GET_COLLATION());
+	}
+
+	result = (SB_MatchText(s, slen, p, plen, 0, true) != LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }

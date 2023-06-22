@@ -111,4 +111,10 @@ extern PGDLLIMPORT PreCreateCollation_hook_type PreCreateCollation_hook;
 typedef const char * (*TranslateCollation_hook_type) (const char *collname, Oid collnamespace, int32 encoding);
 extern PGDLLIMPORT TranslateCollation_hook_type TranslateCollation_hook;
 
+typedef void (*set_like_collation_hook_type) (Oid collation);
+extern PGDLLIMPORT set_like_collation_hook_type set_like_collation_hook;
+
+typedef Oid (*get_like_collation_hook_type) ();
+extern PGDLLIMPORT get_like_collation_hook_type get_like_collation_hook;
+
 #endif							/* PG_COLLATION_H */
