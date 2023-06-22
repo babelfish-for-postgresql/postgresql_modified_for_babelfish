@@ -7370,7 +7370,8 @@ void EndCompositeTriggers(bool error)
 		 * So, setting reference to AfterTriggersTableData to the NIL explicitly here 
 		 * to avoid seg fault issues.
 		 */ 
-		afterTriggers.query_stack[triggers->query_depth].tables = NIL;
+		if (afterTriggers.query_depth > -1)
+			afterTriggers.query_stack[triggers->query_depth].tables = NIL;
 
 		pfree(triggers);
 	}
