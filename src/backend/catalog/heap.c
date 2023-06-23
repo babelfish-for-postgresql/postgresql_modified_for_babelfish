@@ -92,6 +92,7 @@
 
 InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook = NULL;
 transform_check_constraint_expr_hook_type transform_check_constraint_expr_hook = NULL;
+drop_relation_refcnt_hook_type drop_relation_refcnt_hook = NULL;
 
 /* Potentially set by pg_upgrade_support functions */
 Oid			binary_upgrade_next_heap_pg_class_oid = InvalidOid;
@@ -2051,6 +2052,9 @@ heap_drop_with_catalog(Oid relid)
 	 * Open and lock the relation.
 	 */
 	rel = relation_open(relid, AccessExclusiveLock);
+
+	if (drop_relation_refcnt_hook)
+		drop_relation_refcnt_hook(rel);
 
 	/*
 	 * There can no longer be anyone *else* touching the relation, but we
