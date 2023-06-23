@@ -207,7 +207,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 		else if (*p == '[' && sql_dialect == SQL_DIALECT_TSQL)
 		{
 			/* Tsql deal with [ and ] wild character */
-			Oid cid;
+			Oid cid = InvalidOid;
 			bool find_match = false, reverse_mode = false;
 			const char * prev = NULL;
 			if (get_like_collation_hook)
@@ -231,6 +231,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 				if (*p == '-' && prev)
 				{
 					NextByte(p, plen);
+					Assert(cid != InvalidOid);
 					if (varstr_cmp(t, 1, prev, 1, cid) >= 0 && varstr_cmp(t, 1, p, 1, cid) <= 0)
 					{
 						find_match = true;

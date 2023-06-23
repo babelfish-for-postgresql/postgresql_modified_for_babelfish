@@ -26,6 +26,8 @@
 #include "utils/builtins.h"
 #include "utils/pg_locale.h"
 #include "utils/varlena.h"
+#include "postgres_ext.h"
+
 
 
 #define LIKE_TRUE						1
