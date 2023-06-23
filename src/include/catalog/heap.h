@@ -161,4 +161,7 @@ extern void StorePartitionBound(Relation rel, Relation parent,
 typedef Node* (*transform_check_constraint_expr_hook_type) (Node *node);
 extern PGDLLIMPORT transform_check_constraint_expr_hook_type transform_check_constraint_expr_hook;
 
+typedef void (*drop_relation_refcnt_hook_type) (Relation rel);
+extern PGDLLIMPORT drop_relation_refcnt_hook_type drop_relation_refcnt_hook;
+
 #endif							/* HEAP_H */
