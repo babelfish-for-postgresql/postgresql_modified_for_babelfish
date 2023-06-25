@@ -128,6 +128,7 @@ static bool IsCompositeTriggerActive(void);
 static void AddCompositeTriggerLevelData(void);
 static bool IsCompositeTrigger(Oid fn_oid, List *fn_name);
 
+static bool FreeTriggerTable(int query_depth);
 
 /*
  * Create a trigger.  Returns the address of the created trigger.
@@ -5545,7 +5546,7 @@ AfterTriggerEndQuery(EState *estate)
 	}
 
 	/* Release query-level-local storage, including tuplestores if any */
-	AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth], !IsCompositeTriggerActive());
+	AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth], FreeTriggerTable(afterTriggers.query_depth));
 
 	afterTriggers.query_depth--;
 }
@@ -5575,7 +5576,7 @@ AfterTriggerFreeQuery(AfterTriggersQueryData *qs, bool free_tables)
 		tuplestore_end(ts);
 
 	/* Babelfish triggers will remove transition tables later */
-	if (!free_tables && afterTriggers.query_depth >= compositeTriggers.triggers->query_depth)
+	if (!free_tables)
 	{
 		qs->tables = NIL;
 		return;
@@ -5839,7 +5840,7 @@ AfterTriggerEndSubXact(bool isCommit)
 		while (afterTriggers.query_depth > afterTriggers.trans_stack[my_level].query_depth)
 		{
 			if (afterTriggers.query_depth < afterTriggers.maxquerydepth)
-				AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth], !IsCompositeTriggerActive());
+				AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth], FreeTriggerTable(afterTriggers.query_depth));
 			afterTriggers.query_depth--;
 		}
 		Assert(afterTriggers.query_depth ==
@@ -7283,6 +7284,17 @@ bool IsCompositeTriggerActive(void)
 	return (compositeTriggers.triggers != NULL &&
 			compositeTriggers.triggers->triggerLevel == compositeTriggers.triggerLevel);
 }
+
+/*
+ * FreeTriggerTable - return true if trigger tables should be cleaned up at this level.
+ */
+static
+bool FreeTriggerTable(int query_depth)
+{
+	return (!IsCompositeTriggerActive() && 
+			(compositeTriggers.triggers && compositeTriggers.triggers->query_depth == query_depth));
+}
+
 
 /*
  * Create a new entry for trigger data at current
