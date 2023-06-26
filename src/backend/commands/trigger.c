@@ -7291,8 +7291,7 @@ bool IsCompositeTriggerActive(void)
 static
 bool FreeTriggerTable(int query_depth)
 {
-	return (!IsCompositeTriggerActive() && 
-			(compositeTriggers.triggers && compositeTriggers.triggers->query_depth == query_depth));
+	return (!IsCompositeTriggerActive() || compositeTriggers.triggers->query_depth != query_depth);
 }
 
 
