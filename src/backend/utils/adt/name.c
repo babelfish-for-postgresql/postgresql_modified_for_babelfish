@@ -39,7 +39,7 @@ cstr_to_name_hook_type cstr_to_name_hook = NULL;
 
 
 /*
- *		namein	- converts "..." to internal representation
+ *		namein	- converts cstring to internal representation
  *
  *		Note:
  *				[Old] Currently if strlen(s) < NAMEDATALEN, the extra chars are nulls
@@ -71,7 +71,7 @@ namein(PG_FUNCTION_ARGS)
 }
 
 /*
- *		nameout - converts internal representation to "..."
+ *		nameout - converts internal representation to cstring
  */
 Datum
 nameout(PG_FUNCTION_ARGS)
