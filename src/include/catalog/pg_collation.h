@@ -114,7 +114,7 @@ extern PGDLLIMPORT TranslateCollation_hook_type TranslateCollation_hook;
 typedef void (*set_like_collation_hook_type) (Oid collation);
 extern PGDLLIMPORT set_like_collation_hook_type set_like_collation_hook;
 
-typedef Oid (*get_like_collation_hook_type) ();
+typedef Oid (*get_like_collation_hook_type) (void);
 extern PGDLLIMPORT get_like_collation_hook_type get_like_collation_hook;
 
 #endif							/* PG_COLLATION_H */
