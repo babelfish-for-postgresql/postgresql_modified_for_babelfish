@@ -159,7 +159,7 @@ parse_analyze_fixedparams(RawStmt *parseTree, const char *sourceText,
 	query = transformTopLevelStmt(pstate, parseTree);
 
 	if (IsQueryIdEnabled())
-		jstate = JumbleQuery(query, sourceText);
+		jstate = JumbleQuery(query);
 
 	if (post_parse_analyze_hook)
 		(*post_parse_analyze_hook) (pstate, query, jstate);
@@ -204,7 +204,7 @@ parse_analyze_varparams(RawStmt *parseTree, const char *sourceText,
 	check_variable_parameters(pstate, query);
 
 	if (IsQueryIdEnabled())
-		jstate = JumbleQuery(query, sourceText);
+		jstate = JumbleQuery(query);
 
 	if (post_parse_analyze_hook)
 		(*post_parse_analyze_hook) (pstate, query, jstate);
@@ -244,7 +244,7 @@ parse_analyze_withcb(RawStmt *parseTree, const char *sourceText,
 	query = transformTopLevelStmt(pstate, parseTree);
 
 	if (IsQueryIdEnabled())
-		jstate = JumbleQuery(query, sourceText);
+		jstate = JumbleQuery(query);
 
 	if (post_parse_analyze_hook)
 		(*post_parse_analyze_hook) (pstate, query, jstate);
