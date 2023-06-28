@@ -208,7 +208,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 		{
 			/* Tsql deal with [ and ] wild character */
 			Oid cid = InvalidOid;
-			bool find_match = false, reverse_mode = false;
+			bool find_match = false, reverse_mode = false, close_bracket = false;
 			const char * prev = NULL;
 			if (get_like_collation_hook)
 				cid = get_like_collation_hook();
@@ -222,7 +222,10 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 			while (plen > 0)
 			{
 				if (*p == ']')
+				{
+					close_bracket = true;
 					break;
+				}
 				if (find_match)
 				{
 					NextByte(p, plen);
@@ -249,6 +252,10 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 				NextByte(p, plen);
 			}
 			if (!find_match && !reverse_mode)
+			{
+				return LIKE_FALSE;
+			}
+			if (find_match && !close_bracket)
 			{
 				return LIKE_FALSE;
 			}
