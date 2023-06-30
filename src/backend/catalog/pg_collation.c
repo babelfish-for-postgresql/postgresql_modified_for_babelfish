@@ -41,6 +41,11 @@ PreCreateCollation_hook_type PreCreateCollation_hook = NULL;
 /* Hook for plugins to get control if a collation name is not found */
 TranslateCollation_hook_type TranslateCollation_hook = NULL;
 
+set_like_collation_hook_type set_like_collation_hook = NULL;
+
+get_like_collation_hook_type get_like_collation_hook = NULL;
+
+
 /*
  * CollationCreate
  *

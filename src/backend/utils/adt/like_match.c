@@ -207,58 +207,61 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 		else if (*p == '[' && sql_dialect == SQL_DIALECT_TSQL)
 		{
 			/* Tsql deal with [ and ] wild character */
-			bool find_match = false, reverse_mode = false;
-			const char * p1 = p, * prev = NULL;
-			int p1len = plen;
-			NextByte(p1, p1len);
-			while (p1len > 0 && *p1 != ']'){
-				NextByte(p1, p1len);
-			}
-			if (*p1 != ']')
+			Oid cid = InvalidOid;
+			bool find_match = false, reverse_mode = false, close_bracket = false;
+			const char * prev = NULL;
+			if (get_like_collation_hook)
+				cid = get_like_collation_hook();
+
+			NextByte(p, plen);
+			if (*p == '^')
 			{
-				if (GETCHAR(*p) != GETCHAR(*t))
-					return LIKE_FALSE;
-			}
-			else
-			{
+				reverse_mode = true;
 				NextByte(p, plen);
-				if (*p == '^')
+			}
+			while (plen > 0)
+			{
+				if (*p == ']')
 				{
-					reverse_mode = true;
-					NextByte(p, plen);
+					close_bracket = true;
+					break;
 				}
-				while (plen > 0)
+				if (find_match)
 				{
-					if (*p == ']')
-						break;
-					if (find_match)
-					{
-						NextByte(p, plen);
-						continue;
-					}
-					if (*p == '-' && prev)
-					{
-						NextByte(p, plen);
-						if (GETCHAR(*t) >= *prev && GETCHAR(*t) <= *p)
-						{
-							find_match = true;
-						}
-					}
-					else if (GETCHAR(*p) == GETCHAR(*t))
+					NextByte(p, plen);
+					continue;
+				}
+				if (*p == '-' && prev)
+				{
+					NextByte(p, plen);
+					Assert(cid != InvalidOid);
+					if (varstr_cmp(t, 1, prev, 1, cid) >= 0 && varstr_cmp(t, 1, p, 1, cid) <= 0)
 					{
 						find_match = true;
 					}
+				}
+				else if (GETCHAR(*p) == GETCHAR(*t))
+				{
 					prev = p;
 					NextByte(p, plen);
+					if (*p != '-')
+						find_match = true;
+					continue;
 				}
-				if (!find_match && !reverse_mode)
-				{
-					return LIKE_FALSE;
-				}
-				if (find_match && reverse_mode)
-				{
-					return LIKE_FALSE;
-				}
+				prev = p;
+				NextByte(p, plen);
+			}
+			if (!find_match && !reverse_mode)
+			{
+				return LIKE_FALSE;
+			}
+			if (find_match && !close_bracket)
+			{
+				return LIKE_FALSE;
+			}
+			if (find_match && reverse_mode)
+			{
+				return LIKE_FALSE;
 			}
 		}
 		else if (GETCHAR(*p) != GETCHAR(*t))
