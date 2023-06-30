@@ -25,6 +25,9 @@
 #include "parser/parser.h"
 #include "utils/builtins.h"
 #include "utils/pg_locale.h"
+#include "utils/varlena.h"
+#include "postgres_ext.h"
+
 
 
 #define LIKE_TRUE						1
@@ -161,6 +164,11 @@ GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation
 					 errmsg("nondeterministic collations are not supported for LIKE")));
 	}
 
+	if (sql_dialect == SQL_DIALECT_TSQL && set_like_collation_hook)
+	{
+		set_like_collation_hook(collation);
+	}
+
 	if (pg_database_encoding_max_length() == 1)
 		return SB_MatchText(s, slen, p, plen, 0, true);
 	else if (GetDatabaseEncoding() == PG_UTF8)
@@ -200,6 +208,11 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("nondeterministic collations are not supported for ILIKE")));
+
+	if (sql_dialect == SQL_DIALECT_TSQL && set_like_collation_hook)
+	{
+		set_like_collation_hook(collation);
+	}
 
 	/*
 	 * For efficiency reasons, in the single byte case we don't call lower()
@@ -338,6 +351,11 @@ bytealike(PG_FUNCTION_ARGS)
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
 
+	if (sql_dialect == SQL_DIALECT_TSQL && set_like_collation_hook)
+	{
+		set_like_collation_hook(PG_GET_COLLATION());
+	}
+
 	result = (SB_MatchText(s, slen, p, plen, 0, true) == LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
@@ -358,6 +376,11 @@ byteanlike(PG_FUNCTION_ARGS)
 	slen = VARSIZE_ANY_EXHDR(str);
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
+
+	if (sql_dialect == SQL_DIALECT_TSQL && set_like_collation_hook)
+	{
+		set_like_collation_hook(PG_GET_COLLATION());
+	}
 
 	result = (SB_MatchText(s, slen, p, plen, 0, true) != LIKE_TRUE);
 
