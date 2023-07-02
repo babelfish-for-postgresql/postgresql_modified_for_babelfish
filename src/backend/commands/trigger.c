@@ -4237,6 +4237,37 @@ afterTriggerCheckState(AfterTriggerShared evtshared)
 	return ((evtshared->ats_event & AFTER_TRIGGER_INITDEFERRED) != 0);
 }
 
+/* ----------
+ * afterTriggerCopyBitmap()
+ *
+ * Copy bitmap into AfterTriggerEvents memory context, which is where the after
+ * trigger events are kept.
+ * ----------
+ */
+static Bitmapset *
+afterTriggerCopyBitmap(Bitmapset *src)
+{
+	Bitmapset	   *dst;
+	MemoryContext	oldcxt;
+
+	if (src == NULL)
+		return NULL;
+
+	/* Create event context if we didn't already */
+	if (afterTriggers.event_cxt == NULL)
+		afterTriggers.event_cxt =
+			AllocSetContextCreate(TopTransactionContext,
+								  "AfterTriggerEvents",
+								  ALLOCSET_DEFAULT_SIZES);
+
+	oldcxt = MemoryContextSwitchTo(afterTriggers.event_cxt);
+
+	dst = bms_copy(src);
+
+	MemoryContextSwitchTo(oldcxt);
+
+	return dst;
+}
 
 /* ----------
  * afterTriggerAddEvent()
@@ -6976,7 +7007,7 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 			new_shared.ats_table = transition_capture->tcs_private;
 		else
 			new_shared.ats_table = NULL;
-		new_shared.ats_modifiedcols = modifiedCols;
+		new_shared.ats_modifiedcols = afterTriggerCopyBitmap(modifiedCols);
 
 		/*
 		 * In case of Babelfish triggers, add events to babelfihs
