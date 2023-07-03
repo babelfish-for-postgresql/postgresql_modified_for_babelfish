@@ -2987,7 +2987,9 @@ WSANETWORKEVENTS
 WSAPROTOCOL_INFO
 WaitEvent
 WaitEventActivity
+WaitEventBufferPin
 WaitEventClient
+WaitEventExtension
 WaitEventIO
 WaitEventIPC
 WaitEventSet
