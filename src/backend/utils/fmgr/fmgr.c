@@ -671,6 +671,10 @@ struct fmgr_security_definer_cache
 	Oid			userid;			/* userid to set, or InvalidOid */
 	ArrayType  *proconfig;		/* GUC values to set, or NULL */
 	Datum		arg;			/* passthrough argument for plugin modules */
+	Oid         pronamespace;
+	char 		prokind;
+	Oid			prolang;
+	Oid         sys_nspoid;
 };
 
 /*
@@ -727,6 +731,11 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 
 		if (procedureStruct->prosecdef)
 			fcache->userid = procedureStruct->proowner;
+		
+		fcache->prokind = procedureStruct->prokind;
+		fcache->prolang = procedureStruct->prolang;
+		fcache->pronamespace = procedureStruct->pronamespace;
+		fcache->sys_nspoid = InvalidOid;
 
 		datum = SysCacheGetAttr(PROCOID, tuple, Anum_pg_proc_proconfig,
 								&isnull);
@@ -776,32 +785,24 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 
 	if (set_sql_dialect && IsTransactionState())
 	{
-		HeapTuple	tuple;
-		Form_pg_proc procedureStruct;
-		tuple = SearchSysCache1(PROCOID,
-								ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
-
-		if (!HeapTupleIsValid(tuple))
-			elog(ERROR, "cache lookup failed for function %u",
-				 fcinfo->flinfo->fn_oid);
-		procedureStruct = (Form_pg_proc) GETSTRUCT(tuple);
-
-		if ((procedureStruct->prolang == pltsql_lang_oid) || (procedureStruct->prolang == pltsql_validator_oid))
+		if ((fcache->prolang == pltsql_lang_oid) || (fcache->prolang == pltsql_validator_oid))
 			sql_dialect_value = tsql_dialect;
 		else
 		{
 			/* Record PG procedure entry */
-			Oid sys_nspoid = get_namespace_oid("sys", false);
+			if (fcache->sys_nspoid == InvalidOid)
+				fcache->sys_nspoid = get_namespace_oid("sys", false);
+
 			/*
 			 * For functions and C procs inside sys/pg_catalog,
 			 * handle errors TSQL way. Otherwise, error in simple
 			 * functions like cast/coerce will change TSQL behavior
 			 */
-			if ((procedureStruct->pronamespace == sys_nspoid ||
-				 procedureStruct->pronamespace == PG_CATALOG_NAMESPACE) &&
-				(procedureStruct->prokind == PROKIND_FUNCTION ||
-				 procedureStruct->prolang == ClanguageId ||
-				 procedureStruct->prolang == INTERNALlanguageId))
+			if ((fcache->pronamespace == fcache->sys_nspoid ||
+				 fcache->pronamespace == PG_CATALOG_NAMESPACE) &&
+				(fcache->prokind == PROKIND_FUNCTION ||
+				 fcache->prolang == ClanguageId ||
+				 fcache->prolang == INTERNALlanguageId))
 				sys_func_count = 1;
 			else
 				non_tsql_proc_count = 1;
@@ -810,11 +811,9 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 			sql_dialect_value = pg_dialect;
 		}
 
-		ReleaseSysCache(tuple);
 		sql_dialect_value_old = sql_dialect;
 		sql_dialect = sql_dialect_value;
 		assign_sql_dialect(sql_dialect_value, newextra);
-
 	}
 
 	/* function manager hook */
