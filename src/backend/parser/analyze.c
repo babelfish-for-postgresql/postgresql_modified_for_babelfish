@@ -45,7 +45,6 @@
 #include "parser/parse_relation.h"
 #include "parser/parse_target.h"
 #include "parser/parse_type.h"
-#include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteManip.h"
 #include "utils/backend_status.h"
@@ -1936,10 +1935,10 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	tllen = list_length(qry->targetList);
 
 	qry->sortClause = transformSortClause(pstate,
-										sortClause,
-										&qry->targetList,
-										EXPR_KIND_ORDER_BY,
-										false /* allow SQL92 rules */ );
+										  sortClause,
+										  &qry->targetList,
+										  EXPR_KIND_ORDER_BY,
+										  false /* allow SQL92 rules */ );
 
 	if (post_transform_sort_clause_hook)
 		post_transform_sort_clause_hook(qry, leftmostQuery);
