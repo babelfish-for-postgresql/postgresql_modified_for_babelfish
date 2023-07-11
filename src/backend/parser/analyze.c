@@ -85,7 +85,7 @@ set_target_table_alternative_hook_type set_target_table_alternative_hook = NULL;
 pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook = NULL;
 
 /* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
-post_transform_sort_clause_hook_type post_transform_sort_clause_hook = NULL;
+post_transform_sort_clause_hook2_type post_transform_sort_clause_hook2 = NULL;
 
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
@@ -1940,8 +1940,8 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 										  EXPR_KIND_ORDER_BY,
 										  false /* allow SQL92 rules */ );
 
-	if (post_transform_sort_clause_hook)
-		post_transform_sort_clause_hook(qry, leftmostQuery);
+	if (post_transform_sort_clause_hook2)
+		post_transform_sort_clause_hook2(qry, leftmostQuery);
 
 	/* restore namespace, remove join RTE from rtable */
 	pstate->p_namespace = sv_namespace;
