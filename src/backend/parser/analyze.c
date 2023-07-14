@@ -44,7 +44,6 @@
 #include "parser/parse_relation.h"
 #include "parser/parse_target.h"
 #include "parser/parse_type.h"
-#include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteManip.h"
 #include "utils/backend_status.h"
@@ -80,10 +79,7 @@ post_transform_insert_row_hook_type post_transform_insert_row_hook = NULL;
 set_target_table_alternative_hook_type set_target_table_alternative_hook = NULL;
 
 /* Hook to save to a namespace stack for handling statements with set ops */
-push_namespace_stack_hook_type push_namespace_stack_hook = NULL;
-
-/* Hook to change a query's targetlist and namespace to handle set ops */
-pre_transform_sort_clause_hook_type pre_transform_sort_clause_hook = NULL;
+pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook = NULL;
 
 /* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
 post_transform_sort_clause_hook_type post_transform_sort_clause_hook = NULL;
@@ -1735,6 +1731,9 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 				 parser_errposition(pstate,
 									exprLocation((Node *) leftmostSelect->intoClause))));
 
+	if(pre_transform_setop_tree_hook)
+		pre_transform_setop_tree_hook(stmt, leftmostSelect);
+
 	/*
 	 * We need to extract ORDER BY and other top-level clauses here and not
 	 * let transformSetOperationTree() see them --- else it'll just recurse
@@ -1769,10 +1768,6 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 		qry->cteList = transformWithClause(pstate, withClause);
 		qry->hasModifyingCTE = pstate->p_hasModifyingCTE;
 	}
-
-	/* Push new stack item to save the leftmost SELECT's namespace */
-	if(push_namespace_stack_hook)
-		push_namespace_stack_hook();
 
 	/*
 	 * Recursively transform the components of the tree.
@@ -1879,9 +1874,6 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 
 	/* add jnsitem to column namespace only */
 	addNSItemToQuery(pstate, jnsitem, false, false, true);
-	
-	if (pre_transform_sort_clause_hook)
-		pre_transform_sort_clause_hook(pstate, qry, leftmostQuery);
 
 	/*
 	 * For now, we don't support resjunk sort clauses on the output of a
@@ -1897,6 +1889,9 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 										  EXPR_KIND_ORDER_BY,
 										  false /* allow SQL92 rules */ );
 
+	if (post_transform_sort_clause_hook)
+		post_transform_sort_clause_hook(qry, leftmostQuery);
+
 	/* restore namespace, remove join RTE from rtable */
 	pstate->p_namespace = sv_namespace;
 	pstate->p_rtable = list_truncate(pstate->p_rtable, sv_rtable_length);
@@ -1909,9 +1904,6 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 				 errhint("Add the expression/function to every SELECT, or move the UNION into a FROM clause."),
 				 parser_errposition(pstate,
 									exprLocation(list_nth(qry->targetList, tllen)))));
-
-	if (post_transform_sort_clause_hook)
-		post_transform_sort_clause_hook(qry);
 
 	qry->limitOffset = transformLimitClause(pstate, limitOffset,
 											EXPR_KIND_OFFSET, "OFFSET",
