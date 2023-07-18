@@ -76,6 +76,7 @@
 #include "commands/typecmds.h"
 #include "funcapi.h"
 #include "nodes/nodeFuncs.h"
+#include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteRemove.h"
 #include "storage/lmgr.h"
@@ -496,6 +497,7 @@ findDependentObjects(const ObjectAddress *object,
 	int			maxDependentObjects;
 	ObjectAddressStack mystack;
 	ObjectAddressExtra extra;
+	bool is_enr;
 
 	/*
 	 * If the target object is already being visited in an outer recursion
@@ -950,8 +952,84 @@ findDependentObjects(const ObjectAddress *object,
 		dependentObjects[numDependentObjects].subflags = subflags;
 		numDependentObjects++;
 	}
-
+	is_enr = scan->enr;
 	systable_endscan(scan);
+
+	/* Indices for temp tables will leave metadata in pg_catalog, so we should clean them up here. */
+	if (is_enr)
+	{
+		/* This will force a non-ENR scan */
+		sql_dialect = SQL_DIALECT_PG;
+		scan = systable_beginscan(*depRel, DependReferenceIndexId, true,
+								NULL, nkeys, key);
+		sql_dialect = SQL_DIALECT_TSQL;
+		
+		while (HeapTupleIsValid(tup = systable_getnext(scan)))
+		{
+			Form_pg_depend foundDep = (Form_pg_depend) GETSTRUCT(tup);
+			int			subflags;
+
+			otherObject.classId = foundDep->classid;
+			otherObject.objectId = foundDep->objid;
+			otherObject.objectSubId = foundDep->objsubid;
+
+			if (otherObject.classId == object->classId &&
+				otherObject.objectId == object->objectId &&
+				object->objectSubId == 0)
+				continue;
+
+			AcquireDeletionLock(&otherObject, 0);
+
+			if (!systable_recheck_tuple(scan, tup))
+			{
+				ReleaseDeletionLock(&otherObject);
+				continue;
+			}
+
+			switch (foundDep->deptype)
+			{
+				case DEPENDENCY_NORMAL:
+					subflags = DEPFLAG_NORMAL;
+					break;
+				case DEPENDENCY_AUTO:
+				case DEPENDENCY_AUTO_EXTENSION:
+					subflags = DEPFLAG_AUTO;
+					break;
+				case DEPENDENCY_INTERNAL:
+					subflags = DEPFLAG_INTERNAL;
+					break;
+				case DEPENDENCY_PARTITION_PRI:
+				case DEPENDENCY_PARTITION_SEC:
+					subflags = DEPFLAG_PARTITION;
+					break;
+				case DEPENDENCY_EXTENSION:
+					subflags = DEPFLAG_EXTENSION;
+					break;
+				default:
+					elog(ERROR, "unrecognized dependency type '%c' for %s",
+						foundDep->deptype, getObjectDescription(object, false));
+					subflags = 0;
+					break;
+			}
+
+			if (numDependentObjects >= maxDependentObjects)
+			{
+				maxDependentObjects *= 2;
+				dependentObjects = (ObjectAddressAndFlags *)
+					repalloc(dependentObjects,
+							maxDependentObjects * sizeof(ObjectAddressAndFlags));
+			}
+
+			dependentObjects[numDependentObjects].obj = otherObject;
+			dependentObjects[numDependentObjects].subflags = subflags;
+			numDependentObjects++;
+		}
+		
+
+		systable_endscan(scan);
+		
+	}
+	
 
 	/*
 	 * Now we can sort the dependent objects into a stable visitation order.
