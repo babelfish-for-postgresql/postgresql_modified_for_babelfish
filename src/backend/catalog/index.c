@@ -750,8 +750,10 @@ index_create(Relation heapRelation,
  		 * Index of Table Variables should also be in ENR and the index
 		 * can only be created as part of DECLARE @[name] TABLE;
 		 * when specifying PRIMARY KEYs and/or CONSTRAINTs.
+		 *
+		 * Indexes of temp tables should be in enr as well, to prevent cache issues.
 		 */
-		is_enr = (indexRelationName && strlen(indexRelationName) > 0 && indexRelationName[0] == '@');
+		is_enr = (indexRelationName && strlen(indexRelationName) > 0 && (indexRelationName[0] == '@' || indexRelationName[0] == '#'));
 	}
 
 	relkind = partitioned ? RELKIND_PARTITIONED_INDEX : RELKIND_INDEX;
