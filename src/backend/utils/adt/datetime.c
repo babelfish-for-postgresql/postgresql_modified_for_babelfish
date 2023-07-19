@@ -26,6 +26,7 @@
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
+#include "parser/parser.h"
 #include "utils/builtins.h"
 #include "utils/date.h"
 #include "utils/datetime.h"
@@ -771,6 +772,10 @@ ParseDateTime(const char *timestr, char *workbuf, size_t buflen,
 		*(bufptr)++ = newchar;					\
 	} while (0)
 
+#define REMOVE_SPACE(cp)						\
+	while(isspace((unsigned char) *cp))				\
+		cp++;
+
 	/* outer loop through fields */
 	while (*cp != '\0')
 	{
@@ -792,15 +797,32 @@ ParseDateTime(const char *timestr, char *workbuf, size_t buflen,
 			APPEND_CHAR(bufp, bufend, *cp++);
 			while (isdigit((unsigned char) *cp))
 				APPEND_CHAR(bufp, bufend, *cp++);
+			REMOVE_SPACE(cp);
 
 			/* time field? */
 			if (*cp == ':')
 			{
 				ftype[nf] = DTK_TIME;
 				APPEND_CHAR(bufp, bufend, *cp++);
-				while (isdigit((unsigned char) *cp) ||
-					   (*cp == ':') || (*cp == '.'))
+				REMOVE_SPACE(cp);
+				while (isdigit((unsigned char) *cp))
 					APPEND_CHAR(bufp, bufend, *cp++);
+				REMOVE_SPACE(cp);
+				if (*cp == ':')
+				{
+					APPEND_CHAR(bufp, bufend, *cp++);
+					REMOVE_SPACE(cp);
+					while (isdigit((unsigned char) *cp))
+						APPEND_CHAR(bufp, bufend, *cp++);
+					REMOVE_SPACE(cp);
+				}
+				if (*cp == '.')
+				{
+					APPEND_CHAR(bufp, bufend, *cp++);
+					REMOVE_SPACE(cp);
+					while (isdigit((unsigned char) *cp))
+						APPEND_CHAR(bufp, bufend, *cp++);
+				}
 			}
 			/* date field? allow embedded text month */
 			else if (*cp == '-' || *cp == '/' || *cp == '.')
@@ -809,12 +831,14 @@ ParseDateTime(const char *timestr, char *workbuf, size_t buflen,
 				char		delim = *cp;
 
 				APPEND_CHAR(bufp, bufend, *cp++);
+				REMOVE_SPACE(cp);
 				/* second field is all digits? then no embedded text month */
 				if (isdigit((unsigned char) *cp))
 				{
 					ftype[nf] = ((delim == '.') ? DTK_NUMBER : DTK_DATE);
 					while (isdigit((unsigned char) *cp))
 						APPEND_CHAR(bufp, bufend, *cp++);
+					REMOVE_SPACE(cp);
 
 					/*
 					 * insist that the delimiters match to get a three-field
@@ -824,6 +848,7 @@ ParseDateTime(const char *timestr, char *workbuf, size_t buflen,
 					{
 						ftype[nf] = DTK_DATE;
 						APPEND_CHAR(bufp, bufend, *cp++);
+						REMOVE_SPACE(cp);
 						while (isdigit((unsigned char) *cp) || *cp == delim)
 							APPEND_CHAR(bufp, bufend, *cp++);
 					}
@@ -831,8 +856,17 @@ ParseDateTime(const char *timestr, char *workbuf, size_t buflen,
 				else
 				{
 					ftype[nf] = DTK_DATE;
-					while (isalnum((unsigned char) *cp) || *cp == delim)
+					while (isalnum((unsigned char) *cp))
 						APPEND_CHAR(bufp, bufend, pg_tolower((unsigned char) *cp++));
+					REMOVE_SPACE(cp);
+					if (*cp == delim)
+					{
+						ftype[nf] = DTK_DATE;
+						APPEND_CHAR(bufp, bufend, pg_tolower((unsigned char) *cp++));
+						REMOVE_SPACE(cp);
+						while (isalnum((unsigned char) *cp))
+							APPEND_CHAR(bufp, bufend, pg_tolower((unsigned char) *cp++));
+					}
 				}
 			}
 
@@ -847,6 +881,7 @@ ParseDateTime(const char *timestr, char *workbuf, size_t buflen,
 		else if (*cp == '.')
 		{
 			APPEND_CHAR(bufp, bufend, *cp++);
+			REMOVE_SPACE(cp);
 			while (isdigit((unsigned char) *cp))
 				APPEND_CHAR(bufp, bufend, *cp++);
 
@@ -900,8 +935,7 @@ ParseDateTime(const char *timestr, char *workbuf, size_t buflen,
 		{
 			APPEND_CHAR(bufp, bufend, *cp++);
 			/* soak up leading whitespace */
-			while (isspace((unsigned char) *cp))
-				cp++;
+			REMOVE_SPACE(cp);
 			/* numeric timezone? */
 			/* note that "DTK_TZ" could also be a signed float or yyyy-mm */
 			if (isdigit((unsigned char) *cp))
@@ -1930,6 +1964,7 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 	int			i;
 	int			val;
 	int			dterr;
+	bool		haveTextMonth = false;
 	bool		isjulian = false;
 	bool		is2digits = false;
 	bool		bc = false;
@@ -1972,6 +2007,12 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 					if (dterr)
 						return dterr;
 				}
+				/*
+				 * For date format like 'yyyy-mm-dd', we should return time 00:00:00.0000000
+				 * instead of marking it as invalid time format
+				 */
+				else if (sql_dialect == SQL_DIALECT_TSQL && nf == 1 && ftype[nf - 1] == DTK_DATE)
+					return 0;
 				/* otherwise, this is a time and/or time zone */
 				else
 				{
@@ -2264,8 +2305,8 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 					else
 					{
 						dterr = DecodeNumber(flen, field[i],
-											 false,
-											 (fmask | DTK_DATE_M),
+											 haveTextMonth,
+											 fmask,
 											 &tmask, tm,
 											 fsec, &is2digits);
 						if (dterr)
@@ -2308,6 +2349,23 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 								return DTERR_BAD_FORMAT;
 						}
 
+						break;
+
+					case MONTH:
+
+						/*
+						 * already have a (numeric) month? then see if we can
+						 * substitute...
+						 */
+						if ((fmask & DTK_M(MONTH)) && !haveTextMonth &&
+							!(fmask & DTK_M(DAY)) && tm->tm_mon >= 1 &&
+							tm->tm_mon <= 31)
+						{
+							tm->tm_mday = tm->tm_mon;
+							tmask = DTK_M(DAY);
+						}
+						haveTextMonth = true;
+						tm->tm_mon = val;
 						break;
 
 					case DTZMOD:
