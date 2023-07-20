@@ -2640,6 +2640,7 @@ Step
 StopList
 StrategyNumber
 StreamCtl
+StreamStopReason
 String
 StringInfo
 StringInfoData
