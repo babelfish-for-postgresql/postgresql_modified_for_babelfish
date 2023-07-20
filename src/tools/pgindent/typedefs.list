@@ -1319,7 +1319,6 @@ JsonbIteratorToken
 JsonbPair
 JsonbParseState
 JsonbSubWorkspace
-JsonbTypeCategory
 JsonbValue
 JumbleState
 JunkFilter
