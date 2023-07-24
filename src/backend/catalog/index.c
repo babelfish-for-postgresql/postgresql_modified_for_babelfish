@@ -22,6 +22,7 @@
 #include "postgres.h"
 
 #include <unistd.h>
+#include <string.h>
 
 #include "access/amapi.h"
 #include "access/heapam.h"
@@ -752,8 +753,14 @@ index_create(Relation heapRelation,
 		 * when specifying PRIMARY KEYs and/or CONSTRAINTs.
 		 *
 		 * Indexes of temp tables should be in enr as well, to prevent cache issues.
+		 * Index names can actually contain '#' naturally, but because of construct_unique_index_name
+		 * we have no way of checking that without the original index name provided to parser.
 		 */
-		is_enr = (indexRelationName && strlen(indexRelationName) > 0 && (indexRelationName[0] == '@' || indexRelationName[0] == '#'));
+		is_enr = (indexRelationName && strlen(indexRelationName) > 0 && (indexRelationName[0] == '@' || strchr(indexRelationName, '#') != NULL));
+
+		/* One last check, if the table has any dependencies */
+		if(CheckTempTableHasDependencies(heapRelation->rd_att))
+			is_enr = false;
 	}
 
 	relkind = partitioned ? RELKIND_PARTITIONED_INDEX : RELKIND_INDEX;
