@@ -22,7 +22,6 @@
 #include "postgres.h"
 
 #include <unistd.h>
-#include <string.h>
 
 #include "access/amapi.h"
 #include "access/heapam.h"
@@ -754,8 +753,7 @@ index_create(Relation heapRelation,
 		 * PRIMARY KEYs and/or CONSTRAINTs.
 		 */
 		is_enr = (indexRelationName && strlen(indexRelationName) > 0 &&
-			(indexRelationName[0] == '@' || (strchr(indexRelationName, '#') != NULL
-			&& get_ENR_withoid(currentQueryEnv, heapRelationId, ENR_TSQL_TEMP))));
+			(indexRelationName[0] == '@' || get_ENR_withoid(currentQueryEnv, heapRelationId, ENR_TSQL_TEMP)));
 	}
 
 	relkind = partitioned ? RELKIND_PARTITIONED_INDEX : RELKIND_INDEX;
