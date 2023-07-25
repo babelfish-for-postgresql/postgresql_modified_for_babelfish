@@ -145,6 +145,8 @@ extern void CheckAttributeType(const char *attname,
 							   List *containing_rowtypes,
 							   int flags);
 
+extern bool CheckTempTableHasDependencies(TupleDesc tupdesc);
+
 /* pg_partitioned_table catalog manipulation functions */
 extern void StorePartitionKey(Relation rel,
 							  char strategy,
