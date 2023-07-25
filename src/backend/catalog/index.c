@@ -748,19 +748,14 @@ index_create(Relation heapRelation,
 	if (sql_dialect == SQL_DIALECT_TSQL && heapRelation->rd_rel->relpersistence == RELPERSISTENCE_TEMP)
 	{
 		/*
- 		 * Index of Table Variables should also be in ENR and the index
-		 * can only be created as part of DECLARE @[name] TABLE;
-		 * when specifying PRIMARY KEYs and/or CONSTRAINTs.
-		 *
-		 * Indexes of temp tables should be in enr as well, to prevent cache issues.
-		 * Index names can actually contain '#' naturally, but because of construct_unique_index_name
-		 * we have no way of checking that without the original index name provided to parser.
+		 * Index of temp objects in ENR should also be in ENR.
+		 * For table variables, index can only be created as
+		 * part of DECLARE @[name] TABLE; when specifying
+		 * PRIMARY KEYs and/or CONSTRAINTs.
 		 */
-		is_enr = (indexRelationName && strlen(indexRelationName) > 0 && (indexRelationName[0] == '@' || strchr(indexRelationName, '#') != NULL));
-
-		/* One last check, if the table has any dependencies */
-		if(CheckTempTableHasDependencies(heapRelation->rd_att))
-			is_enr = false;
+		is_enr = (indexRelationName && strlen(indexRelationName) > 0 &&
+			(indexRelationName[0] == '@' || (strchr(indexRelationName, '#') != NULL
+			&& get_ENR_withoid(currentQueryEnv, heapRelationId, ENR_TSQL_TEMP))));
 	}
 
 	relkind = partitioned ? RELKIND_PARTITIONED_INDEX : RELKIND_INDEX;

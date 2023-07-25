@@ -951,6 +951,7 @@ findDependentObjects(const ObjectAddress *object,
 		dependentObjects[numDependentObjects].subflags = subflags;
 		numDependentObjects++;
 	}
+
 	systable_endscan(scan);
 
 	/*
