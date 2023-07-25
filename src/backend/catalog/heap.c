@@ -1069,7 +1069,7 @@ AddNewRelationType(const char *typeName,
 }
 
 /* -------------------------------
- *      CheckTempTableDependencies
+ *      CheckTempTableHasDependencies
  *
  *		User-defined types in TSQL will have typacl set. Types created during
  *		Babelfish initialization such as nvarchar will not, so we can use typacl
@@ -1078,7 +1078,7 @@ AddNewRelationType(const char *typeName,
  *      Returns true if there are dependencies on
  *		- User defined data types
  */
-static bool CheckTempTableHasDependencies(TupleDesc tupdesc)
+bool CheckTempTableHasDependencies(TupleDesc tupdesc)
 {
 	int i;
 	int	natts = tupdesc->natts;
