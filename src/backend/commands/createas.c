@@ -42,6 +42,7 @@
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/parse_clause.h"
+#include "parser/parser.h"
 #include "rewrite/rewriteHandler.h"
 #include "storage/smgr.h"
 #include "tcop/tcopprot.h"
@@ -110,6 +111,34 @@ create_ctas_internal(List *attrList, IntoClause *into)
 	create->if_not_exists = false;
 	create->accessMethod = into->accessMethod;
 
+
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		if (into->identityColumn){
+			ListCell *identityList = list_head(into->identityColumn);
+			ColumnDef *identityColumnDef = (ColumnDef *) lfirst(identityList);
+			ListCell   *elements;
+
+			foreach(elements, create->tableElts)
+			{
+				Node *element = lfirst(elements);
+				if (nodeTag(element)== T_ColumnDef)
+				{
+					ColumnDef *column = (ColumnDef *) element;
+					if(strcmp(column->colname, identityColumnDef->colname) ==0){
+						column->identity = ATTRIBUTE_IDENTITY_ALWAYS;
+						column->is_not_null = identityColumnDef->is_not_null;
+						// column->typeName = identityColumnDef->typeName; // to handle this pass return type defined by original query
+						column->collOid = identityColumnDef->collOid;
+						column->generated = identityColumnDef->generated ;
+					}
+				}
+			}	
+		}
+	}
+
+
+	
 	/*
 	 * Create the relation.  (This will error out if there's an existing view,
 	 * so we don't need more code to complain if "replace" is false.)
