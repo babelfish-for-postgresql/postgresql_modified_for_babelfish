@@ -202,29 +202,6 @@ typedef struct Var
 	int			location;		/* token location, or -1 if unknown */
 } Var;
 
-// /*
-//  * IntoClause - target information for SELECT INTO, CREATE TABLE AS, and
-//  * CREATE MATERIALIZED VIEW
-//  *
-//  * For CREATE MATERIALIZED VIEW, viewQuery is the parsed-but-not-rewritten
-//  * SELECT Query for the view; otherwise it's NULL.  (Although it's actually
-//  * Query*, we declare it as Node* to avoid a forward reference.)
-//  */
-// typedef struct IntoClause
-// {
-// 	NodeTag		type;
-
-// 	RangeVar   *rel;			/* target relation name */
-// 	List	   *colNames;		/* column names to assign, or NIL */
-// 	char	   *accessMethod;	/* table access method */
-// 	List	   *options;		/* options from WITH clause */
-// 	OnCommitAction onCommit;	/* what do we do at COMMIT? */
-// 	char	   *tableSpaceName; /* table space to use, or NULL */
-// 	Node	   *viewQuery;		/* materialized view's SELECT query */
-// 	bool		skipData;		/* true for WITH NO DATA */
-// 	Var *identityColumn;
-// } IntoClause;
-
 /*
  * Const
  *
