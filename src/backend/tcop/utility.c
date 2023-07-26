@@ -77,7 +77,7 @@
 /* Hook for plugins to get control in ProcessUtility() */
 ProcessUtility_hook_type ProcessUtility_hook = NULL;
 bbfCustomProcessUtility_hook_type bbfCustomProcessUtility_hook = NULL;
-selectIntoUtility_hook_type selectIntoUtility_hook = NULL;
+bbfSelectIntoUtility_hook_type bbfSelectIntoUtility_hook = NULL;
 
 /* local function declarations */
 static int	ClassifyUtilityCommandAsReadOnly(Node *parsetree);
@@ -1683,8 +1683,8 @@ ProcessUtilitySlow(ParseState *pstate,
 
 			case T_CreateTableAsStmt:
 				{
-					if(selectIntoUtility_hook)
-						(*selectIntoUtility_hook)(pstate, pstmt, queryString, NULL, params, qc);
+					if(sql_dialect == SQL_DIALECT_TSQL && bbfSelectIntoUtility_hook)
+						(*bbfSelectIntoUtility_hook)(pstate, pstmt, queryString, NULL, params, qc);
 					else{
 						address = ExecCreateTableAs(pstate, (CreateTableAsStmt *) parsetree,
 									params, queryEnv, qc);
