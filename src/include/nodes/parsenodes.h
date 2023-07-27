@@ -1753,6 +1753,9 @@ typedef struct SelectStmt
 	struct SelectStmt *larg;	/* left child */
 	struct SelectStmt *rarg;	/* right child */
 	/* Eventually add fields for CORRESPONDING spec here */
+
+	/* These fields are used only in SelectStmt with PIVOT keyword */
+	bool	isPivot;
 } SelectStmt;
 
 
