@@ -43,6 +43,7 @@
 #include "nodes/nodeFuncs.h"
 #include "parser/parse_clause.h"
 #include "parser/parser.h"
+#include "parser/parse_type.h"
 #include "rewrite/rewriteHandler.h"
 #include "storage/smgr.h"
 #include "tcop/tcopprot.h"
@@ -114,9 +115,8 @@ create_ctas_internal(List *attrList, IntoClause *into)
 
 	if (sql_dialect == SQL_DIALECT_TSQL)
 	{
-		if (into->identityColumn){
-			ListCell *identityList = list_head(into->identityColumn);
-			ColumnDef *identityColumnDef = (ColumnDef *) lfirst(identityList);
+		// TOD change it as hook in pl_handler
+		if (into->identityName){
 			ListCell   *elements;
 
 			foreach(elements, create->tableElts)
@@ -125,12 +125,13 @@ create_ctas_internal(List *attrList, IntoClause *into)
 				if (nodeTag(element)== T_ColumnDef)
 				{
 					ColumnDef *column = (ColumnDef *) element;
-					if(strcmp(column->colname, identityColumnDef->colname) ==0){
+					if(strcmp(column->colname, into->identityName) ==0){
 						column->identity = ATTRIBUTE_IDENTITY_ALWAYS;
-						column->is_not_null = identityColumnDef->is_not_null;
-						// column->typeName = identityColumnDef->typeName; // to handle this pass return type defined by original query
-						column->collOid = identityColumnDef->collOid;
-						column->generated = identityColumnDef->generated ;
+						column->is_not_null = true;
+						column->typeName = typeStringToTypeName(into->identityType);
+						// column->generated =  ATTRIBUTE_IDENTITY_ALWAYS;	
+						// column->collOid = identityColumnDef->collOid;
+						break;
 					}
 				}
 			}	
