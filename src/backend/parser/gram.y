@@ -10899,6 +10899,7 @@ TransactionStmt:
 					n->kind = TRANS_STMT_ROLLBACK;
 					n->options = NIL;
 					n->chain = $3;
+					n->location = -1;
 					$$ = (Node *) n;
 				}
 			| START TRANSACTION transaction_mode_list_or_empty
@@ -10907,6 +10908,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_START;
 					n->options = $3;
+					n->location = -1;
 					$$ = (Node *) n;
 				}
 			| COMMIT opt_transaction opt_transaction_chain
@@ -10916,6 +10918,7 @@ TransactionStmt:
 					n->kind = TRANS_STMT_COMMIT;
 					n->options = NIL;
 					n->chain = $3;
+					n->location = -1;
 					$$ = (Node *) n;
 				}
 			| ROLLBACK opt_transaction opt_transaction_chain
@@ -10925,6 +10928,7 @@ TransactionStmt:
 					n->kind = TRANS_STMT_ROLLBACK;
 					n->options = NIL;
 					n->chain = $3;
+					n->location = -1;
 					$$ = (Node *) n;
 				}
 			| SAVEPOINT ColId
@@ -10933,6 +10937,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_SAVEPOINT;
 					n->savepoint_name = $2;
+					n->location = @2;
 					$$ = (Node *) n;
 				}
 			| RELEASE SAVEPOINT ColId
@@ -10941,6 +10946,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_RELEASE;
 					n->savepoint_name = $3;
+					n->location = @3;
 					$$ = (Node *) n;
 				}
 			| RELEASE ColId
@@ -10949,6 +10955,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_RELEASE;
 					n->savepoint_name = $2;
+					n->location = @2;
 					$$ = (Node *) n;
 				}
 			| ROLLBACK opt_transaction TO SAVEPOINT ColId
@@ -10957,6 +10964,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_ROLLBACK_TO;
 					n->savepoint_name = $5;
+					n->location = @5;
 					$$ = (Node *) n;
 				}
 			| ROLLBACK opt_transaction TO ColId
@@ -10965,6 +10973,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_ROLLBACK_TO;
 					n->savepoint_name = $4;
+					n->location = @4;
 					$$ = (Node *) n;
 				}
 			| PREPARE TRANSACTION Sconst
@@ -10973,6 +10982,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_PREPARE;
 					n->gid = $3;
+					n->location = -1;
 					$$ = (Node *) n;
 				}
 			| COMMIT PREPARED Sconst
@@ -10981,6 +10991,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_COMMIT_PREPARED;
 					n->gid = $3;
+					n->location = -1;
 					$$ = (Node *) n;
 				}
 			| ROLLBACK PREPARED Sconst
@@ -10989,6 +11000,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_ROLLBACK_PREPARED;
 					n->gid = $3;
+					n->location = -1;
 					$$ = (Node *) n;
 				}
 		;
@@ -11000,6 +11012,7 @@ TransactionStmtLegacy:
 
 					n->kind = TRANS_STMT_BEGIN;
 					n->options = $3;
+					n->location = -1;
 					$$ = (Node *) n;
 				}
 			| END_P opt_transaction opt_transaction_chain
@@ -11009,6 +11022,7 @@ TransactionStmtLegacy:
 					n->kind = TRANS_STMT_COMMIT;
 					n->options = NIL;
 					n->chain = $3;
+					n->location = -1;
 					$$ = (Node *) n;
 				}
 		;
