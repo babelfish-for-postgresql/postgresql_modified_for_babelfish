@@ -873,7 +873,7 @@ NextCopyFrom(CopyFromState cstate, ExprContext *econtext,
 	/* Initialize all values for row to NULL */
 	MemSet(values, 0, num_phys_attrs * sizeof(Datum));
 	MemSet(nulls, true, num_phys_attrs * sizeof(bool));
-	cstate->defaults = (bool *) palloc0(num_phys_attrs * sizeof(bool));
+	MemSet(cstate->defaults, false, num_phys_attrs * sizeof(bool));
 
 	if (!cstate->opts.binary)
 	{
