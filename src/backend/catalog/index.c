@@ -747,11 +747,13 @@ index_create(Relation heapRelation,
 	if (sql_dialect == SQL_DIALECT_TSQL && heapRelation->rd_rel->relpersistence == RELPERSISTENCE_TEMP)
 	{
 		/*
- 		 * Index of Table Variables should also be in ENR and the index
-		 * can only be created as part of DECLARE @[name] TABLE;
-		 * when specifying PRIMARY KEYs and/or CONSTRAINTs.
+		 * Index of temp objects in ENR should also be in ENR.
+		 * For table variables, index can only be created as
+		 * part of DECLARE @[name] TABLE; when specifying
+		 * PRIMARY KEYs and/or CONSTRAINTs.
 		 */
-		is_enr = (indexRelationName && strlen(indexRelationName) > 0 && indexRelationName[0] == '@');
+		is_enr = (indexRelationName && strlen(indexRelationName) > 0 &&
+			(indexRelationName[0] == '@' || get_ENR_withoid(currentQueryEnv, heapRelationId, ENR_TSQL_TEMP)));
 	}
 
 	relkind = partitioned ? RELKIND_PARTITIONED_INDEX : RELKIND_INDEX;
