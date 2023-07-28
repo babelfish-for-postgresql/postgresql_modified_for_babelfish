@@ -71,6 +71,5 @@ extern int	base_yylex(YYSTYPE *lvalp, YYLTYPE *llocp,
 /* from gram.y */
 extern void parser_init(base_yy_extra_type *yyext);
 extern int	base_yyparse(core_yyscan_t yyscanner);
-extern char *tsql_select_into_typename;
 
 #endif							/* GRAMPARSE_H */

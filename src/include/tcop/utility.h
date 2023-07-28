@@ -113,6 +113,9 @@ typedef bool (*bbfCustomProcessUtility_hook_type)(struct ParseState *pstate, Pla
 extern PGDLLIMPORT bbfCustomProcessUtility_hook_type bbfCustomProcessUtility_hook;
 typedef void (*bbfSelectIntoUtility_hook_type)(struct ParseState *pstate, PlannedStmt *pstmt, const char *queryString, QueryEnvironment *queryEnv, 
 						  ParamListInfo params, QueryCompletion *qc);
-extern PGDLLIMPORT bbfSelectIntoUtility_hook_type bbfSelectIntoUtility_hook;					  
+extern PGDLLIMPORT bbfSelectIntoUtility_hook_type bbfSelectIntoUtility_hook;
+
+typedef void (*bbfSelectIntoAddIdentity_hook_type)(IntoClause *into, List *tableElts);
+extern PGDLLIMPORT bbfSelectIntoAddIdentity_hook_type bbfSelectIntoAddIdentity_hook;
 
 #endif							/* UTILITY_H */

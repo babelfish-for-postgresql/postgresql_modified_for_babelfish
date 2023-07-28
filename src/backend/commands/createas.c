@@ -43,15 +43,17 @@
 #include "nodes/nodeFuncs.h"
 #include "parser/parse_clause.h"
 #include "parser/parser.h"
-#include "parser/parse_type.h"
 #include "rewrite/rewriteHandler.h"
 #include "storage/smgr.h"
 #include "tcop/tcopprot.h"
+#include "tcop/utility.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/rls.h"
 #include "utils/snapmgr.h"
+
+bbfSelectIntoAddIdentity_hook_type bbfSelectIntoAddIdentity_hook = NULL;
 
 typedef struct
 {
@@ -112,33 +114,11 @@ create_ctas_internal(List *attrList, IntoClause *into)
 	create->if_not_exists = false;
 	create->accessMethod = into->accessMethod;
 
-
 	if (sql_dialect == SQL_DIALECT_TSQL)
 	{
-		// TOD change it as hook in pl_handler
-		if (into->identityName){
-			ListCell   *elements;
-
-			foreach(elements, create->tableElts)
-			{
-				Node *element = lfirst(elements);
-				if (nodeTag(element)== T_ColumnDef)
-				{
-					ColumnDef *column = (ColumnDef *) element;
-					if(strcmp(column->colname, into->identityName) ==0){
-						column->identity = ATTRIBUTE_IDENTITY_ALWAYS;
-						column->is_not_null = true;
-						column->typeName = typeStringToTypeName(into->identityType);
-						// column->generated =  ATTRIBUTE_IDENTITY_ALWAYS;	
-						// column->collOid = identityColumnDef->collOid;
-						break;
-					}
-				}
-			}	
-		}
+		if(into->identityName && bbfSelectIntoAddIdentity_hook)
+			(*bbfSelectIntoAddIdentity_hook)(into, create->tableElts);
 	}
-
-
 	
 	/*
 	 * Create the relation.  (This will error out if there's an existing view,
