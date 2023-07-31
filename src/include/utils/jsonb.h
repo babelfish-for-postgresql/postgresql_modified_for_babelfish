@@ -382,11 +382,11 @@ extern int	compareJsonbContainers(JsonbContainer *a, JsonbContainer *b);
 extern JsonbValue *findJsonbValueFromContainer(JsonbContainer *sheader,
 											   uint32 flags,
 											   JsonbValue *key);
-extern JsonbValue *getKeyJsonValueFromContainer(JsonbContainer *container,
-												const char *keyVal, int keyLen,
+extern JsonbValue *getKeyJsonValueFromContainer(JsonbContainer *container, 
+												const char *keyVal, int keyLen, 
 												JsonbValue *res);
 extern JsonbValue *tsqlGetKeyJsonValueFromContainer(JsonbContainer *container,
-												const char *keyVal, int keyLen,
+												const char *keyVal, int keyLen, 
 												JsonbValue *res);
 extern JsonbValue *getIthJsonbValueFromContainer(JsonbContainer *sheader,
 												 uint32 i);
@@ -415,4 +415,5 @@ extern Datum jsonb_set_element(Jsonb *jb, Datum *path, int path_len,
 							   JsonbValue *newval);
 extern Datum jsonb_get_element(Jsonb *jb, Datum *path, int npath,
 							   bool *isnull, bool as_text);
+extern void jsonb_get_value(Datum val, bool is_null, JsonbValue *json, Oid val_type);
 #endif							/* __JSONB_H__ */
