@@ -2993,6 +2993,7 @@ WaitEventActivity
 WaitEventBufferPin
 WaitEventClient
 WaitEventExtension
+WaitEventExtensionCounterData
 WaitEventIO
 WaitEventIPC
 WaitEventSet
@@ -3863,6 +3864,7 @@ wchar2mb_with_len_converter
 wchar_t
 win32_deadchild_waitinfo
 wint_t
+worker_spi_state
 worker_state
 worktable
 wrap
