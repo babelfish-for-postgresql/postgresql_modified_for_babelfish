@@ -117,6 +117,8 @@ typedef struct IntoClause
 	char	   *tableSpaceName; /* table space to use, or NULL */
 	Node	   *viewQuery;		/* materialized view's SELECT query */
 	bool		skipData;		/* true for WITH NO DATA */
+	char       *identityName;	/* resname for Identity Column*/
+	char       *identityType; 	/* pg type for Identity Column*/
 } IntoClause;
 
 
