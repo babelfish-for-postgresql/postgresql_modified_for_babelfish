@@ -42,14 +42,18 @@
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/parse_clause.h"
+#include "parser/parser.h"
 #include "rewrite/rewriteHandler.h"
 #include "storage/smgr.h"
 #include "tcop/tcopprot.h"
+#include "tcop/utility.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/rls.h"
 #include "utils/snapmgr.h"
+
+bbfSelectIntoAddIdentity_hook_type bbfSelectIntoAddIdentity_hook = NULL;
 
 typedef struct
 {
@@ -110,6 +114,11 @@ create_ctas_internal(List *attrList, IntoClause *into)
 	create->if_not_exists = false;
 	create->accessMethod = into->accessMethod;
 
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		if(into->identityName && bbfSelectIntoAddIdentity_hook)
+			(*bbfSelectIntoAddIdentity_hook)(into, create->tableElts);
+	}
 	/*
 	 * Create the relation.  (This will error out if there's an existing view,
 	 * so we don't need more code to complain if "replace" is false.)
