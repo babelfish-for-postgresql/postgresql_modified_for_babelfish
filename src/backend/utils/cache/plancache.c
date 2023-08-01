@@ -412,7 +412,7 @@ CompleteCachedPlan(CachedPlanSource *plansource,
 		 * one-shot plans; and we *must* skip this for transaction control
 		 * commands, because this could result in catalog accesses.
 		 */
-		plansource->search_path = GetOverrideSearchPath(querytree_context);
+		plansource->search_path = GetSearchPathMatcher(querytree_context);
 	}
 
 	/*
@@ -594,7 +594,7 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 	if (plansource->is_valid)
 	{
 		Assert(plansource->search_path != NULL);
-		if (!OverrideSearchPathMatchesCurrent(plansource->search_path))
+		if (!SearchPathMatchesCurrentEnvironment(plansource->search_path))
 		{
 			/* Invalidate the querytree and generic plan */
 			plansource->is_valid = false;
@@ -776,7 +776,7 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 	 * not generate much extra cruft either, since almost certainly the path
 	 * is already valid.)
 	 */
-	plansource->search_path = GetOverrideSearchPath(querytree_context);
+	plansource->search_path = GetSearchPathMatcher(querytree_context);
 
 	MemoryContextSwitchTo(oldcxt);
 
@@ -1343,7 +1343,7 @@ CachedPlanAllowsSimpleValidityCheck(CachedPlanSource *plansource,
 	Assert(plan->is_valid);
 	Assert(plan == plansource->gplan);
 	Assert(plansource->search_path != NULL);
-	Assert(OverrideSearchPathMatchesCurrent(plansource->search_path));
+	Assert(SearchPathMatchesCurrentEnvironment(plansource->search_path));
 
 	/* We don't support oneshot plans here. */
 	if (plansource->is_oneshot)
@@ -1466,7 +1466,7 @@ CachedPlanIsSimplyValid(CachedPlanSource *plansource, CachedPlan *plan,
 
 	/* Is the search_path still the same as when we made it? */
 	Assert(plansource->search_path != NULL);
-	if (!OverrideSearchPathMatchesCurrent(plansource->search_path))
+	if (!SearchPathMatchesCurrentEnvironment(plansource->search_path))
 		return false;
 
 	/* It's still good.  Bump refcount if requested. */
@@ -1582,7 +1582,7 @@ CopyCachedPlan(CachedPlanSource *plansource)
 	newsource->relationOids = copyObject(plansource->relationOids);
 	newsource->invalItems = copyObject(plansource->invalItems);
 	if (plansource->search_path)
-		newsource->search_path = CopyOverrideSearchPath(plansource->search_path);
+		newsource->search_path = CopySearchPathMatcher(plansource->search_path);
 	newsource->query_context = querytree_context;
 	newsource->rewriteRoleId = plansource->rewriteRoleId;
 	newsource->rewriteRowSecurity = plansource->rewriteRowSecurity;

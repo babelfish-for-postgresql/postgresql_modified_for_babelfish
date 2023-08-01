@@ -3468,16 +3468,16 @@ SetTempNamespaceState(Oid tempNamespaceId, Oid tempToastNamespaceId)
 
 
 /*
- * GetOverrideSearchPath - fetch current search path definition.
+ * GetSearchPathMatcher - fetch current search path definition.
  *
  * The result structure is allocated in the specified memory context
  * (which might or might not be equal to CurrentMemoryContext); but any
  * junk created by revalidation calculations will be in CurrentMemoryContext.
  */
-OverrideSearchPath *
-GetOverrideSearchPath(MemoryContext context)
+SearchPathMatcher *
+GetSearchPathMatcher(MemoryContext context)
 {
-	OverrideSearchPath *result;
+	SearchPathMatcher *result;
 	List	   *schemas;
 	MemoryContext oldcxt;
 
@@ -3485,7 +3485,7 @@ GetOverrideSearchPath(MemoryContext context)
 
 	oldcxt = MemoryContextSwitchTo(context);
 
-	result = (OverrideSearchPath *) palloc0(sizeof(OverrideSearchPath));
+	result = (SearchPathMatcher *) palloc0(sizeof(SearchPathMatcher));
 	schemas = list_copy(activeSearchPath);
 	while (schemas && linitial_oid(schemas) != activeCreationNamespace)
 	{
@@ -3509,16 +3509,16 @@ GetOverrideSearchPath(MemoryContext context)
 }
 
 /*
- * CopyOverrideSearchPath - copy the specified OverrideSearchPath.
+ * CopySearchPathMatcher - copy the specified SearchPathMatcher.
  *
  * The result structure is allocated in CurrentMemoryContext.
  */
-OverrideSearchPath *
-CopyOverrideSearchPath(OverrideSearchPath *path)
+SearchPathMatcher *
+CopySearchPathMatcher(SearchPathMatcher *path)
 {
-	OverrideSearchPath *result;
+	SearchPathMatcher *result;
 
-	result = (OverrideSearchPath *) palloc(sizeof(OverrideSearchPath));
+	result = (SearchPathMatcher *) palloc(sizeof(SearchPathMatcher));
 	result->schemas = list_copy(path->schemas);
 	result->addCatalog = path->addCatalog;
 	result->addTemp = path->addTemp;
@@ -3528,7 +3528,7 @@ CopyOverrideSearchPath(OverrideSearchPath *path)
 }
 
 /*
- * OverrideSearchPathMatchesCurrent - does path match current setting?
+ * SearchPathMatchesCurrentEnvironment - does path match current environment?
  *
  * This is tested over and over in some common code paths, and in the typical
  * scenario where the active search path seldom changes, it'll always succeed.
@@ -3536,7 +3536,7 @@ CopyOverrideSearchPath(OverrideSearchPath *path)
  * whenever the active search path changes.
  */
 bool
-OverrideSearchPathMatchesCurrent(OverrideSearchPath *path)
+SearchPathMatchesCurrentEnvironment(SearchPathMatcher *path)
 {
 	ListCell   *lc,
 			   *lcp;
