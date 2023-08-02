@@ -130,6 +130,8 @@ static bool IsCompositeTrigger(Oid fn_oid, List *fn_name);
 
 static bool FreeTriggerTable(int query_depth);
 
+check_pltsql_support_tsql_transactions_hook_type check_pltsql_support_tsql_transactions_hook = NULL;
+
 /*
  * Create a trigger.  Returns the address of the created trigger.
  *
@@ -7302,6 +7304,13 @@ bool FreeTriggerTable(int query_depth)
 static
 void AddCompositeTriggerLevelData(void)
 {
+	/* Check if this trigger is being added as part of any of postgres' function, procedure or trigger in the stack.*/
+	if (check_pltsql_support_tsql_transactions_hook && !(*check_pltsql_support_tsql_transactions_hook)())
+	{
+		ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("T-SQL trigger can not be executed from PostgreSQL function, procedure or trigger.")));
+	}
 	if (compositeTriggers.triggers == NULL || compositeTriggers.triggers->triggerLevel < compositeTriggers.triggerLevel)
 	{
 		CompositeTriggerData *triggers = palloc0(sizeof(CompositeTriggerData));
