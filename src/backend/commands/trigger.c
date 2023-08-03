@@ -7304,7 +7304,7 @@ bool FreeTriggerTable(int query_depth)
 static
 void AddCompositeTriggerLevelData(void)
 {
-	/* Check if this trigger is being added as part of any of postgres' function, procedure or trigger in the stack.*/
+	/* Check if this trigger is being added as part of any of postgres' function, procedure or trigger in the stack */
 	if (check_pltsql_support_tsql_transactions_hook && !(*check_pltsql_support_tsql_transactions_hook)())
 	{
 		ereport(ERROR,
