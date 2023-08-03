@@ -103,6 +103,8 @@ typedef signed char NumericDigit;
 typedef int16 NumericDigit;
 #endif
 
+#define BABEL_MAX_PRECISION 38
+
 /*
  * The Numeric type as stored on disk.
  *
@@ -4535,7 +4537,10 @@ float4_numeric(PG_FUNCTION_ARGS)
 			PG_RETURN_NUMERIC(make_result(&const_pinf));
 	}
 
-	snprintf(buf, sizeof(buf), "%.*g", FLT_DIG, val);
+	if (sql_dialect == SQL_DIALECT_TSQL)
+		snprintf(buf, sizeof(buf), "%.*f", BABEL_MAX_PRECISION, val);
+	else
+		snprintf(buf, sizeof(buf), "%.*g", FLT_DIG, val);
 
 	init_var(&result);
 
