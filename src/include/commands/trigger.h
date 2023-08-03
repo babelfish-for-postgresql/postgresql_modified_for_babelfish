@@ -306,4 +306,7 @@ extern void EndCompositeTriggers(bool error);
 
 extern bool TsqlRecuresiveCheck(ResultRelInfo *resultRelInfo);
 
+typedef bool (*check_pltsql_support_tsql_transactions_hook_type) (void);
+extern PGDLLIMPORT check_pltsql_support_tsql_transactions_hook_type check_pltsql_support_tsql_transactions_hook;
+
 #endif							/* TRIGGER_H */
