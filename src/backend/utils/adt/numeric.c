@@ -4538,7 +4538,7 @@ float4_numeric(PG_FUNCTION_ARGS)
 	}
 
 	if (sql_dialect == SQL_DIALECT_TSQL)
-		snprintf(buf, sizeof(buf), "%.*f", BABEL_MAX_PRECISION, val);
+		snprintf(buf, sizeof(buf), "%.*g", BABEL_MAX_PRECISION, val);
 	else
 		snprintf(buf, sizeof(buf), "%.*g", FLT_DIG, val);
 
