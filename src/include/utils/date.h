@@ -87,4 +87,7 @@ extern bool time_overflows(int hour, int min, int sec, fsec_t fsec);
 extern bool float_time_overflows(int hour, int min, double sec);
 extern void AdjustTimeForTypmod(TimeADT *time, int32 typmod);
 
+typedef void (*time_hook_type) (int dterr, const char *str, const char *datatype);
+extern PGDLLIMPORT time_hook_type time_hook;
+
 #endif							/* DATE_H */

@@ -800,7 +800,7 @@ ParseDateTime(const char *timestr, char *workbuf, size_t buflen,
 				ftype[nf] = DTK_TIME;
 				APPEND_CHAR(bufp, bufend, *cp++);
 				while (isdigit((unsigned char) *cp) ||
-					(*cp == ':') || (*cp == '.'))
+						(*cp == ':') || (*cp == '.'))
 					APPEND_CHAR(bufp, bufend, *cp++);
 			}
 			/* date field? allow embedded text month */
@@ -2424,6 +2424,10 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 	dterr = ValidateDate(fmask, isjulian, is2digits, bc, tm);
 	if (dterr)
 		return dterr;
+	if (sql_dialect == SQL_DIALECT_TSQL && nf == 1 && ftype[nf - 1] == DTK_DATE)
+	{
+		return 0;
+	}
 
 	/* handle AM/PM */
 	if (mer != HR24 && tm->tm_hour > HOURS_PER_DAY / 2)

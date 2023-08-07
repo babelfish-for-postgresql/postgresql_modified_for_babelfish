@@ -28,6 +28,7 @@
 #include "miscadmin.h"
 #include "nodes/supportnodes.h"
 #include "parser/scansup.h"
+#include "parser/parser.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/date.h"
@@ -43,6 +44,7 @@
 #error -ffast-math is known to break this code
 #endif
 
+time_hook_type time_hook = NULL;
 
 /* common code for timetypmodin and timetztypmodin */
 static int32
@@ -1389,7 +1391,11 @@ time_in(PG_FUNCTION_ARGS)
 	if (dterr == 0)
 		dterr = DecodeTimeOnly(field, ftype, nf, &dtype, tm, &fsec, &tz);
 	if (dterr != 0)
+	{
+		if (sql_dialect == SQL_DIALECT_TSQL && time_hook)
+			(*time_hook)(dterr, str, "time");
 		DateTimeParseError(dterr, str, "time");
+	}
 
 	tm2time(tm, fsec, &result);
 	AdjustTimeForTypmod(&result, typmod);
