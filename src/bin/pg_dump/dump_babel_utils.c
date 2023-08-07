@@ -815,7 +815,8 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_
 			appendPQExpBuffer(buf, " AND a.nspname NOT IN ('%s_dbo', '%s_guest')",
 							  escaped_bbf_db_name, escaped_bbf_db_name);
 	}
-	else if (strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0)
+	else if (strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.dbid = %d",
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	else if (strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0)
@@ -890,7 +891,8 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0)
+			strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0 ||
+			strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
 						  fmtQualifiedDumpable(tbinfo));
 	else
