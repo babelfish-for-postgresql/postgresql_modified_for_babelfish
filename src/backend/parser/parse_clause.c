@@ -3433,7 +3433,7 @@ addTargetToGroupList(ParseState *pstate, TargetEntry *tle,
 	Oid			restype = exprType((Node *) tle->expr);
 
 	/* if tlist item is an UNKNOWN literal, change it to TEXT */
-	if (restype == UNKNOWNOID && sql_dialect != SQL_DIALECT_TSQL)
+	if (restype == UNKNOWNOID)
 	{
 		tle->expr = (Expr *) coerce_type(pstate, (Node *) tle->expr,
 										 restype, TEXTOID, -1,
@@ -3441,14 +3441,6 @@ addTargetToGroupList(ParseState *pstate, TargetEntry *tle,
 										 COERCE_IMPLICIT_CAST,
 										 -1);
 		restype = TEXTOID;
-	} else if (restype == UNKNOWNOID && sql_dialect == SQL_DIALECT_TSQL)
-	{
-		tle->expr = (Expr *) coerce_type(pstate, (Node *) tle->expr,
-									restype, INT4OID, -1,
-									COERCION_IMPLICIT,
-									COERCE_IMPLICIT_CAST,
-									-1);
-		restype = INT4OID;
 	}
 
 	/* avoid making duplicate grouplist entries */
