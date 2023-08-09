@@ -980,10 +980,9 @@ ENRDropTempTables(QueryEnvironment *queryEnv)
 
 	/*
 	 * performMultipleDeletions() will remove the table AND the ENR entry,
-	 * so no need to remove the entry afterwards. Sort addresses beforehand
-	 * so that we don't run into dependency issues when dropping objects.
+	 * so no need to remove the entry afterwards. It also takes care of
+	 * proper object drop order, to prevent dependency issues.
 	 */
-	sort_object_addresses(objects);
 	performMultipleDeletions(objects, DROP_CASCADE, PERFORM_DELETION_INTERNAL | PERFORM_DELETION_QUIETLY);
 	free_object_addresses(objects);
 }
