@@ -75,7 +75,6 @@
 #include "commands/trigger.h"
 #include "commands/typecmds.h"
 #include "nodes/nodeFuncs.h"
-#include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteRemove.h"
 #include "storage/lmgr.h"
