@@ -378,16 +378,6 @@ do_like_escape(text *pat, text *esc)
 	else
 	{
 		/*
-			* No escape character is wanted.  Double any backslashes in the
-			* pattern to make them act like ordinary characters.
-			*/
-			while (plen > 0)
-			{
-				if (*p == '\\')
-					*r++ = '\\';
-				CopyAdvChar(r, p, plen);
-			}
-		/*
 		 * The specified escape must be only a single character.
 		 */
 		NextChar(e, elen);
