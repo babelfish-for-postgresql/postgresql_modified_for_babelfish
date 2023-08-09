@@ -955,40 +955,36 @@ ENRDropTempTables(QueryEnvironment *queryEnv)
 {
 	ListCell   *lc = NULL;
 	ObjectAddress object;
+	ObjectAddresses *objects;
 
 	if (!queryEnv)
 		return;
 
-	object.classId = RelationRelationId;
-	object.objectSubId = 0;
+	objects = new_object_addresses();
 
 	/*
 	 * Loop through the registered ENRs to drop temp tables.
 	 */
-	while (lc || (lc = list_head(queryEnv->namedRelList)))
+	foreach(lc, queryEnv->namedRelList)
 	{
-		EphemeralNamedRelation enr;
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		enr = (EphemeralNamedRelation) lfirst(lc);
+		if (enr->md.enrtype != ENR_TSQL_TEMP)
+			continue;
 
-		if (enr->md.enrtype != ENR_TSQL_TEMP) {
-			lc = lnext(queryEnv->namedRelList, lc);
-			if (!lc)
-				break;
-			else
-				continue;
-		}
-
-		/*
-		 * performDeletion() will remove the table AND the ENR entry, so no
-		 * need to remove the entry afterwards.
-		 */
+		object.classId = RelationRelationId;
+		object.objectSubId = 0;
 		object.objectId = enr->md.reliddesc;
-		performDeletion(&object, DROP_CASCADE, PERFORM_DELETION_INTERNAL | PERFORM_DELETION_QUIETLY);
-
-		/* Reset lc so we can read the head of the list */
-		lc = NULL;
+		add_exact_object_address(&object, objects);
 	}
+
+	/*
+	 * performMultipleDeletions() will remove the table AND the ENR entry,
+	 * so no need to remove the entry afterwards. It also takes care of
+	 * proper object drop order, to prevent dependency issues.
+	 */
+	performMultipleDeletions(objects, DROP_CASCADE, PERFORM_DELETION_INTERNAL | PERFORM_DELETION_QUIETLY);
+	free_object_addresses(objects);
 }
 
 /*
