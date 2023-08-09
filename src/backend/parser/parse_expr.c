@@ -941,6 +941,17 @@ rewrite_scope_identity_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 		col_expr = (Var*) *rexpr;
 		func_expr = (FuncExpr*) *lexpr;
 	}
+	else if (IsA(*rexpr, FuncExpr) &&
+            strstr(get_func_name(((FuncExpr*) (*rexpr))->funcid), "like_escape") != NULL &&  
+            IsA((Node *) (((FuncExpr *) (*rexpr))->args->elements[1]).ptr_value, Const) && 
+            ((Const *) (((FuncExpr *) (*rexpr))->args->elements[1]).ptr_value)->constisnull == true)
+    {
+		/*
+		* This condition deals with ESCAPE null, means no ESCAPE char used
+		*/
+        *rexpr = (Node *)(((FuncExpr *) (*rexpr) )->args->elements[0]).ptr_value;
+        return;
+    }
 	else
 		return;
 
