@@ -35,6 +35,7 @@
 #include "catalog/pg_statistic_ext.h"
 #include "catalog/pg_type.h"
 #include "catalog/pg_depend.h"
+#include "catalog/pg_sequence.h"
 #include "catalog/pg_shdepend.h"
 #include "catalog/pg_index_d.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
@@ -169,6 +170,21 @@ List *get_namedRelList()
 	return currentQueryEnv->namedRelList;
 }
 
+bool has_existing_enr_relations()
+{
+	QueryEnvironment *queryEnv = currentQueryEnv;
+
+	while (queryEnv)
+	{
+		if (queryEnv->namedRelList != NIL)
+			return true;
+
+		queryEnv = queryEnv->parentEnv;
+	}
+
+	return false;
+}
+
 /*
  * This returns an ENR if there is a name match in the given collection.  It
  * must quietly return NULL if no match is found.
@@ -255,15 +271,31 @@ ENRMetadataGetTupDesc(EphemeralNamedRelationMetadata enrmd)
 bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List **tuplist, int *tuplist_i, int *tuplist_flags)
 {
 	QueryEnvironment *queryEnv = currentQueryEnv;
-	Oid reloid;
 	bool found = false;
 	int index = 0;
 	Datum v1 = 0, v2 = 0, v3 = 0, v4 = 0;
+	Oid pltsql_lang_oid = InvalidOid;
+	Oid pltsql_validator_oid = InvalidOid;
+
+	Oid reloid = RelationGetRelid(rel);
 
 	if (sql_dialect != SQL_DIALECT_TSQL)
-		return false;
+	{
+		/*
+		* We cannot return false right away when sql_dialect is not TSQL.
+		* There are cases when sql_dialect is temporarily set to PG when
+		* executing PG functions such as nextval_internal() in the case of
+		* identity sequence.
+		*/
+		if (reloid != SequenceRelationId)
+			return false;
 
-	reloid = RelationGetRelid(rel);
+		if (get_func_language_oids_hook)
+			get_func_language_oids_hook(&pltsql_lang_oid, &pltsql_validator_oid);
+
+		if (pltsql_lang_oid == InvalidOid)
+			return false;
+	}
 
 	if (reloid != RelationRelationId &&
 		reloid != TypeRelationId &&
@@ -273,7 +305,8 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 		reloid != StatisticExtRelationId &&
 		reloid != DependRelationId &&
 		reloid != SharedDependRelationId &&
-		reloid != IndexRelationId)
+		reloid != IndexRelationId &&
+		reloid != SequenceRelationId)
 		return false;
 
 	switch (nkeys) {
@@ -545,6 +578,15 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 					}
 				}
 			}
+			else if (reloid == SequenceRelationId) {
+				if (indexId == SequenceRelidIndexId) {
+					if (enr->md.reliddesc == (Oid)v1) {
+						*tuplist = enr->md.cattups[ENR_CATTUP_SEQUENCE];
+						*tuplist_i = 0;
+						return true;
+					}
+				}
+			}
 		}
 		queryEnv = queryEnv->parentEnv;
 	}
@@ -643,7 +685,6 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 			case DependRelationId:
 				{
 					Form_pg_depend tf1 = (Form_pg_depend) GETSTRUCT((HeapTuple)tup);
-					//if ((enr = find_enr(tf1->classid, tf1->objid, tf1->objsubid))) {
 					if ((enr = find_enr(tf1))) {
 						ListCell *curlc;
 						Form_pg_depend tf2; /* tuple forms*/
@@ -812,6 +853,14 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 							break;
 						}
 					}
+					ret = true;
+				}
+				break;
+			case SequenceRelationId:
+				rel_oid = ((Form_pg_sequence) GETSTRUCT(tup))->seqrelid;
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+					list_ptr = &enr->md.cattups[ENR_CATTUP_SEQUENCE];
+					lc = list_head(enr->md.cattups[ENR_CATTUP_SEQUENCE]);
 					ret = true;
 				}
 				break;
