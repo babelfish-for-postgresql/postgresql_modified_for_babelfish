@@ -45,7 +45,6 @@
 #include "parser/parse_relation.h"
 #include "parser/parse_target.h"
 #include "parser/parse_type.h"
-#include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteManip.h"
 #include "utils/backend_status.h"
@@ -2276,29 +2275,26 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
 			 * it has to coerce the type, so failing now would just break
 			 * cases that might work.
 			 */
-			if(sql_dialect != SQL_DIALECT_TSQL)
+			if (lcoltype != UNKNOWNOID)
+				lcolnode = coerce_to_common_type(pstate, lcolnode,
+												 rescoltype, context);
+			else if (IsA(lcolnode, Const) ||
+					 IsA(lcolnode, Param))
 			{
-				if (lcoltype != UNKNOWNOID)
-					lcolnode = coerce_to_common_type(pstate, lcolnode,
-													rescoltype, context);
-				else if (IsA(lcolnode, Const) ||
-						IsA(lcolnode, Param))
-				{
-					lcolnode = coerce_to_common_type(pstate, lcolnode,
-													rescoltype, context);
-					ltle->expr = (Expr *) lcolnode;
-				}
+				lcolnode = coerce_to_common_type(pstate, lcolnode,
+												 rescoltype, context);
+				ltle->expr = (Expr *) lcolnode;
+			}
 
-				if (rcoltype != UNKNOWNOID)
-					rcolnode = coerce_to_common_type(pstate, rcolnode,
-													rescoltype, context);
-				else if (IsA(rcolnode, Const) ||
-						IsA(rcolnode, Param))
-				{
-					rcolnode = coerce_to_common_type(pstate, rcolnode,
-													rescoltype, context);
-					rtle->expr = (Expr *) rcolnode;
-				}
+			if (rcoltype != UNKNOWNOID)
+				rcolnode = coerce_to_common_type(pstate, rcolnode,
+												 rescoltype, context);
+			else if (IsA(rcolnode, Const) ||
+					 IsA(rcolnode, Param))
+			{
+				rcolnode = coerce_to_common_type(pstate, rcolnode,
+												 rescoltype, context);
+				rtle->expr = (Expr *) rcolnode;
 			}
 
 			rescoltypmod = select_common_typmod(pstate,
