@@ -16451,7 +16451,7 @@ qualified_name:
 				{
 					$$ = makeRangeVar(NULL, $1, @1);
 					/* TSQL temp table names */
-					if (sql_dialect == SQL_DIALECT_TSQL && strncmp($1, "#", 1) == 0 || strncmp($1, "##", 2) == 0)
+					if (sql_dialect == SQL_DIALECT_TSQL && (strncmp($1, "#", 1) == 0 || strncmp($1, "##", 2) == 0))
 						$$->relpersistence = RELPERSISTENCE_TEMP;
 				}
 			| ColId indirection
@@ -18561,7 +18561,7 @@ makeRangeVarFromQualifiedName(char *name, List *namelist, int location,
 			r->catalogname = NULL;
 			r->schemaname = downcaseIfTsqlAndCaseInsensitive(name);
 			/* TSQL temp table names. Schema name is allowed but ignored for temp tables.*/
-			if (sql_dialect == SQL_DIALECT_TSQL && strncmp(strVal(linitial(namelist)), "#", 1) == 0 || strncmp(strVal(linitial(namelist)), "##", 2) == 0)
+			if (sql_dialect == SQL_DIALECT_TSQL && (strncmp(strVal(linitial(namelist)), "#", 1) == 0 || strncmp(strVal(linitial(namelist)), "##", 2) == 0))
 			{
 				r->relpersistence = RELPERSISTENCE_TEMP;
 				r->schemaname = NULL;
@@ -18572,7 +18572,7 @@ makeRangeVarFromQualifiedName(char *name, List *namelist, int location,
 			r->catalogname = downcaseIfTsqlAndCaseInsensitive(name);
 			r->schemaname = downcaseIfTsqlAndCaseInsensitive(strVal(linitial(namelist)));
 			/* TSQL temp table names. Catalog and schema names allowed but ignored for temp tables.*/
-			if (sql_dialect == SQL_DIALECT_TSQL && strncmp(strVal(lsecond(namelist)), "#", 1) == 0 || strncmp(strVal(lsecond(namelist)), "##", 2) == 0)
+			if (sql_dialect == SQL_DIALECT_TSQL && (strncmp(strVal(lsecond(namelist)), "#", 1) == 0 || strncmp(strVal(lsecond(namelist)), "##", 2) == 0))
 			{
 				r->relpersistence = RELPERSISTENCE_TEMP;
 				r->catalogname = NULL;
