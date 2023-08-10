@@ -15263,7 +15263,7 @@ qualified_name:
 				{
 					$$ = makeRangeVar(NULL, $1, @1);
 					/* TSQL temp table names */
-					if (strncmp($1, "#", 1) == 0 || strncmp($1, "##", 2) == 0)
+					if (sql_dialect == SQL_DIALECT_TSQL && (strncmp($1, "#", 1) == 0 || strncmp($1, "##", 2) == 0))
 						$$->relpersistence = RELPERSISTENCE_TEMP;
 				}
 			| ColId indirection
