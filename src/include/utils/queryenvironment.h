@@ -40,6 +40,7 @@ typedef enum ENRCatalogTupleType
 	ENR_CATTUP_DEPEND,
 	ENR_CATTUP_SHDEPEND,
 	ENR_CATTUP_INDEX,
+	ENR_CATTUP_SEQUENCE,
 	ENR_CATTUP_END
 } ENRCatalogTupleType;
 
@@ -105,5 +106,6 @@ extern bool ENRgetSystableScan(Relation rel, Oid indexoid, int nkeys, ScanKey ke
 extern void ENRDropTempTables(QueryEnvironment *queryEnv);
 extern void ENRDropEntry(Oid id);
 extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid);
+extern bool has_existing_enr_relations(void);
 
 #endif							/* QUERYENVIRONMENT_H */

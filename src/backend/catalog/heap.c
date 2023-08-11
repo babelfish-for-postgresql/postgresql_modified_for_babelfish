@@ -2152,9 +2152,6 @@ heap_drop_with_catalog(Oid relid)
 	 */
 	DeleteRelationTuple(relid);
 
-	/* Try drop ENR entry, will skip internally if it's not an ENR.*/
-	ENRDropEntry(relid);
-
 	if (OidIsValid(parentOid))
 	{
 		/*
