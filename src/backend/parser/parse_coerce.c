@@ -37,8 +37,6 @@ find_coercion_pathway_hook_type find_coercion_pathway_hook = NULL;
 determine_datatype_precedence_hook_type determine_datatype_precedence_hook = NULL;
 coerce_string_literal_hook_type coerce_string_literal_hook = NULL;
 validate_implicit_conversion_from_string_literal_hook_type validate_implicit_conversion_from_string_literal_hook = NULL;
-select_common_type_hook_type select_common_type_hook = NULL;
-select_common_typmod_hook_type select_common_typmod_hook = NULL;
 
 static Node *coerce_type_typmod(Node *node,
 								Oid targetTypeId, int32 targetTypMod,
@@ -1385,13 +1383,6 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 	ListCell   *lc;
 	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
-	if (sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook)
-	{
-		Oid result = (*select_common_type_hook)(pstate, exprs, context, which_expr);
-		if (result != InvalidOid)
-			return result;
-	}
-
 	Assert(exprs != NIL);
 	pexpr = (Node *) linitial(exprs);
 	lc = list_second_cell(exprs);
@@ -1726,13 +1717,6 @@ select_common_typmod(ParseState *pstate, List *exprs, Oid common_type)
 	ListCell   *lc;
 	bool		first = true;
 	int32		result = -1;
-
-	if (select_common_typmod_hook)
-	{
-		result = (*select_common_typmod_hook)(pstate, exprs, common_type);
-		if (result != -1)
-			return result;
-	}
 
 	foreach(lc, exprs)
 	{
