@@ -1941,7 +1941,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 										  false /* allow SQL92 rules */ );
 
 	if (post_transform_sort_clause_hook)
-		post_transform_sort_clause_hook(qry, leftmostQuery);
+		post_transform_sort_clause_hook(pstate, qry, leftmostQuery);
 
 	/* restore namespace, remove join RTE from rtable */
 	pstate->p_namespace = sv_namespace;
