@@ -15086,7 +15086,7 @@ qualified_name:
 				{
 					$$ = makeRangeVar(NULL, $1, @1);
 					/* TSQL temp table names */
-					if (strncmp($1, "#", 1) == 0 || strncmp($1, "##", 2) == 0)
+					if (sql_dialect == SQL_DIALECT_TSQL && (strncmp($1, "#", 1) == 0 || strncmp($1, "##", 2) == 0))
 						$$->relpersistence = RELPERSISTENCE_TEMP;
 				}
 			| ColId indirection
@@ -15099,7 +15099,7 @@ qualified_name:
 							$$->catalogname = NULL;
 							$$->schemaname = downcaseIfTsqlAndCaseInsensitive($1);
 							/* TSQL temp table names. Schema name is allowed but ignored for temp tables.*/
-							if (strncmp(strVal(linitial($2)), "#", 1) == 0 || strncmp(strVal(linitial($2)), "##", 2) == 0)
+							if (sql_dialect == SQL_DIALECT_TSQL && (strncmp(strVal(linitial($2)), "#", 1) == 0 || strncmp(strVal(linitial($2)), "##", 2) == 0))
 							{
 								$$->relpersistence = RELPERSISTENCE_TEMP;
 								$$->schemaname = NULL;
@@ -15110,7 +15110,7 @@ qualified_name:
 							$$->catalogname = downcaseIfTsqlAndCaseInsensitive($1);
 							$$->schemaname = downcaseIfTsqlAndCaseInsensitive(strVal(linitial($2)));
 							/* TSQL temp table names. Catalog and schema names allowed but ignored for temp tables.*/
-							if (strncmp(strVal(lsecond($2)), "#", 1) == 0 || strncmp(strVal(lsecond($2)), "##", 2) == 0)
+							if (sql_dialect == SQL_DIALECT_TSQL && (strncmp(strVal(lsecond($2)), "#", 1) == 0 || strncmp(strVal(lsecond($2)), "##", 2) == 0))
 							{
 								$$->relpersistence = RELPERSISTENCE_TEMP;
 								$$->catalogname = NULL;
