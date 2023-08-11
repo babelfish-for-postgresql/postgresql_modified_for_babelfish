@@ -931,7 +931,22 @@ rewrite_scope_identity_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 	if (!(*lexpr) || !(*rexpr))
 		return;
 
-	if ((IsA(*lexpr, Var) && IsA(*rexpr, FuncExpr)))
+	if (IsA(*lexpr, Var) &&
+		IsA(*rexpr, FuncExpr) &&
+		strstr(get_func_name(((FuncExpr*) (*rexpr))->funcid), "like_escape") != NULL)
+    {
+        func_expr = (FuncExpr *) (*rexpr);
+        if((func_expr->args)->length==2){
+            Node *node = lsecond(func_expr->args);
+            if (IsA(node,Const) && ((Const *)(node))->constisnull)
+            {
+                *rexpr = (Node *)((func_expr)->args->elements[0]).ptr_value;
+                return;
+            }
+        }
+		return;
+    }
+	else if ((IsA(*lexpr, Var) && IsA(*rexpr, FuncExpr)))
 	{
 		col_expr = (Var*) *lexpr;
 		func_expr = (FuncExpr*) *rexpr;
@@ -944,15 +959,15 @@ rewrite_scope_identity_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 	else if (IsA(*rexpr, FuncExpr) &&
             strstr(get_func_name(((FuncExpr*) (*rexpr))->funcid), "like_escape") != NULL)
     {
-        FuncExpr *func = (FuncExpr *) (*rexpr);
-        if((func->args)->length==2){
-            Node *node = lsecond(func->args);
-            if (IsA(node,Const) && ((Const *)(lsecond(func->args)))->constisnull)
+        func_expr = (FuncExpr *) (*rexpr);
+        if((func_expr->args)->length==2){
+            Node *node = lsecond(func_expr->args);
+            if (IsA(node,Const) && ((Const *)(node))->constisnull)
             {
                 /*
                 * This condition deals with ESCAPE null, means no ESCAPE char used
                 */
-                *rexpr = (Node *)(((FuncExpr *) (*rexpr) )->args->elements[0]).ptr_value;
+                *rexpr = (Node *)((func_expr)->args->elements[0]).ptr_value;
                 return;
             }
         }
