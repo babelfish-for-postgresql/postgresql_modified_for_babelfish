@@ -10982,7 +10982,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_PREPARE;
 					n->gid = $3;
-					n->location = -1;
+					n->location = @3;
 					$$ = (Node *) n;
 				}
 			| COMMIT PREPARED Sconst
@@ -10991,7 +10991,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_COMMIT_PREPARED;
 					n->gid = $3;
-					n->location = -1;
+					n->location = @3;
 					$$ = (Node *) n;
 				}
 			| ROLLBACK PREPARED Sconst
@@ -11000,7 +11000,7 @@ TransactionStmt:
 
 					n->kind = TRANS_STMT_ROLLBACK_PREPARED;
 					n->gid = $3;
-					n->location = -1;
+					n->location = @3;
 					$$ = (Node *) n;
 				}
 		;
