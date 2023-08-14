@@ -89,5 +89,7 @@ extern void AdjustTimeForTypmod(TimeADT *time, int32 typmod);
 
 typedef void (*time_hook_type) (int dterr, const char *str, const char *datatype);
 extern PGDLLIMPORT time_hook_type time_hook;
+typedef void (*modify_field_hook_type) (int *nf, char **field, int *ftype);
+extern PGDLLIMPORT modify_field_hook_type modify_field_hook;
 
 #endif							/* DATE_H */

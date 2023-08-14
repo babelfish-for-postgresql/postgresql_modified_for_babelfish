@@ -45,6 +45,7 @@
 #endif
 
 time_hook_type time_hook = NULL;
+modify_field_hook_type modify_field_hook = NULL;
 
 /* common code for timetypmodin and timetztypmodin */
 static int32
@@ -1389,10 +1390,14 @@ time_in(PG_FUNCTION_ARGS)
 	dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
 						  field, ftype, MAXDATEFIELDS, &nf);
 	if (dterr == 0)
+	{
+		if(modify_field_hook && nf >= 3)
+			(*modify_field_hook)(&nf, field, ftype);
 		dterr = DecodeTimeOnly(field, ftype, nf, &dtype, tm, &fsec, &tz);
+	}
 	if (dterr != 0)
 	{
-		if (sql_dialect == SQL_DIALECT_TSQL && time_hook)
+		if (time_hook)
 			(*time_hook)(dterr, str, "time");
 		DateTimeParseError(dterr, str, "time");
 	}
