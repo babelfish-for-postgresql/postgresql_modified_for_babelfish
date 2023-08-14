@@ -800,7 +800,7 @@ ParseDateTime(const char *timestr, char *workbuf, size_t buflen,
 				ftype[nf] = DTK_TIME;
 				APPEND_CHAR(bufp, bufend, *cp++);
 				while (isdigit((unsigned char) *cp) ||
-					(*cp == ':') || (*cp == '.'))
+					   (*cp == ':') || (*cp == '.'))
 					APPEND_CHAR(bufp, bufend, *cp++);
 			}
 			/* date field? allow embedded text month */
