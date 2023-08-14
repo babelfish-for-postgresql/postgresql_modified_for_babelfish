@@ -1978,7 +1978,13 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 				 * instead of marking it as invalid time format
 				 */
 				else if (sql_dialect == SQL_DIALECT_TSQL && nf == 1 && ftype[nf - 1] == DTK_DATE)
-					return 0;
+				{
+					/* do final checking/adjustment of Y/M/D fields */
+					dterr = DecodeDate(field[i], fmask,
+									   &tmask, &is2digits, tm);
+					if (dterr)
+						return dterr;
+				}
 				/* otherwise, this is a time and/or time zone */
 				else
 				{
@@ -2425,9 +2431,7 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 	if (dterr)
 		return dterr;
 	if (sql_dialect == SQL_DIALECT_TSQL && nf == 1 && ftype[nf - 1] == DTK_DATE)
-	{
 		return 0;
-	}
 
 	/* handle AM/PM */
 	if (mer != HR24 && tm->tm_hour > HOURS_PER_DAY / 2)
