@@ -348,28 +348,29 @@ do_like_escape(text *pat, text *esc)
 	result = (text *) palloc(plen * 2 + VARHDRSZ);
 	r = VARDATA(result);
 
+	if (elen==0 && sql_dialect == SQL_DIALECT_TSQL)
+	{
+		/*
+		 * Escape string is empty, just throw the error.
+		 */
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_ESCAPE_SEQUENCE),
+				errmsg("The invalid escape character \"\" was specified in a LIKE predicate."),
+				errhint("Escape string must be null or one character.")));
+		return;
+	}
+
 	if (elen == 0)
 	{
-		if (sql_dialect == SQL_DIALECT_TSQL){
-            /*
-            * Escape string is empty, just show the error.
-            */
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_ESCAPE_SEQUENCE),
-                    errmsg("The invalid escape character \"\" was specified in a LIKE predicate."),
-                    errhint("Escape string must null or one character.")));
-        }
-		else{
-			/*
-			* No escape character is wanted.  Double any backslashes in the
-			* pattern to make them act like ordinary characters.
-			*/
-			while (plen > 0)
-			{
-				if (*p == '\\')
-					*r++ = '\\';
-				CopyAdvChar(r, p, plen);
-			}
+		/*
+		 * No escape character is wanted.  Double any backslashes in the
+		 * pattern to make them act like ordinary characters.
+		 */
+		while (plen > 0)
+		{
+			if (*p == '\\')
+				*r++ = '\\';
+			CopyAdvChar(r, p, plen);
 		}
 	}
 	else
