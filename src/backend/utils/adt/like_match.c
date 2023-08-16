@@ -357,7 +357,6 @@ do_like_escape(text *pat, text *esc)
 				(errcode(ERRCODE_INVALID_ESCAPE_SEQUENCE),
 				errmsg("The invalid escape character \"\" was specified in a LIKE predicate."),
 				errhint("Escape string must be null or one character.")));
-		return;
 	}
 
 	if (elen == 0)
