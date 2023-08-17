@@ -150,7 +150,6 @@ install: all installdirs install-lib
 	while [ "$$#" -gt 0 ] ; \
 	do \
 		lang=$$1; shift; shift; \
-		$(INSTALL_DATA) $(srcdir)/stopwords/tsql_contains.stop '$(DESTDIR)$(datadir)/$(DICTDIR)' ; \
 		if [ -s $(srcdir)/stopwords/$${lang}.stop ] ; then \
 			$(INSTALL_DATA) $(srcdir)/stopwords/$${lang}.stop '$(DESTDIR)$(datadir)/$(DICTDIR)' ; \
 		fi \
@@ -166,7 +165,6 @@ uninstall: uninstall-lib
 	while [ "$$#" -gt 0 ] ; \
 	do \
 		lang=$$1; shift; shift;  \
-		rm -f '$(DESTDIR)$(datadir)/$(DICTDIR)/'tsql_contains.stop ; \
 		if [ -s $(srcdir)/stopwords/$${lang}.stop ] ; then \
 		    rm -f '$(DESTDIR)$(datadir)/$(DICTDIR)/'$${lang}.stop ; \
 		fi \
