@@ -18,7 +18,8 @@ DICTFILES=synonym_sample.syn thesaurus_sample.ths \
 	hunspell_sample.affix \
 	ispell_sample.affix ispell_sample.dict \
 	hunspell_sample_long.affix hunspell_sample_long.dict \
-	hunspell_sample_num.affix hunspell_sample_num.dict
+	hunspell_sample_num.affix hunspell_sample_num.dict \
+	irregular_verbs.syn
 
 # Local paths to dictionaries files
 DICTFILES_PATH=$(addprefix dicts/,$(DICTFILES))
