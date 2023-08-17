@@ -16504,15 +16504,7 @@ AexprConst: Iconst
 				}
 			| Sconst
 				{
-					if (sql_dialect == SQL_DIALECT_TSQL)
-					{
-						TypeName *t = makeTypeNameFromNameList(list_make2(makeString("sys"), makeString("varchar")));
-						t->location = @1;
-						t->typmods = list_make1(makeIntConst(strlen($1), -1));
-						$$ = makeStringConstCast($1, @1, t);
-					}
-					else
-						$$ = makeStringConst($1, @1);
+					$$ = makeStringConst($1, @1);
 				}
 			| BCONST
 				{
