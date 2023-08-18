@@ -82,14 +82,21 @@ pgstat_init_function_usage(FunctionCallInfo fcinfo,
 
 	if (pre_function_call_hook && IsTransactionState())
 	{
-		HeapTuple proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
-		if (HeapTupleIsValid(proctup))
+		if(fcinfo->flinfo->fn_addr)
 		{
-			Form_pg_proc proc = (Form_pg_proc) GETSTRUCT(proctup);
-			(*pre_function_call_hook)(NameStr(proc->proname));
+			(*pre_function_call_hook)((fcinfo->flinfo->fn_addr));
 		}
+		else
+		{
+			HeapTuple proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
+			if (HeapTupleIsValid(proctup))
+			{
+				Form_pg_proc proc = (Form_pg_proc) GETSTRUCT(proctup);
+				(*pre_function_call_hook)(NameStr(proc->proname));
+			}
 
-		ReleaseSysCache(proctup);
+			ReleaseSysCache(proctup);
+		}
 	}
 
 	if (pgstat_track_functions <= fcinfo->flinfo->fn_stats)

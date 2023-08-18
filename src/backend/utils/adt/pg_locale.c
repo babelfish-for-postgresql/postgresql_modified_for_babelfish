@@ -1517,6 +1517,9 @@ report_newlocale_failure(const char *localename)
  * might only need one of them.  Since this is called only once per session,
  * it shouldn't cost much.
  */
+
+collation_cache_entry *prev_cache = NULL;
+
 pg_locale_t
 pg_newlocale_from_collation(Oid collid)
 {
@@ -1534,6 +1537,11 @@ pg_newlocale_from_collation(Oid collid)
 	}
 
 	cache_entry = lookup_collation_cache(collid, false);
+    
+	if (prev_cache && prev_cache->collid == collid)
+    {
+        return prev_cache->locale;
+    }
 
 	if (cache_entry->locale == 0)
 	{
@@ -1675,6 +1683,8 @@ pg_newlocale_from_collation(Oid collid)
 
 		cache_entry->locale = resultp;
 	}
+
+	prev_cache = cache_entry;
 
 	return cache_entry->locale;
 }
