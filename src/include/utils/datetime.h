@@ -341,4 +341,13 @@ extern void AdjustTimestampForTypmod(Timestamp *time, int32 typmod);
 extern bool AdjustTimestampForTypmodError(Timestamp *time, int32 typmod,
 										  bool *error);
 
+typedef bool (*handle_textMonth_case_hook_type) (int type, bool *haveTextMonth, int fmask, int *tmask, struct pg_tm *tm, int val);
+extern PGDLLIMPORT handle_textMonth_case_hook_type handle_textMonth_case_hook;
+
+typedef int (*date_decoder_hook_type) (int nf, char **field, int fmask, int tmask, bool is2digits, struct pg_tm *tm, bool bc, bool isjulian);
+extern PGDLLIMPORT date_decoder_hook_type date_decoder_hook;
+
+extern int DecodeDateWrapper(char *str, int fmask, int *tmask, bool *is2digits,
+		   struct pg_tm *tm);
+
 #endif							/* DATETIME_H */
