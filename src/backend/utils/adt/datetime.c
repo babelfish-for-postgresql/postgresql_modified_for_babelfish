@@ -2565,7 +2565,7 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 int DecodeDateWrapper(char *str, int fmask, int *tmask, bool *is2digits,
 		   struct pg_tm *tm)
 {
-	return DecodeDate(str, fmask, tmask, &is2digits, tm);
+	return DecodeDate(str, fmask, tmask, is2digits, tm);
 }
 
 /* DecodeDate()
