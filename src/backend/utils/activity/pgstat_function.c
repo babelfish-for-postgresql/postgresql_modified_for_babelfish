@@ -69,18 +69,17 @@ pgstat_drop_function(Oid proid)
 }
 
 /*
- * Initialize function call usage data.
- * Called by the executor before invoking a function.
+ * Wrapper function that calls the initilization function.
+ * Calls the pre function call hook on the procname 
+ * before invoking the initilization function. Performing a 
+ * system cache search in case fcinfo isnull for getting the procname
  */
 
 void
-pgstat_init_function_usage_optimise(FunctionCallInfo fcinfo,
-						   PgStat_FunctionCallUsage *fcu, char *procname)
+pgstat_init_function_usage_wrapper(FunctionCallInfo fcinfo,
+						   PgStat_FunctionCallUsage *fcusageptr, char *procname)
 {
-	PgStat_EntryRef *entry_ref;
-	PgStat_BackendFunctionEntry *pending;
-	bool		created_entry;
-
+	
 	if (pre_function_call_hook && IsTransactionState())
 	{
 		if(!(fcinfo->isnull))
@@ -100,62 +99,15 @@ pgstat_init_function_usage_optimise(FunctionCallInfo fcinfo,
 		}
 	}
 
-	if (pgstat_track_functions <= fcinfo->flinfo->fn_stats)
-	{
-		/* stats not wanted */
-		fcu->fs = NULL;
-		return;
-	}
+	pgstat_init_function_usage(fcinfo, fcusageptr);
 
-	entry_ref = pgstat_prep_pending_entry(PGSTAT_KIND_FUNCTION,
-										  MyDatabaseId,
-										  fcinfo->flinfo->fn_oid,
-										  &created_entry);
-
-	/*
-	 * If no shared entry already exists, check if the function has been
-	 * deleted concurrently. This can go unnoticed until here because
-	 * executing a statement that just calls a function, does not trigger
-	 * cache invalidation processing. The reason we care about this case is
-	 * that otherwise we could create a new stats entry for an already dropped
-	 * function (for relations etc this is not possible because emitting stats
-	 * requires a lock for the relation to already have been acquired).
-	 *
-	 * It's somewhat ugly to have a behavioral difference based on
-	 * track_functions being enabled/disabled. But it seems acceptable, given
-	 * that there's already behavioral differences depending on whether the
-	 * function is the caches etc.
-	 *
-	 * For correctness it'd be sufficient to set ->dropped to true. However,
-	 * the accepted invalidation will commonly cause "low level" failures in
-	 * PL code, with an OID in the error message. Making this harder to
-	 * test...
-	 */
-	if (created_entry)
-	{
-		AcceptInvalidationMessages();
-		if (!SearchSysCacheExists1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid)))
-		{
-			pgstat_drop_entry(PGSTAT_KIND_FUNCTION, MyDatabaseId,
-							  fcinfo->flinfo->fn_oid);
-			ereport(ERROR, errcode(ERRCODE_UNDEFINED_FUNCTION),
-					errmsg("function call to dropped function"));
-		}
-	}
-
-	pending = entry_ref->pending;
-
-	fcu->fs = &pending->f_counts;
-
-	/* save stats for this function, later used to compensate for recursion */
-	fcu->save_f_total_time = pending->f_counts.f_total_time;
-
-	/* save current backend-wide total time */
-	fcu->save_total = total_func_time;
-
-	/* get clock time as of function start */
-	INSTR_TIME_SET_CURRENT(fcu->f_start);
 }
+
+
+/*
+ * Initialize function call usage data.
+ * Called by the executor before invoking a function.
+ */
 
 
 void
@@ -165,20 +117,6 @@ pgstat_init_function_usage(FunctionCallInfo fcinfo,
 	PgStat_EntryRef *entry_ref;
 	PgStat_BackendFunctionEntry *pending;
 	bool		created_entry;
-
-	if (pre_function_call_hook && IsTransactionState())
-	{
-		
-		HeapTuple proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
-		if (HeapTupleIsValid(proctup))
-		{
-			Form_pg_proc proc = (Form_pg_proc) GETSTRUCT(proctup);
-			(*pre_function_call_hook)(NameStr(proc->proname));
-		}
-
-		ReleaseSysCache(proctup);
-		
-	}
 
 	if (pgstat_track_functions <= fcinfo->flinfo->fn_stats)
 	{

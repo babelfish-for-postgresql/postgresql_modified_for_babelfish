@@ -491,8 +491,8 @@ extern void pgstat_drop_function(Oid proid);
 struct FunctionCallInfoBaseData;
 extern void pgstat_init_function_usage(struct FunctionCallInfoBaseData *fcinfo,
 									   PgStat_FunctionCallUsage *fcu);
-extern void pgstat_init_function_usage_optimise(struct FunctionCallInfoBaseData *fcinfo,
-									   PgStat_FunctionCallUsage *fcu, char *proname);
+extern void pgstat_init_function_usage_wrapper(struct FunctionCallInfoBaseData *fcinfo,
+									   PgStat_FunctionCallUsage *fcusageptr, char *proname);
 extern void pgstat_end_function_usage(PgStat_FunctionCallUsage *fcu,
 									  bool finalize);
 

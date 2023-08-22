@@ -706,7 +706,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	int			sys_func_count = 0;
 	int			non_tsql_proc_count = 0;
 	void	   *newextra = NULL;
-	char 	   *cacheTupleProname = NULL;
+	char 	   *cacheTupleProcname = NULL;
 
 	if (!fcinfo->flinfo->fn_extra)
 	{
@@ -730,7 +730,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 				 fcinfo->flinfo->fn_oid);
 		procedureStruct = (Form_pg_proc) GETSTRUCT(tuple);
 
-		cacheTupleProname = procedureStruct->proname.data;
+		cacheTupleProcname = pstrdup(procedureStruct->proname.data);
 
 		if (procedureStruct->prosecdef)
 			fcache->userid = procedureStruct->proowner;
@@ -835,7 +835,15 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		fcinfo->flinfo = &fcache->flinfo;
 
 		/* See notes in fmgr_info_cxt_security */
-		pgstat_init_function_usage_optimise(fcinfo, &fcusage, cacheTupleProname);
+
+		pgstat_init_function_usage_wrapper(fcinfo, &fcusage, cacheTupleProcname);
+
+		// pgstat_init_function_usage(fcinfo, &fcusage);
+
+		if(cacheTupleProcname)
+		{
+			pfree(cacheTupleProcname);
+		}
 
 		result = FunctionCallInvoke(fcinfo);
 
