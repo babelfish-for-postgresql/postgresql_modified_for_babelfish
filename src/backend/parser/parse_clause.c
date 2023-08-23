@@ -3294,11 +3294,12 @@ addTargetToSortList(ParseState *pstate, TargetEntry *tle,
 	/* if tlist item is an UNKNOWN literal, change it to TEXT */
 	if (restype == UNKNOWNOID)
 	{
-		tle->expr = (Expr *) coerce_type(pstate, (Node *) tle->expr,
-										 restype, TEXTOID, -1,
-										 COERCION_IMPLICIT,
-										 COERCE_IMPLICIT_CAST,
-										 -1);
+		if (sql_dialect != SQL_DIALECT_TSQL || pstate->p_resolve_unknowns)
+			tle->expr = (Expr *) coerce_type(pstate, (Node *) tle->expr,
+											restype, TEXTOID, -1,
+											COERCION_IMPLICIT,
+											COERCE_IMPLICIT_CAST,
+											-1);
 		restype = TEXTOID;
 	}
 
