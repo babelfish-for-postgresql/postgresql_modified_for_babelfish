@@ -404,37 +404,37 @@ SocketBackendReadCommand(StringInfo inBuf)
 	 */
 	switch (qtype)
 	{
-		case 'Q':				/* simple query */
+		case PqMsg_Query:
 			maxmsglen = PQ_LARGE_MESSAGE_LIMIT;
 			doing_extended_query_message = false;
 			break;
 
-		case 'F':				/* fastpath function call */
+		case PqMsg_FunctionCall:
 			maxmsglen = PQ_LARGE_MESSAGE_LIMIT;
 			doing_extended_query_message = false;
 			break;
 
-		case 'X':				/* terminate */
+		case PqMsg_Terminate:
 			maxmsglen = PQ_SMALL_MESSAGE_LIMIT;
 			doing_extended_query_message = false;
 			ignore_till_sync = false;
 			break;
 
-		case 'B':				/* bind */
-		case 'P':				/* parse */
+		case PqMsg_Bind:
+		case PqMsg_Parse:
 			maxmsglen = PQ_LARGE_MESSAGE_LIMIT;
 			doing_extended_query_message = true;
 			break;
 
-		case 'C':				/* close */
-		case 'D':				/* describe */
-		case 'E':				/* execute */
-		case 'H':				/* flush */
+		case PqMsg_Close:
+		case PqMsg_Describe:
+		case PqMsg_Execute:
+		case PqMsg_Flush:
 			maxmsglen = PQ_SMALL_MESSAGE_LIMIT;
 			doing_extended_query_message = true;
 			break;
 
-		case 'S':				/* sync */
+		case PqMsg_Sync:
 			maxmsglen = PQ_SMALL_MESSAGE_LIMIT;
 			/* stop any active skip-till-Sync */
 			ignore_till_sync = false;
@@ -442,13 +442,13 @@ SocketBackendReadCommand(StringInfo inBuf)
 			doing_extended_query_message = false;
 			break;
 
-		case 'd':				/* copy data */
+		case PqMsg_CopyData:
 			maxmsglen = PQ_LARGE_MESSAGE_LIMIT;
 			doing_extended_query_message = false;
 			break;
 
-		case 'c':				/* copy done */
-		case 'f':				/* copy fail */
+		case PqMsg_CopyDone:
+		case PqMsg_CopyFail:
 			maxmsglen = PQ_SMALL_MESSAGE_LIMIT;
 			doing_extended_query_message = false;
 			break;
@@ -1597,7 +1597,7 @@ exec_parse_message(const char *query_string,	/* string to execute */
 	 * Send ParseComplete.
 	 */
 	if (whereToSendOutput == DestRemote)
-		pq_putemptymessage('1');
+		pq_putemptymessage(PqMsg_ParseComplete);
 
 	/*
 	 * Emit duration logging if appropriate.
@@ -2055,7 +2055,7 @@ exec_bind_message(StringInfo input_message)
 	 * Send BindComplete.
 	 */
 	if (whereToSendOutput == DestRemote)
-		pq_putemptymessage('2');
+		pq_putemptymessage(PqMsg_BindComplete);
 
 	/*
 	 * Emit duration logging if appropriate.
@@ -2301,7 +2301,7 @@ exec_execute_message(const char *portal_name, long max_rows)
 	{
 		/* Portal run not complete, so send PortalSuspended */
 		if (whereToSendOutput == DestRemote)
-			pq_putemptymessage('s');
+			pq_putemptymessage(PqMsg_PortalSuspended);
 
 		/*
 		 * Set XACT_FLAGS_PIPELINING whenever we suspend an Execute message,
@@ -2694,7 +2694,7 @@ exec_describe_statement_message(const char *stmt_name)
 								  NULL);
 	}
 	else
-		pq_putemptymessage('n');	/* NoData */
+		pq_putemptymessage(PqMsg_NoData);
 }
 
 /*
@@ -2747,7 +2747,7 @@ exec_describe_portal_message(const char *portal_name)
 								  FetchPortalTargetList(portal),
 								  portal->formats);
 	else
-		pq_putemptymessage('n');	/* NoData */
+		pq_putemptymessage(PqMsg_NoData);
 }
 
 
@@ -4675,7 +4675,7 @@ PostgresMain(const char *dbname, const char *username)
 
 		switch (firstchar)
 		{
-			case 'Q':			/* simple query */
+			case PqMsg_Query:
 				{
 					const char *query_string;
 
@@ -4699,7 +4699,7 @@ PostgresMain(const char *dbname, const char *username)
 				}
 				break;
 
-			case 'P':			/* parse */
+			case PqMsg_Parse:
 				{
 					const char *stmt_name;
 					const char *query_string;
@@ -4729,7 +4729,7 @@ PostgresMain(const char *dbname, const char *username)
 				}
 				break;
 
-			case 'B':			/* bind */
+			case PqMsg_Bind:
 				forbidden_in_wal_sender(firstchar);
 
 				/* Set statement_timestamp() */
@@ -4744,7 +4744,7 @@ PostgresMain(const char *dbname, const char *username)
 				/* exec_bind_message does valgrind_report_error_query */
 				break;
 
-			case 'E':			/* execute */
+			case PqMsg_Execute:
 				{
 					const char *portal_name;
 					int			max_rows;
@@ -4764,7 +4764,7 @@ PostgresMain(const char *dbname, const char *username)
 				}
 				break;
 
-			case 'F':			/* fastpath function call */
+			case PqMsg_FunctionCall:
 				forbidden_in_wal_sender(firstchar);
 
 				/* Set statement_timestamp() */
@@ -4799,7 +4799,7 @@ PostgresMain(const char *dbname, const char *username)
 				send_ready_for_query = true;
 				break;
 
-			case 'C':			/* close */
+			case PqMsg_Close:
 				{
 					int			close_type;
 					const char *close_target;
@@ -4839,13 +4839,13 @@ PostgresMain(const char *dbname, const char *username)
 					}
 
 					if (whereToSendOutput == DestRemote)
-						pq_putemptymessage('3');	/* CloseComplete */
+						pq_putemptymessage(PqMsg_CloseComplete);
 
 					valgrind_report_error_query("CLOSE message");
 				}
 				break;
 
-			case 'D':			/* describe */
+			case PqMsg_Describe:
 				{
 					int			describe_type;
 					const char *describe_target;
@@ -4879,13 +4879,13 @@ PostgresMain(const char *dbname, const char *username)
 				}
 				break;
 
-			case 'H':			/* flush */
+			case PqMsg_Flush:
 				pq_getmsgend(&input_message);
 				if (whereToSendOutput == DestRemote)
 					pq_flush();
 				break;
 
-			case 'S':			/* sync */
+			case PqMsg_Sync:
 				pq_getmsgend(&input_message);
 				finish_xact_command();
 				valgrind_report_error_query("SYNC message");
@@ -4904,7 +4904,7 @@ PostgresMain(const char *dbname, const char *username)
 
 				/* FALLTHROUGH */
 
-			case 'X':
+			case PqMsg_Terminate:
 
 				/*
 				 * Reset whereToSendOutput to prevent ereport from attempting
@@ -4922,9 +4922,9 @@ PostgresMain(const char *dbname, const char *username)
 				 */
 				proc_exit(0);
 
-			case 'd':			/* copy data */
-			case 'c':			/* copy done */
-			case 'f':			/* copy fail */
+			case PqMsg_CopyData:
+			case PqMsg_CopyDone:
+			case PqMsg_CopyFail:
 
 				/*
 				 * Accept but ignore these messages, per protocol spec; we
@@ -4954,7 +4954,7 @@ forbidden_in_wal_sender(char firstchar)
 {
 	if (am_walsender)
 	{
-		if (firstchar == 'F')
+		if (firstchar == PqMsg_FunctionCall)
 			ereport(ERROR,
 					(errcode(ERRCODE_PROTOCOL_VIOLATION),
 					 errmsg("fastpath function calls not supported in a replication connection")));

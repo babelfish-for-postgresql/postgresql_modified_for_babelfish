@@ -1143,7 +1143,7 @@ HandleParallelMessage(ParallelContext *pcxt, int i, StringInfo msg)
 
 	switch (msgtype)
 	{
-		case 'K':				/* BackendKeyData */
+		case PqMsg_BackendKeyData:
 			{
 				int32		pid = pq_getmsgint(msg, 4);
 
@@ -1153,8 +1153,8 @@ HandleParallelMessage(ParallelContext *pcxt, int i, StringInfo msg)
 				break;
 			}
 
-		case 'E':				/* ErrorResponse */
-		case 'N':				/* NoticeResponse */
+		case PqMsg_ErrorResponse:
+		case PqMsg_NoticeResponse:
 			{
 				ErrorData	edata;
 				ErrorContextCallback *save_error_context_stack;
@@ -1199,7 +1199,7 @@ HandleParallelMessage(ParallelContext *pcxt, int i, StringInfo msg)
 				break;
 			}
 
-		case 'A':				/* NotifyResponse */
+		case PqMsg_NotificationResponse:
 			{
 				/* Propagate NotifyResponse. */
 				int32		pid;
@@ -1233,7 +1233,7 @@ HandleParallelMessage(ParallelContext *pcxt, int i, StringInfo msg)
 				break;
 			}
 
-		case 'X':				/* Terminate, indicating clean exit */
+		case PqMsg_Terminate:
 			{
 				shm_mq_detach(pcxt->worker[i].error_mqh);
 				pcxt->worker[i].error_mqh = NULL;
@@ -1388,7 +1388,7 @@ ParallelWorkerMain(Datum main_arg)
 	 * protocol message is defined, but it won't actually be used for anything
 	 * in this case.
 	 */
-	pq_beginmessage(&msgbuf, 'K');
+	pq_beginmessage(&msgbuf, PqMsg_BackendKeyData);
 	pq_sendint32(&msgbuf, (int32) MyProcPid);
 	pq_sendint32(&msgbuf, (int32) MyCancelKey);
 	pq_endmessage(&msgbuf);
@@ -1570,7 +1570,7 @@ ParallelWorkerMain(Datum main_arg)
 	DetachSession();
 
 	/* Report success. */
-	pq_putmessage('X', NULL, 0);
+	pq_putmessage(PqMsg_Terminate, NULL, 0);
 }
 
 /*
