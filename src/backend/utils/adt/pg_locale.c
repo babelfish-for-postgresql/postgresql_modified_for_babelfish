@@ -1684,12 +1684,7 @@ pg_newlocale_from_collation(Oid collid)
 		cache_entry->locale = resultp;
 	}
 
-	if(prev_cache)
-	{
-		pfree(prev_cache);
-	}
-
-	prev_cache = pstrdup(cache_entry);
+	prev_cache = cache_entry;
 
 	return cache_entry->locale;
 }
