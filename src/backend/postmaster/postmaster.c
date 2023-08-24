@@ -522,7 +522,6 @@ typedef struct
 	Port		port;
 	InheritableSocket portsocket;
 	char		DataDir[MAXPGPATH];
-	pgsocket	ListenSocket[MAXLISTEN];
 	int32		MyCancelKey;
 	int			MyPMChildSlot;
 #ifndef WIN32
@@ -2717,8 +2716,6 @@ ConnFree(Port *port)
 void
 ClosePostmasterPorts(bool am_syslogger)
 {
-	int			i;
-
 	/* Release resources held by the postmaster's WaitEventSet. */
 	if (pm_wait_set)
 	{
@@ -2745,8 +2742,12 @@ ClosePostmasterPorts(bool am_syslogger)
 	/*
 	 * Close the postmaster's listen sockets.  These aren't tracked by fd.c,
 	 * so we don't call ReleaseExternalFD() here.
+	 *
+	 * The listen sockets are marked as FD_CLOEXEC, so this isn't needed in
+	 * EXEC_BACKEND mode.
 	 */
-	for (i = 0; i < MAXLISTEN; i++)
+#ifndef EXEC_BACKEND
+	for (int i = 0; i < MAXLISTEN; i++)
 	{
 		if (ListenSocket[i] != PGINVALID_SOCKET && ListenConfig[i] != NULL)
 		{
@@ -2755,6 +2756,7 @@ ClosePostmasterPorts(bool am_syslogger)
 			ListenConfig[i] = NULL;
 		}
 	}
+#endif
 
 	/*
 	 * If using syslogger, close the read side of the pipe.  We don't bother
@@ -6212,8 +6214,6 @@ save_backend_variables(BackendParameters *param, Port *port,
 
 	strlcpy(param->DataDir, DataDir, MAXPGPATH);
 
-	memcpy(&param->ListenSocket, &ListenSocket, sizeof(ListenSocket));
-
 	param->MyCancelKey = MyCancelKey;
 	param->MyPMChildSlot = MyPMChildSlot;
 
@@ -6444,8 +6444,6 @@ restore_backend_variables(BackendParameters *param, Port *port)
 	read_inheritable_socket(&port->sock, &param->portsocket);
 
 	SetDataDir(param->DataDir);
-
-	memcpy(&ListenSocket, &param->ListenSocket, sizeof(ListenSocket));
 
 	MyCancelKey = param->MyCancelKey;
 	MyPMChildSlot = param->MyPMChildSlot;
