@@ -1684,7 +1684,20 @@ pg_newlocale_from_collation(Oid collid)
 		cache_entry->locale = resultp;
 	}
 
-	prev_cache = cache_entry;
+	if(prev_cache)
+	{
+		pfree(prev_cache);
+	}
+
+	prev_cache = (collation_cache_entry *) MemoryContextAlloc(CacheMemoryContext, sizeof(collation_cache_entry));
+
+	if(prev_cache == NULL)
+	{
+		ereport(ERROR, (errmsg("Memory allocation failed")));
+	}
+	
+	prev_cache->collid = cache_entry->collid;
+	prev_cache->locale = cache_entry->locale;
 
 	return cache_entry->locale;
 }
