@@ -919,7 +919,7 @@ exprIsNullConstant(Node *arg)
  * underlying function that returns an int type so the index is used.
  */
 static void
-rewrite_scope_identity_call(ParseState *pstate, Node **lexpr, Node **rexpr)
+bbf_rewrite_function_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 {
 	Var       *col_expr;
 	FuncExpr  *func_expr;
@@ -930,6 +930,25 @@ rewrite_scope_identity_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 		return;
 	if (!(*lexpr) || !(*rexpr))
 		return;
+
+	func_expr = (FuncExpr *) (*rexpr);
+	if (IsA(*rexpr, FuncExpr) &&
+		strstr(get_func_name(func_expr->funcid), "like_escape") != NULL)
+	{
+		if((func_expr->args)->length==2)
+		{
+			Node *node = lsecond(func_expr->args);
+			if (IsA(node,Const) && ((Const *)(node))->constisnull)
+			{
+				/*
+				 * This condition handles like escape null query,
+				 * only when using TSQL.
+				 */
+				*rexpr = (Node *)((func_expr)->args->elements[0]).ptr_value;
+				return;
+			}
+		}
+	}
 
 	if ((IsA(*lexpr, Var) && IsA(*rexpr, FuncExpr)))
 	{
@@ -1037,7 +1056,7 @@ transformAExprOp(ParseState *pstate, A_Expr *a)
 		rexpr = transformExprRecurse(pstate, rexpr);
 
 		/* So that where clauses with scope_identity use an index */
-		rewrite_scope_identity_call(pstate, &lexpr, &rexpr);
+		bbf_rewrite_function_call(pstate, &lexpr, &rexpr);
 
 		result = (Node *) make_op(pstate,
 								  a->name,
