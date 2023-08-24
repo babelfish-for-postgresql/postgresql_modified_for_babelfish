@@ -117,9 +117,9 @@ typedef bool (*determine_datatype_precedence_hook_type) (Oid typeId1, Oid typeId
 typedef Node *(*coerce_string_literal_hook_type) (ParseCallbackState *pcbstate,
 												  Oid targetTypeId,
 												  int32 targetTypeMod,
-												  int32 *baseTypeMod,
+												  int32 baseTypeMod,
 												  Const *newcon,
-												  Const *oldcon,
+												  char *value,
 												  CoercionContext ccontext,
 												  CoercionForm cformat,
 												  int location);

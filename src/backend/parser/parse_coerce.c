@@ -327,8 +327,8 @@ coerce_type(ParseState *pstate, Node *node,
 			 * T-SQL has different rules for string literal datatype coercions
 			 */
 			result = (*coerce_string_literal_hook) (&pcbstate, targetTypeId,
-												  targetTypeMod, &baseTypeMod,
-												  newcon, con,
+												  targetTypeMod, baseTypeMod,
+												  newcon, DatumGetCString(con->constvalue),
 												  ccontext, cformat, location);
 			if (result) /* runtimer error function returned */
 				return result;
