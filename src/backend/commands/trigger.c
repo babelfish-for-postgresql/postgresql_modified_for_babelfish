@@ -117,6 +117,9 @@ static bool IsCompositeTriggerActive(void);
 static void AddCompositeTriggerLevelData(void);
 static bool IsCompositeTrigger(Oid fn_oid, List *fn_name);
 
+static bool FreeTriggerTable(int query_depth);
+
+check_pltsql_support_tsql_transactions_hook_type check_pltsql_support_tsql_transactions_hook = NULL;
 
 /*
  * Create a trigger.  Returns the address of the created trigger.
@@ -5054,7 +5057,7 @@ AfterTriggerEndQuery(EState *estate)
 	}
 
 	/* Release query-level-local storage, including tuplestores if any */
-	AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth], !IsCompositeTriggerActive());
+	AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth], FreeTriggerTable(afterTriggers.query_depth));
 
 	afterTriggers.query_depth--;
 }
@@ -5340,7 +5343,7 @@ AfterTriggerEndSubXact(bool isCommit)
 		while (afterTriggers.query_depth > afterTriggers.trans_stack[my_level].query_depth)
 		{
 			if (afterTriggers.query_depth < afterTriggers.maxquerydepth)
-				AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth], !IsCompositeTriggerActive());
+				AfterTriggerFreeQuery(&afterTriggers.query_stack[afterTriggers.query_depth], FreeTriggerTable(afterTriggers.query_depth));
 			afterTriggers.query_depth--;
 		}
 		Assert(afterTriggers.query_depth ==
@@ -6589,12 +6592,29 @@ bool IsCompositeTriggerActive(void)
 }
 
 /*
+ * FreeTriggerTable - return true if trigger tables should be cleaned up at this level.
+ */
+static
+bool FreeTriggerTable(int query_depth)
+{
+	return (!IsCompositeTriggerActive() || compositeTriggers.triggers->query_depth != query_depth);
+}
+
+
+/*
  * Create a new entry for trigger data at current
  * nesting level if not present already
  */
 static
 void AddCompositeTriggerLevelData(void)
 {
+	/* Check if this trigger is being added as part of any of postgres' function, procedure or trigger in the stack */
+	if (check_pltsql_support_tsql_transactions_hook && !(*check_pltsql_support_tsql_transactions_hook)())
+	{
+		ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("T-SQL trigger can not be executed from PostgreSQL function, procedure or trigger.")));
+	}
 	if (compositeTriggers.triggers == NULL || compositeTriggers.triggers->triggerLevel < compositeTriggers.triggerLevel)
 	{
 		CompositeTriggerData *triggers = palloc0(sizeof(CompositeTriggerData));
@@ -6675,7 +6695,7 @@ void EndCompositeTriggers(bool error)
 		 * to avoid seg fault issues.
 		 */ 
 		if (afterTriggers.query_depth < afterTriggers.maxquerydepth && afterTriggers.query_depth >= triggers->query_depth)
-			afterTriggers.query_stack[afterTriggers.query_depth].tables = NIL;
+			afterTriggers.query_stack[triggers->query_depth].tables = NIL;
 
 		pfree(triggers);
 	}
