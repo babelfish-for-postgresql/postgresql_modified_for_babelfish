@@ -913,16 +913,30 @@ dumpRoles(PGconn *conn)
 
 		if ((!binary_upgrade) && is_bbf_db)
 		{
-			appendPQExpBuffer(buf, "ALTER ROLE %s WITH", fmtId(rolename));
-			if (strcmp(PQgetvalue(res, i, i_rolsuper), "t") == 0)
-				appendPQExpBufferStr(buf, " SUPERUSER");
-			else
-				appendPQExpBufferStr(buf, " NOSUPERUSER");
-			if (strcmp(PQgetvalue(res, i, i_rolreplication), "t") == 0)
-				appendPQExpBufferStr(buf, " REPLICATION");
-			else
-				appendPQExpBufferStr(buf, " NOREPLICATION");
-			appendPQExpBufferStr(buf, ";\n");
+			bool is_super = strcmp(PQgetvalue(res, i, i_rolsuper), "t") == 0;
+			bool is_repl = strcmp(PQgetvalue(res, i, i_rolreplication), "t") == 0;
+
+			/*
+			 * (NO)SUPERUSER and (NO)REPLICATION roles can only be granted by a
+			 * superuser and a non-superuser will get an error even if it is trying
+			 * to set NOSUPERUSER or NOREPLICATION role (both of them are default if
+			 * not specified). So get rid of the unnecessary error with a non-super
+			 * user, we will completely omit the ALTER command if all that we need
+			 * to set is NOSUPERUSER and NOREPLICATION.
+			 */
+			if (is_super || is_repl)
+			{
+				appendPQExpBuffer(buf, "ALTER ROLE %s WITH", fmtId(rolename));
+				if (is_super)
+					appendPQExpBufferStr(buf, " SUPERUSER");
+				else
+					appendPQExpBufferStr(buf, " NOSUPERUSER");
+				if (is_repl)
+					appendPQExpBufferStr(buf, " REPLICATION");
+				else
+					appendPQExpBufferStr(buf, " NOREPLICATION");
+				appendPQExpBufferStr(buf, ";\n");
+			}
 		}
 		if (!no_security_labels)
 			buildShSecLabels(conn, "pg_authid", auth_oid,

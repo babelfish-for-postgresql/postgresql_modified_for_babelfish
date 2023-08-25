@@ -41,6 +41,7 @@ static bool isBabelfishConfigTable(TableInfo *tbinfo);
 static void addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_builtin_db);
 static void addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo);
 static int getMbstrlen(const char *mbstr,Archive *fout);
+static bool is_ms_shipped(DumpableObject *dobj, Archive *fout);
 
 /* enum to check if database to be dumped is a Babelfish Database */
 typedef enum {
@@ -127,6 +128,30 @@ isBabelfishDatabase(Archive *fout)
 }
 
 /*
+ * is_ms_shipped
+ * Returns true if the given object is a system object
+ * i.e. object created by babelfish extensions, false otherwise.
+ */
+static bool
+is_ms_shipped(DumpableObject *dobj, Archive *fout)
+{
+	PQExpBuffer	qry;
+	PGresult	*res;
+	bool    	ismsshipped = false;
+
+	/* Directly query sys.OBJECTPROPERTY function to know whether it is a system object or not. */
+	qry = createPQExpBuffer();
+	appendPQExpBuffer(qry, "SELECT sys.OBJECTPROPERTY(%u, 'ismsshipped');\n", dobj->catId.oid);
+	res = ExecuteSqlQueryForSingleRow(fout, qry->data);
+	if (!PQgetisnull(res, 0, 0))
+		ismsshipped = atoi(PQgetvalue(res, 0, 0)) == 1 ? true : false;
+
+	destroyPQExpBuffer(qry);
+	PQclear(res);
+	return ismsshipped;
+}
+
+/*
  * isBabelfishConfigTable:
  * Returns true if given table is a configuration table (for which catalog
  * table data needs to be dumped), false otherwise.
@@ -186,52 +211,135 @@ dumpBabelGUCs(Archive *fout)
 }
 
 /*
- * bbf_selectDumpableCast: Mark a cast as to be dumped or not
+ * bbf_selectDumpableObject:
+ *		Mark a generic dumpable object as to be dumped or not
  */
 void
-bbf_selectDumpableCast(CastInfo *cast)
+bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 {
-	TypeInfo      *sTypeInfo;
-	TypeInfo      *tTypeInfo;
-	ExtensionInfo *ext = findOwningExtension(cast->dobj.catId);
-
-	/* Skip if cast is not a member of babelfish extension */
-	if (ext == NULL || strcmp(ext->dobj.name, "babelfishpg_common") != 0)
+	if (!isBabelfishDatabase(fout))
 		return;
 
-	sTypeInfo = findTypeByOid(cast->castsource);
-	tTypeInfo = findTypeByOid(cast->casttarget);
+	switch (dobj->objType)
+	{
+		case DO_CAST:
+			{
+				CastInfo    	*cast = (CastInfo *) dobj;
+				TypeInfo    	*sTypeInfo;
+				TypeInfo    	*tTypeInfo;
+				ExtensionInfo	*ext = findOwningExtension(cast->dobj.catId);
 
-	/*
-	 * Do not dump following unused CASTS:
-	 * pg_catalog.bool -> sys.bpchar
-	 * pg_catalog.bool -> sys.varchar
-	 */
-	if (sTypeInfo && tTypeInfo &&
-			sTypeInfo->dobj.namespace &&
-			tTypeInfo->dobj.namespace &&
-			strcmp(sTypeInfo->dobj.namespace->dobj.name, "pg_catalog") == 0 &&
-			strcmp(tTypeInfo->dobj.namespace->dobj.name, "sys") == 0 &&
-			strcmp(sTypeInfo->dobj.name, "bool") == 0 &&
-			(strcmp(tTypeInfo->dobj.name, "bpchar") == 0 ||
-			 strcmp(tTypeInfo->dobj.name, "varchar") == 0))
-		cast->dobj.dump = DUMP_COMPONENT_NONE;
-}
+				/* Skip if cast is not a member of babelfish extension */
+				if (ext == NULL || strcmp(ext->dobj.name, "babelfishpg_common") != 0)
+					return;
 
-/*
- * bbf_selectDumpableTableData:
- * Marks Babelfish catalog table data to be dumped if not in binary-upgrade mode.
- * It is mainly used during Babelfish logical database dump as none of the extensions
- * are marked to be dumped so catalog table data explicitly need to be marked as dumpable.
- */
-void
-bbf_selectDumpableTableData(TableInfo *tbinfo, Archive *fout)
-{
-	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade)
-		return;
+				sTypeInfo = findTypeByOid(cast->castsource);
+				tTypeInfo = findTypeByOid(cast->casttarget);
 
-	if (isBabelfishConfigTable(tbinfo))
-		tbinfo->dobj.dump |= DUMP_COMPONENT_DATA;
+				/*
+				* Do not dump following unused CASTS:
+				* pg_catalog.bool -> sys.bpchar
+				* pg_catalog.bool -> sys.varchar
+				*/
+				if (sTypeInfo && tTypeInfo &&
+						sTypeInfo->dobj.namespace &&
+						tTypeInfo->dobj.namespace &&
+						strcmp(sTypeInfo->dobj.namespace->dobj.name, "pg_catalog") == 0 &&
+						strcmp(tTypeInfo->dobj.namespace->dobj.name, "sys") == 0 &&
+						strcmp(sTypeInfo->dobj.name, "bool") == 0 &&
+						(strcmp(tTypeInfo->dobj.name, "bpchar") == 0 ||
+						strcmp(tTypeInfo->dobj.name, "varchar") == 0))
+					cast->dobj.dump = DUMP_COMPONENT_NONE;
+			}
+			break;
+		case DO_TABLE:
+			{
+				TableInfo *tbinfo = (TableInfo *) dobj;
+
+				if (fout->dopt->binary_upgrade)
+					return;
+
+				switch (tbinfo->relkind)
+				{
+					case RELKIND_VIEW:
+					{
+						/*
+						 * There is special case with sysdatabases view,
+						 * we will not dump this view only when it's in default
+						 * databases (master/msdb/tempdb), otherwise we
+						 * will always dump it.
+						 */
+						if ((strcmp(tbinfo->dobj.namespace->dobj.name, "master_dbo") == 0 ||
+							strcmp(tbinfo->dobj.namespace->dobj.name, "msdb_dbo") == 0 ||
+							strcmp(tbinfo->dobj.namespace->dobj.name, "tempdb_dbo") == 0) &&
+							strcmp(tbinfo->dobj.name, "sysdatabases") == 0)
+						{
+							tbinfo->dobj.dump = DUMP_COMPONENT_NONE;
+							break;
+						}
+
+						/* Just skip if it's a system view */
+						if (is_ms_shipped(dobj, fout))
+							tbinfo->dobj.dump = DUMP_COMPONENT_NONE;
+					}
+					break;
+					default:
+						{
+							/*
+							 * Mark Babelfish catalog table data to be dumped if not in
+							 * binary-upgrade mode. It is only done for Babelfish logical
+							 * database dump as none of the extensions are marked to be dumped
+							 * so catalog table data explicitly need to be marked as dumpable.
+							 */
+							if (bbf_db_name != NULL && isBabelfishConfigTable(tbinfo))
+								tbinfo->dobj.dump |= DUMP_COMPONENT_DATA;
+						}
+				}
+			}
+			break;
+		case DO_NAMESPACE:
+			{
+				NamespaceInfo *nsinfo = (NamespaceInfo *) dobj;
+
+				if (fout->dopt->binary_upgrade)
+					return;
+
+				/* Do not dump the definition of default babelfish schemas */
+				if (strncmp(nsinfo->dobj.name, "babelfishpg", 11) == 0 ||
+					strcmp(nsinfo->dobj.name, "master_dbo") == 0 ||
+					strcmp(nsinfo->dobj.name, "master_guest") == 0 ||
+					strcmp(nsinfo->dobj.name, "msdb_dbo") == 0 ||
+					strcmp(nsinfo->dobj.name, "master_guest") == 0 ||
+					strcmp(nsinfo->dobj.name, "tempdb_dbo") == 0 ||
+					strcmp(nsinfo->dobj.name, "tempdb_guest") == 0)
+					nsinfo->dobj.dump &= ~DUMP_COMPONENT_DEFINITION;
+			}
+			break;
+		case DO_EXTENSION:
+			{
+				ExtensionInfo *extinfo = (ExtensionInfo *) dobj;
+
+				if (fout->dopt->binary_upgrade)
+					return;
+
+				if (strncmp(extinfo->dobj.name, "babelfishpg", 11) == 0)
+					extinfo->dobj.dump &= ~DUMP_COMPONENT_DEFINITION;
+			}
+			break;
+		case DO_FUNC:
+			{
+				FuncInfo *finfo = (FuncInfo *) dobj;
+				if (fout->dopt->binary_upgrade)
+					return;
+
+				/* Just skip if it's a system function/procedure */
+				if (is_ms_shipped(dobj, fout))
+					finfo->dobj.dump = DUMP_COMPONENT_NONE;
+			}
+			break;
+		default:
+			break;
+	}
 }
 
 /*
