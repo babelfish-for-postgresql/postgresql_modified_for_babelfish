@@ -2866,7 +2866,7 @@ l1:
 	if (crosscheck != InvalidSnapshot && result == TM_Ok)
 	{
 		/* Perform additional check for transaction-snapshot mode RI updates */
-		if (HeapTupleSatisfiesVisibility(relation, &tp, crosscheck, buffer))
+		if (!HeapTupleSatisfiesVisibility(relation, &tp, crosscheck, buffer))
 			result = TM_Updated;
 	}
 
@@ -3493,7 +3493,7 @@ l2:
 	if (crosscheck != InvalidSnapshot && result == TM_Ok)
 	{
 		/* Perform additional check for transaction-snapshot mode RI updates */
-		if (HeapTupleSatisfiesVisibility(relation, &oldtup, crosscheck, buffer))
+		if (!HeapTupleSatisfiesVisibility(relation, &oldtup, crosscheck, buffer))
 		{
 			result = TM_Updated;
 			Assert(!ItemPointerEquals(&oldtup.t_self, &oldtup.t_data->t_ctid));
