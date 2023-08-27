@@ -12011,6 +12011,8 @@ DeallocateStmt: DEALLOCATE name
 						DeallocateStmt *n = makeNode(DeallocateStmt);
 
 						n->name = $2;
+						n->isall = false;
+						n->location = @2;
 						$$ = (Node *) n;
 					}
 				| DEALLOCATE PREPARE name
@@ -12018,6 +12020,8 @@ DeallocateStmt: DEALLOCATE name
 						DeallocateStmt *n = makeNode(DeallocateStmt);
 
 						n->name = $3;
+						n->isall = false;
+						n->location = @3;
 						$$ = (Node *) n;
 					}
 				| DEALLOCATE ALL
@@ -12025,6 +12029,8 @@ DeallocateStmt: DEALLOCATE name
 						DeallocateStmt *n = makeNode(DeallocateStmt);
 
 						n->name = NULL;
+						n->isall = true;
+						n->location = -1;
 						$$ = (Node *) n;
 					}
 				| DEALLOCATE PREPARE ALL
@@ -12032,6 +12038,8 @@ DeallocateStmt: DEALLOCATE name
 						DeallocateStmt *n = makeNode(DeallocateStmt);
 
 						n->name = NULL;
+						n->isall = true;
+						n->location = -1;
 						$$ = (Node *) n;
 					}
 		;
