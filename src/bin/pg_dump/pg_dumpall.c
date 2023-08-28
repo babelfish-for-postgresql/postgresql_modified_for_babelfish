@@ -920,7 +920,7 @@ dumpRoles(PGconn *conn)
 			 * (NO)SUPERUSER and (NO)REPLICATION roles can only be granted by a
 			 * superuser and a non-superuser will get an error even if it is trying
 			 * to set NOSUPERUSER or NOREPLICATION role (both of them are default if
-			 * not specified). So get rid of the unnecessary error with a non-super
+			 * not specified). So to get rid of the unnecessary error with a non-super
 			 * user, we will completely omit the ALTER command if all that we need
 			 * to set is NOSUPERUSER and NOREPLICATION.
 			 */
