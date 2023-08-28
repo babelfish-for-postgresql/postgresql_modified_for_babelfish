@@ -3184,7 +3184,7 @@ struct config_int ConfigureNamesInt[] =
 		DEFAULT_XLOG_SEG_SIZE,
 		WalSegMinSize,
 		WalSegMaxSize,
-		NULL, NULL, NULL
+		check_wal_segment_size, NULL, NULL
 	},
 
 	{
