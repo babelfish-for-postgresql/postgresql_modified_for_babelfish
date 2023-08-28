@@ -4170,7 +4170,7 @@ InitTempTableNamespace(void)
 		/* Advance command counter to make namespace visible */
 		CommandCounterIncrement();
 	}
-	else if (sql_dialect == SQL_DIALECT_TSQL && get_namedRelList() != NIL)
+	else if (sql_dialect == SQL_DIALECT_TSQL && has_existing_enr_relations())
 	{
 		/* Cannot wipe out any ENR relations if any */
 		;

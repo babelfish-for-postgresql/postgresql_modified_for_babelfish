@@ -348,6 +348,17 @@ do_like_escape(text *pat, text *esc)
 	result = (text *) palloc(plen * 2 + VARHDRSZ);
 	r = VARDATA(result);
 
+	if (elen==0 && sql_dialect == SQL_DIALECT_TSQL)
+	{
+		/*
+		 * Escape string is empty, just throw the error.
+		 */
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_ESCAPE_SEQUENCE),
+				errmsg("The invalid escape character \"\" was specified in a LIKE predicate."),
+				errhint("Escape string must be null or one character.")));
+	}
+
 	if (elen == 0)
 	{
 		/*
