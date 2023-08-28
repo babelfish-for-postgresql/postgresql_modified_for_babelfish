@@ -904,7 +904,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 
 /*
  * addFromClauseForLogicalDatabaseDump:
- * Helper function for fixCursorForBbfCatalogTableData anf fixCopyCommand functions.
+ * Helper function for fixCursorForBbfCatalogTableData and fixCopyCommand functions.
  * Responsible for adding a FROM clause to the buffer so as to dump catalog data
  * corresponding to specified logical database.
  */
@@ -943,15 +943,14 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 	{
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
-						  "WHERE a.rolname IN ('dbo', 'db_owner', '%s_dbo', '%s_db_owner', '%s_guest') ",
-						  fmtQualifiedDumpable(tbinfo), escaped_bbf_db_name, escaped_bbf_db_name,
-						  escaped_bbf_db_name);
-		/*
-		 * Builtin db users will already be present in the target
-		 * server so no need to dump their catalog data.
-		 */
-		if (is_builtin_db)
-			appendPQExpBufferStr(buf, "LIMIT 0 ");
+						  "INNER JOIN sys.babelfish_sysdatabases b "
+						  "ON a.database_name = b.name COLLATE \"C\" "
+						  "WHERE b.dbid = %d "
+						  "AND a.rolname NOT IN ('dbo', 'db_owner', "
+						  "'master_dbo', 'master_db_owner', 'master_guest', "
+						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
+						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') ",
+						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	}
 	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
@@ -1024,6 +1023,7 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 {
 	int 	i;
 	bool	is_builtin_db = false;
+	bool	is_bbf_usr_ext_tab = false;
 
 	/*
 	 * Return if not a Babelfish database, or if the table is not a Babelfish
@@ -1038,6 +1038,10 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 				pg_strcasecmp(bbf_db_name, "tempdb") == 0 ||
 				pg_strcasecmp(bbf_db_name, "msdb") == 0)
 				? true : false;
+
+	/* Remember if it is babelfish_authid_user_ext catalog table. */
+	if (strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
+		is_bbf_usr_ext_tab = true;
 
 	resetPQExpBuffer(buf);
 	appendPQExpBufferStr(buf, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
@@ -1058,7 +1062,16 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 			continue;
 		if (*nfields > 0)
 			appendPQExpBufferStr(buf, ", ");
-		if (tbinfo->attgenerated[i])
+		/*
+		 * Since we don't dump logins while dumping a logical database, we also need to
+		 * make sure that we do not dump any login names mapped to the users in
+		 * babelfish_authid_user_ext table. For that reason, we just dump an empty string ('')
+		 * for login_name column in babelfish_authid_user_ext table, which is what have been
+		 * used as a default value for this column historically.
+		 */
+		if (bbf_db_name != NULL && is_bbf_usr_ext_tab && strcmp(tbinfo->attnames[i], "login_name") == 0)
+			appendPQExpBufferStr(buf, "'' AS login_name");
+		else if (tbinfo->attgenerated[i])
 			appendPQExpBufferStr(buf, "NULL");
 		else
 		{
@@ -1089,6 +1102,7 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 	int			i;
 	bool		is_builtin_db = false;
 	bool		needComma = false;
+	bool		is_bbf_usr_ext_tab = false;
 
 	/*
 	 * Return if not a Babelfish database, or if the table is not a Babelfish
@@ -1102,6 +1116,10 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 				pg_strcasecmp(bbf_db_name, "tempdb") == 0 ||
 				pg_strcasecmp(bbf_db_name, "msdb") == 0)
 				? true : false;
+
+	/* Remember if it is babelfish_authid_user_ext catalog table. */
+	if (strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
+		is_bbf_usr_ext_tab = true;
 
 	q = createPQExpBuffer();
 	for (i = 0; i < tbinfo->numatts; i++)
@@ -1119,13 +1137,27 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 			continue;
 		if (needComma)
 			appendPQExpBufferStr(q, ", ");
-		/*
-		 * In case of COPY TO, we are going to form SELECT statement
-		 * which needs table reference in column names.
-		 */
-		if (!isFrom)
-			appendPQExpBufferStr(q, "a.");
-		appendPQExpBufferStr(q, fmtId(tbinfo->attnames[i]));
+
+		if (isFrom)
+			appendPQExpBufferStr(q, fmtId(tbinfo->attnames[i]));
+		else
+		{
+			/*
+			 * Since we don't dump logins while dumping a logical database, we also need to
+			 * make sure that we do not dump any login names mapped to the users in
+			 * babelfish_authid_user_ext table. For that reason, we just dump an empty string ('')
+			 * for login_name column in babelfish_authid_user_ext table, which is what have been
+			 * used as a default value for this column historically.
+			 */
+			if (bbf_db_name != NULL && is_bbf_usr_ext_tab && strcmp(tbinfo->attnames[i], "login_name") == 0)
+				appendPQExpBufferStr(q, "''");
+			/*
+			 * In case of COPY TO, we are going to form SELECT statement
+			 * which needs table reference in column names.
+			 */
+			else
+				appendPQExpBuffer(q, "a.%s", fmtId(tbinfo->attnames[i]));
+		}
 		needComma = true;
 	}
 
