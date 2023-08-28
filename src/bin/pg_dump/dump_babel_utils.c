@@ -287,11 +287,11 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 						{
 							/*
 							 * Mark Babelfish catalog table data to be dumped if not in
-							 * binary-upgrade mode. It is only done for Babelfish logical
-							 * database dump as none of the extensions are marked to be dumped
-							 * so catalog table data explicitly need to be marked as dumpable.
+							 * binary-upgrade mode. This is needed since babelfish extensions
+							 * are not marked to be dumped so catalog table data explicitly
+							 * need to be marked as dumpable.
 							 */
-							if (bbf_db_name != NULL && isBabelfishConfigTable(tbinfo))
+							if (isBabelfishConfigTable(tbinfo))
 								tbinfo->dobj.dump |= DUMP_COMPONENT_DATA;
 						}
 				}
