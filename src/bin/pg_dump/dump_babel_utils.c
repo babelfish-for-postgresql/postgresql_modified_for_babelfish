@@ -283,6 +283,13 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 							tbinfo->dobj.dump = DUMP_COMPONENT_NONE;
 					}
 					break;
+					case RELKIND_SEQUENCE:
+					{
+						if (strcmp(dobj->namespace->dobj.name, "sys") == 0 &&
+							strcmp(dobj->name, "babelfish_db_seq") == 0)
+							dobj->dump &= ~DUMP_COMPONENT_ACL;
+					}
+					break;
 					default:
 						{
 							/*
