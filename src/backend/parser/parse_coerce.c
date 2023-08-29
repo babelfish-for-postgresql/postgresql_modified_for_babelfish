@@ -1385,7 +1385,7 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 	ListCell   *lc;
 	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
-	if (sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook)
+	if (select_common_type_hook)
 	{
 		Oid result = (*select_common_type_hook)(pstate, exprs, context, which_expr);
 		if (result != InvalidOid)
