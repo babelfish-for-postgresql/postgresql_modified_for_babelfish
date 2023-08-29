@@ -186,6 +186,85 @@ dumpBabelGUCs(Archive *fout)
 }
 
 /*
+ * dumpBabelRestoreChecks:
+ * Dumps Babelfish specific pre-checks which get executed at the
+ * beginning of restore to validate if restore can be performed
+ * or not.
+ */
+void
+dumpBabelRestoreChecks(Archive *fout)
+{
+	PGresult	*res;
+	char		*source_server_version;
+	char		*source_migration_mode;
+	PQExpBuffer	qry;
+
+	/* Skip if not Babelfish database or binary upgrade */
+	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade)
+		return;
+
+	/*
+	 * Cross version Babelfish dump/restore is not yet supported so
+	 * store the current server's version in the below procedure and
+	 * add logic to fail the restore if the target server version
+	 * differs from source server version.
+	 */
+	qry = createPQExpBuffer();
+	res = ExecuteSqlQueryForSingleRow(fout, "SHOW server_version");
+	source_server_version = pstrdup(PQgetvalue(res, 0, 0));
+
+	/*
+	 * Temporarily enable ON_ERROR_STOP so that whole restore script
+	 * execution fails if the following do block raises an error.
+	 */
+	appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP on\n\n");
+	appendPQExpBuffer(qry,
+					  "DO $$"
+					  "\nDECLARE"
+					  "\n    target_server_version VARCHAR;"
+					  "\nBEGIN"
+					  "\n    SELECT INTO target_server_version setting from pg_settings"
+					  "\n        WHERE name = 'server_version';"
+					  "\n    IF target_server_version::VARCHAR != '%s' THEN"
+					  "\n        RAISE 'Backup and restore across different Postgres versions is not yet supported.';" 
+					  "\n    END IF;"
+					  "\nEND$$;\n\n"
+					  , source_server_version);
+	PQclear(res);
+
+	/*
+	 * Similar to the above, cross migration mode Babelfish dump/restore
+	 * is also not yet supported so store the current server's migration mode
+	 * in the below procedure and add logic to fail the restore if the target
+	 * server's migration mode differs from source server migration mode.
+	 */
+	res =  ExecuteSqlQueryForSingleRow(fout, "SHOW babelfishpg_tsql.migration_mode");
+	source_migration_mode = pstrdup(PQgetvalue(res, 0, 0));
+	appendPQExpBuffer(qry, "DO $$"
+					  "\nDECLARE"
+					  "\n    target_migration_mode VARCHAR;"
+					  "\nBEGIN"
+					  "\n    SELECT INTO target_migration_mode setting from pg_settings"
+					  "\n        WHERE name = 'babelfishpg_tsql.migration_mode';"
+					  "\n    IF target_migration_mode::VARCHAR != '%s' THEN"
+					  "\n        RAISE 'Backup and restore across different migration modes is not yet supported.';" 
+					  "\n    END IF;"
+					  "\nEND$$;\n\n"
+					  , source_migration_mode);
+	appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP off\n");
+	PQclear(res);
+
+	ArchiveEntry(fout, nilCatalogId, createDumpId(),
+				 ARCHIVE_OPTS(.tag = "BABELFISHCHECKS",
+							  .description = "BABELFISHCHECKS",
+							  .section = SECTION_PRE_DATA,
+							  .createStmt = qry->data));
+	destroyPQExpBuffer(qry);
+	pfree(source_server_version);
+	pfree(source_migration_mode);
+}
+
+/*
  * bbf_selectDumpableCast: Mark a cast as to be dumped or not
  */
 void
