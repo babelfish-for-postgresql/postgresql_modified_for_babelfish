@@ -86,7 +86,7 @@ set_target_table_alternative_hook_type set_target_table_alternative_hook = NULL;
 pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook = NULL;
 
 /* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
-pre_transform_sort_clause_hook_type pre_transform_sort_clause_hook = NULL;
+pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook = NULL;
 
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
@@ -1935,8 +1935,8 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	 */
 	tllen = list_length(qry->targetList);
 
-	if (pre_transform_sort_clause_hook)
-		pre_transform_sort_clause_hook(pstate, qry, &sortClause, leftmostQuery);
+	if (pre_transform_setop_sort_clause_hook)
+		pre_transform_setop_sort_clause_hook(pstate, qry, sortClause, leftmostQuery);
 
 	qry->sortClause = transformSortClause(pstate,
 										  sortClause,
