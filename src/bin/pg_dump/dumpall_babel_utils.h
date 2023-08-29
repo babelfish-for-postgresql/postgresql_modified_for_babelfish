@@ -22,5 +22,6 @@ extern void getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf,
 extern void getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
         char *role_catalog, int binary_upgrade);
 extern bool isBabelfishDatabase(PGconn *conn);
+extern void dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade);
 
 #endif
