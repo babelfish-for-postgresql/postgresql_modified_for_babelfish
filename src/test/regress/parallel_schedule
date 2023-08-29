@@ -135,3 +135,5 @@ test: event_trigger oidjoins
 
 # this test also uses event triggers, so likewise run it by itself
 test: fast_default
+
+test: serializable
