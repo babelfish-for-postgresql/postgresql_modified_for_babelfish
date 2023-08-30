@@ -218,7 +218,7 @@ pg_stat_get_backend_idset(PG_FUNCTION_ARGS)
 	if (fctx[0] <= pgstat_fetch_stat_numbackends())
 	{
 		/* do when there is more left to send */
-		LocalPgBackendStatus *local_beentry = pgstat_fetch_stat_local_beentry(fctx[0]);
+		LocalPgBackendStatus *local_beentry = pgstat_get_local_beentry_by_index(fctx[0]);
 
 		SRF_RETURN_NEXT(funcctx, Int32GetDatum(local_beentry->backend_id));
 	}
@@ -271,7 +271,7 @@ pg_stat_get_progress_info(PG_FUNCTION_ARGS)
 		bool		nulls[PG_STAT_GET_PROGRESS_COLS] = {0};
 		int			i;
 
-		local_beentry = pgstat_fetch_stat_local_beentry(curr_backend);
+		local_beentry = pgstat_get_local_beentry_by_index(curr_backend);
 		beentry = &local_beentry->backendStatus;
 
 		/*
@@ -332,7 +332,7 @@ pg_stat_get_activity(PG_FUNCTION_ARGS)
 		const char *wait_event = NULL;
 
 		/* Get the next one in the list */
-		local_beentry = pgstat_fetch_stat_local_beentry(curr_backend);
+		local_beentry = pgstat_get_local_beentry_by_index(curr_backend);
 		beentry = &local_beentry->backendStatus;
 
 		/* If looking for specific PID, ignore all the others */
@@ -679,7 +679,7 @@ pg_stat_get_backend_pid(PG_FUNCTION_ARGS)
 	int32		beid = PG_GETARG_INT32(0);
 	PgBackendStatus *beentry;
 
-	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
+	if ((beentry = pgstat_get_beentry_by_backend_id(beid)) == NULL)
 		PG_RETURN_NULL();
 
 	PG_RETURN_INT32(beentry->st_procpid);
@@ -692,7 +692,7 @@ pg_stat_get_backend_dbid(PG_FUNCTION_ARGS)
 	int32		beid = PG_GETARG_INT32(0);
 	PgBackendStatus *beentry;
 
-	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
+	if ((beentry = pgstat_get_beentry_by_backend_id(beid)) == NULL)
 		PG_RETURN_NULL();
 
 	PG_RETURN_OID(beentry->st_databaseid);
@@ -705,7 +705,7 @@ pg_stat_get_backend_userid(PG_FUNCTION_ARGS)
 	int32		beid = PG_GETARG_INT32(0);
 	PgBackendStatus *beentry;
 
-	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
+	if ((beentry = pgstat_get_beentry_by_backend_id(beid)) == NULL)
 		PG_RETURN_NULL();
 
 	PG_RETURN_OID(beentry->st_userid);
@@ -734,7 +734,7 @@ pg_stat_get_backend_subxact(PG_FUNCTION_ARGS)
 
 	BlessTupleDesc(tupdesc);
 
-	if ((local_beentry = pgstat_fetch_stat_local_beentry(beid)) != NULL)
+	if ((local_beentry = pgstat_get_local_beentry_by_index(beid)) != NULL)
 	{
 		/* Fill values and NULLs */
 		values[0] = Int32GetDatum(local_beentry->backend_subxact_count);
@@ -759,7 +759,7 @@ pg_stat_get_backend_activity(PG_FUNCTION_ARGS)
 	char	   *clipped_activity;
 	text	   *ret;
 
-	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
+	if ((beentry = pgstat_get_beentry_by_backend_id(beid)) == NULL)
 		activity = "<backend information not available>";
 	else if (!HAS_PGSTAT_PERMISSIONS(beentry->st_userid))
 		activity = "<insufficient privilege>";
@@ -783,7 +783,7 @@ pg_stat_get_backend_wait_event_type(PG_FUNCTION_ARGS)
 	PGPROC	   *proc;
 	const char *wait_event_type = NULL;
 
-	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
+	if ((beentry = pgstat_get_beentry_by_backend_id(beid)) == NULL)
 		wait_event_type = "<backend information not available>";
 	else if (!HAS_PGSTAT_PERMISSIONS(beentry->st_userid))
 		wait_event_type = "<insufficient privilege>";
@@ -804,7 +804,7 @@ pg_stat_get_backend_wait_event(PG_FUNCTION_ARGS)
 	PGPROC	   *proc;
 	const char *wait_event = NULL;
 
-	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
+	if ((beentry = pgstat_get_beentry_by_backend_id(beid)) == NULL)
 		wait_event = "<backend information not available>";
 	else if (!HAS_PGSTAT_PERMISSIONS(beentry->st_userid))
 		wait_event = "<insufficient privilege>";
@@ -825,7 +825,7 @@ pg_stat_get_backend_activity_start(PG_FUNCTION_ARGS)
 	TimestampTz result;
 	PgBackendStatus *beentry;
 
-	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
+	if ((beentry = pgstat_get_beentry_by_backend_id(beid)) == NULL)
 		PG_RETURN_NULL();
 
 	else if (!HAS_PGSTAT_PERMISSIONS(beentry->st_userid))
@@ -851,7 +851,7 @@ pg_stat_get_backend_xact_start(PG_FUNCTION_ARGS)
 	TimestampTz result;
 	PgBackendStatus *beentry;
 
-	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
+	if ((beentry = pgstat_get_beentry_by_backend_id(beid)) == NULL)
 		PG_RETURN_NULL();
 
 	else if (!HAS_PGSTAT_PERMISSIONS(beentry->st_userid))
@@ -873,7 +873,7 @@ pg_stat_get_backend_start(PG_FUNCTION_ARGS)
 	TimestampTz result;
 	PgBackendStatus *beentry;
 
-	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
+	if ((beentry = pgstat_get_beentry_by_backend_id(beid)) == NULL)
 		PG_RETURN_NULL();
 
 	else if (!HAS_PGSTAT_PERMISSIONS(beentry->st_userid))
@@ -897,7 +897,7 @@ pg_stat_get_backend_client_addr(PG_FUNCTION_ARGS)
 	char		remote_host[NI_MAXHOST];
 	int			ret;
 
-	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
+	if ((beentry = pgstat_get_beentry_by_backend_id(beid)) == NULL)
 		PG_RETURN_NULL();
 
 	else if (!HAS_PGSTAT_PERMISSIONS(beentry->st_userid))
@@ -942,7 +942,7 @@ pg_stat_get_backend_client_port(PG_FUNCTION_ARGS)
 	char		remote_port[NI_MAXSERV];
 	int			ret;
 
-	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
+	if ((beentry = pgstat_get_beentry_by_backend_id(beid)) == NULL)
 		PG_RETURN_NULL();
 
 	else if (!HAS_PGSTAT_PERMISSIONS(beentry->st_userid))
@@ -985,12 +985,12 @@ pg_stat_get_db_numbackends(PG_FUNCTION_ARGS)
 	Oid			dbid = PG_GETARG_OID(0);
 	int32		result;
 	int			tot_backends = pgstat_fetch_stat_numbackends();
-	int			beid;
+	int			idx;
 
 	result = 0;
-	for (beid = 1; beid <= tot_backends; beid++)
+	for (idx = 1; idx <= tot_backends; idx++)
 	{
-		LocalPgBackendStatus *local_beentry = pgstat_fetch_stat_local_beentry(beid);
+		LocalPgBackendStatus *local_beentry = pgstat_get_local_beentry_by_index(idx);
 
 		if (local_beentry->backendStatus.st_databaseid == dbid)
 			result++;
