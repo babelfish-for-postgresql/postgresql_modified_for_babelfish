@@ -16,7 +16,7 @@
  */
 
 #include "postgres.h"
-
+#include "pgstat.h"
 #include "access/htup_details.h"
 #include "catalog/pg_proc.h"
 #include "fmgr.h"
@@ -39,8 +39,6 @@ int			pgstat_track_functions = TRACK_FUNC_OFF;
  * (We assume this initializes to zero.)
  */
 static instr_time total_func_time;
-
-pre_function_call_hook_type pre_function_call_hook = NULL;
 
 /*
  * Ensure that stats are dropped if transaction aborts.
@@ -69,47 +67,9 @@ pgstat_drop_function(Oid proid)
 }
 
 /*
- * Wrapper function that calls the initilization function.
- * Calls the pre function call hook on the procname 
- * before invoking the initilization function. Performing a 
- * system cache search in case fcinfo isnull for getting the procname
- */
-
-void
-pgstat_init_function_usage_wrapper(FunctionCallInfo fcinfo,
-						   PgStat_FunctionCallUsage *fcusageptr, char *procname)
-{
-	
-	if (pre_function_call_hook && IsTransactionState())
-	{
-		if(!(fcinfo->isnull))
-		{
-			(*pre_function_call_hook)((procname));
-		}
-		else
-		{
-			HeapTuple proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
-			if (HeapTupleIsValid(proctup))
-			{
-				Form_pg_proc proc = (Form_pg_proc) GETSTRUCT(proctup);
-				(*pre_function_call_hook)(NameStr(proc->proname));
-			}
-
-			ReleaseSysCache(proctup);
-		}
-	}
-
-	pgstat_init_function_usage(fcinfo, fcusageptr);
-
-}
-
-
-/*
  * Initialize function call usage data.
  * Called by the executor before invoking a function.
  */
-
-
 void
 pgstat_init_function_usage(FunctionCallInfo fcinfo,
 						   PgStat_FunctionCallUsage *fcu)

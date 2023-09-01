@@ -44,6 +44,7 @@ PGDLLIMPORT needs_fmgr_hook_type needs_fmgr_hook = NULL;
 PGDLLIMPORT fmgr_hook_type fmgr_hook = NULL;
 PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook = NULL;
 PGDLLIMPORT get_func_language_oids_hook_type get_func_language_oids_hook = NULL;
+PGDLLIMPORT pgstat_function_wrapper_hook_type pgstat_function_wrapper_hook = NULL;
 
 /*
  * Hashtable for fast lookup of external C functions
@@ -59,7 +60,6 @@ typedef struct
 } CFuncHashTabEntry;
 
 static HTAB *CFuncHash = NULL;
-
 
 static void fmgr_info_cxt_security(Oid functionId, FmgrInfo *finfo, MemoryContext mcxt,
 								   bool ignore_security);
@@ -836,9 +836,18 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 
 		/* See notes in fmgr_info_cxt_security */
 
-		pgstat_init_function_usage_wrapper(fcinfo, &fcusage, cacheTupleProcname);
+		/* 
+		 * The wrapper function hook is called if hook is not null 
+		 * and the dialect is TSQL then we call this func using hook 
+		 * otherwise we will fall back to pgstat_init_function_usage
+		*/
 
-		// pgstat_init_function_usage(fcinfo, &fcusage);
+		if(pgstat_function_wrapper_hook && sql_dialect == SQL_DIALECT_TSQL)
+		{
+			(*pgstat_function_wrapper_hook)(fcinfo, &fcusage, cacheTupleProcname);
+		}
+		
+		pgstat_init_function_usage(fcinfo, &fcusage);
 
 		if(cacheTupleProcname)
 		{
