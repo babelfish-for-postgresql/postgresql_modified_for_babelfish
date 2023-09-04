@@ -922,29 +922,27 @@ static void
 bbf_rewrite_function_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 {
 	Var       *col_expr;
-	FuncExpr  *func_expr;
 	FuncCall  *new_call;
-	char      *func_name;
+	FuncExpr  *func_expr = (FuncExpr *) (*rexpr);
+	char      *func_name = get_func_name(func_expr->funcid);
 
 	if (sql_dialect != SQL_DIALECT_TSQL)
 		return;
 	if (!(*lexpr) || !(*rexpr))
 		return;
 
-	func_expr = (FuncExpr *) (*rexpr);
-	if (IsA(*rexpr, FuncExpr) &&
-		strstr(get_func_name(func_expr->funcid), "like_escape") != NULL)
+	if (IsA(*rexpr, FuncExpr) && strcmp(func_name, "like_escape") == 0)
 	{
-		if((func_expr->args)->length==2)
+		if(list_length(func_expr->args) == 2)
 		{
 			Node *node = lsecond(func_expr->args);
-			if (IsA(node,Const) && ((Const *)(node))->constisnull)
+			if (IsA(node, Const) && ((Const *)(node))->constisnull)
 			{
 				/*
 				 * This condition handles like escape null query,
 				 * only when using TSQL.
 				 */
-				*rexpr = (Node *)((func_expr)->args->elements[0]).ptr_value;
+				*rexpr = (Node *) (lfirst(list_head(func_expr->args)));
 				return;
 			}
 		}
