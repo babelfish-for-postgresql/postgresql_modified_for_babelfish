@@ -226,7 +226,7 @@ dumpBabelRestoreChecks(Archive *fout)
 					  "\n    SELECT INTO target_server_version setting from pg_settings"
 					  "\n        WHERE name = 'server_version';"
 					  "\n    IF target_server_version::VARCHAR != '%s' THEN"
-					  "\n        RAISE 'Backup and restore across different Postgres versions is not yet supported.';" 
+					  "\n        RAISE 'Dump and restore across different Postgres versions is not yet supported.';"
 					  "\n    END IF;"
 					  "\nEND$$;\n\n"
 					  , source_server_version);
@@ -247,7 +247,7 @@ dumpBabelRestoreChecks(Archive *fout)
 					  "\n    SELECT INTO target_migration_mode setting from pg_settings"
 					  "\n        WHERE name = 'babelfishpg_tsql.migration_mode';"
 					  "\n    IF target_migration_mode::VARCHAR != '%s' THEN"
-					  "\n        RAISE 'Backup and restore across different migration modes is not yet supported.';" 
+					  "\n        RAISE 'Dump and restore across different migration modes is not yet supported.';"
 					  "\n    END IF;"
 					  "\nEND$$;\n\n"
 					  , source_migration_mode);
