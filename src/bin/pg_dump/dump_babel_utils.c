@@ -1026,8 +1026,8 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_
 						  "INNER JOIN sys.babelfish_sysdatabases b "
 						  "ON a.database_name = b.name COLLATE \"C\" "
 						  "WHERE b.dbid = %d "
-						  "AND a.rolname NOT IN ('dbo', 'db_owner', "
-						  "'master_dbo', 'master_db_owner', 'master_guest', "
+						  "AND a.rolname NOT IN "
+						  "('master_dbo', 'master_db_owner', 'master_guest', "
 						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
 						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') ",
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
@@ -1072,8 +1072,8 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 	{
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
-						  "WHERE a.rolname NOT IN ('dbo', 'db_owner', "
-						  "'master_dbo', 'master_db_owner', 'master_guest', "
+						  "WHERE a.rolname NOT IN "
+						  "('master_dbo', 'master_db_owner', 'master_guest', "
 						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', "
 						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest')",
 						  fmtQualifiedDumpable(tbinfo));
