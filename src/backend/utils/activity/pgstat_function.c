@@ -40,6 +40,8 @@ int			pgstat_track_functions = TRACK_FUNC_OFF;
  */
 static instr_time total_func_time;
 
+pre_function_call_hook_type pre_function_call_hook = NULL;
+
 /*
  * Ensure that stats are dropped if transaction aborts.
  */

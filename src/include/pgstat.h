@@ -708,6 +708,9 @@ extern PGDLLIMPORT PgStat_WalStats PendingWalStats;
 extern void pg_stat_write_backend_details_NoAlloc(int outfile, PgBackendStatus *);
 extern void write_structdef_file(void);
 
+typedef void (*pre_function_call_hook_type) (const char *funcName);
+extern PGDLLIMPORT pre_function_call_hook_type pre_function_call_hook;
+
 typedef void (*invalidate_stat_table_hook_type) (void);
 extern PGDLLIMPORT invalidate_stat_table_hook_type invalidate_stat_table_hook;
 
