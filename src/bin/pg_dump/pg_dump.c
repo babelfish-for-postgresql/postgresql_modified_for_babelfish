@@ -919,7 +919,7 @@ main(int argc, char **argv)
 		dumpDatabase(fout);
 
 	dumpBabelGUCs(fout);
-
+	dumpBabelRestoreChecks(fout);
 	/* Now the rearrangeable objects. */
 	for (i = 0; i < numObjs; i++)
 		dumpDumpableObject(fout, dobjs[i]);
