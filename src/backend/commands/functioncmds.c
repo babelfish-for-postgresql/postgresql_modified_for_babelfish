@@ -409,15 +409,56 @@ interpret_function_parameter_list(ParseState *pstate,
 
 		if (fp->defexpr)
 		{
-			Node	   *def;
+			Node *def;
+			Node *paramDft;
 
 			if (!isinput)
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
 						 errmsg("only input parameters can have default values")));
 
-			def = transformExpr(pstate, fp->defexpr,
+			/*
+			 * Intercept unquoted string defaults in parameter default declarations in 
+			 * T-SQL CREATE PROCEDURE/CREATE FUNCTION.
+			 * These arrive here as nodetype=T_ColumnRef. Temporarily change
+			 * the node type to T_TSQL_UnquotedString, which is picked up and 
+			 * handled in transformExprRecurse().
+			 */
+			paramDft = fp->defexpr;
+			if (sql_dialect == SQL_DIALECT_TSQL && 
+			   (objtype == OBJECT_PROCEDURE || objtype == OBJECT_FUNCTION) && 
+			   nodeTag(paramDft) == T_ColumnRef)
+			{
+				/* 
+				 * Could be a variable, which should not be treated as a 
+				 * an unquoted string, so verify it does not start with '@'.
+				 * This will cause parameter defaults with local variables to 
+				 * fail rather than to return the local variable name as a string,
+				 * which is identical to Babelfish behaviour before the fix
+				 * for unquoted string parameter.
+				 */
+				ColumnRef *colref = (ColumnRef *) paramDft;
+				Node *colnameField = (Node *) linitial(colref->fields);			
+				char *colname = strVal(colnameField);
+				if (colname[0] != '@') 
+				{
+					paramDft->type = T_TSQL_UnquotedString;
+				}		
+			}
+			
+			def = transformExpr(pstate, 
+								paramDft,
 								EXPR_KIND_FUNCTION_DEFAULT);
+								
+			/*
+			 * Restore original node type, or we run into an unknown
+			 * node type downstream. 
+			 */
+			if (paramDft->type == T_TSQL_UnquotedString) 
+			{	
+				paramDft->type = T_ColumnRef;
+			}								
+								
 			def = coerce_to_specific_type(pstate, def, toid, "DEFAULT");
 			assign_expr_collations(pstate, def);
 
