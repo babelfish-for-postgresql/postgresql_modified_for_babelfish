@@ -269,7 +269,8 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 						 * databases (master/msdb/tempdb), otherwise we
 						 * will always dump it.
 						 */
-						if ((strcmp(tbinfo->dobj.namespace->dobj.name, "master_dbo") == 0 ||
+						if (tbinfo->dobj.namespace &&
+							(strcmp(tbinfo->dobj.namespace->dobj.name, "master_dbo") == 0 ||
 							strcmp(tbinfo->dobj.namespace->dobj.name, "msdb_dbo") == 0 ||
 							strcmp(tbinfo->dobj.namespace->dobj.name, "tempdb_dbo") == 0) &&
 							strcmp(tbinfo->dobj.name, "sysdatabases") == 0)
@@ -285,7 +286,8 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 					break;
 					case RELKIND_SEQUENCE:
 					{
-						if (strcmp(dobj->namespace->dobj.name, "sys") == 0 &&
+						if (dobj->namespace &&
+							strcmp(dobj->namespace->dobj.name, "sys") == 0 &&
 							strcmp(dobj->name, "babelfish_db_seq") == 0)
 							dobj->dump &= ~DUMP_COMPONENT_ACL;
 					}
@@ -312,11 +314,10 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 					return;
 
 				/* Do not dump the definition of default babelfish schemas */
-				if (strncmp(nsinfo->dobj.name, "babelfishpg", 11) == 0 ||
-					strcmp(nsinfo->dobj.name, "master_dbo") == 0 ||
+				if (strcmp(nsinfo->dobj.name, "master_dbo") == 0 ||
 					strcmp(nsinfo->dobj.name, "master_guest") == 0 ||
 					strcmp(nsinfo->dobj.name, "msdb_dbo") == 0 ||
-					strcmp(nsinfo->dobj.name, "master_guest") == 0 ||
+					strcmp(nsinfo->dobj.name, "msdb_guest") == 0 ||
 					strcmp(nsinfo->dobj.name, "tempdb_dbo") == 0 ||
 					strcmp(nsinfo->dobj.name, "tempdb_guest") == 0)
 					nsinfo->dobj.dump &= ~DUMP_COMPONENT_DEFINITION;
