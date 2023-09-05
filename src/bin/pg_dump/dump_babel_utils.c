@@ -851,7 +851,7 @@ updateExtConfigArray(Archive *fout, char ***extconfigarray, int nconfigitems)
  * prepareForBabelfishDatabaseDump:
  * Populates catalog_table_include_oids list with the OIDs of Babelfish Catalog
  * Configuration tables to selectively dump their data. Additionally, in case of
- * logical database dump, if database exitst, we will add all the physical
+ * logical database dump, if database exits, we will add all the physical
  * schemas corresponding to that database into schema_include_patterns so that
  * we dump only those physical schemas and all their contained objects.
  */
@@ -873,11 +873,18 @@ prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_
 	}
 
 	query = createPQExpBuffer();
-	/* Get oids of all the Babelfish catalog configuration tables */
+	/*
+	 * Get oids of all the Babelfish catalog configuration tables.
+	 * See comments for updateExtConfigArray above for more details
+	 * about why we are excluding/including certain tables in the query
+	 * below.
+	 */
 	appendPQExpBufferStr(query,
-						 "SELECT unnest(extconfig)::oid "
-						 "FROM pg_catalog.pg_extension "
-						 "WHERE extname = 'babelfishpg_tsql';");
+						 "WITH tableoids AS ("
+						 "SELECT unnest(extconfig)::oid AS id "
+						 "FROM pg_catalog.pg_extension WHERE extname = 'babelfishpg_tsql') "
+						 "SELECT id FROM tableoids WHERE id != 'sys.babelfish_configurations'::regclass " /* Exclude babelfish_configurations table */
+						 "UNION SELECT 'sys.babelfish_authid_user_ext'::regclass AS id "); /* Include babelfish_authid_user_ext table */
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 	ntups = PQntuples(res);
 	for (i = 0; i < ntups; i++)
@@ -1036,7 +1043,10 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
 						  fmtQualifiedDumpable(tbinfo));
 	else
+	{
 		pg_log_error("Unrecognized Babelfish catalog table %s.", fmtQualifiedDumpable(tbinfo));
+		exit_nicely(1);
+	}
 }
 
 /*
@@ -1090,7 +1100,10 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
 						  fmtQualifiedDumpable(tbinfo));
 	else
+	{
 		pg_log_error("Unrecognized Babelfish catalog table %s.", fmtQualifiedDumpable(tbinfo));
+		exit_nicely(1);
+	}
 }
 
 /*
