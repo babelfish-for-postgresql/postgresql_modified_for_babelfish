@@ -435,6 +435,7 @@ main(int argc, char **argv)
 		{"table-and-children", required_argument, NULL, 12},
 		{"exclude-table-and-children", required_argument, NULL, 13},
 		{"exclude-table-data-and-children", required_argument, NULL, 14},
+		{"sync-method", required_argument, NULL, 15},
 		{"bbf-database-name", required_argument, NULL, 30},
 
 		{NULL, 0, NULL, 0}
@@ -662,6 +663,11 @@ main(int argc, char **argv)
 										  optarg);
 				break;
 
+			case 15:
+				if (!parse_sync_method(optarg, &sync_method))
+					exit_nicely(1);
+				break;
+			
 			case 30:			/* Babelfish logical database name */
 				bbf_db_name = pg_strdup(optarg);
 				dopt.include_everything = false;
@@ -1085,6 +1091,7 @@ help(const char *progname)
 			 "                               compress as specified\n"));
 	printf(_("  --lock-wait-timeout=TIMEOUT  fail after waiting TIMEOUT for a table lock\n"));
 	printf(_("  --no-sync                    do not wait for changes to be written safely to disk\n"));
+	printf(_("  --sync-method=METHOD         set method for syncing files to disk\n"));
 	printf(_("  -?, --help                   show this help, then exit\n"));
 
 	printf(_("\nOptions controlling the output content:\n"));
