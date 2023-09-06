@@ -158,145 +158,118 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 }
 
 /*
- * Returns query to fetch default Babelfish users of specified physical/logical
- * database. For a database, default roles will be: DB_dbo, DB_db_owner,
- * DB_guest drop_query decides whether the query is to DROP the roles.
+ * Returns query to fetch Babelfish users of specified physical/logical
+ * database.
+ * Note: We will dump only database users (not logins) in case of Babelfish
+ * logical database dump.
  */
 void
 getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog, 
 						bool drop_query, int binary_upgrade)
 {
-	char	*escaped_bbf_db_name;
-	bool	is_builtin_db = false;
-
 	if(!isBabelfishDatabase(conn) || binary_upgrade)
 		return;
 
-	if (!bbf_db_name)
-	{
-		/* Modify role query for physical database dump. */
-		resetPQExpBuffer(buf);
-		printfPQExpBuffer(buf,
-					"SELECT oid, rolname, rolsuper, rolinherit, "
-					"rolcreaterole, rolcreatedb, "
-					"rolcanlogin, rolconnlimit, rolpassword, "
-					"rolvaliduntil, rolreplication, rolbypassrls, "
-					"pg_catalog.shobj_description(oid, '%s') as rolcomment, "
-					"rolname = current_user AS is_current_user "
-					"FROM %s "
-					"WHERE rolname !~ '^pg_' "
-					"AND rolname NOT IN ('sysadmin', "
-					"'master_db_owner', 'master_dbo', 'master_guest', "
-					"'msdb_db_owner', 'msdb_dbo', 'msdb_guest',"
-					"'tempdb_db_owner', 'tempdb_dbo', 'tempdb_guest') "
-					"ORDER BY 2", role_catalog, role_catalog);
-		return;
-	}
-
-	/* Modify role query for logical database dump. */
-	is_builtin_db = (pg_strcasecmp(bbf_db_name, "master") == 0 ||
-			pg_strcasecmp(bbf_db_name, "tempdb") == 0 ||
-			pg_strcasecmp(bbf_db_name, "msdb") == 0)
-			? true : false;
-	/*
-	 * Get escaped bbf_db_name to handle special characters in it.
-	 * 2*strlen+1 bytes are required for PQescapeString according to the documentation.
-	 */
-	escaped_bbf_db_name = pg_malloc(2 * strlen(bbf_db_name) + 1);
-	PQescapeString(escaped_bbf_db_name, bbf_db_name, strlen(bbf_db_name));
-
 	resetPQExpBuffer(buf);
+	appendPQExpBufferStr(buf, "WITH bbf_catalog AS (");
+	/* Include logins only in case of Babelfish physical database dump. */
+	if (!bbf_db_name)
+		appendPQExpBufferStr(buf,
+							 "SELECT rolname FROM sys.babelfish_authid_login_ext UNION ");
+	appendPQExpBufferStr(buf,
+						 "SELECT rolname FROM sys.babelfish_authid_user_ext ");
+	/* Only dump users of the specific logical database we are currently dumping. */
+	if (bbf_db_name != NULL)
+	{
+		/*
+		 * Get escaped bbf_db_name to handle special characters in it.
+		 * 2*strlen+1 bytes are required for PQescapeString according to the documentation.
+		 */
+		char *escaped_bbf_db_name = pg_malloc(2 * strlen(bbf_db_name) + 1);
+
+		PQescapeString(escaped_bbf_db_name, bbf_db_name, strlen(bbf_db_name));
+		appendPQExpBuffer(buf, "WHERE database_name = '%s' ", escaped_bbf_db_name);
+		pfree(escaped_bbf_db_name);
+	}
+	appendPQExpBuffer(buf, "), "
+					  "bbf_roles AS (SELECT rc.* FROM %s rc INNER JOIN bbf_catalog bcat "
+					  "ON rc.rolname = bcat.rolname) ", role_catalog);
+
 	if (drop_query)
 	{
-		printfPQExpBuffer(buf,
-						  "SELECT rolname "
-						  "FROM %s "
-						  "WHERE rolname !~ '^pg_' "
-						  "AND rolname IN ('dbo', 'db_owner', '%s_dbo', '%s_db_owner', '%s_guest') "
-						  "ORDER BY 1 ",
-						  role_catalog, escaped_bbf_db_name,
-						  escaped_bbf_db_name, escaped_bbf_db_name);
-
-		/* builtin db users will already be present in the target server so no need to dump them */
-		if (is_builtin_db)
-			appendPQExpBufferStr(buf, "LIMIT 0");
+		appendPQExpBufferStr(buf,
+							 "SELECT rolname "
+							 "FROM bbf_roles "
+							 "WHERE rolname !~ '^pg_' "
+							 "AND rolname NOT IN ('sysadmin', "
+							 "'master_dbo', 'master_db_owner', 'master_guest', "
+							 "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
+							 "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') "
+							 "ORDER BY 1 ");
 	}
 	else
 	{
-		printfPQExpBuffer(buf,
+		appendPQExpBuffer(buf,
 						  "SELECT oid, rolname, rolsuper, rolinherit, "
 						  "rolcreaterole, rolcreatedb, "
 						  "rolcanlogin, rolconnlimit, rolpassword, "
 						  "rolvaliduntil, rolreplication, rolbypassrls, "
 						  "pg_catalog.shobj_description(oid, '%s') as rolcomment, "
 						  "rolname = current_user AS is_current_user "
-						  "FROM %s "
+						  "FROM bbf_roles "
 						  "WHERE rolname !~ '^pg_' "
-						  "AND rolname IN ('dbo', 'db_owner', '%s_dbo', '%s_db_owner', '%s_guest') "
-						  "ORDER BY 2 ", role_catalog, role_catalog, escaped_bbf_db_name,
-						  escaped_bbf_db_name, escaped_bbf_db_name);
-
-		/* builtin db users will already be present in the target server so no need to dump them */
-		if (is_builtin_db)
-			appendPQExpBufferStr(buf, "LIMIT 0");
+						  "AND rolname NOT IN ('sysadmin', "
+						  "'master_dbo', 'master_db_owner', 'master_guest', "
+						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
+						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') "
+						  "ORDER BY 2 ", role_catalog);
 	}
 }
 
 /*
- * Returns query to fetch all the roles, members and grantors related
- * to Babelfish users of specified logical database.
+ * Returns query to fetch all the roles, members and grantors of a
+ * Babelfish  physical/logical database.
  */
 void
 getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 								char *role_catalog, int binary_upgrade)
 {
-	char	*escaped_bbf_db_name;
-
 	if(!isBabelfishDatabase(conn) || binary_upgrade)
 		return;
 
-	if (!bbf_db_name)
-	{
-		/* Modify role query for physical database dump. */
-		resetPQExpBuffer(buf);
-		printfPQExpBuffer(buf, "SELECT ur.rolname AS roleid, "
-					"um.rolname AS member, "
-					"a.admin_option, "
-					"ug.rolname AS grantor "
-					"FROM pg_auth_members a "
-					"LEFT JOIN %s ur on ur.oid = a.roleid "
-					"LEFT JOIN %s um on um.oid = a.member "
-					"LEFT JOIN %s ug on ug.oid = a.grantor "
-					"WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_')"
-					"ORDER BY 1,2,3", role_catalog, role_catalog, role_catalog);
-		return;
-	}
-
-	/* 
-	 * Modify role query for logical database dump.
-	 * Get escaped bbf_db_name to handle special characters in it.
-	 * 2*strlen+1 bytes are required for PQescapeString according to the documentation.
-	 */
-	escaped_bbf_db_name = pg_malloc(2 * strlen(bbf_db_name) + 1);
-	PQescapeString(escaped_bbf_db_name, bbf_db_name, strlen(bbf_db_name));
-
 	resetPQExpBuffer(buf);
-	printfPQExpBuffer(buf,
-					  "SELECT ur.rolname AS roleid, "
+	appendPQExpBufferStr(buf, "WITH bbf_catalog AS (");
+	/* Include logins only in case of Babelfish physical database dump. */
+	if (!bbf_db_name)
+		appendPQExpBufferStr(buf,
+							 "SELECT rolname FROM sys.babelfish_authid_login_ext UNION ");
+	appendPQExpBuffer(buf,
+					  "SELECT rolname FROM sys.babelfish_authid_user_ext ");
+	/* Only dump users of the specific logical database we are currently dumping. */
+	if (bbf_db_name != NULL)
+	{
+		/*
+		 * Get escaped bbf_db_name to handle special characters in it.
+		 * 2*strlen+1 bytes are required for PQescapeString according to the documentation.
+		 */
+		char *escaped_bbf_db_name = pg_malloc(2 * strlen(bbf_db_name) + 1);
+
+		PQescapeString(escaped_bbf_db_name, bbf_db_name, strlen(bbf_db_name));
+		appendPQExpBuffer(buf, "WHERE database_name = '%s' ", escaped_bbf_db_name);
+		pfree(escaped_bbf_db_name);
+	}
+	appendPQExpBuffer(buf, "), "
+					  "bbf_roles AS (SELECT rc.* FROM %s rc INNER JOIN bbf_catalog bcat "
+					  "ON rc.rolname = bcat.rolname) ", role_catalog);
+
+	appendPQExpBuffer(buf, "SELECT ur.rolname AS roleid, "
 					  "um.rolname AS member, "
 					  "a.admin_option, "
 					  "ug.rolname AS grantor "
 					  "FROM pg_auth_members a "
 					  "LEFT JOIN %s ur on ur.oid = a.roleid "
-					  "LEFT JOIN %s um on um.oid = a.member "
+					  "INNER JOIN bbf_roles um on um.oid = a.member "
 					  "LEFT JOIN %s ug on ug.oid = a.grantor "
-					  "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_') "
-					  "AND ur.rolname IN ('dbo', 'db_owner', '%s_dbo', '%s_db_owner', '%s_guest', 'sysadmin') "
-					  "AND um.rolname IN ('dbo', 'db_owner', '%s_dbo', '%s_db_owner', '%s_guest', 'sysadmin') "
-					  "AND ug.rolname IN ('dbo', 'db_owner', '%s_dbo', '%s_db_owner', '%s_guest', 'sysadmin') "
-					  "ORDER BY 1,2,3",
-					  role_catalog, role_catalog, role_catalog,
-					  escaped_bbf_db_name, escaped_bbf_db_name, escaped_bbf_db_name,
-					  escaped_bbf_db_name, escaped_bbf_db_name, escaped_bbf_db_name,
-					  escaped_bbf_db_name, escaped_bbf_db_name, escaped_bbf_db_name);
+					  "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_')"
+					  "ORDER BY 1,2,3", role_catalog, role_catalog);
 }

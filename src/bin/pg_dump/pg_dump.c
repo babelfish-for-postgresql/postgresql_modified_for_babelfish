@@ -5090,6 +5090,7 @@ getNamespaces(Archive *fout, int *numNamespaces)
 
 		/* Decide whether to dump this namespace */
 		selectDumpableNamespace(&nsinfo[i], fout);
+		bbf_selectDumpableObject((DumpableObject *)&nsinfo[i], fout);
 
 		/* Mark whether namespace has an ACL */
 		if (!PQgetisnull(res, i, i_nspacl))
@@ -5222,6 +5223,7 @@ getExtensions(Archive *fout, int *numExtensions)
 
 		/* Decide whether we want to dump it */
 		selectDumpableExtension(&(extinfo[i]), dopt);
+		bbf_selectDumpableObject((DumpableObject *)&(extinfo[i]), fout);
 	}
 
 	PQclear(res);
@@ -6151,6 +6153,7 @@ getFuncs(Archive *fout, int *numFuncs)
 
 		/* Decide whether we want to dump it */
 		selectDumpableObject(&(finfo[i].dobj), fout);
+		bbf_selectDumpableObject((DumpableObject *)&(finfo[i]), fout);
 
 		/* Mark whether function has an ACL */
 		if (!PQgetisnull(res, i, i_proacl))
@@ -6519,8 +6522,7 @@ getTables(Archive *fout, int *numTables)
 		else
 			selectDumpableTable(&tblinfo[i], fout);
 
-		if (bbf_db_name != NULL)
-			bbf_selectDumpableTableData(&tblinfo[i], fout);
+		bbf_selectDumpableObject((DumpableObject *)&tblinfo[i], fout);
 
 		/*
 		 * Now, consider the table "interesting" if we need to dump its
@@ -7997,7 +7999,7 @@ getCasts(Archive *fout, int *numCasts)
 
 		/* Decide whether we want to dump it */
 		selectDumpableCast(&(castinfo[i]), fout);
-		bbf_selectDumpableCast(&(castinfo[i]));
+		bbf_selectDumpableObject((DumpableObject *)&(castinfo[i]), fout);
 	}
 
 	PQclear(res);
