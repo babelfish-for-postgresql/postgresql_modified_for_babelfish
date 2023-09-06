@@ -430,7 +430,7 @@ interpret_function_parameter_list(ParseState *pstate,
 			   nodeTag(paramDft) == T_ColumnRef)
 			{
 				/* 
-				 * Could be a variable, which should not be treated as a 
+				 * The node could be for a variable, which should not be treated as a 
 				 * an unquoted string, so verify it does not start with '@'.
 				 * This will cause parameter defaults with local variables to 
 				 * fail rather than to return the local variable name as a string,
@@ -451,8 +451,8 @@ interpret_function_parameter_list(ParseState *pstate,
 								EXPR_KIND_FUNCTION_DEFAULT);
 								
 			/*
-			 * Restore original node type, or we run into an unknown
-			 * node type downstream. 
+			 * In the case of an unquoted string, restore the original node type
+			 * or we may run into an unknown node type downstream. 
 			 */
 			if (paramDft->type == T_TSQL_UnquotedString) 
 			{	

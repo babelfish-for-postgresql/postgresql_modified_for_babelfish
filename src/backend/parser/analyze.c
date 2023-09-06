@@ -3172,8 +3172,8 @@ transformCallStmt(ParseState *pstate, CallStmt *stmt)
 											 arg,
 											 EXPR_KIND_CALL_ARGUMENT));
 		/*
-		 * Restore original node type, or we may run into an unknown
-		 * node type downstream.
+		 * In case of an unquoted string, restore original node type
+		 * or we may run into an unknown node type downstream.
 		 */
 		if (colref_arg) 
 		{
