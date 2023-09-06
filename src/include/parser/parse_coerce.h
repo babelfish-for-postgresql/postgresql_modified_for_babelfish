@@ -129,4 +129,8 @@ typedef Node *(*coerce_string_literal_hook_type) (ParseCallbackState *pcbstate,
  */
 typedef void (*validate_implicit_conversion_from_string_literal_hook_type) (Const *newcon, const char *value);
 
+/* Generic hook to override the behavior of select_common_type(...) */
+typedef Oid (*select_common_type_hook_type) (ParseState *pstate, List *exprs);
+extern PGDLLIMPORT select_common_type_hook_type select_common_type_hook;
+
 #endif							/* PARSE_COERCE_H */
