@@ -50,7 +50,4 @@ extern IsToastRelationHookType IsToastRelationHook;
 typedef bool (*IsToastClassHookType) (Form_pg_class pg_class_tup);
 extern IsToastClassHookType IsToastClassHook;
 
-typedef bool (*IsTdsClientHookType) (void);
-extern IsTdsClientHookType IsTdsClientHook;
-
 #endif							/* CATALOG_H */

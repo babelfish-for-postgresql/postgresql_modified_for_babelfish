@@ -52,7 +52,6 @@
 IsExtendedCatalogHookType IsExtendedCatalogHook;
 IsToastRelationHookType IsToastRelationHook;
 IsToastClassHookType IsToastClassHook;
-IsTdsClientHookType IsTdsClientHook;
 
 /*
  * Parameters to determine when to emit a log message in
