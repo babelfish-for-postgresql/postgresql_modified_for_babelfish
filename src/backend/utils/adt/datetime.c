@@ -1978,8 +1978,9 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 						return ref;
 				}
 				/* Under limited circumstances, we will accept a date... */
+				/* The 2nd field can be of string type for example '23-11-2000T12:12:12`*/
 				if (i == 0 && nf >= 2 &&
-					(ftype[nf - 1] == DTK_DATE || ftype[1] == DTK_TIME))
+					(ftype[nf - 1] == DTK_DATE || (ftype[1] == DTK_TIME || ftype[1] == DTK_STRING)))
 				{
 					dterr = DecodeDate(field[i], fmask,
 									   &tmask, &is2digits, tm);
@@ -2282,6 +2283,12 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 							/*
 							 * Here the case of of MONTH is being handled in the default case of DTK_STRING,
 							 * so no need to change the value of fmask.
+							 * We are passing `fmask` instead of `(fmask | DTK_DATE_M)`
+							 * because passing `(fmask | DTK_DATE_M)` confirms that we have all the date,
+							 * so it must be a time field.
+							 *
+							 * This can result in failing `01 am` as fmask value suggests that date is not
+							 * specified so the input will consider it as month/day.
 							 */
 							dterr = DecodeNumber(flen, field[i],
 												haveTextMonth,
@@ -2465,7 +2472,11 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 		return DTERR_FIELD_OVERFLOW;
 
 	if ((fmask & DTK_TIME_M) != DTK_TIME_M)
-		return DTERR_BAD_FORMAT;
+	{
+		/* In TSQL the behaviour is changing to such that time is not mandatorly */
+		if(sql_dialect != SQL_DIALECT_TSQL)
+			return DTERR_BAD_FORMAT;
+	}
 
 	/*
 	 * If we had a full timezone spec, compute the offset (we could not do it
