@@ -919,17 +919,34 @@ exprIsNullConstant(Node *arg)
  * underlying function that returns an int type so the index is used.
  */
 static void
-rewrite_scope_identity_call(ParseState *pstate, Node **lexpr, Node **rexpr)
+bbf_rewrite_function_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 {
 	Var       *col_expr;
-	FuncExpr  *func_expr;
 	FuncCall  *new_call;
-	char      *func_name;
+	FuncExpr  *func_expr = (FuncExpr *) (*rexpr);
+	char      *func_name = get_func_name(func_expr->funcid);
 
 	if (sql_dialect != SQL_DIALECT_TSQL)
 		return;
 	if (!(*lexpr) || !(*rexpr))
 		return;
+
+	if (IsA(*rexpr, FuncExpr) && strcmp(func_name, "like_escape") == 0)
+	{
+		if(list_length(func_expr->args) == 2)
+		{
+			Node *node = lsecond(func_expr->args);
+			if (IsA(node, Const) && ((Const *)(node))->constisnull)
+			{
+				/*
+				 * This condition handles like escape null query,
+				 * only when using TSQL.
+				 */
+				*rexpr = (Node *) (lfirst(list_head(func_expr->args)));
+				return;
+			}
+		}
+	}
 
 	if ((IsA(*lexpr, Var) && IsA(*rexpr, FuncExpr)))
 	{
@@ -1037,7 +1054,7 @@ transformAExprOp(ParseState *pstate, A_Expr *a)
 		rexpr = transformExprRecurse(pstate, rexpr);
 
 		/* So that where clauses with scope_identity use an index */
-		rewrite_scope_identity_call(pstate, &lexpr, &rexpr);
+		bbf_rewrite_function_call(pstate, &lexpr, &rexpr);
 
 		result = (Node *) make_op(pstate,
 								  a->name,
@@ -2259,7 +2276,10 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 		newargs = lappend(newargs, newe);
 	}
 
-	newc->coalescetype = select_common_type(pstate, newargs, "COALESCE", NULL);
+	if (sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook && c->tsql_is_null)
+		newc->coalescetype = (*select_common_type_hook)(pstate, newargs);
+	else
+		newc->coalescetype = select_common_type(pstate, newargs, "COALESCE", NULL);
 	/* coalescecollid will be set by parse_collate.c */
 
 	/* Convert arguments if necessary */
