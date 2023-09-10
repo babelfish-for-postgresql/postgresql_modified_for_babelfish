@@ -126,6 +126,7 @@ transformExprRecurse(ParseState *pstate, Node *expr)
 	switch (nodeTag(expr))
 	{
 		case T_TSQL_UnquotedString:
+			Assert(sql_dialect == SQL_DIALECT_TSQL);
 			{
 				/* 
 				 * This means the node is an unquoted string argument in a T-SQL procedure 
@@ -139,7 +140,6 @@ transformExprRecurse(ParseState *pstate, Node *expr)
 				 * the T-SQL semantic.
 				 */
 				A_Const newConst;
-				Assert(sql_dialect == SQL_DIALECT_TSQL);
 
 				/* 
 				 * Get the string argument, which is pretending to be a column name at this point.
