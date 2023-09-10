@@ -82,6 +82,8 @@
 
 check_lang_as_clause_hook_type check_lang_as_clause_hook = NULL;
 write_stored_proc_probin_hook_type write_stored_proc_probin_hook = NULL;
+declare_parameter_unquoted_string_hook_type declare_parameter_unquoted_string_hook = NULL;
+declare_parameter_unquoted_string_reset_hook_type declare_parameter_unquoted_string_reset_hook = NULL;
 
 /*
  *	 Examine the RETURNS clause of the CREATE FUNCTION statement
@@ -417,47 +419,16 @@ interpret_function_parameter_list(ParseState *pstate,
 						(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
 						 errmsg("only input parameters can have default values")));
 
-			/*
-			 * Intercept unquoted string defaults in parameter default declarations in 
-			 * T-SQL CREATE PROCEDURE/CREATE FUNCTION.
-			 * These arrive here as nodetype=T_ColumnRef. Temporarily change
-			 * the node type to T_TSQL_UnquotedString, which is picked up and 
-			 * handled in transformExprRecurse().
-			 */
 			paramDft = fp->defexpr;
-			if (sql_dialect == SQL_DIALECT_TSQL && 
-			   (objtype == OBJECT_PROCEDURE || objtype == OBJECT_FUNCTION) && 
-			   nodeTag(paramDft) == T_ColumnRef)
-			{
-				/* 
-				 * The node could be for a variable, which should not be treated as a 
-				 * an unquoted string, so verify it does not start with '@'.
-				 * This will cause parameter defaults with local variables to 
-				 * fail rather than to return the local variable name as a string,
-				 * which is identical to Babelfish behaviour before the fix
-				 * for unquoted string parameter.
-				 */
-				ColumnRef *colref = (ColumnRef *) paramDft;
-				Node *colnameField = (Node *) linitial(colref->fields);			
-				char *colname = strVal(colnameField);
-				if (colname[0] != '@') 
-				{
-					paramDft->type = T_TSQL_UnquotedString;
-				}		
-			}
-			
+			if (declare_parameter_unquoted_string_hook) 
+				declare_parameter_unquoted_string_hook(paramDft, objtype);  
+
 			def = transformExpr(pstate, 
 								paramDft,
 								EXPR_KIND_FUNCTION_DEFAULT);
 								
-			/*
-			 * In the case of an unquoted string, restore the original node type
-			 * or we may run into an unknown node type downstream. 
-			 */
-			if (paramDft->type == T_TSQL_UnquotedString) 
-			{	
-				paramDft->type = T_ColumnRef;
-			}								
+			if (declare_parameter_unquoted_string_reset_hook) 
+				declare_parameter_unquoted_string_reset_hook(paramDft);  		
 								
 			def = coerce_to_specific_type(pstate, def, toid, "DEFAULT");
 			assign_expr_collations(pstate, def);

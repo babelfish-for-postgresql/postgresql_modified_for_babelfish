@@ -139,6 +139,7 @@ transformExprRecurse(ParseState *pstate, Node *expr)
 				 * the T-SQL semantic.
 				 */
 				A_Const newConst;
+				Assert(sql_dialect == SQL_DIALECT_TSQL);
 
 				/* 
 				 * Get the string argument, which is pretending to be a column name at this point.

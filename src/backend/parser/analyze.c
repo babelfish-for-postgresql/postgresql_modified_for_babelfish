@@ -45,7 +45,6 @@
 #include "parser/parse_relation.h"
 #include "parser/parse_target.h"
 #include "parser/parse_type.h"
-#include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteManip.h"
 #include "utils/backend_status.h"
@@ -87,6 +86,10 @@ pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook = NULL;
 
 /* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
 post_transform_sort_clause_hook_type post_transform_sort_clause_hook = NULL;
+
+/* Hooks for handling unquoted string argumentss in T-SQL procedure calls */
+call_argument_unquoted_string_hook_type call_argument_unquoted_string_hook = NULL;
+call_argument_unquoted_string_reset_hook_type call_argument_unquoted_string_reset_hook = NULL;
 
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
@@ -3111,8 +3114,6 @@ transformCallStmt(ParseState *pstate, CallStmt *stmt)
 	bool		isNull;
 	List	   *outargs = NIL;
 	Query	   *result;
-	Node		*arg;
-	Node		*colref_arg;
 
 	/*
 	 * First, do standard parse analysis on the procedure call and its
@@ -3121,67 +3122,17 @@ transformCallStmt(ParseState *pstate, CallStmt *stmt)
 	targs = NIL;
 	foreach(lc, stmt->funccall->args)
 	{
-		/*
-		 * Intercept unquoted string arguments in T-SQL procedure calls.
-		 * These arrive here as nodetype=T_ColumnRef. Temporarily change
-		 * the node type to T_TSQL_UnquotedString, which is picked up and 
-		 * handled in transformExprRecurse().
-		 */
-		colref_arg = NULL; /* Points to temporarily modified node, if any. */
-		arg = lfirst(lc);  /* Node of actual argument. */
-		if (sql_dialect == SQL_DIALECT_TSQL) 
-		{
-			if (nodeTag(arg) == T_ColumnRef)
-			{
-				/* 
-				 * We get here for unnamed argument syntax, i.e. 
-				 * exec myproc mystring 
-				 * */
-				colref_arg = arg;
-			}
-			else if (nodeTag(arg) == T_NamedArgExpr)
-			{
-				/* 
-				 * We get here for named argument syntax, i.e. 
-				 * exec myproc @p=mystring 
-				 */
-				NamedArgExpr *na = (NamedArgExpr *) arg;
-				Assert(na->arg);
-				if (nodeTag((Node *) na->arg) == T_ColumnRef) 
-				{
-					colref_arg = (Node *) na->arg;
-				}
-			}
-			/* 
-			 * The argument could be a variable, which should not be treated
-			 * as an unquoted string, so verify it does not start with '@'.
-			 */
-			if (colref_arg) 					
-			{
-				ColumnRef *colref = (ColumnRef *) colref_arg;
-				Node *colnameField = (Node *) linitial(colref->fields);			
-				char *colname = strVal(colnameField);
-				if (colname[0] != '@') 
-				{
-					colref_arg->type = T_TSQL_UnquotedString;
-				}
-			}		
-		}
+		Node *colref_arg = NULL; 
+		Node *arg = lfirst(lc);
+		if (call_argument_unquoted_string_hook) 
+			colref_arg = (*call_argument_unquoted_string_hook)(arg);
 
 		targs = lappend(targs, transformExpr(pstate,
 											 arg,
 											 EXPR_KIND_CALL_ARGUMENT));
-		/*
-		 * In case of an unquoted string, restore original node type
-		 * or we may run into an unknown node type downstream.
-		 */
-		if (colref_arg) 
-		{
-			if (nodeTag(colref_arg) == T_TSQL_UnquotedString)
-			{
-				colref_arg->type = T_ColumnRef;
-			}
-		}
+
+		if (call_argument_unquoted_string_reset_hook) 
+			call_argument_unquoted_string_reset_hook(colref_arg);
 	}
 
 	node = ParseFuncOrColumn(pstate,
