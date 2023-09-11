@@ -27,6 +27,7 @@
 #include "common/hashfn.h"
 #include "miscadmin.h"
 #include "port/pg_bitutils.h"
+#include "parser/parser.h"
 #ifdef CATCACHE_STATS
 #include "storage/ipc.h"		/* for on_proc_exit */
 #endif
@@ -39,6 +40,7 @@
 #include "utils/rel.h"
 #include "utils/resowner_private.h"
 #include "utils/syscache.h"
+#include "utils/lsyscache.h"
 
 
  /* #define CACHEDEBUG */	/* turns DEBUG elogs on */
@@ -255,6 +257,34 @@ GetCCHashEqFuncs(Oid keytype, CCHashFN *hashfunc, RegProcedure *eqfunc, CCFastEq
 			*eqfunc = F_OIDVECTOREQ;
 			break;
 		default:
+			if (sql_dialect == SQL_DIALECT_TSQL)
+			{
+				HeapTuple		tp;
+				Form_pg_type	typtuple;
+				char	  	   *typname = NULL;
+				char	  	   *nspname = NULL;
+				tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(keytype));
+				if (!HeapTupleIsValid(tp))
+					elog(ERROR, "cache lookup failed for type %u", keytype);
+				typtuple = (Form_pg_type) GETSTRUCT(tp);
+				typname = NameStr(typtuple->typname);
+
+				nspname = get_namespace_name(typtuple->typnamespace);
+				if (!nspname)
+					elog(ERROR, "cache lookup failed for namespace %u",
+						typtuple->typnamespace);
+
+				ReleaseSysCache(tp);
+				elog(LOG, "%s.%s",nspname, typname);
+
+				if (strcmp(nspname, "sys") == 0 && strcmp(typname, "nvarchar") == 0)
+				{
+					*hashfunc = texthashfast;
+					*fasteqfunc = texteqfast;
+					*eqfunc = F_TEXTEQ;
+					break;
+				}
+			}
 			elog(FATAL, "type %u not supported as catcache key", keytype);
 			*hashfunc = NULL;	/* keep compiler quiet */
 

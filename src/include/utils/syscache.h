@@ -121,10 +121,11 @@ enum SysCacheIdentifier
 	 */
 	SYSDATABASEOID,
 	SYSDATABASENAME,
-	PROCNSPSIGNATURE
+	PROCNSPSIGNATURE,
+	TSQLUSERMAP
 
 #define SysCacheNoExtensionSize (USERMAPPINGUSERSERVER+ 1)
-#define SysCacheSize (PROCNSPSIGNATURE + 1)
+#define SysCacheSize (TSQLUSERMAP + 1)
 };
 
 /*
