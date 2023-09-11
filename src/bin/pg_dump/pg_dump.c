@@ -5159,6 +5159,7 @@ getNamespaces(Archive *fout, int *numNamespaces)
 
 		/* Decide whether to dump this namespace */
 		selectDumpableNamespace(&nsinfo[i], fout);
+		bbf_selectDumpableObject((DumpableObject *)&nsinfo[i], fout);
 
 		/* Mark whether namespace has an ACL */
 		if (!PQgetisnull(res, i, i_nspacl))
@@ -5291,6 +5292,7 @@ getExtensions(Archive *fout, int *numExtensions)
 
 		/* Decide whether we want to dump it */
 		selectDumpableExtension(&(extinfo[i]), dopt);
+		bbf_selectDumpableObject((DumpableObject *)&(extinfo[i]), fout);
 	}
 
 	PQclear(res);
@@ -6019,6 +6021,7 @@ getAggregates(Archive *fout, int *numAggs)
 						  agginfo[i].aggfn.argtypes,
 						  agginfo[i].aggfn.nargs);
 		}
+		agginfo[i].aggfn.postponed_def = false; /* might get set during sort */
 
 		/* Decide whether we want to dump it */
 		selectDumpableObject(&(agginfo[i].aggfn.dobj), fout);
@@ -6217,9 +6220,11 @@ getFuncs(Archive *fout, int *numFuncs)
 			parseOidArray(PQgetvalue(res, i, i_proargtypes),
 						  finfo[i].argtypes, finfo[i].nargs);
 		}
+		finfo[i].postponed_def = false; /* might get set during sort */
 
 		/* Decide whether we want to dump it */
 		selectDumpableObject(&(finfo[i].dobj), fout);
+		bbf_selectDumpableObject((DumpableObject *)&(finfo[i]), fout);
 
 		/* Mark whether function has an ACL */
 		if (!PQgetisnull(res, i, i_proacl))
@@ -6588,8 +6593,7 @@ getTables(Archive *fout, int *numTables)
 		else
 			selectDumpableTable(&tblinfo[i], fout);
 
-		if (bbf_db_name != NULL)
-			bbf_selectDumpableTableData(&tblinfo[i], fout);
+		bbf_selectDumpableObject((DumpableObject *)&tblinfo[i], fout);
 
 		/*
 		 * Now, consider the table "interesting" if we need to dump its
@@ -8136,7 +8140,7 @@ getCasts(Archive *fout, int *numCasts)
 
 		/* Decide whether we want to dump it */
 		selectDumpableCast(&(castinfo[i]), fout);
-		bbf_selectDumpableCast(&(castinfo[i]));
+		bbf_selectDumpableObject((DumpableObject *)&(castinfo[i]), fout);
 	}
 
 	PQclear(res);
@@ -12113,7 +12117,8 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 								  .namespace = finfo->dobj.namespace->dobj.name,
 								  .owner = finfo->rolname,
 								  .description = keyword,
-								  .section = SECTION_PRE_DATA,
+								  .section = finfo->postponed_def ?
+								  SECTION_POST_DATA : SECTION_PRE_DATA,
 								  .createStmt = q->data,
 								  .dropStmt = delqry->data));
 
