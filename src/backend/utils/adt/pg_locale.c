@@ -108,6 +108,8 @@ PGDLLIMPORT collation_cache_entry_hook_type collation_cache_entry_hook = NULL;
 static bool CurrentLocaleConvValid = false;
 static bool CurrentLCTimeValid = false;
 
+PGDLLIMPORT collation_cache_entry_hook_type collation_cache_entry_type = NULL;
+
 /* Cache for collation-related knowledge */
 
 typedef struct
