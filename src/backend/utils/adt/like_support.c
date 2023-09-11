@@ -1069,7 +1069,7 @@ like_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
 			break;
 
 		/* Backslash escapes the next character */
-		if (patt[pos] == '\\')
+		if (patt[pos] == '\\' && sql_dialect != SQL_DIALECT_TSQL)
 		{
 			pos++;
 			if (pos >= pattlen)
