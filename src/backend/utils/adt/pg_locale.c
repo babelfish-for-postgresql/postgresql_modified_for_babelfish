@@ -1520,8 +1520,6 @@ report_newlocale_failure(const char *localename)
  * it shouldn't cost much.
  */
 
-collation_cache_entry *prev_cache = NULL;
-
 pg_locale_t
 pg_newlocale_from_collation(Oid collid)
 {
@@ -1540,13 +1538,7 @@ pg_newlocale_from_collation(Oid collid)
 
 	cache_entry = lookup_collation_cache(collid, false);
     
-	// if (prev_cache && prev_cache->collid == collid)
-    // {
-    //     return prev_cache->locale;
-    // }
-
-	//call hook with params collid and return if matches
-
+	/* Call hook to get pervious cached value if valid */
 	if(collation_cache_entry_hook)
 	{
 		pg_locale_t *prev_locale = (pg_locale_t*)(*collation_cache_entry_hook)(collid,NULL);
@@ -1694,23 +1686,7 @@ pg_newlocale_from_collation(Oid collid)
 		cache_entry->locale = resultp;
 	}
 
-	// if(prev_cache)
-	// {
-	// 	pfree(prev_cache);
-	// }
-
-	// prev_cache = (collation_cache_entry *) MemoryContextAlloc(CacheMemoryContext, sizeof(collation_cache_entry));
-
-	// if(prev_cache == NULL)
-	// {
-	// 	ereport(ERROR, (errmsg("Memory allocation failed")));
-	// }
-	
-	// prev_cache->collid = cache_entry->collid;
-	// prev_cache->locale = cache_entry->locale;
-
-	//call hook with params cache_entry to update its prev_cache
-
+/* Call hook to save the cached value */
 	if(collation_cache_entry_hook)
 	{
 		(*collation_cache_entry_hook)(cache_entry->collid, cache_entry->locale);
