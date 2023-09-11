@@ -1078,38 +1078,6 @@ transformAExprOp(ParseState *pstate, A_Expr *a)
 										castNode(RowExpr, lexpr)->args,
 										castNode(RowExpr, rexpr)->args,
 										a->location);
-	}else if (sql_dialect == SQL_DIALECT_TSQL &&
-            (strcmp(strVal(linitial(a->name)), "~~") == 0 || strcmp(strVal(linitial(a->name)), "!~~") == 0) && 
-            !IsA(rexpr, FuncCall)){
-		/* 
-		 * Rewrite for tsql like expression without escape clause
-		 * postgres by default escapes '\\' but tsql doesn't. Adding a escape
-		 * clause of invalid UTF8 code and check it in do_like_escape can 
-		 * disable the default escape and making it behave similar to tsql
-		 */
-        A_Const    *escape_node;
-		FuncCall   *new_call;
-        Node       *last_srf = pstate->p_last_srf;
-
-        escape_node = makeNode(A_Const);
-        escape_node->val.sval.type = T_String;
-        escape_node->val.sval.sval = "\xFE";
-        escape_node->location = -1;
-
-        new_call = makeFuncCall(list_make2(makeString("pg_catalog"), makeString("like_escape")), 
-                                            list_make2(rexpr, escape_node), 
-                                            COERCE_EXPLICIT_CALL, 
-                                            -1);
-        
-        lexpr = transformExprRecurse(pstate, lexpr);
-        rexpr = transformFuncCall(pstate, new_call);
-        
-        result = (Node *) make_op(pstate,
-                                  a->name,
-                                  lexpr,
-                                  rexpr,
-                                  last_srf,
-                                  a->location);
 	}
 	else
 	{
