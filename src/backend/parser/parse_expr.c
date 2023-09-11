@@ -41,8 +41,6 @@
 #include "utils/timestamp.h"
 #include "utils/xml.h"
 
-#define TSQL_DEFAULT_ESCAPE "\357\277\277\0"
-
 /* GUC parameters */
 bool		Transform_null_equals = false;
 
@@ -1095,7 +1093,7 @@ transformAExprOp(ParseState *pstate, A_Expr *a)
 
         escape_node = makeNode(A_Const);
         escape_node->val.sval.type = T_String;
-        escape_node->val.sval.sval = TSQL_DEFAULT_ESCAPE;
+        escape_node->val.sval.sval = "\xFE";
         escape_node->location = -1;
 
         new_call = makeFuncCall(list_make2(makeString("pg_catalog"), makeString("like_escape")), 

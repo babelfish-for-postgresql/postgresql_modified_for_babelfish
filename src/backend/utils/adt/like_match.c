@@ -76,8 +76,6 @@
 #define GETCHAR(t) (t)
 #endif
 
-#define TSQL_DEFAULT_ESCAPE "\357\277\277\0"
-
 static int
 MatchText(const char *t, int tlen, const char *p, int plen,
 		  pg_locale_t locale, bool locale_is_c)
@@ -350,7 +348,8 @@ do_like_escape(text *pat, text *esc)
 	result = (text *) palloc(plen * 2 + VARHDRSZ);
 	r = VARDATA(result);
 	
-	if (elen == 0 && sql_dialect != SQL_DIALECT_TSQL)
+	if ((elen == 0 && sql_dialect != SQL_DIALECT_TSQL) || 
+		(elen == 1 && sql_dialect == SQL_DIALECT_TSQL && *e == '\xFE'))
 	{
 		/*
 		 * No escape character is wanted.  Double any backslashes in the
