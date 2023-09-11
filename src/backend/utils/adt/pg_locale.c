@@ -108,8 +108,6 @@ PGDLLIMPORT collation_cache_entry_hook_type collation_cache_entry_hook = NULL;
 static bool CurrentLocaleConvValid = false;
 static bool CurrentLCTimeValid = false;
 
-PGDLLIMPORT collation_cache_entry_hook_type collation_cache_entry_type = NULL;
-
 /* Cache for collation-related knowledge */
 
 typedef struct
@@ -1690,7 +1688,7 @@ pg_newlocale_from_collation(Oid collid)
 /* Call hook to save the cached value */
 	if(collation_cache_entry_hook)
 	{
-		(*collation_cache_entry_hook)(cache_entry->collid, cache_entry->locale);
+		(*collation_cache_entry_hook)(cache_entry->collid, &cache_entry->locale);
 	}	
 
 	return cache_entry->locale;
