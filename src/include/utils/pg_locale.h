@@ -126,4 +126,7 @@ extern size_t wchar2char(char *to, const wchar_t *from, size_t tolen,
 extern size_t char2wchar(wchar_t *to, size_t tolen,
 						 const char *from, size_t fromlen, pg_locale_t locale);
 
+typedef pg_locale_t* (*collation_cache_entry_hook_type)(Oid *, pg_locale_t *);
+extern  PGDLLIMPORT collation_cache_entry_hook_type collation_cache_entry_type;
+
 #endif							/* _PG_LOCALE_ */

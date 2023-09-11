@@ -102,6 +102,8 @@ char	   *localized_full_months[12 + 1];
 /* is the databases's LC_CTYPE the C locale? */
 bool		database_ctype_is_c = false;
 
+PGDLLIMPORT collation_cache_entry_hook_type collation_cache_entry_hook = NULL;
+
 /* indicates whether locale information cache is valid */
 static bool CurrentLocaleConvValid = false;
 static bool CurrentLCTimeValid = false;
@@ -1538,10 +1540,18 @@ pg_newlocale_from_collation(Oid collid)
 
 	cache_entry = lookup_collation_cache(collid, false);
     
-	if (prev_cache && prev_cache->collid == collid)
-    {
-        return prev_cache->locale;
-    }
+	// if (prev_cache && prev_cache->collid == collid)
+    // {
+    //     return prev_cache->locale;
+    // }
+
+	//call hook with params collid and return if matches
+
+	if(collation_cache_entry_hook)
+	{
+		pg_locale_t *prev_locale = (pg_locale_t*)(*collation_cache_entry_hook)(collid,NULL);
+		return prev_locale;
+	}
 
 	if (cache_entry->locale == 0)
 	{
@@ -1684,20 +1694,27 @@ pg_newlocale_from_collation(Oid collid)
 		cache_entry->locale = resultp;
 	}
 
-	if(prev_cache)
-	{
-		pfree(prev_cache);
-	}
+	// if(prev_cache)
+	// {
+	// 	pfree(prev_cache);
+	// }
 
-	prev_cache = (collation_cache_entry *) MemoryContextAlloc(CacheMemoryContext, sizeof(collation_cache_entry));
+	// prev_cache = (collation_cache_entry *) MemoryContextAlloc(CacheMemoryContext, sizeof(collation_cache_entry));
 
-	if(prev_cache == NULL)
-	{
-		ereport(ERROR, (errmsg("Memory allocation failed")));
-	}
+	// if(prev_cache == NULL)
+	// {
+	// 	ereport(ERROR, (errmsg("Memory allocation failed")));
+	// }
 	
-	prev_cache->collid = cache_entry->collid;
-	prev_cache->locale = cache_entry->locale;
+	// prev_cache->collid = cache_entry->collid;
+	// prev_cache->locale = cache_entry->locale;
+
+	//call hook with params cache_entry to update its prev_cache
+
+	if(collation_cache_entry_hook)
+	{
+		(*collation_cache_entry_hook)(cache_entry->collid, cache_entry->locale);
+	}	
 
 	return cache_entry->locale;
 }
