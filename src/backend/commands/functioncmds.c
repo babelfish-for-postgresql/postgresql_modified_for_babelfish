@@ -82,6 +82,8 @@
 
 check_lang_as_clause_hook_type check_lang_as_clause_hook = NULL;
 write_stored_proc_probin_hook_type write_stored_proc_probin_hook = NULL;
+declare_parameter_unquoted_string_hook_type declare_parameter_unquoted_string_hook = NULL;
+declare_parameter_unquoted_string_reset_hook_type declare_parameter_unquoted_string_reset_hook = NULL;
 
 /*
  *	 Examine the RETURNS clause of the CREATE FUNCTION statement
@@ -409,15 +411,25 @@ interpret_function_parameter_list(ParseState *pstate,
 
 		if (fp->defexpr)
 		{
-			Node	   *def;
+			Node *def;
+			Node *paramDft;
 
 			if (!isinput)
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
 						 errmsg("only input parameters can have default values")));
 
-			def = transformExpr(pstate, fp->defexpr,
+			paramDft = fp->defexpr;
+			if (declare_parameter_unquoted_string_hook) 
+				declare_parameter_unquoted_string_hook(paramDft, objtype);  
+
+			def = transformExpr(pstate, 
+								paramDft,
 								EXPR_KIND_FUNCTION_DEFAULT);
+								
+			if (declare_parameter_unquoted_string_reset_hook) 
+				declare_parameter_unquoted_string_reset_hook(paramDft);  		
+								
 			def = coerce_to_specific_type(pstate, def, toid, "DEFAULT");
 			assign_expr_collations(pstate, def);
 
