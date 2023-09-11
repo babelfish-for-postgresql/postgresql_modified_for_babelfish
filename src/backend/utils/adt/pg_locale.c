@@ -1541,7 +1541,7 @@ pg_newlocale_from_collation(Oid collid)
 	/* Call hook to get pervious cached value if valid */
 	if(collation_cache_entry_hook)
 	{
-		return (pg_locale_t*)(*collation_cache_entry_hook)(collid,NULL);
+		return (pg_locale_t)(*collation_cache_entry_hook)(collid,NULL);
 	}
 
 	if (cache_entry->locale == 0)
