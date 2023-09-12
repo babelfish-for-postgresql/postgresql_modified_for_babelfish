@@ -105,7 +105,7 @@ struct pg_locale_struct
 
 typedef struct pg_locale_struct *pg_locale_t;
 
-extern pg_locale_t* collation_cache_entry_hook_function (Oid, pg_locale_t *);
+extern pg_locale_t *collation_cache_entry_hook_function (Oid, pg_locale_t *);
 
 extern PGDLLIMPORT struct pg_locale_struct default_locale;
 
