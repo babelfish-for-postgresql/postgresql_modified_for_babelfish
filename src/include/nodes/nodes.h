@@ -538,7 +538,12 @@ typedef enum NodeTag
 	/*
 	 * Additional TAG FOR VALUE NODES (value.h)
 	 */
-	T_TSQL_HexString
+	T_TSQL_HexString,
+
+	/*
+	 * Additional tag for handling unquoted TSQL strings
+	 */
+	T_TSQL_UnquotedString
 
 } NodeTag;
 
