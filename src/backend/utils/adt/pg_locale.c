@@ -1523,7 +1523,7 @@ pg_locale_t
 pg_newlocale_from_collation(Oid collid)
 {
 	collation_cache_entry *cache_entry;
-	pg_locale_t 		*prev_local = NULL;
+	pg_locale_t 		prev_local = NULL;
 
 	/* Callers must pass a valid OID */
 	Assert(OidIsValid(collid));
