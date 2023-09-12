@@ -1519,11 +1519,11 @@ report_newlocale_failure(const char *localename)
  * might only need one of them.  Since this is called only once per session,
  * it shouldn't cost much.
  */
-
 pg_locale_t
 pg_newlocale_from_collation(Oid collid)
 {
 	collation_cache_entry *cache_entry;
+	pg_locale_t 		*prev_local = NULL;
 
 	/* Callers must pass a valid OID */
 	Assert(OidIsValid(collid));
@@ -1538,10 +1538,14 @@ pg_newlocale_from_collation(Oid collid)
 
 	cache_entry = lookup_collation_cache(collid, false);
     
-	/* Call hook to get pervious cached value if valid */
+	/* Call hook to get pervious cached value and return if not null*/
 	if(collation_cache_entry_hook)
 	{
-		return (pg_locale_t)(*collation_cache_entry_hook)(collid,NULL);
+		prev_local =  (pg_locale_t)(*collation_cache_entry_hook)(collid,NULL);
+		if(prev_local)
+		{
+			return prev_local;
+		}
 	}
 
 	if (cache_entry->locale == 0)
