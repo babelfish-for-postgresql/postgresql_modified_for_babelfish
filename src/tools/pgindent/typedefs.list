@@ -2252,6 +2252,7 @@ ReadLocalXLogPageNoWaitPrivate
 ReadReplicationSlotCmd
 ReassignOwnedStmt
 RecheckForeignScan_function
+RecordCacheArrayEntry
 RecordCacheEntry
 RecordCompareData
 RecordIOData
