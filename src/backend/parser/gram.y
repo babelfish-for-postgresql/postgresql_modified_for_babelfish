@@ -14540,18 +14540,18 @@ a_expr:		c_expr									{ $$ = $1; }
 			| a_expr AT TIME ZONE a_expr			%prec AT
 				{
 					if(sql_dialect == SQL_DIALECT_TSQL)
-    				{
-	    				$$ = (Node *) makeFuncCall(list_make2(makeString("sys"), makeString("timezone")),
-	    				list_make2($5, $1),
-        				COERCE_SQL_SYNTAX,
-        				@2);
+					{
+						$$ = (Node *) makeFuncCall(list_make2(makeString("sys"), makeString("timezone")),
+													list_make2($5, $1),
+													COERCE_SQL_SYNTAX,
+													@2);
 					}
 					else
 					{
-					$$ = (Node *) makeFuncCall(SystemFuncName("timezone"),
-											   list_make2($5, $1),
-											   COERCE_SQL_SYNTAX,
-											   @2);
+						$$ = (Node *) makeFuncCall(SystemFuncName("timezone"),
+													list_make2($5, $1),
+													COERCE_SQL_SYNTAX,
+													@2);
 					}
 				}
 		/*
