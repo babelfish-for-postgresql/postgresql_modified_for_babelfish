@@ -245,6 +245,8 @@ static bool check_recovery_target_lsn(char **newval, void **extra, GucSource sou
 static void assign_recovery_target_lsn(const char *newval, void *extra);
 static bool check_primary_slot_name(char **newval, void **extra, GucSource source);
 static bool check_default_with_oids(bool *newval, void **extra, GucSource source);
+static char *transaction_isolation_to_string(int v);
+static bool check_default_transaction_isolation(int *newval, void **extra, GucSource source);
 
 /* Private functions in guc-file.l that need to be called from guc.c */
 static ConfigVariable *ProcessConfigFileInternal(GucContext context,
@@ -4815,7 +4817,7 @@ static struct config_enum ConfigureNamesEnum[] =
 		},
 		&DefaultXactIsoLevel,
 		XACT_READ_COMMITTED, isolation_level_options,
-		NULL, assign_default_transaction_isolation, NULL
+		check_default_transaction_isolation, assign_default_transaction_isolation, NULL
 	},
 
 	{
@@ -12259,7 +12261,18 @@ static void
 assign_default_transaction_isolation(int newval, void *extra)
 {
 	if (guc_newval_hook)
+	{
+		char		*s;
+		A_Const		*t;
+		s = transaction_isolation_to_string(newval);
+		t = makeNode(A_Const);;
+		t->val.sval.type = T_String;
+		t->val.sval.sval = s;
+		t->location = -1;
 		(*guc_newval_hook)("default_transaction_isolation", false, NULL, newval);
+		SetPGVariable("transaction_isolation",list_make1(t) , false);
+		pfree(t);
+	}
 }
 
 static void
@@ -13073,6 +13086,51 @@ void
 guc_set_stack_value(struct config_generic *gconf, config_var_value *val)
 {
 	set_stack_value(gconf,  val);
+}
+
+static char*
+transaction_isolation_to_string(int v)
+{
+	switch (v)
+	{
+		case XACT_SERIALIZABLE:
+			return "serializable";
+		case XACT_REPEATABLE_READ:
+			return "repeatable read";
+		case XACT_READ_COMMITTED:
+			return "read committed";
+		case XACT_READ_UNCOMMITTED:
+			return "read uncommitted";
+	}
+	return "(unrecognized)";
+}
+
+static bool
+check_default_transaction_isolation(int *newval, void **extra, GucSource source)
+{
+	if (guc_newval_hook)
+	{	
+		int			newXactIsoLevel = *newval;
+		const char*		ignore_isolation = GetConfigOption("babelfishpg_tsql.escape_hatch_set_transaction_isolation_level",false, false);
+
+		if ( newXactIsoLevel != XactIsoLevel && IsTransactionState() )
+		{
+			if( FirstSnapshotSet || IsSubTransaction() || (newXactIsoLevel == XACT_SERIALIZABLE && RecoveryInProgress()))
+			{
+				if(ignore_isolation && !strcmp(ignore_isolation, "ignore")){
+					*newval = XactIsoLevel;
+					return true;
+				}
+				else{
+					GUC_check_errmsg("SET TRANSACTION ISOLATION failed because of settingfrom invalid state, set escape hatch to silently ignore");
+					return false;
+				}
+			}
+		}
+		return true;
+	}	
+	else
+		return true;
 }
 
 #include "guc-file.c"
