@@ -60,8 +60,8 @@ executeQuery(PGconn *conn, const char *query)
 
 /*
  * getBabelfishInitUser
- * Returns initialize user of currentl Babelfish database
- * which is essentially same as owner of Babelfish database.
+ * Returns initialize user of current Babelfish database
+ * which is essentially same as owner of the database.
  */
 static char *
 getBabelfishInitUser(PGconn *conn)

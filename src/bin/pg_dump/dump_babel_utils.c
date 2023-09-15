@@ -899,7 +899,8 @@ prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_
 	resetPQExpBuffer(query);
 	
 	/*
-	 * Find out initialize user of current Babelfish database.
+	 * Find out initialize user of current Babelfish database
+	 * which is essentially same as owner of the database.
 	 */
 	appendPQExpBufferStr(query, "SELECT r.rolname FROM pg_roles r "
 						 "INNER JOIN pg_database d ON r.oid = d.datdba "
@@ -1315,7 +1316,7 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
  * Returns true if table in Babelfish Database is to be dumped with INSERT mode.
  * Currently we dump tables with sql_variant columns with INSERT operations to
  * correctly restore the metadata of the base datatype, which is not directly
- * posible with COPY statements.
+ * possible with COPY statements.
  */
 bool
 bbfIsDumpWithInsert(Archive *fout, TableInfo *tbinfo)
