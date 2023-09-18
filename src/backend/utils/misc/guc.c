@@ -13111,12 +13111,14 @@ check_default_transaction_isolation(int *newval, void **extra, GucSource source)
 	if (guc_newval_hook)
 	{	
 		int			newXactIsoLevel = *newval;
-		const char*		ignore_isolation = GetConfigOption("babelfishpg_tsql.escape_hatch_set_transaction_isolation_level",false, false);
+		const char*		ignore_isolation;
 
 		if ( newXactIsoLevel != XactIsoLevel && IsTransactionState() )
 		{
 			if( FirstSnapshotSet || IsSubTransaction() || (newXactIsoLevel == XACT_SERIALIZABLE && RecoveryInProgress()))
 			{
+				ignore_isolation = GetConfigOption("babelfishpg_tsql.escape_hatch_set_transaction_isolation_level",false, false);
+
 				if(ignore_isolation && !strcmp(ignore_isolation, "ignore")){
 					*newval = XactIsoLevel;
 					return true;
