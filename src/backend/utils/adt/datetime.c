@@ -26,7 +26,6 @@
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
-#include "parser/parser.h"
 #include "utils/builtins.h"
 #include "utils/date.h"
 #include "utils/datetime.h"
@@ -1931,7 +1930,6 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 	int			i;
 	int			val;
 	int			dterr;
-	bool		haveTextMonth = false;
 	bool		isjulian = false;
 	bool		is2digits = false;
 	bool		bc = false;
@@ -2265,11 +2263,11 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 					/* otherwise it is a single date/time field... */
 					else
 					{
-							dterr = DecodeNumber(flen, field[i],
-												false,
-												(fmask | DTK_DATE_M),
-												&tmask, tm,
-												fsec, &is2digits);
+						dterr = DecodeNumber(flen, field[i],
+											 false,
+											 (fmask | DTK_DATE_M),
+											 &tmask, tm,
+											 fsec, &is2digits);
 						if (dterr)
 							return dterr;
 					}
@@ -2524,16 +2522,6 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 	}
 
 	return 0;
-}
-
-/*
- * This is just a wrapper for DecodeDate(), to call the
- * static function from other source.
- */
-int DecodeDateWrapper(char *str, int fmask, int *tmask, bool *is2digits,
-		   struct pg_tm *tm)
-{
-	return DecodeDate(str, fmask, tmask, is2digits, tm);
 }
 
 /* DecodeDate()
