@@ -35,6 +35,7 @@ static const CatalogId nilCatalogId = {0, 0};
 static char *escaped_bbf_db_name = NULL;
 static int bbf_db_id = 0;
 static SimpleOidList catalog_table_include_oids = {NULL, NULL};
+static char *babel_init_user = NULL;
 
 static char *getMinOid(Archive *fout);
 static bool isBabelfishConfigTable(TableInfo *tbinfo);
@@ -223,6 +224,7 @@ dumpBabelRestoreChecks(Archive *fout)
 	char		*source_server_version;
 	char		*source_migration_mode;
 	PQExpBuffer	qry;
+	ArchiveFormat format = ((ArchiveHandle *) fout)->format;
 
 	/* Skip if not Babelfish database or binary upgrade */
 	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade)
@@ -241,8 +243,10 @@ dumpBabelRestoreChecks(Archive *fout)
 	/*
 	 * Temporarily enable ON_ERROR_STOP so that whole restore script
 	 * execution fails if the following do block raises an error.
+	 * Note that it can only be used in plain text dump (archNull).
 	 */
-	appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP on\n\n");
+	if (format == archNull)
+		appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP on\n\n");
 	appendPQExpBuffer(qry,
 					  "DO $$"
 					  "\nDECLARE"
@@ -276,7 +280,8 @@ dumpBabelRestoreChecks(Archive *fout)
 					  "\n    END IF;"
 					  "\nEND$$;\n\n"
 					  , source_migration_mode);
-	appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP off\n");
+	if (format == archNull)
+		appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP off\n");
 	PQclear(res);
 
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
@@ -844,7 +849,7 @@ updateExtConfigArray(Archive *fout, char ***extconfigarray, int nconfigitems)
 	}
 
 	PQclear(res);
-	resetPQExpBuffer(query);
+	destroyPQExpBuffer(query);
 }
 
 /*
@@ -889,6 +894,19 @@ prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_
 	ntups = PQntuples(res);
 	for (i = 0; i < ntups; i++)
 		simple_oid_list_append(&catalog_table_include_oids, atooid(PQgetvalue(res, i, 0)));
+
+	PQclear(res);
+	resetPQExpBuffer(query);
+	
+	/*
+	 * Find out initialize user of current Babelfish database
+	 * which is essentially same as owner of the database.
+	 */
+	appendPQExpBufferStr(query, "SELECT r.rolname FROM pg_roles r "
+						 "INNER JOIN pg_database d ON r.oid = d.datdba "
+						 "WHERE d.datname = current_database()");
+	res = ExecuteSqlQueryForSingleRow(fout, query->data);
+	babel_init_user = pstrdup(PQgetvalue(res, 0, 0));
 
 	PQclear(res);
 	destroyPQExpBuffer(query);
@@ -1090,8 +1108,8 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 	}
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
-						"WHERE a.rolname!='sysadmin'",
-						fmtQualifiedDumpable(tbinfo));
+						"WHERE a.rolname NOT IN ('sysadmin', '%s')", /* Do not dump sysadmin and Babelfish initialize user */
+						fmtQualifiedDumpable(tbinfo), babel_init_user);
 	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
@@ -1117,6 +1135,7 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 	int 	i;
 	bool	is_builtin_db = false;
 	bool	is_bbf_usr_ext_tab = false;
+	bool	is_bbf_sysdatabases_tab = false;
 
 	/*
 	 * Return if not a Babelfish database, or if the table is not a Babelfish
@@ -1132,9 +1151,11 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 				pg_strcasecmp(bbf_db_name, "msdb") == 0)
 				? true : false;
 
-	/* Remember if it is babelfish_authid_user_ext catalog table. */
+	/* Remember if it is babelfish_authid_user_ext and babelfish_sysdatabases catalog table. */
 	if (strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 		is_bbf_usr_ext_tab = true;
+	if (strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0)
+		is_bbf_sysdatabases_tab = true;
 
 	resetPQExpBuffer(buf);
 	appendPQExpBufferStr(buf, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
@@ -1152,6 +1173,13 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 		 * dbids are fixed for builtin databases.
 		 */
 		if (bbf_db_name != NULL && !is_builtin_db && strcmp(tbinfo->attnames[i], "dbid") == 0)
+			continue;
+		/*
+		 * We need to skip owner column of babelfish_sysdatabases table as it might be
+		 * referencing Babelfish initialize user which we do not include in dump. We will
+		 * populate this column during restore with the initialize user of target database.
+		 */
+		else if (is_bbf_sysdatabases_tab && strcmp(tbinfo->attnames[i], "owner") == 0)
 			continue;
 		if (*nfields > 0)
 			appendPQExpBufferStr(buf, ", ");
@@ -1196,6 +1224,7 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 	bool		is_builtin_db = false;
 	bool		needComma = false;
 	bool		is_bbf_usr_ext_tab = false;
+	bool		is_bbf_sysdatabases_tab = false;
 
 	/*
 	 * Return if not a Babelfish database, or if the table is not a Babelfish
@@ -1210,9 +1239,11 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 				pg_strcasecmp(bbf_db_name, "msdb") == 0)
 				? true : false;
 
-	/* Remember if it is babelfish_authid_user_ext catalog table. */
+	/* Remember if it is babelfish_authid_user_ext and babelfish_sysdatabases catalog table. */
 	if (strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 		is_bbf_usr_ext_tab = true;
+	if (strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0)
+		is_bbf_sysdatabases_tab = true;
 
 	q = createPQExpBuffer();
 	for (i = 0; i < tbinfo->numatts; i++)
@@ -1227,6 +1258,13 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 		 * regenerate it during restore as dbids are fixed for builtin databases.
 		 */
 		if (bbf_db_name != NULL && !is_builtin_db && strcmp(tbinfo->attnames[i], "dbid") == 0)
+			continue;
+		/*
+		 * We need to skip owner column of babelfish_sysdatabases table as it might be
+		 * referencing Babelfish initialize user which we do not include in dump. We will
+		 * populate this column during restore with the initialize user of target database.
+		 */
+		else if (is_bbf_sysdatabases_tab && strcmp(tbinfo->attnames[i], "owner") == 0)
 			continue;
 		if (needComma)
 			appendPQExpBufferStr(q, ", ");
@@ -1278,19 +1316,13 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
  * Returns true if table in Babelfish Database is to be dumped with INSERT mode.
  * Currently we dump tables with sql_variant columns with INSERT operations to
  * correctly restore the metadata of the base datatype, which is not directly
- * posible with COPY statements. We also dump sys.babelfish_authid_login_ext
- * with INSERT statements so that if target database already has a login with
- * same name as in the source database, only that INSERT query with fail and won't
- * affect the other entries of the catalog table. 
+ * possible with COPY statements.
  */
-bool bbfIsDumpWithInsert(Archive *fout, TableInfo *tbinfo)
+bool
+bbfIsDumpWithInsert(Archive *fout, TableInfo *tbinfo)
 {
 	return (isBabelfishDatabase(fout) &&
-			(hasSqlvariantColumn(tbinfo) ||
-				pg_strcasecmp(fmtQualifiedDumpable(tbinfo),
-					quote_all_identifiers ?
-					"\"sys\".\"babelfish_authid_login_ext\"" :
-					"sys.babelfish_authid_login_ext") == 0));
+			hasSqlvariantColumn(tbinfo));
 }
 
 /*
