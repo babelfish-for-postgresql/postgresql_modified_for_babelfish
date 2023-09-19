@@ -12264,8 +12264,8 @@ assign_default_transaction_isolation(int newval, void *extra)
 	{
 		char		*s;
 		s = transaction_isolation_to_string(newval);
-		set_config_option("transaction_isolation", s, PGC_USERSET,
-							PGC_S_SESSION, GUC_ACTION_LOCAL, true, 0, false);
+		SetConfigOption("transaction_isolation", s,
+							PGC_USERSET, PGC_S_SESSION);
 		(*guc_newval_hook)("default_transaction_isolation", false, NULL, newval);
 	}
 }
