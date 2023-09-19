@@ -45,3 +45,40 @@ all check install installdirs installcheck installcheck-parallel uninstall clean
 	   echo "You must use GNU make to build PostgreSQL." ; \
 	   false; \
 	 fi
+
+PACKAGE_NAME = BabelfishDump
+SOURCE_TARBALL = $(PACKAGE_NAME).tar.gz
+SPECFILE = $(PACKAGE_NAME).spec
+BUILD_DIR = build/rpmbuild
+
+.PHONY: rpm-clean
+rpm-clean:
+	rm -rf $(BUILD_DIR)
+	rm -rf $(PACKAGE_NAME)
+	rm -f $(SOURCE_TARBALL)
+
+.PHONY: tarball
+tarball: rpm-clean
+	mkdir -p $(PACKAGE_NAME)
+
+	cp -p aclocal.m4 $(PACKAGE_NAME)
+	cp -p configure* $(PACKAGE_NAME)
+	cp -p GNUmakefile* $(PACKAGE_NAME)
+	cp -p Makefile $(PACKAGE_NAME)
+	cp -rp config src $(PACKAGE_NAME)
+
+	tar -czf $(SOURCE_TARBALL) $(PACKAGE_NAME)/*
+
+.PHONY: sources
+sources: tarball
+
+.PHONY: rpm-only
+rpm-only:
+	mkdir -p $(BUILD_DIR)/{SPECS,COORD_SOURCES,DATA_SOURCES,BUILD,RPMS,SOURCES,SRPMS}
+	cp $(SPECFILE) $(BUILD_DIR)/SPECS
+	cp $(SOURCE_TARBALL) $(BUILD_DIR)/SOURCES
+	rpmbuild -ba --define "_topdir `pwd`/$(BUILD_DIR)" $(BUILD_DIR)/SPECS/$(SPECFILE)
+	cp $(BUILD_DIR)/RPMS/*/*rpm build
+
+.PHONY: rpm
+rpm: sources rpm-only
