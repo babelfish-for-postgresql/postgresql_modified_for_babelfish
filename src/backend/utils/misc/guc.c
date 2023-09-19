@@ -12263,16 +12263,10 @@ assign_default_transaction_isolation(int newval, void *extra)
 	if (guc_newval_hook)
 	{
 		char		*s;
-		A_Const		*t;
 		s = transaction_isolation_to_string(newval);
-		t = makeNode(A_Const);;
-		t->val.sval.type = T_String;
-		t->val.sval.sval = s;
-		t->location = -1;
-		if( newval != XactIsoLevel )
-			SetPGVariable("transaction_isolation", list_make1(t), true);
+		set_config_option("transaction_isolation", s, PGC_USERSET,
+							PGC_S_SESSION, GUC_ACTION_LOCAL, true, 0, false);
 		(*guc_newval_hook)("default_transaction_isolation", false, NULL, newval);
-		pfree(t);
 	}
 }
 
