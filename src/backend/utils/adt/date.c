@@ -44,7 +44,7 @@
 #error -ffast-math is known to break this code
 #endif
 
-time_datatype_parse_error_hook_type time_datatype_parse_error_hook = NULL;
+time_in_hook_type time_in_hook = NULL;
 
 /* common code for timetypmodin and timetztypmodin */
 static int32
@@ -1386,16 +1386,15 @@ time_in(PG_FUNCTION_ARGS)
 	int			dtype;
 	int			ftype[MAXDATEFIELDS];
 
+	if (time_in_hook && sql_dialect == SQL_DIALECT_TSQL)
+		return (*time_in_hook)(str, typmod);
+
 	dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
 						  field, ftype, MAXDATEFIELDS, &nf);
 	if (dterr == 0)
 		dterr = DecodeTimeOnly(field, ftype, nf, &dtype, tm, &fsec, &tz);
 	if (dterr != 0)
-	{
-		if (time_datatype_parse_error_hook)
-			(*time_datatype_parse_error_hook)(dterr, str, "time");
 		DateTimeParseError(dterr, str, "time");
-	}
 
 	tm2time(tm, fsec, &result);
 	AdjustTimeForTypmod(&result, typmod);

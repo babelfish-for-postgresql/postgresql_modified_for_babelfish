@@ -84,8 +84,6 @@ const char *const months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 const char *const days[] = {"Sunday", "Monday", "Tuesday", "Wednesday",
 "Thursday", "Friday", "Saturday", NULL};
 
-handle_textMonth_case_hook_type handle_textMonth_case_hook = NULL;
-date_decoder_hook_type date_decoder_hook = NULL;
 
 /*****************************************************************************
  *	 PRIVATE ROUTINES														 *
@@ -1967,20 +1965,9 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 				if (tzp == NULL)
 					return DTERR_BAD_FORMAT;
 
-				/*
-				 * For date format like 'yyyy-mm-dd', we should return time 00:00:00.0000000
-				 * instead of marking it as invalid time format
-				 */
-				if(date_decoder_hook)
-				{
-					int ref = (*date_decoder_hook)(nf, field, fmask, tmask, is2digits, tm, bc, isjulian);
-					if(ref != -6)
-						return ref;
-				}
 				/* Under limited circumstances, we will accept a date... */
-				/* The 2nd field can be of string type for example '23-11-2000T12:12:12`*/
 				if (i == 0 && nf >= 2 &&
-					(ftype[nf - 1] == DTK_DATE || (ftype[1] == DTK_TIME || ftype[1] == DTK_STRING)))
+					(ftype[nf - 1] == DTK_DATE || ftype[1] == DTK_TIME))
 				{
 					dterr = DecodeDate(field[i], fmask,
 									   &tmask, &is2digits, tm);
@@ -2278,32 +2265,11 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 					/* otherwise it is a single date/time field... */
 					else
 					{
-						if(sql_dialect == SQL_DIALECT_TSQL)
-						{
-							/*
-							 * Here the case of of MONTH is being handled in the default case of DTK_STRING,
-							 * so no need to change the value of fmask.
-							 * We are passing `fmask` instead of `(fmask | DTK_DATE_M)`
-							 * because passing `(fmask | DTK_DATE_M)` confirms that we have all the date,
-							 * so it must be a time field.
-							 *
-							 * This can result in failing `01 am` as fmask value suggests that date is not
-							 * specified so the input will consider it as month/day.
-							 */
-							dterr = DecodeNumber(flen, field[i],
-												haveTextMonth,
-												fmask,
-												&tmask, tm,
-												fsec, &is2digits);
-						}
-						else
-						{
 							dterr = DecodeNumber(flen, field[i],
 												false,
 												(fmask | DTK_DATE_M),
 												&tmask, tm,
 												fsec, &is2digits);
-						}
 						if (dterr)
 							return dterr;
 					}
@@ -2436,11 +2402,6 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 						break;
 
 					default:
-						/*
-						 * Additional check for the case of MONTH using the hooks.
-						 */
-						if(handle_textMonth_case_hook && (*handle_textMonth_case_hook)(type, &haveTextMonth, fmask, &tmask, tm, val))
-								break;
 						return DTERR_BAD_FORMAT;
 				}
 				break;
@@ -2472,11 +2433,7 @@ DecodeTimeOnly(char **field, int *ftype, int nf,
 		return DTERR_FIELD_OVERFLOW;
 
 	if ((fmask & DTK_TIME_M) != DTK_TIME_M)
-	{
-		/* In TSQL the behaviour is changing to such that time is not mandatorly */
-		if(sql_dialect != SQL_DIALECT_TSQL)
-			return DTERR_BAD_FORMAT;
-	}
+		return DTERR_BAD_FORMAT;
 
 	/*
 	 * If we had a full timezone spec, compute the offset (we could not do it
