@@ -1,5 +1,7 @@
 # This spec file and ancillary files are licensed in accordance with
 # The PostgreSQL license.
+# This spec file bundles the Babelfish dump utilities (bbf_dump/bbf_dumpall)
+# into an RPM.
 
 # In this file you can find the default build package list macros.
 # These can be overridden by defining on the rpm command line:

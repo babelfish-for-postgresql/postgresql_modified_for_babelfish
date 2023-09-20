@@ -46,10 +46,13 @@ all check install installdirs installcheck installcheck-parallel uninstall clean
 	   false; \
 	 fi
 
+# Targets in the portion below can be used to generate source tarball
+# and RPM containing Babelfish dump utilities (bbf_dump/bbf_dumpall).
 PACKAGE_NAME = BabelfishDump
 SOURCE_TARBALL = $(PACKAGE_NAME).tar.gz
 SPECFILE = $(PACKAGE_NAME).spec
 BUILD_DIR = build/rpmbuild
+DIRS = 'SPECS' 'COORD_SOURCES' 'DATA_SOURCES' 'BUILD' 'RPMS' 'SOURCES' 'SRPMS'
 
 .PHONY: rpm-clean
 rpm-clean:
@@ -72,12 +75,18 @@ tarball: rpm-clean
 .PHONY: sources
 sources: tarball
 
+ifdef NODEPS
+RPMOPT = -ba -v --nodeps
+else
+RPMOPT = -ba -v
+endif
+
 .PHONY: rpm-only
 rpm-only:
-	mkdir -p $(BUILD_DIR)/{SPECS,COORD_SOURCES,DATA_SOURCES,BUILD,RPMS,SOURCES,SRPMS}
+	mkdir -p $(addprefix $(BUILD_DIR)/,$(DIRS))
 	cp $(SPECFILE) $(BUILD_DIR)/SPECS
 	cp $(SOURCE_TARBALL) $(BUILD_DIR)/SOURCES
-	rpmbuild -ba --define "_topdir `pwd`/$(BUILD_DIR)" $(BUILD_DIR)/SPECS/$(SPECFILE)
+	rpmbuild $(RPMOPT) --define "_topdir `pwd`/$(BUILD_DIR)" $(BUILD_DIR)/SPECS/$(SPECFILE)
 	cp $(BUILD_DIR)/RPMS/*/*rpm build
 
 .PHONY: rpm
