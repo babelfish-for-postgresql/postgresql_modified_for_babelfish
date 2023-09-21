@@ -45,3 +45,49 @@ all check install installdirs installcheck installcheck-parallel uninstall clean
 	   echo "You must use GNU make to build PostgreSQL." ; \
 	   false; \
 	 fi
+
+# Targets in the portion below can be used to generate source tarball
+# and RPM containing Babelfish dump utilities (bbf_dump/bbf_dumpall).
+PACKAGE_NAME = BabelfishDump
+SOURCE_TARBALL = $(PACKAGE_NAME).tar.gz
+SPECFILE = $(PACKAGE_NAME).spec
+BUILD_DIR = build/rpmbuild
+DIRS = 'SPECS' 'COORD_SOURCES' 'DATA_SOURCES' 'BUILD' 'RPMS' 'SOURCES' 'SRPMS'
+
+.PHONY: rpm-clean
+rpm-clean:
+	rm -rf $(BUILD_DIR)
+	rm -rf $(PACKAGE_NAME)
+	rm -f $(SOURCE_TARBALL)
+
+.PHONY: tarball
+tarball: rpm-clean
+	mkdir -p $(PACKAGE_NAME)
+
+	cp -p aclocal.m4 $(PACKAGE_NAME)
+	cp -p configure* $(PACKAGE_NAME)
+	cp -p GNUmakefile* $(PACKAGE_NAME)
+	cp -p Makefile $(PACKAGE_NAME)
+	cp -rp config src $(PACKAGE_NAME)
+
+	tar -czf $(SOURCE_TARBALL) $(PACKAGE_NAME)/*
+
+.PHONY: sources
+sources: tarball
+
+ifdef NODEPS
+RPMOPT = -ba -v --nodeps
+else
+RPMOPT = -ba -v
+endif
+
+.PHONY: rpm-only
+rpm-only:
+	mkdir -p $(addprefix $(BUILD_DIR)/,$(DIRS))
+	cp $(SPECFILE) $(BUILD_DIR)/SPECS
+	cp $(SOURCE_TARBALL) $(BUILD_DIR)/SOURCES
+	rpmbuild $(RPMOPT) --define "_topdir `pwd`/$(BUILD_DIR)" $(BUILD_DIR)/SPECS/$(SPECFILE)
+	cp $(BUILD_DIR)/RPMS/*/*rpm build
+
+.PHONY: rpm
+rpm: sources rpm-only
