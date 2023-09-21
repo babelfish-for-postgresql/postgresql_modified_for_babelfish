@@ -59,6 +59,30 @@ executeQuery(PGconn *conn, const char *query)
 }
 
 /*
+ * getBabelfishInitUser
+ * Returns initialize user of current Babelfish database
+ * which is essentially same as owner of the database.
+ */
+static char *
+getBabelfishInitUser(PGconn *conn)
+{
+	PQExpBuffer	qry;
+	PGresult	*res;
+	char    	*babel_init_user;
+
+	qry = createPQExpBuffer();
+	appendPQExpBufferStr(qry, "SELECT r.rolname FROM pg_roles r "
+						 "INNER JOIN pg_database d ON r.oid = d.datdba "
+						 "WHERE d.datname = current_database()");
+	res = executeQuery(conn, qry->data);
+	babel_init_user = pstrdup(PQgetvalue(res, 0, 0));
+	PQclear(res);
+	destroyPQExpBuffer(qry);
+
+	return babel_init_user;
+}
+
+/*
  * isBabelfishDatabase:
  * returns true if current database has "babelfishpg_tsql"
  * extension installed, false otherwise.
@@ -172,10 +196,21 @@ getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog,
 
 	resetPQExpBuffer(buf);
 	appendPQExpBufferStr(buf, "WITH bbf_catalog AS (");
-	/* Include logins only in case of Babelfish physical database dump. */
+	/*
+	 * Include logins only in case of Babelfish physical database dump.
+	 * Note that we will not dump Babelfish initialize user as it might
+	 * already be present on the target server.
+	 */
 	if (!bbf_db_name)
-		appendPQExpBufferStr(buf,
-							 "SELECT rolname FROM sys.babelfish_authid_login_ext UNION ");
+	{
+		char *babel_init_user = getBabelfishInitUser(conn);
+		appendPQExpBuffer(buf,
+						  "SELECT rolname FROM sys.babelfish_authid_login_ext "
+						  "WHERE rolname != '%s' " /* Do not dump Babelfish initialize user */
+						  "UNION ",
+						  babel_init_user);
+		pfree(babel_init_user);
+	}
 	appendPQExpBufferStr(buf,
 						 "SELECT rolname FROM sys.babelfish_authid_user_ext ");
 	/* Only dump users of the specific logical database we are currently dumping. */
@@ -241,8 +276,15 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 	appendPQExpBufferStr(buf, "WITH bbf_catalog AS (");
 	/* Include logins only in case of Babelfish physical database dump. */
 	if (!bbf_db_name)
-		appendPQExpBufferStr(buf,
-							 "SELECT rolname FROM sys.babelfish_authid_login_ext UNION ");
+	{
+		char *babel_init_user = getBabelfishInitUser(conn);
+		appendPQExpBuffer(buf,
+						  "SELECT rolname FROM sys.babelfish_authid_login_ext "
+						  "WHERE rolname != '%s' " /* Do not dump Babelfish initialize user */
+						  "UNION ",
+						  babel_init_user);
+		pfree(babel_init_user);
+	}
 	appendPQExpBuffer(buf,
 					  "SELECT rolname FROM sys.babelfish_authid_user_ext ");
 	/* Only dump users of the specific logical database we are currently dumping. */

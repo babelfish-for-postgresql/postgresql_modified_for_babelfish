@@ -2149,8 +2149,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	int			rows_this_statement = 0;
 
 	/*
-	 * For tables in Babelfish Database with sql_variant datatype columns and
-	 * sys.babelfish_authid_login_ext Babelfish catalog table, we want to 
+	 * For tables in Babelfish Database with sql_variant datatype columns, we want to 
 	 * surpass dopt->column_inserts check since these tables need to be dumped
 	 * as when column_inserts is true.
 	 */
@@ -2544,8 +2543,8 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 	if (bbfIsDumpWithInsert(fout, tbinfo))
 	{
 		/*
-		 * dump tables in Babelfish Database with sql_variant datatype columns and
-		 * sys.babelfish_authid_login_ext Babelfish catalog table using INSERT only
+		 * dump tables in Babelfish Database with sql_variant
+		 * datatype columns using INSERT only.
 		 */
 		dumpFn = dumpTableData_insert;
 		copyStmt = NULL;
