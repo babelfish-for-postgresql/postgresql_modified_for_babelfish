@@ -1,0 +1,34 @@
+name: BabelfishDump RPM Test
+on: [push, pull_request]
+
+jobs:
+  build-rpm:
+    name: Build BabelfishDump RPM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        id: checkout
+
+      - name: Install Dependencies
+        id: install-dependencies
+        if: always()
+        run: |
+          sudo apt clean && sudo apt-get update --fix-missing -y
+          sudo apt-get install alien libossp-uuid-dev uuid-dev zlib1g-dev liblz4-dev libicu-dev libxml2-dev openssl libssl-dev libpq-dev pkg-config bison flex libkrb5-dev libpam-dev libreadline-dev
+
+      - name: Run RPM command
+        id: run-rpm-command
+        if: always() && steps.install-dependencies.outcome == 'success'
+        run: |
+          make NODEPS=1 rpm
+
+      - name: Install RPM
+        id: install-rpm
+        if: always() && steps.run-rpm-command.outcome == 'success'
+        run: |
+          cd build
+          # Install RPM package
+          sudo alien -i BabelfishDump-*
+          # Verify that utilites installed correctly
+          bbf_dumpall -V
+          bbf_dump -V
