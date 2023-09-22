@@ -3031,6 +3031,7 @@ CommitTransactionCommand(void)
 	TransactionState s = CurrentTransactionState;
 	SavedTransactionCharacteristics savetc;
 
+	/* Must save in case we need to restore below */
 	SaveTransactionCharacteristics(&savetc);
 
 	switch (s->blockState)
