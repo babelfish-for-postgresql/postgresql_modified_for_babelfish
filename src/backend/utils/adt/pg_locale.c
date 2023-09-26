@@ -102,6 +102,8 @@ char	   *localized_full_months[12 + 1];
 /* is the databases's LC_CTYPE the C locale? */
 bool		database_ctype_is_c = false;
 
+PGDLLIMPORT collation_cache_entry_hook_type collation_cache_entry_hook = NULL;
+
 /* indicates whether locale information cache is valid */
 static bool CurrentLocaleConvValid = false;
 static bool CurrentLCTimeValid = false;
@@ -1521,6 +1523,7 @@ pg_locale_t
 pg_newlocale_from_collation(Oid collid)
 {
 	collation_cache_entry *cache_entry;
+	pg_locale_t 		prev_local = NULL;
 
 	/* Callers must pass a valid OID */
 	Assert(OidIsValid(collid));
@@ -1534,6 +1537,16 @@ pg_newlocale_from_collation(Oid collid)
 	}
 
 	cache_entry = lookup_collation_cache(collid, false);
+    
+	/* Call hook to get pervious cached value and return if not null*/
+	if(collation_cache_entry_hook)
+	{
+		prev_local =  (pg_locale_t)(*collation_cache_entry_hook)(collid,NULL);
+		if(prev_local)
+		{
+			return prev_local;
+		}
+	}
 
 	if (cache_entry->locale == 0)
 	{
@@ -1675,6 +1688,12 @@ pg_newlocale_from_collation(Oid collid)
 
 		cache_entry->locale = resultp;
 	}
+
+/* Call hook to save the cached value */
+	if(collation_cache_entry_hook)
+	{
+		(*collation_cache_entry_hook)(cache_entry->collid, &cache_entry->locale);
+	}	
 
 	return cache_entry->locale;
 }
