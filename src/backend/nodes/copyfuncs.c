@@ -1432,6 +1432,8 @@ _copyIntoClause(const IntoClause *from)
 	COPY_STRING_FIELD(tableSpaceName);
 	COPY_NODE_FIELD(viewQuery);
 	COPY_SCALAR_FIELD(skipData);
+	COPY_STRING_FIELD(identityName);
+	COPY_STRING_FIELD(identityType);
 
 	return newnode;
 }
