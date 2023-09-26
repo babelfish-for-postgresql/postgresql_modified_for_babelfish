@@ -360,7 +360,7 @@ static void truncate_check_perms(Oid relid, Form_pg_class reltuple);
 static void truncate_check_activity(Relation rel);
 static void RangeVarCallbackForTruncate(const RangeVar *relation,
 										Oid relId, Oid oldRelId, void *arg);
-static List *MergeAttributes(List *schema, List *supers, char relpersistence,
+static List *MergeAttributes(List *columns, const List *supers, char relpersistence,
 							 bool is_partition, List **supconstr,
 							 List **supnotnulls);
 static List *MergeCheckConstraint(List *constraints, const char *name, Node *expr);
@@ -371,7 +371,7 @@ static void StoreCatalogInheritance(Oid relationId, List *supers,
 static void StoreCatalogInheritance1(Oid relationId, Oid parentOid,
 									 int32 seqNumber, Relation inhRelation,
 									 bool child_is_partition);
-static int	findAttrByName(const char *attributeName, List *schema);
+static int	findAttrByName(const char *attributeName, const List *columns);
 static void AlterIndexNamespaces(Relation classRel, Relation rel,
 								 Oid oldNspOid, Oid newNspOid, ObjectAddresses *objsMoved);
 static void AlterSeqNamespaces(Relation classRel, Relation rel,
@@ -2358,7 +2358,7 @@ storage_name(char c)
  *		Returns new schema given initial schema and superclasses.
  *
  * Input arguments:
- * 'schema' is the column/attribute definition for the table. (It's a list
+ * 'columns' is the column/attribute definition for the table. (It's a list
  *		of ColumnDef's.) It is destructively changed.
  * 'supers' is a list of OIDs of parent relations, already locked by caller.
  * 'relpersistence' is the persistence type of the table.
@@ -2420,17 +2420,17 @@ storage_name(char c)
  *----------
  */
 static List *
-MergeAttributes(List *schema, List *supers, char relpersistence,
+MergeAttributes(List *columns, const List *supers, char relpersistence,
 				bool is_partition, List **supconstr, List **supnotnulls)
 {
-	List	   *inhSchema = NIL;
+	List	   *inh_columns = NIL;
 	List	   *constraints = NIL;
 	List	   *nnconstraints = NIL;
 	bool		have_bogus_defaults = false;
 	int			child_attno;
 	static Node bogus_marker = {0}; /* marks conflicting defaults */
-	List	   *saved_schema = NIL;
-	ListCell   *entry;
+	List	   *saved_columns = NIL;
+	ListCell   *lc;
 
 	/*
 	 * Check for and reject tables with too many columns. We perform this
@@ -2443,7 +2443,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 	 * Note that we also need to check that we do not exceed this figure after
 	 * including columns from inherited relations.
 	 */
-	if (list_length(schema) > MaxHeapAttributeNumber)
+	if (list_length(columns) > MaxHeapAttributeNumber)
 		ereport(ERROR,
 				(errcode(ERRCODE_TOO_MANY_COLUMNS),
 				 errmsg("tables can have at most %d columns",
@@ -2457,15 +2457,15 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 	 * sense to assume such conflicts are errors.
 	 *
 	 * We don't use foreach() here because we have two nested loops over the
-	 * schema list, with possible element deletions in the inner one.  If we
+	 * columns list, with possible element deletions in the inner one.  If we
 	 * used foreach_delete_current() it could only fix up the state of one of
 	 * the loops, so it seems cleaner to use looping over list indexes for
 	 * both loops.  Note that any deletion will happen beyond where the outer
 	 * loop is, so its index never needs adjustment.
 	 */
-	for (int coldefpos = 0; coldefpos < list_length(schema); coldefpos++)
+	for (int coldefpos = 0; coldefpos < list_length(columns); coldefpos++)
 	{
-		ColumnDef  *coldef = list_nth_node(ColumnDef, schema, coldefpos);
+		ColumnDef  *coldef = list_nth_node(ColumnDef, columns, coldefpos);
 
 		if (!is_partition && coldef->typeName == NULL)
 		{
@@ -2482,9 +2482,9 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 		}
 
 		/* restpos scans all entries beyond coldef; incr is in loop body */
-		for (int restpos = coldefpos + 1; restpos < list_length(schema);)
+		for (int restpos = coldefpos + 1; restpos < list_length(columns);)
 		{
-			ColumnDef  *restdef = list_nth_node(ColumnDef, schema, restpos);
+			ColumnDef  *restdef = list_nth_node(ColumnDef, columns, restpos);
 
 			if (strcmp(coldef->colname, restdef->colname) == 0)
 			{
@@ -2498,7 +2498,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 					coldef->cooked_default = restdef->cooked_default;
 					coldef->constraints = restdef->constraints;
 					coldef->is_from_type = false;
-					schema = list_delete_nth_cell(schema, restpos);
+					columns = list_delete_nth_cell(columns, restpos);
 				}
 				else
 					ereport(ERROR,
@@ -2518,18 +2518,18 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 	 */
 	if (is_partition)
 	{
-		saved_schema = schema;
-		schema = NIL;
+		saved_columns = columns;
+		columns = NIL;
 	}
 
 	/*
 	 * Scan the parents left-to-right, and merge their attributes to form a
-	 * list of inherited attributes (inhSchema).
+	 * list of inherited columns (inh_columns).
 	 */
 	child_attno = 0;
-	foreach(entry, supers)
+	foreach(lc, supers)
 	{
-		Oid			parent = lfirst_oid(entry);
+		Oid			parent = lfirst_oid(lc);
 		Relation	relation;
 		TupleDesc	tupleDesc;
 		TupleConstr *constr;
@@ -2537,7 +2537,6 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 		List	   *inherited_defaults;
 		List	   *cols_with_defaults;
 		List	   *nnconstrs;
-		AttrNumber	parent_attno;
 		ListCell   *lc1;
 		ListCell   *lc2;
 		Bitmapset  *pkattrs;
@@ -2558,8 +2557,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 		 * We do not allow partitioned tables and partitions to participate in
 		 * regular inheritance.
 		 */
-		if (relation->rd_rel->relkind == RELKIND_PARTITIONED_TABLE &&
-			!is_partition)
+		if (relation->rd_rel->relkind == RELKIND_PARTITIONED_TABLE && !is_partition)
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 					 errmsg("cannot inherit from partitioned table \"%s\"",
@@ -2644,7 +2642,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 			nncols = bms_add_member(nncols,
 									((CookedConstraint *) lfirst(lc1))->attnum);
 
-		for (parent_attno = 1; parent_attno <= tupleDesc->natts;
+		for (AttrNumber parent_attno = 1; parent_attno <= tupleDesc->natts;
 			 parent_attno++)
 		{
 			Form_pg_attribute attribute = TupleDescAttr(tupleDesc,
@@ -2662,7 +2660,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 			/*
 			 * Does it conflict with some previously inherited column?
 			 */
-			exist_attno = findAttrByName(attributeName, inhSchema);
+			exist_attno = findAttrByName(attributeName, inh_columns);
 			if (exist_attno > 0)
 			{
 				Oid			defTypeId;
@@ -2675,7 +2673,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 				ereport(NOTICE,
 						(errmsg("merging multiple inherited definitions of column \"%s\"",
 								attributeName)));
-				def = (ColumnDef *) list_nth(inhSchema, exist_attno - 1);
+				def = (ColumnDef *) list_nth(inh_columns, exist_attno - 1);
 
 				/*
 				 * Must have the same type and typmod
@@ -2812,7 +2810,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 				if (CompressionMethodIsValid(attribute->attcompression))
 					def->compression =
 						pstrdup(GetCompressionMethodName(attribute->attcompression));
-				inhSchema = lappend(inhSchema, def);
+				inh_columns = lappend(inh_columns, def);
 				newattmap->attnums[parent_attno - 1] = ++child_attno;
 
 				/*
@@ -2913,7 +2911,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 			 * If we already had a default from some prior parent, check to
 			 * see if they are the same.  If so, no problem; if not, mark the
 			 * column as having a bogus default.  Below, we will complain if
-			 * the bogus default isn't overridden by the child schema.
+			 * the bogus default isn't overridden by the child columns.
 			 */
 			Assert(def->raw_default == NULL);
 			if (def->cooked_default == NULL)
@@ -2933,9 +2931,8 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 		if (constr && constr->num_check > 0)
 		{
 			ConstrCheck *check = constr->check;
-			int			i;
 
-			for (i = 0; i < constr->num_check; i++)
+			for (int i = 0; i < constr->num_check; i++)
 			{
 				char	   *name = check[i].ccname;
 				Node	   *expr;
@@ -2996,27 +2993,27 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 	}
 
 	/*
-	 * If we had no inherited attributes, the result schema is just the
+	 * If we had no inherited attributes, the result columns are just the
 	 * explicitly declared columns.  Otherwise, we need to merge the declared
-	 * columns into the inherited schema list.  Although, we never have any
+	 * columns into the inherited column list.  Although, we never have any
 	 * explicitly declared columns if the table is a partition.
 	 */
-	if (inhSchema != NIL)
+	if (inh_columns != NIL)
 	{
-		int			schema_attno = 0;
+		int			newcol_attno = 0;
 
-		foreach(entry, schema)
+		foreach(lc, columns)
 		{
-			ColumnDef  *newdef = lfirst(entry);
+			ColumnDef  *newdef = lfirst(lc);
 			char	   *attributeName = newdef->colname;
 			int			exist_attno;
 
-			schema_attno++;
+			newcol_attno++;
 
 			/*
 			 * Does it conflict with some previously inherited column?
 			 */
-			exist_attno = findAttrByName(attributeName, inhSchema);
+			exist_attno = findAttrByName(attributeName, inh_columns);
 			if (exist_attno > 0)
 			{
 				ColumnDef  *def;
@@ -3036,7 +3033,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 				/*
 				 * Yes, try to merge the two column definitions.
 				 */
-				if (exist_attno == schema_attno)
+				if (exist_attno == newcol_attno)
 					ereport(NOTICE,
 							(errmsg("merging column \"%s\" with inherited definition",
 									attributeName)));
@@ -3044,7 +3041,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 					ereport(NOTICE,
 							(errmsg("moving and merging column \"%s\" with inherited definition", attributeName),
 							 errdetail("User-specified column moved to the position of the inherited column.")));
-				def = (ColumnDef *) list_nth(inhSchema, exist_attno - 1);
+				def = (ColumnDef *) list_nth(inh_columns, exist_attno - 1);
 
 				/*
 				 * Must have the same type and typmod
@@ -3169,19 +3166,19 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 			else
 			{
 				/*
-				 * No, attach new column to result schema
+				 * No, attach new column to result columns
 				 */
-				inhSchema = lappend(inhSchema, newdef);
+				inh_columns = lappend(inh_columns, newdef);
 			}
 		}
 
-		schema = inhSchema;
+		columns = inh_columns;
 
 		/*
 		 * Check that we haven't exceeded the legal # of columns after merging
 		 * in inherited columns.
 		 */
-		if (list_length(schema) > MaxHeapAttributeNumber)
+		if (list_length(columns) > MaxHeapAttributeNumber)
 			ereport(ERROR,
 					(errcode(ERRCODE_TOO_MANY_COLUMNS),
 					 errmsg("tables can have at most %d columns",
@@ -3195,13 +3192,13 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 	 */
 	if (is_partition)
 	{
-		foreach(entry, saved_schema)
+		foreach(lc, saved_columns)
 		{
-			ColumnDef  *restdef = lfirst(entry);
+			ColumnDef  *restdef = lfirst(lc);
 			bool		found = false;
 			ListCell   *l;
 
-			foreach(l, schema)
+			foreach(l, columns)
 			{
 				ColumnDef  *coldef = lfirst(l);
 
@@ -3273,9 +3270,9 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 	 */
 	if (have_bogus_defaults)
 	{
-		foreach(entry, schema)
+		foreach(lc, columns)
 		{
-			ColumnDef  *def = lfirst(entry);
+			ColumnDef  *def = lfirst(lc);
 
 			if (def->cooked_default == &bogus_marker)
 			{
@@ -3298,7 +3295,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 	*supconstr = constraints;
 	*supnotnulls = nnconstraints;
 
-	return schema;
+	return columns;
 }
 
 
@@ -3453,15 +3450,15 @@ StoreCatalogInheritance1(Oid relationId, Oid parentOid,
 }
 
 /*
- * Look for an existing schema entry with the given name.
+ * Look for an existing column entry with the given name.
  *
- * Returns the index (starting with 1) if attribute already exists in schema,
+ * Returns the index (starting with 1) if attribute already exists in columns,
  * 0 if it doesn't.
  */
 static int
-findAttrByName(const char *attributeName, List *schema)
+findAttrByName(const char *attributeName, const List *columns)
 {
-	ListCell   *s;
+	ListCell   *lc;
 	int			i = 1;
 
 	/*
@@ -3471,13 +3468,11 @@ findAttrByName(const char *attributeName, List *schema)
 	if (sql_dialect == SQL_DIALECT_TSQL
 		&& pltsql_case_insensitive_identifiers
 		&& find_attr_by_name_from_column_def_list_hook)
-		return (*find_attr_by_name_from_column_def_list_hook)(attributeName, schema);
-
-	foreach(s, schema)
+		return (*find_attr_by_name_from_column_def_list_hook)(attributeName, columns);
+	
+	foreach(lc, columns)
 	{
-		ColumnDef  *def = lfirst(s);
-
-		if (strcmp(attributeName, def->colname) == 0)
+		if (strcmp(attributeName, lfirst_node(ColumnDef, lc)->colname) == 0)
 			return i;
 
 		i++;
