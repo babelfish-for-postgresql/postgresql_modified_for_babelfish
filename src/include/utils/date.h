@@ -87,6 +87,6 @@ extern bool time_overflows(int hour, int min, int sec, fsec_t fsec);
 extern bool float_time_overflows(int hour, int min, double sec);
 extern void AdjustTimeForTypmod(TimeADT *time, int32 typmod);
 
-typedef Datum (*time_in_hook_type) (const char *str, int32 typmod);
-extern PGDLLIMPORT time_in_hook_type time_in_hook;
+typedef Datum (*tsql_time_in_hook_type) (const char *str, int32 typmod);
+extern PGDLLIMPORT tsql_time_in_hook_type tsql_time_in_hook;
 #endif							/* DATE_H */
