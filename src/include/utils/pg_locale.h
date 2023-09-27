@@ -105,6 +105,8 @@ struct pg_locale_struct
 
 typedef struct pg_locale_struct *pg_locale_t;
 
+extern pg_locale_t *collation_cache_entry_hook_function (Oid, pg_locale_t *);
+
 extern PGDLLIMPORT struct pg_locale_struct default_locale;
 
 extern void make_icu_collator(const char *iculocstr,
@@ -125,5 +127,8 @@ extern size_t wchar2char(char *to, const wchar_t *from, size_t tolen,
 						 pg_locale_t locale);
 extern size_t char2wchar(wchar_t *to, size_t tolen,
 						 const char *from, size_t fromlen, pg_locale_t locale);
+
+typedef pg_locale_t* (*collation_cache_entry_hook_type)(Oid, pg_locale_t *);
+extern  PGDLLIMPORT collation_cache_entry_hook_type collation_cache_entry_hook;
 
 #endif							/* _PG_LOCALE_ */

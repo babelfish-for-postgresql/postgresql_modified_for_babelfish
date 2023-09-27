@@ -16,7 +16,7 @@
  */
 
 #include "postgres.h"
-
+#include "pgstat.h"
 #include "access/htup_details.h"
 #include "catalog/pg_proc.h"
 #include "fmgr.h"
@@ -79,18 +79,6 @@ pgstat_init_function_usage(FunctionCallInfo fcinfo,
 	PgStat_EntryRef *entry_ref;
 	PgStat_BackendFunctionEntry *pending;
 	bool		created_entry;
-
-	if (pre_function_call_hook && IsTransactionState())
-	{
-		HeapTuple proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid));
-		if (HeapTupleIsValid(proctup))
-		{
-			Form_pg_proc proc = (Form_pg_proc) GETSTRUCT(proctup);
-			(*pre_function_call_hook)(NameStr(proc->proname));
-		}
-
-		ReleaseSysCache(proctup);
-	}
 
 	if (pgstat_track_functions <= fcinfo->flinfo->fn_stats)
 	{
