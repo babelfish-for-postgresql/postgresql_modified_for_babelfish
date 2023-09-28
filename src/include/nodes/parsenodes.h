@@ -3401,11 +3401,12 @@ typedef struct InlineCodeBlock
 typedef struct CallStmt
 {
 	NodeTag		type;
-	FuncCall   *funccall;		/* from the parser */
+	/* from the parser */
+	FuncCall   *funccall pg_node_attr(query_jumble_ignore);
 	/* transformed call, with only input args */
-	FuncExpr   *funcexpr pg_node_attr(query_jumble_ignore);
+	FuncExpr   *funcexpr;
 	/* transformed output-argument expressions */
-	List	   *outargs pg_node_attr(query_jumble_ignore);
+	List	   *outargs;
 	/* for INSERT ... EXECUTE */
 	Oid 		relation;		/* INSERT target relation */
 	List 	   *attrnos; 		/* columns list by attnum */
