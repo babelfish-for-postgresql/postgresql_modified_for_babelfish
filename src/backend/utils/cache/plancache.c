@@ -72,6 +72,7 @@
 #include "utils/resowner_private.h"
 #include "utils/rls.h"
 #include "utils/snapmgr.h"
+#include "utils/resowner.h"
 #include "utils/syscache.h"
 
 
