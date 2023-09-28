@@ -717,14 +717,18 @@ ResourceOwnerReleaseInternal(ResourceOwner owner,
 void
 ResourceOwnerReleaseAllPlanCacheRefs(ResourceOwner owner)
 {
+	ResourceOwner save;
 	Datum		foundres;
 
+	save = CurrentResourceOwner;
+	CurrentResourceOwner = owner;
 	while (ResourceArrayGetAny(&(owner->planrefarr), &foundres))
 	{
 		CachedPlan *res = (CachedPlan *) DatumGetPointer(foundres);
 
 		ReleaseCachedPlan(res, owner);
 	}
+	CurrentResourceOwner = save;
 }
 
 /*
