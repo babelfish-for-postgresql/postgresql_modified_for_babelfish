@@ -4270,7 +4270,7 @@ PostgresMain(const char *dbname, const char *username)
 	 */
 	start_xact_command();
 	PushActiveSnapshot(GetTransactionSnapshot());
-	if (get_extension_oid(pgtsql_library_name, true) != InvalidOid)
+	if (OidIsValid(MyDatabaseId) && OidIsValid(get_extension_oid(pgtsql_library_name, true)))
 	{
 		/*
 		 * babelfishpg_tsql extension depends on babelfishpg_common, so
