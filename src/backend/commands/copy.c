@@ -516,9 +516,11 @@ ProcessCopyOptions(ParseState *pstate,
 		}
 		else if (strcmp(defel->defname, "force_not_null") == 0)
 		{
-			if (opts_out->force_notnull)
+			if (opts_out->force_notnull || opts_out->force_notnull_all)
 				errorConflictingDefElem(defel, pstate);
-			if (defel->arg && IsA(defel->arg, List))
+			if (defel->arg && IsA(defel->arg, A_Star))
+				opts_out->force_notnull_all = true;
+			else if (defel->arg && IsA(defel->arg, List))
 				opts_out->force_notnull = castNode(List, defel->arg);
 			else
 				ereport(ERROR,
@@ -529,9 +531,11 @@ ProcessCopyOptions(ParseState *pstate,
 		}
 		else if (strcmp(defel->defname, "force_null") == 0)
 		{
-			if (opts_out->force_null)
+			if (opts_out->force_null || opts_out->force_null_all)
 				errorConflictingDefElem(defel, pstate);
-			if (defel->arg && IsA(defel->arg, List))
+			if (defel->arg && IsA(defel->arg, A_Star))
+				opts_out->force_null_all = true;
+			else if (defel->arg && IsA(defel->arg, List))
 				opts_out->force_null = castNode(List, defel->arg);
 			else
 				ereport(ERROR,
