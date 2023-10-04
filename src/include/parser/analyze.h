@@ -101,4 +101,7 @@ extern List *BuildOnConflictExcludedTargetlist(Relation targetrel,
 
 extern SortGroupClause *makeSortGroupClauseForSetOp(Oid rescoltype, bool require_hash);
 
+extern RawStmt	   *bbf_pivot_sql1;
+extern RawStmt	   *bbf_pivot_sql2;
+
 #endif							/* ANALYZE_H */

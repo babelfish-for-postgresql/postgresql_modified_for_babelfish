@@ -1756,6 +1756,11 @@ typedef struct SelectStmt
 
 	/* These fields are used only in SelectStmt with PIVOT keyword */
 	bool	isPivot;
+	struct SelectStmt *srcSql;
+	struct SelectStmt *catSql;
+	List	*value_col_strlist;
+	char	*pivotCol;
+	Node	*aggFunc;
 } SelectStmt;
 
 
