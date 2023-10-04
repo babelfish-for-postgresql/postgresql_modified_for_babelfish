@@ -28,7 +28,6 @@
 #include "miscadmin.h"
 #include "nodes/supportnodes.h"
 #include "parser/scansup.h"
-#include "parser/parser.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/date.h"
@@ -1386,8 +1385,8 @@ time_in(PG_FUNCTION_ARGS)
 	int			dtype;
 	int			ftype[MAXDATEFIELDS];
 
-	if (tsql_time_in_hook && sql_dialect == SQL_DIALECT_TSQL)
-		return (*tsql_time_in_hook)(str, typmod);
+	if (tsql_time_in_hook && (*tsql_time_in_hook)(str, typmod, &result))
+			PG_RETURN_TIMEADT(result);
 
 	dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
 						  field, ftype, MAXDATEFIELDS, &nf);
