@@ -314,7 +314,7 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 				ExtensionInfo	*ext = findOwningExtension(cast->dobj.catId);
 
 				/* Skip if cast is not a member of babelfish extension */
-				if (ext == NULL || strncmp(ext->dobj.name, "babelfishpg_common", 18) != 0)
+				if (ext == NULL || strcmp(ext->dobj.name, "babelfishpg_common") != 0)
 					return;
 
 				sTypeInfo = findTypeByOid(cast->castsource);
@@ -328,11 +328,11 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 				if (sTypeInfo && tTypeInfo &&
 						sTypeInfo->dobj.namespace &&
 						tTypeInfo->dobj.namespace &&
-						strncmp(sTypeInfo->dobj.namespace->dobj.name, "pg_catalog", 10) == 0 &&
-						strncmp(tTypeInfo->dobj.namespace->dobj.name, "sys", 3) == 0 &&
-						strncmp(sTypeInfo->dobj.name, "bool", 4) == 0 &&
-						(strncmp(tTypeInfo->dobj.name, "bpchar", 6) == 0 ||
-						strncmp(tTypeInfo->dobj.name, "varchar", 7) == 0))
+						strcmp(sTypeInfo->dobj.namespace->dobj.name, "pg_catalog") == 0 &&
+						strcmp(tTypeInfo->dobj.namespace->dobj.name, "sys") == 0 &&
+						strcmp(sTypeInfo->dobj.name, "bool") == 0 &&
+						(strcmp(tTypeInfo->dobj.name, "bpchar") == 0 ||
+						strcmp(tTypeInfo->dobj.name, "varchar") == 0))
 					cast->dobj.dump = DUMP_COMPONENT_NONE;
 			}
 			break;
@@ -354,10 +354,10 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 						 * will always dump it.
 						 */
 						if (tbinfo->dobj.namespace &&
-							(strncmp(tbinfo->dobj.namespace->dobj.name, "master_dbo", 10) == 0 ||
-							strncmp(tbinfo->dobj.namespace->dobj.name, "msdb_dbo", 8) == 0 ||
-							strncmp(tbinfo->dobj.namespace->dobj.name, "tempdb_dbo", 10) == 0) &&
-							strncmp(tbinfo->dobj.name, "sysdatabases", 12) == 0)
+							(strcmp(tbinfo->dobj.namespace->dobj.name, "master_dbo") == 0 ||
+							strcmp(tbinfo->dobj.namespace->dobj.name, "msdb_dbo") == 0 ||
+							strcmp(tbinfo->dobj.namespace->dobj.name, "tempdb_dbo") == 0) &&
+							strcmp(tbinfo->dobj.name, "sysdatabases") == 0)
 						{
 							tbinfo->dobj.dump = DUMP_COMPONENT_NONE;
 							break;
@@ -371,8 +371,8 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 					case RELKIND_SEQUENCE:
 					{
 						if (dobj->namespace &&
-							strncmp(dobj->namespace->dobj.name, "sys", 3) == 0 &&
-							strncmp(dobj->name, "babelfish_db_seq", 16) == 0)
+							strcmp(dobj->namespace->dobj.name, "sys") == 0 &&
+							strcmp(dobj->name, "babelfish_db_seq") == 0)
 							dobj->dump &= ~DUMP_COMPONENT_ACL;
 					}
 					break;
@@ -401,19 +401,19 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 				 * Do not dump the definition of default babelfish schemas but
 				 * their contained objects will be dumped.
 				 */
-				if (strncmp(nsinfo->dobj.name, "master_dbo", 10) == 0 ||
-					strncmp(nsinfo->dobj.name, "master_guest", 12) == 0 ||
-					strncmp(nsinfo->dobj.name, "msdb_dbo", 8) == 0 ||
-					strncmp(nsinfo->dobj.name, "msdb_guest", 10) == 0 ||
-					strncmp(nsinfo->dobj.name, "tempdb_dbo", 10) == 0 ||
-					strncmp(nsinfo->dobj.name, "tempdb_guest", 12) == 0)
+				if (strcmp(nsinfo->dobj.name, "master_dbo") == 0 ||
+					strcmp(nsinfo->dobj.name, "master_guest") == 0 ||
+					strcmp(nsinfo->dobj.name, "msdb_dbo") == 0 ||
+					strcmp(nsinfo->dobj.name, "msdb_guest") == 0 ||
+					strcmp(nsinfo->dobj.name, "tempdb_dbo") == 0 ||
+					strcmp(nsinfo->dobj.name, "tempdb_guest") == 0)
 					nsinfo->dobj.dump &= ~DUMP_COMPONENT_DEFINITION;
 
 				/*
 				 * Do not dump any components of the schemas which get created as
 				 * part of CREATE EXTENSION babelfish... command.
 				 */
-				if (strncmp(nsinfo->dobj.name, "babelfishpg_telemetry", 21) == 0)
+				if (strcmp(nsinfo->dobj.name, "babelfishpg_telemetry") == 0)
 					nsinfo->dobj.dump = DUMP_COMPONENT_NONE;
 			}
 			break;
