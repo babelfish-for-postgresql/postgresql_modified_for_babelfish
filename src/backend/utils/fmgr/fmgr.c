@@ -45,6 +45,7 @@ PGDLLIMPORT fmgr_hook_type fmgr_hook = NULL;
 PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook = NULL;
 PGDLLIMPORT get_func_language_oids_hook_type get_func_language_oids_hook = NULL;
 PGDLLIMPORT pgstat_function_wrapper_hook_type pgstat_function_wrapper_hook = NULL;
+set_local_schema_for_func_hookType set_local_schema_for_func_hook;
 
 /*
  * Hashtable for fast lookup of external C functions
@@ -748,7 +749,14 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 			fcache->proconfig = DatumGetArrayTypePCopy(datum);
 			MemoryContextSwitchTo(oldcxt);
 		}
-
+		if (set_local_schema_for_func_hook)
+		{
+			char 	*new_search_path;
+			new_search_path = (*set_local_schema_for_func_hook)(procedureStruct->oid);
+			if (new_search_path)
+				fcache->proconfig = GUCArrayAdd(fcache->proconfig, "search_path",
+													new_search_path);
+		}
 		ReleaseSysCache(tuple);
 
 		fcinfo->flinfo->fn_extra = fcache;
