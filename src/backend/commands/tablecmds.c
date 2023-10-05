@@ -953,10 +953,6 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 			cookedDefaults = lappend(cookedDefaults, cooked);
 			attr->atthasdef = true;
 		}
-
-		attr->attcompression = GetAttributeCompression(attr->atttypid, colDef->compression);
-		if (colDef->storage_name)
-			attr->attstorage = GetAttributeStorage(attr->atttypid, colDef->storage_name);
 	}
 
 	/*
@@ -1389,8 +1385,6 @@ BuildDescForRelation(const List *columns)
 
 		/* Override TupleDescInitEntry's settings as requested */
 		TupleDescInitEntryCollation(desc, attnum, attcollation);
-		if (entry->storage)
-			att->attstorage = entry->storage;
 
 		/* Fill in additional stuff not handled by TupleDescInitEntry */
 		att->attnotnull = entry->is_not_null;
@@ -1399,6 +1393,11 @@ BuildDescForRelation(const List *columns)
 		att->attinhcount = entry->inhcount;
 		att->attidentity = entry->identity;
 		att->attgenerated = entry->generated;
+		att->attcompression = GetAttributeCompression(att->atttypid, entry->compression);
+		if (entry->storage)
+			att->attstorage = entry->storage;
+		else if (entry->storage_name)
+			att->attstorage = GetAttributeStorage(att->atttypid, entry->storage_name);
 	}
 
 	if (has_not_null)
