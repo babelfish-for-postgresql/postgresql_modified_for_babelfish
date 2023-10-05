@@ -318,16 +318,17 @@ socket_close(int code, Datum arg)
  * specified.  For TCP ports, hostName is either NULL for all interfaces or
  * the interface to listen on, and unixSocketDir is ignored (can be NULL).
  *
- * Successfully opened sockets are added to the ListenSocket[] array (of
- * length MaxListen), at the first position that isn't PGINVALID_SOCKET.
+ * Successfully opened sockets are appended to the ListenSockets[] array.  On
+ * entry, *NumListenSockets holds the number of elements currently in the
+ * array, and it is updated to reflect the opened sockets.  MaxListen is the
+ * allocated size of the array.
  *
  * RETURNS: STATUS_OK or STATUS_ERROR
  */
-
 int
 StreamServerPort(int family, const char *hostName, unsigned short portNumber,
 				 const char *unixSocketDir,
-				 pgsocket ListenSocket[], int MaxListen)
+				 pgsocket ListenSockets[], int *NumListenSockets, int MaxListen)
 {
 	pgsocket	fd;
 	int			err;
