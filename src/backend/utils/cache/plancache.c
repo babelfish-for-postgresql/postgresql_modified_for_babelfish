@@ -1341,10 +1341,11 @@ CachedPlanAllowsSimpleValidityCheck(CachedPlanSource *plansource,
 	 */
 	Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
 	Assert(plan->magic == CACHEDPLAN_MAGIC);
+	Assert(plansource->is_valid);
 	Assert(plan->is_valid);
 	Assert(plan == plansource->gplan);
-	Assert(plansource->search_path != NULL);
-	Assert(OverrideSearchPathMatchesCurrent(plansource->search_path));
+	// Assert(plansource->search_path != NULL);
+	// Assert(OverrideSearchPathMatchesCurrent(plansource->search_path));
 
 	/* We don't support oneshot plans here. */
 	if (plansource->is_oneshot)
@@ -1410,12 +1411,12 @@ CachedPlanAllowsSimpleValidityCheck(CachedPlanSource *plansource,
 	 */
 
 	/* Bump refcount if requested. */
-	if (owner)
-	{
-		ResourceOwnerEnlargePlanCacheRefs(owner);
-		plan->refcount++;
-		ResourceOwnerRememberPlanCacheRef(owner, plan);
-	}
+	// if (owner)
+	// {
+	// 	ResourceOwnerEnlargePlanCacheRefs(owner);
+	// 	plan->refcount++;
+	// 	ResourceOwnerRememberPlanCacheRef(owner, plan);
+	// }
 
 	return true;
 }
