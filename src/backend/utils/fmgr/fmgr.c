@@ -752,10 +752,13 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		if (set_local_schema_for_func_hook)
 		{
 			char 	*new_search_path;
+			
+			oldcxt = MemoryContextSwitchTo(fcinfo->flinfo->fn_mcxt);
 			new_search_path = (*set_local_schema_for_func_hook)(procedureStruct->oid);
 			if (new_search_path)
 				fcache->proconfig = GUCArrayAdd(fcache->proconfig, "search_path",
 													new_search_path);
+			MemoryContextSwitchTo(oldcxt);
 		}
 		ReleaseSysCache(tuple);
 
