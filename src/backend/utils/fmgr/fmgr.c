@@ -708,6 +708,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	int			non_tsql_proc_count = 0;
 	void	   *newextra = NULL;
 	char 	   *cacheTupleProcname = NULL;
+	char	   *old_search_path = false;
 
 	if (!fcinfo->flinfo->fn_extra)
 	{
@@ -747,17 +748,6 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		{
 			oldcxt = MemoryContextSwitchTo(fcinfo->flinfo->fn_mcxt);
 			fcache->proconfig = DatumGetArrayTypePCopy(datum);
-			MemoryContextSwitchTo(oldcxt);
-		}
-		if (set_local_schema_for_func_hook)
-		{
-			char 	*new_search_path;
-			
-			oldcxt = MemoryContextSwitchTo(fcinfo->flinfo->fn_mcxt);
-			new_search_path = (*set_local_schema_for_func_hook)(procedureStruct->oid);
-			if (new_search_path)
-				fcache->proconfig = GUCArrayAdd(fcache->proconfig, "search_path",
-													new_search_path);
 			MemoryContextSwitchTo(oldcxt);
 		}
 		ReleaseSysCache(tuple);
@@ -800,7 +790,20 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	if (set_sql_dialect && IsTransactionState())
 	{
 		if ((fcache->prolang == pltsql_lang_oid) || (fcache->prolang == pltsql_validator_oid))
+		{
 			sql_dialect_value = tsql_dialect;
+			if (set_local_schema_for_func_hook)
+			{
+				char 	*new_search_path = NULL;
+				new_search_path = (*set_local_schema_for_func_hook)(fcinfo->flinfo->fn_oid);
+				if (new_search_path)
+				{
+					old_search_path = namespace_search_path;
+					namespace_search_path = new_search_path;
+					assign_search_path(old_search_path, newextra);
+				}
+			}
+		}
 		else
 		{
 			/* Record PG procedure entry */
@@ -889,6 +892,12 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		 */
 		if (set_sql_dialect)
 		{
+			if(sql_dialect == tsql_dialect && old_search_path)
+			{
+				namespace_search_path = old_search_path;
+				elog(LOG, "-------------> %s", old_search_path);
+				assign_search_path(old_search_path, newextra);
+			}
 			sql_dialect = sql_dialect_value_old;
 			assign_sql_dialect(sql_dialect_value_old, newextra);
 		}
@@ -901,6 +910,12 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 
 	if (set_sql_dialect)
 	{
+		if(sql_dialect == tsql_dialect && old_search_path)
+		{
+			namespace_search_path = old_search_path;
+			elog(LOG, "-------------> %s", old_search_path);
+			assign_search_path(old_search_path, newextra);
+		}
 
 		sql_dialect = sql_dialect_value_old;
 		assign_sql_dialect(sql_dialect_value_old, newextra);
