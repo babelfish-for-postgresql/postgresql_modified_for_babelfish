@@ -708,7 +708,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	int			non_tsql_proc_count = 0;
 	void	   *newextra = NULL;
 	char 	   *cacheTupleProcname = NULL;
-	char	   *old_search_path = false;
+	char	   *old_search_path = NULL;
 
 	if (!fcinfo->flinfo->fn_extra)
 	{
@@ -895,7 +895,6 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 			if(sql_dialect == tsql_dialect && old_search_path)
 			{
 				namespace_search_path = old_search_path;
-				elog(LOG, "-------------> %s", old_search_path);
 				assign_search_path(old_search_path, newextra);
 			}
 			sql_dialect = sql_dialect_value_old;
@@ -913,7 +912,6 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		if(sql_dialect == tsql_dialect && old_search_path)
 		{
 			namespace_search_path = old_search_path;
-			elog(LOG, "-------------> %s", old_search_path);
 			assign_search_path(old_search_path, newextra);
 		}
 
