@@ -5126,6 +5126,22 @@ select_best_grantor(Oid roleId, AclMode privileges,
 	 * roles_is_member_of() throughout this loop, because aclmask_direct()
 	 * doesn't query any role memberships.
 	 */
+
+	if(roleId == get_role_oid("sysadmin", true))
+	{
+		AclMode		sysadmin_privs;
+
+		sysadmin_privs = aclmask_direct(acl, roleId, ownerId,
+									needed_goptions, ACLMASK_ALL);
+		if (sysadmin_privs == needed_goptions)
+		{
+			/* Found a suitable grantor */
+			*grantorId = roleId;
+			*grantOptions = sysadmin_privs;
+			return;
+		}
+	}
+
 	roles_list = roles_is_member_of(roleId, ROLERECURSE_PRIVS,
 									InvalidOid, NULL);
 
