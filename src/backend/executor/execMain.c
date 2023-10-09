@@ -817,9 +817,10 @@ InitPlan(QueryDesc *queryDesc, int eflags)
 	int			i;
 
 	/*
-	 * Do permissions checks
+	 * Do permissions checks if not parallel worker
 	 */
-	ExecCheckRTPerms(rangeTable, true);
+	if (!IsParallelWorker())
+		ExecCheckRTPerms(rangeTable, true);
 
 	/*
 	 * initialize the node's execution state
