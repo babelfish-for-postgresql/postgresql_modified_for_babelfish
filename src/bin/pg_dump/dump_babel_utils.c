@@ -397,7 +397,10 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 				if (fout->dopt->binary_upgrade)
 					return;
 
-				/* Do not dump the definition of default babelfish schemas */
+				/*
+				 * Do not dump the definition of default babelfish schemas but
+				 * their contained objects will be dumped.
+				 */
 				if (strcmp(nsinfo->dobj.name, "master_dbo") == 0 ||
 					strcmp(nsinfo->dobj.name, "master_guest") == 0 ||
 					strcmp(nsinfo->dobj.name, "msdb_dbo") == 0 ||
@@ -405,6 +408,13 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 					strcmp(nsinfo->dobj.name, "tempdb_dbo") == 0 ||
 					strcmp(nsinfo->dobj.name, "tempdb_guest") == 0)
 					nsinfo->dobj.dump &= ~DUMP_COMPONENT_DEFINITION;
+
+				/*
+				 * Do not dump any components of the schemas which get created as
+				 * part of CREATE EXTENSION babelfish... command.
+				 */
+				if (strcmp(nsinfo->dobj.name, "babelfishpg_telemetry") == 0)
+					nsinfo->dobj.dump = DUMP_COMPONENT_NONE;
 			}
 			break;
 		case DO_EXTENSION:
@@ -415,7 +425,7 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 					return;
 
 				if (strncmp(extinfo->dobj.name, "babelfishpg", 11) == 0)
-					extinfo->dobj.dump &= ~DUMP_COMPONENT_DEFINITION;
+					extinfo->dobj.dump = extinfo->dobj.dump_contains = DUMP_COMPONENT_NONE;
 			}
 			break;
 		case DO_FUNC:
