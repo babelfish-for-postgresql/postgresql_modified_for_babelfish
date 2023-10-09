@@ -489,6 +489,12 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 								RelationGetRelationName(rel)),
 						 errdetail("Triggers on foreign tables cannot have transition tables.")));
 
+			if (rel->rd_rel->relkind == RELKIND_VIEW && sql_dialect != SQL_DIALECT_TSQL)
+				ereport(ERROR,
+						(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+						 errmsg("\"%s\" is a view",
+								RelationGetRelationName(rel)),
+						 errdetail("Triggers on views cannot have transition tables.")));
 
 			/*
 			 * We currently don't allow row-level triggers with transition
