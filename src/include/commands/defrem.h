@@ -80,11 +80,6 @@ typedef void (*write_stored_proc_probin_hook_type)(CreateFunctionStmt *stmt, Oid
 extern PGDLLIMPORT check_lang_as_clause_hook_type check_lang_as_clause_hook;
 extern PGDLLIMPORT write_stored_proc_probin_hook_type write_stored_proc_probin_hook;
 
-typedef void (*declare_parameter_unquoted_string_hook_type)(Node *paramDft, ObjectType objtype);
-extern PGDLLIMPORT declare_parameter_unquoted_string_hook_type declare_parameter_unquoted_string_hook;
-typedef void (*declare_parameter_unquoted_string_reset_hook_type)(Node *paramDft);
-extern PGDLLIMPORT declare_parameter_unquoted_string_reset_hook_type declare_parameter_unquoted_string_reset_hook;
-
 /* commands/operatorcmds.c */
 extern ObjectAddress DefineOperator(List *names, List *parameters);
 extern void RemoveOperatorById(Oid operOid);
