@@ -5120,14 +5120,8 @@ select_best_grantor(Oid roleId, AclMode privileges,
 		return;
 	}
 
-	/*
-	 * Otherwise we have to do a careful search to see if roleId has the
-	 * privileges of any suitable role.  Note: we can hang onto the result of
-	 * roles_is_member_of() throughout this loop, because aclmask_direct()
-	 * doesn't query any role memberships.
-	 */
-
-	if(roleId == get_role_oid("sysadmin", true))
+	if(sql_dialect == SQL_DIALECT_TSQL &&
+		roleId == get_role_oid("sysadmin", true))
 	{
 		AclMode		sysadmin_privs;
 
@@ -5142,6 +5136,12 @@ select_best_grantor(Oid roleId, AclMode privileges,
 		}
 	}
 
+	/*
+	 * Otherwise we have to do a careful search to see if roleId has the
+	 * privileges of any suitable role.  Note: we can hang onto the result of
+	 * roles_is_member_of() throughout this loop, because aclmask_direct()
+	 * doesn't query any role memberships.
+	 */
 	roles_list = roles_is_member_of(roleId, ROLERECURSE_PRIVS,
 									InvalidOid, NULL);
 
