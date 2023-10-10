@@ -54,6 +54,7 @@
 #include "jit/jit.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "storage/bufmgr.h"
 #include "storage/lmgr.h"
@@ -819,7 +820,7 @@ InitPlan(QueryDesc *queryDesc, int eflags)
 	/*
 	 * Do permissions checks if not parallel worker
 	 */
-	if (!IsParallelWorker())
+	if (!(sql_dialect == SQL_DIALECT_TSQL && IsParallelWorker()))
 		ExecCheckRTPerms(rangeTable, true);
 
 	/*
