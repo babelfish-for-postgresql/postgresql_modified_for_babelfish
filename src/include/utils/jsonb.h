@@ -434,10 +434,10 @@ extern Datum jsonb_get_element(Jsonb *jb, Datum *path, int npath,
 							   bool *isnull, bool as_text);
 extern void jsonb_get_value(Datum val, bool is_null, JsonbValue *json, Oid val_type);
 extern bool to_jsonb_is_immutable(Oid typoid);
-extern Datum jsonb_build_object_worker(int nargs, Datum *args, bool *nulls,
-									   Oid *types, bool absent_on_null,
+extern Datum jsonb_build_object_worker(int nargs, const Datum *args, const bool *nulls,
+									   const Oid *types, bool absent_on_null,
 									   bool unique_keys);
-extern Datum jsonb_build_array_worker(int nargs, Datum *args, bool *nulls,
-									  Oid *types, bool absent_on_null);
+extern Datum jsonb_build_array_worker(int nargs, const Datum *args, const bool *nulls,
+									  const Oid *types, bool absent_on_null);
 
 #endif							/* __JSONB_H__ */
