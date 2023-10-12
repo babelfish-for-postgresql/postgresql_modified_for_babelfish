@@ -13,6 +13,8 @@
 
 #include "postgres.h"
 
+#include <unistd.h>
+
 #include "access/clog.h"
 #include "access/commit_ts.h"
 #include "access/subtrans.h"
@@ -24,11 +26,15 @@
 #include "postmaster/autovacuum.h"
 #include "storage/pmsignal.h"
 #include "storage/proc.h"
+#include "utils/guc.h"
 #include "utils/syscache.h"
 
 
 /* Number of OIDs to prefetch (preallocate) per XLOG write */
 #define VAR_OID_PREFETCH		8192
+
+#define OID_TO_BUFFER_START(oid) 		((oid) + INT_MIN)
+#define BUFFER_START_TO_OID 			((Oid) (temp_oid_buffer_start) - INT_MIN)
 
 /* pointer to "variable cache" in shared memory (set up by shmem.c) */
 VariableCache ShmemVariableCache = NULL;
@@ -514,6 +520,76 @@ ForceTransactionIdLimitUpdate(void)
 	return false;
 }
 
+Oid
+GetNewTempObjectId(void)
+{
+	Oid			result;
+	Oid			tempOidStart;
+	static Oid 	nextTempOid = InvalidOid;
+
+	/* safety check, we should never get this far in a HS standby */
+	if (RecoveryInProgress())
+		elog(ERROR, "cannot assign OIDs during recovery");
+
+	if (!OidIsValid((Oid) temp_oid_buffer_start)) /* InvalidOid means it needs assigning */
+	{
+		/* First check to see if another connection has already picked a start, then update. */
+		LWLockAcquire(OidGenLock, LW_EXCLUSIVE);
+		if (OidIsValid(ShmemVariableCache->tempOidStart))
+		{
+			temp_oid_buffer_start = OID_TO_BUFFER_START(ShmemVariableCache->tempOidStart);
+			nextTempOid = ShmemVariableCache->tempOidStart;
+		}
+		else
+		{
+			/* We need to pick a new start for the buffer range. */
+			tempOidStart = ShmemVariableCache->nextOid;
+
+			/*
+			 * Decrement ShmemVariableCache->oidCount to take into account the new buffer we're allocating
+			 */
+			if (ShmemVariableCache->oidCount < temp_oid_buffer_size)
+				ShmemVariableCache->oidCount = 0;
+			else
+				ShmemVariableCache->oidCount -= temp_oid_buffer_size;
+
+			/*
+			 * If ShmemVariableCache->nextOid is below FirstNormalObjectId then we can start at FirstNormalObjectId here and
+			 * GetNewObjectId will return the right value on the next call.  
+			 */
+			if (tempOidStart < FirstNormalObjectId)
+				tempOidStart = FirstNormalObjectId;
+
+			/* If the OID range would wraparound, start from beginning instead. */
+			if (tempOidStart + temp_oid_buffer_size < tempOidStart) 
+				tempOidStart = FirstNormalObjectId;
+
+			temp_oid_buffer_start = OID_TO_BUFFER_START(tempOidStart);
+			ShmemVariableCache->tempOidStart = tempOidStart;
+			ShmemVariableCache->tempOidBufferSize = temp_oid_buffer_size;
+
+			nextTempOid = (Oid) tempOidStart;
+
+			/* Skip nextOid ahead to end of range here as well.  */
+			ShmemVariableCache->nextOid = (Oid) (tempOidStart + temp_oid_buffer_size);
+		}
+		LWLockRelease(OidGenLock);
+	}
+
+	/*
+	 * Check for wraparound of the temp OID buffer.
+	 */
+	if (nextTempOid >= (Oid) (BUFFER_START_TO_OID + temp_oid_buffer_size) 
+			|| nextTempOid < BUFFER_START_TO_OID)
+	{
+		nextTempOid = BUFFER_START_TO_OID;
+	}
+
+	result = nextTempOid;
+	nextTempOid++;
+
+	return result;
+}
 
 /*
  * GetNewObjectId -- allocate a new OID

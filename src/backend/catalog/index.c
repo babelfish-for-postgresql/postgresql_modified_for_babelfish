@@ -950,8 +950,16 @@ index_create(Relation heapRelation,
 		}
 		else
 		{
-			indexRelationId =
-				GetNewRelFileNode(tableSpaceId, pg_class, relpersistence);
+			if (is_enr)
+			{
+				/* Index OIDs must be kept in normal OID range. */
+				indexRelationId = GetNewPermanentRelFileNode(tableSpaceId, pg_class, relpersistence);
+			}
+			else
+			{
+				indexRelationId =
+					GetNewRelFileNode(tableSpaceId, pg_class, relpersistence);
+			}
 		}
 	}
 

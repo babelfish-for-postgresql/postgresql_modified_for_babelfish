@@ -700,4 +700,12 @@ extern void RelationDecrementReferenceCount(Relation rel);
 	 strlen((relation)->rd_rel->relname.data) >= 1 && \
 	 (relation)->rd_rel->relname.data[0] == '@')
 
+/* PG Tables can begin with '#' as well, so check sql_dialect additionally */
+#define RelationIsBBFTempTable(relation) \
+	((relation)->rd_rel->relpersistence == RELPERSISTENCE_TEMP && \
+	 (relation)->rd_rel->relname.data && \
+	 strlen((relation)->rd_rel->relname.data) >= 1 && \
+	 (relation)->rd_rel->relname.data[0] == '#')
+
 #endif							/* REL_H */
+
