@@ -1031,7 +1031,7 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation)
 			switch (operation)
 			{
 				case CMD_INSERT:
-					if (!trigDesc || !trigDesc->trig_insert_instead_row)
+					if (!trigDesc || (!trigDesc->trig_insert_instead_row && (sql_dialect == SQL_DIALECT_TSQL && !trigDesc->trig_insert_instead_statement)))
 						ereport(ERROR,
 								(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 								 errmsg("cannot insert into view \"%s\"",
@@ -1039,7 +1039,7 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation)
 								 errhint("To enable inserting into the view, provide an INSTEAD OF INSERT trigger or an unconditional ON INSERT DO INSTEAD rule.")));
 					break;
 				case CMD_UPDATE:
-					if (!trigDesc || !trigDesc->trig_update_instead_row)
+					if (!trigDesc || (!trigDesc->trig_update_instead_row && (sql_dialect == SQL_DIALECT_TSQL && !trigDesc->trig_update_instead_statement)))
 						ereport(ERROR,
 								(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 								 errmsg("cannot update view \"%s\"",
@@ -1047,7 +1047,7 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation)
 								 errhint("To enable updating the view, provide an INSTEAD OF UPDATE trigger or an unconditional ON UPDATE DO INSTEAD rule.")));
 					break;
 				case CMD_DELETE:
-					if (!trigDesc || !trigDesc->trig_delete_instead_row)
+					if (!trigDesc || (!trigDesc->trig_delete_instead_row && (sql_dialect == SQL_DIALECT_TSQL && !trigDesc->trig_delete_instead_statement)))
 						ereport(ERROR,
 								(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 								 errmsg("cannot delete from view \"%s\"",
