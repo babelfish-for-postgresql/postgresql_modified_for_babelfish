@@ -674,6 +674,7 @@ struct fmgr_security_definer_cache
 	Datum		arg;			/* passthrough argument for plugin modules */
 	Oid         pronamespace;
 	char 		prokind;
+	char 		*prosearchpath;
 	Oid			prolang;
 	Oid         sys_nspoid;
 };
@@ -710,6 +711,17 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	char 	   *cacheTupleProcname = NULL;
 	char	   *old_search_path = NULL;
 
+	if (get_func_language_oids_hook)
+		get_func_language_oids_hook(&pltsql_lang_oid, &pltsql_validator_oid);
+	else
+	{
+		pltsql_lang_oid = InvalidOid;
+		pltsql_validator_oid = InvalidOid;
+	}
+
+	// get_language_procs("pltsql", &pltsql_lang_oid, &pltsql_validator_oid);
+	set_sql_dialect = pltsql_lang_oid != InvalidOid;
+
 	if (!fcinfo->flinfo->fn_extra)
 	{
 		HeapTuple	tuple;
@@ -741,6 +753,19 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		fcache->prolang = procedureStruct->prolang;
 		fcache->pronamespace = procedureStruct->pronamespace;
 		fcache->sys_nspoid = InvalidOid;
+		if((set_sql_dialect && (fcache->prolang == pltsql_lang_oid || fcache->prolang == pltsql_validator_oid))
+			&& strcmp(format_type_be(procedureStruct->prorettype), "trigger") != 0
+			&& fcache->prokind == PROKIND_FUNCTION)
+		{
+			char *new_search_path = NULL;
+			new_search_path = (*set_local_schema_for_func_hook)(fcache->pronamespace);
+			if(new_search_path)
+			{
+				oldcxt = MemoryContextSwitchTo(fcinfo->flinfo->fn_mcxt);
+				fcache->prosearchpath = pstrdup(new_search_path);
+				MemoryContextSwitchTo(oldcxt);
+			}
+		}
 
 		datum = SysCacheGetAttr(PROCOID, tuple, Anum_pg_proc_proconfig,
 								&isnull);
@@ -750,23 +775,13 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 			fcache->proconfig = DatumGetArrayTypePCopy(datum);
 			MemoryContextSwitchTo(oldcxt);
 		}
+
 		ReleaseSysCache(tuple);
 
 		fcinfo->flinfo->fn_extra = fcache;
 	}
 	else
 		fcache = fcinfo->flinfo->fn_extra;
-
-	if (get_func_language_oids_hook)
-		get_func_language_oids_hook(&pltsql_lang_oid, &pltsql_validator_oid);
-	else
-	{
-		pltsql_lang_oid = InvalidOid;
-		pltsql_validator_oid = InvalidOid;
-	}
-
-	// get_language_procs("pltsql", &pltsql_lang_oid, &pltsql_validator_oid);
-	set_sql_dialect = pltsql_lang_oid != InvalidOid;
 
 	/* GetUserIdAndSecContext is cheap enough that no harm in a wasted call */
 	GetUserIdAndSecContext(&save_userid, &save_sec_context);
@@ -787,23 +802,17 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 						GUC_ACTION_SAVE);
 	}
 
+	if (fcache->prosearchpath)
+	{
+			old_search_path = namespace_search_path;
+			namespace_search_path = fcache->prosearchpath;
+			assign_search_path(fcache->prosearchpath, newextra);
+	}
+
 	if (set_sql_dialect && IsTransactionState())
 	{
 		if ((fcache->prolang == pltsql_lang_oid) || (fcache->prolang == pltsql_validator_oid))
-		{
 			sql_dialect_value = tsql_dialect;
-			if (set_local_schema_for_func_hook)
-			{
-				char 	*new_search_path = NULL;
-				new_search_path = (*set_local_schema_for_func_hook)(fcinfo->flinfo->fn_oid);
-				if (new_search_path)
-				{
-					old_search_path = namespace_search_path;
-					namespace_search_path = new_search_path;
-					assign_search_path(old_search_path, newextra);
-				}
-			}
-		}
 		else
 		{
 			/* Record PG procedure entry */
@@ -890,15 +899,10 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		 * inside procedures. Fix it as part of larger interoperability
 		 * design for PG vs TSQL procedures.
 		 */
-		if (set_sql_dialect)
+		if (old_search_path)
 		{
-			if(sql_dialect == tsql_dialect && old_search_path)
-			{
-				namespace_search_path = old_search_path;
-				assign_search_path(old_search_path, newextra);
-			}
-			sql_dialect = sql_dialect_value_old;
-			assign_sql_dialect(sql_dialect_value_old, newextra);
+			namespace_search_path = old_search_path;
+			assign_search_path(old_search_path, newextra);
 		}
 
 		PG_RE_THROW();
@@ -907,14 +911,14 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 
 	fcinfo->flinfo = save_flinfo;
 
+	if(old_search_path)
+	{
+		namespace_search_path = old_search_path;
+		assign_search_path(old_search_path, newextra);
+	}
+
 	if (set_sql_dialect)
 	{
-		if(sql_dialect == tsql_dialect && old_search_path)
-		{
-			namespace_search_path = old_search_path;
-			assign_search_path(old_search_path, newextra);
-		}
-
 		sql_dialect = sql_dialect_value_old;
 		assign_sql_dialect(sql_dialect_value_old, newextra);
 
