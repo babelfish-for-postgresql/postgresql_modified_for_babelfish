@@ -252,6 +252,12 @@ typedef struct VariableCacheData
 	 */
 	TransactionId oldestClogXid;	/* oldest it's safe to look up in clog */
 
+	/*
+	 * This field is also protected by OidGenLock. For tempOidStart, Shmem will
+	 * be the source of truth, as another process may have gotten there first and 
+	 * updated the start.
+	 */
+	Oid			tempOidStart;
 } VariableCacheData;
 
 typedef VariableCacheData *VariableCache;
@@ -294,6 +300,8 @@ extern void AdvanceOldestClogXid(TransactionId oldest_datfrozenxid);
 extern bool ForceTransactionIdLimitUpdate(void);
 extern Oid	GetNewObjectId(void);
 extern void StopGeneratingPinnedObjectIds(void);
+
+extern int GetVarOidPrefetch(void);
 
 typedef void (*GetNewObjectId_hook_type) (VariableCache variableCache);
 extern PGDLLEXPORT GetNewObjectId_hook_type GetNewObjectId_hook;

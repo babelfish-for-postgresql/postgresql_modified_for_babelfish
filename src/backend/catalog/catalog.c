@@ -42,6 +42,7 @@
 #include "catalog/pg_tablespace.h"
 #include "catalog/pg_type.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "storage/fd.h"
 #include "utils/fmgroids.h"
 #include "utils/fmgrprotos.h"
@@ -52,6 +53,9 @@
 IsExtendedCatalogHookType IsExtendedCatalogHook;
 IsToastRelationHookType IsToastRelationHook;
 IsToastClassHookType IsToastClassHook;
+
+GetNewTempObjectId_hook_type GetNewTempObjectId_hook;
+GetNewTempOidWithIndex_hook_type GetNewTempOidWithIndex_hook;
 
 /*
  * Parameters to determine when to emit a log message in
@@ -418,7 +422,7 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
 	/* Only system relations are supported */
 	Assert(IsSystemRelation(relation));
 
-	/* In bootstrap mode, we don't have any indexes to use */
+	/* In bootstrap mode, we don't have any indexes to use. No temp objects in bootstrap mode. */
 	if (IsBootstrapProcessingMode())
 		return GetNewObjectId();
 
@@ -515,12 +519,14 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
  * created by bootstrap have preassigned OIDs, so there's no need.
  */
 RelFileNumber
-GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
+GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence, bool override_temp)
 {
 	RelFileLocatorBackend rlocator;
 	char	   *rpath;
 	bool		collides;
 	BackendId	backend;
+	int			tries = 0;
+	bool use_bbf_oid_buffer;
 
 	/*
 	 * If we ever get here during pg_upgrade, there's something wrong; all
@@ -556,16 +562,32 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 	 */
 	rlocator.backend = backend;
 
+	use_bbf_oid_buffer = (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL 
+						&& GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0 && !override_temp);
+
 	do
 	{
 		CHECK_FOR_INTERRUPTS();
 
 		/* Generate the OID */
 		if (pg_class)
-			rlocator.locator.relNumber = GetNewOidWithIndex(pg_class, ClassOidIndexId,
+		{
+			/* Temp tables use temp OID logic */
+			if (use_bbf_oid_buffer)
+				rlocator.locator.relNumber = GetNewTempOidWithIndex_hook(pg_class, ClassOidIndexId,
+													Anum_pg_class_oid);
+			else
+				rlocator.locator.relNumber = GetNewOidWithIndex(pg_class, ClassOidIndexId,
 															Anum_pg_class_oid);
+		}	
 		else
-			rlocator.locator.relNumber = GetNewObjectId();
+		{
+			/* Temp tables use temp OID logic */
+			if (use_bbf_oid_buffer)
+				rlocator.locator.relNumber = GetNewTempObjectId_hook();
+			else
+				rlocator.locator.relNumber = GetNewObjectId();
+		}
 
 		/* Check for existing file of same name */
 		rpath = relpath(rlocator, MAIN_FORKNUM);
@@ -587,7 +609,12 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 			collides = false;
 		}
 
+		if (use_bbf_oid_buffer && tries > temp_oid_buffer_size)
+			ereport(ERROR,
+				(errmsg("Unable to allocate oid for temp table. Drop some temporary tables or start a new session.")));
+
 		pfree(rpath);
+		tries++;
 	} while (collides);
 
 	return rlocator.locator.relNumber;

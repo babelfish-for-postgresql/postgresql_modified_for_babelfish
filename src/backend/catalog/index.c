@@ -962,8 +962,12 @@ index_create(Relation heapRelation,
 		}
 		else
 		{
-			indexRelationId =
-				GetNewRelFileNumber(tableSpaceId, pg_class, relpersistence);
+			/* 
+			 * Index OIDs must be kept in normal OID range due to deletion issues.
+			 * Since deletion is sorted by OID, adding indexes to temp OID range 
+			 * causes deletion order issues.
+			 */
+			indexRelationId = GetNewRelFileNumber(tableSpaceId, pg_class, relpersistence, is_enr);
 		}
 	}
 
