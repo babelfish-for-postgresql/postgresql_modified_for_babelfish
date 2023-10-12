@@ -270,6 +270,9 @@ extern int	temp_file_limit;
 extern int	num_temp_buffers;
 
 extern char *cluster_name;
+extern PGDLLIMPORT int temp_oid_buffer_start;
+extern PGDLLIMPORT int temp_oid_buffer_size;
+
 extern PGDLLIMPORT char *ConfigFileName;
 extern char *HbaFileName;
 extern char *IdentFileName;

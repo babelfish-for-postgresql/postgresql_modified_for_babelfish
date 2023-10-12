@@ -640,6 +640,12 @@ int			huge_pages;
 int			huge_page_size;
 
 /*
+ * OIDs are stored as uint32, so we will add INT_MIN to match the range.
+ */
+int 		temp_oid_buffer_start;
+int			temp_oid_buffer_size;
+
+/*
  * These variables are all dummies that don't do anything, except in some
  * cases provide the value for SHOW to display.  The real state is elsewhere
  * and is kept in sync by assign_hooks.

@@ -40,6 +40,7 @@
 #include "catalog/pg_tablespace.h"
 #include "catalog/pg_type.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "storage/fd.h"
 #include "utils/fmgroids.h"
 #include "utils/fmgrprotos.h"
@@ -347,7 +348,7 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
 	/* Only system relations are supported */
 	Assert(IsSystemRelation(relation));
 
-	/* In bootstrap mode, we don't have any indexes to use */
+	/* In bootstrap mode, we don't have any indexes to use. No temp objects in bootstrap mode. */
 	if (IsBootstrapProcessingMode())
 		return GetNewObjectId();
 
@@ -427,6 +428,76 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
 	return newOid;
 }
 
+Oid
+GetNewTempOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
+{
+	Oid			newOid;
+	SysScanDesc scan;
+	ScanKeyData key;
+	bool		collides;
+	uint64		retries = 0;
+
+	/* Only system relations are supported */
+	Assert(IsSystemRelation(relation));
+
+	/* In bootstrap mode, we don't have any indexes to use. No temp objects in bootstrap mode. */
+	if (IsBootstrapProcessingMode())
+		return GetNewObjectId();
+
+	/*
+	 * We should never be asked to generate a new pg_type OID during
+	 * pg_upgrade; doing so would risk collisions with the OIDs it wants to
+	 * assign.  Hitting this assert means there's some path where we failed to
+	 * ensure that a type OID is determined by commands in the dump script.
+	 */
+	Assert(!IsBinaryUpgrade || RelationGetRelid(relation) != TypeRelationId);
+
+	/* Generate new OIDs until we find one not in the table */
+	do
+	{
+		CHECK_FOR_INTERRUPTS();
+
+		newOid = GetNewTempObjectId();
+
+		ScanKeyInit(&key,
+					oidcolumn,
+					BTEqualStrategyNumber, F_OIDEQ,
+					ObjectIdGetDatum(newOid));
+
+		/* see notes above about using SnapshotAny */
+		scan = systable_beginscan(relation, indexId, true,
+								  SnapshotAny, 1, &key);
+
+		collides = HeapTupleIsValid(systable_getnext(scan));
+
+		systable_endscan(scan);
+
+		/*
+		 * Log that we iterate more than GETNEWOID_LOG_THRESHOLD but have not
+		 * yet found OID unused in the relation. Then repeat logging with
+		 * exponentially increasing intervals until we iterate more than
+		 * GETNEWOID_LOG_MAX_INTERVAL. Finally repeat logging every
+		 * GETNEWOID_LOG_MAX_INTERVAL unless an unused OID is found. This
+		 * logic is necessary not to fill up the server log with the similar
+		 * messages.
+		 */
+		if (OidIsValid((Oid) temp_oid_buffer_start) && retries >= temp_oid_buffer_size)
+		{
+			ereport(ERROR,
+				(errmsg("Unable to allocate oid for temp table. Drop some temporary tables or start a new session.")));
+		}
+		else if (OidIsValid((Oid) temp_oid_buffer_start) && retries >= (0.8 * temp_oid_buffer_size))
+		{
+			ereport(WARNING,
+				(errmsg("Temp object OID usage is over 80%%. Consider dropping some temp tables or starting a new session.")));
+		}
+
+		retries++;
+	} while (collides);
+
+	return newOid;
+}
+
 /*
  * GetNewRelFileNode
  *		Generate a new relfilenode number that is unique within the
@@ -445,6 +516,120 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
  */
 Oid
 GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
+{
+	RelFileNodeBackend rnode;
+	char	   *rpath;
+	bool		collides;
+	BackendId	backend;
+	int			tries = 0;
+
+	/*
+	 * If we ever get here during pg_upgrade, there's something wrong; all
+	 * relfilenode assignments during a binary-upgrade run should be
+	 * determined by commands in the dump script.
+	 */
+	Assert(!IsBinaryUpgrade);
+
+	switch (relpersistence)
+	{
+		case RELPERSISTENCE_TEMP:
+			backend = BackendIdForTempRelations();
+			break;
+		case RELPERSISTENCE_UNLOGGED:
+		case RELPERSISTENCE_PERMANENT:
+			backend = InvalidBackendId;
+			break;
+		default:
+			elog(ERROR, "invalid relpersistence: %c", relpersistence);
+			return InvalidOid;	/* placate compiler */
+	}
+
+	/* This logic should match RelationInitPhysicalAddr */
+	rnode.node.spcNode = reltablespace ? reltablespace : MyDatabaseTableSpace;
+	rnode.node.dbNode = (rnode.node.spcNode == GLOBALTABLESPACE_OID) ? InvalidOid : MyDatabaseId;
+
+	/*
+	 * The relpath will vary based on the backend ID, so we must initialize
+	 * that properly here to make sure that any collisions based on filename
+	 * are properly detected.
+	 */
+	rnode.backend = backend;
+
+	do
+	{
+		CHECK_FOR_INTERRUPTS();
+
+		/* Generate the OID */
+		if (pg_class)
+		{
+			if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL)
+			{
+				/* Temp tables use temp OID logic */
+				rnode.node.relNode = GetNewTempOidWithIndex(pg_class, ClassOidIndexId,
+													Anum_pg_class_oid);
+			}
+			else
+			{
+				rnode.node.relNode = GetNewOidWithIndex(pg_class, ClassOidIndexId,
+													Anum_pg_class_oid);
+			}
+		}	
+		else
+		{
+			if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL)
+			{
+				/* Temp tables use temp OID logic */
+				rnode.node.relNode = GetNewTempObjectId();
+			}
+			else
+			{
+				rnode.node.relNode = GetNewObjectId();
+			}
+		}
+
+		/* Check for existing file of same name */
+		rpath = relpath(rnode, MAIN_FORKNUM);
+
+		if (access(rpath, F_OK) == 0)
+		{
+			/* definite collision */
+			collides = true;
+		}
+		else
+		{
+			/*
+			 * Here we have a little bit of a dilemma: if errno is something
+			 * other than ENOENT, should we declare a collision and loop? In
+			 * practice it seems best to go ahead regardless of the errno.  If
+			 * there is a colliding file we will get an smgr failure when we
+			 * attempt to create the new relation file.
+			 */
+			collides = false;
+		}
+
+		if (OidIsValid((Oid) temp_oid_buffer_start) && tries > temp_oid_buffer_size)
+		{
+			ereport(ERROR,
+				(errmsg("Unable to allocate oid for temp table. Drop some temporary tables or start a new session.")));
+		}
+		else if (OidIsValid((Oid) temp_oid_buffer_start) && tries >= (0.8 * temp_oid_buffer_size))
+		{
+			ereport(WARNING,
+				(errmsg("Temp object OID usage is over 80%%. Consider dropping some temp tables or starting a new session.")));
+		}
+
+		pfree(rpath);
+		tries++;
+	} while (collides);
+
+	return rnode.node.relNode;
+}
+
+/*
+ * Until index_create properly uses the temp OID buffer, we need a workaround to provide
+ * the expected BackendId while not using the temp OID buffer. */
+Oid
+GetNewPermanentRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 {
 	RelFileNodeBackend rnode;
 	char	   *rpath;
@@ -489,10 +674,14 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 
 		/* Generate the OID */
 		if (pg_class)
+		{
 			rnode.node.relNode = GetNewOidWithIndex(pg_class, ClassOidIndexId,
-													Anum_pg_class_oid);
+												Anum_pg_class_oid);
+		}	
 		else
+		{
 			rnode.node.relNode = GetNewObjectId();
+		}
 
 		/* Check for existing file of same name */
 		rpath = relpath(rnode, MAIN_FORKNUM);
