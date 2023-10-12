@@ -899,6 +899,12 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		 * inside procedures. Fix it as part of larger interoperability
 		 * design for PG vs TSQL procedures.
 		 */
+		if (set_sql_dialect)
+		{
+			sql_dialect = sql_dialect_value_old;
+			assign_sql_dialect(sql_dialect_value_old, newextra);
+		}
+		
 		if (old_search_path)
 		{
 			namespace_search_path = old_search_path;
