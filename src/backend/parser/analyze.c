@@ -45,6 +45,7 @@
 #include "parser/parse_relation.h"
 #include "parser/parse_target.h"
 #include "parser/parse_type.h"
+#include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteManip.h"
 #include "utils/backend_status.h"
@@ -85,7 +86,11 @@ set_target_table_alternative_hook_type set_target_table_alternative_hook = NULL;
 pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook = NULL;
 
 /* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
-post_transform_sort_clause_hook_type post_transform_sort_clause_hook = NULL;
+pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook = NULL;
+
+/* Hooks for handling unquoted string argumentss in T-SQL procedure calls */
+call_argument_unquoted_string_hook_type call_argument_unquoted_string_hook = NULL;
+call_argument_unquoted_string_reset_hook_type call_argument_unquoted_string_reset_hook = NULL;
 
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
@@ -1934,14 +1939,14 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 	 */
 	tllen = list_length(qry->targetList);
 
+	if (pre_transform_setop_sort_clause_hook)
+		pre_transform_setop_sort_clause_hook(pstate, qry, sortClause, leftmostQuery);
+
 	qry->sortClause = transformSortClause(pstate,
 										  sortClause,
 										  &qry->targetList,
 										  EXPR_KIND_ORDER_BY,
 										  false /* allow SQL92 rules */ );
-
-	if (post_transform_sort_clause_hook)
-		post_transform_sort_clause_hook(qry, leftmostQuery);
 
 	/* restore namespace, remove join RTE from rtable */
 	pstate->p_namespace = sv_namespace;
@@ -2278,8 +2283,8 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
 			if (lcoltype != UNKNOWNOID)
 				lcolnode = coerce_to_common_type(pstate, lcolnode,
 												 rescoltype, context);
-			else if (IsA(lcolnode, Const) ||
-					 IsA(lcolnode, Param))
+			else if ((IsA(lcolnode, Const) ||
+					 IsA(lcolnode, Param)) && sql_dialect != SQL_DIALECT_TSQL)
 			{
 				lcolnode = coerce_to_common_type(pstate, lcolnode,
 												 rescoltype, context);
@@ -2289,8 +2294,8 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
 			if (rcoltype != UNKNOWNOID)
 				rcolnode = coerce_to_common_type(pstate, rcolnode,
 												 rescoltype, context);
-			else if (IsA(rcolnode, Const) ||
-					 IsA(rcolnode, Param))
+			else if ((IsA(lcolnode, Const) ||
+					 IsA(lcolnode, Param)) && sql_dialect != SQL_DIALECT_TSQL)
 			{
 				rcolnode = coerce_to_common_type(pstate, rcolnode,
 												 rescoltype, context);
@@ -3118,9 +3123,17 @@ transformCallStmt(ParseState *pstate, CallStmt *stmt)
 	targs = NIL;
 	foreach(lc, stmt->funccall->args)
 	{
+		Node *colref_arg = NULL; 
+		Node *arg = lfirst(lc);
+		if (call_argument_unquoted_string_hook) 
+			colref_arg = (*call_argument_unquoted_string_hook)(arg);
+
 		targs = lappend(targs, transformExpr(pstate,
-											 (Node *) lfirst(lc),
+											 arg,
 											 EXPR_KIND_CALL_ARGUMENT));
+
+		if (call_argument_unquoted_string_reset_hook) 
+			call_argument_unquoted_string_reset_hook(colref_arg);
 	}
 
 	node = ParseFuncOrColumn(pstate,

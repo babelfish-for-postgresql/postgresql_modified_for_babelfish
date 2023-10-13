@@ -14539,10 +14539,20 @@ a_expr:		c_expr									{ $$ = $1; }
 				}
 			| a_expr AT TIME ZONE a_expr			%prec AT
 				{
-					$$ = (Node *) makeFuncCall(SystemFuncName("timezone"),
-											   list_make2($5, $1),
-											   COERCE_SQL_SYNTAX,
-											   @2);
+					if(sql_dialect == SQL_DIALECT_TSQL)
+					{
+						$$ = (Node *) makeFuncCall(list_make2(makeString("sys"), makeString("timezone")),
+													list_make2($5, $1),
+													COERCE_SQL_SYNTAX,
+													@2);
+					}
+					else
+					{
+						$$ = (Node *) makeFuncCall(SystemFuncName("timezone"),
+													list_make2($5, $1),
+													COERCE_SQL_SYNTAX,
+													@2);
+					}
 				}
 		/*
 		 * These operators must be called out explicitly in order to make use
@@ -18735,7 +18745,7 @@ preprocess_pubobj_list(List *pubobjspec_list, core_yyscan_t yyscanner)
 			if (!pubobj->name && !pubobj->pubtable)
 				ereport(ERROR,
 						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("invalid table name at or near"),
+						errmsg("invalid table name"),
 						parser_errposition(pubobj->location));
 
 			if (pubobj->name)
@@ -18777,7 +18787,7 @@ preprocess_pubobj_list(List *pubobjspec_list, core_yyscan_t yyscanner)
 			else
 				ereport(ERROR,
 						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("invalid schema name at or near"),
+						errmsg("invalid schema name"),
 						parser_errposition(pubobj->location));
 		}
 

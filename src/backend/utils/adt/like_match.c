@@ -76,6 +76,8 @@
 #define GETCHAR(t) (t)
 #endif
 
+#define BBF_ESC_CHAR_REPLC "\357\277\277"
+
 static int
 MatchText(const char *t, int tlen, const char *p, int plen,
 		  pg_locale_t locale, bool locale_is_c)
@@ -97,10 +99,21 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 	 */
 	while (tlen > 0 && plen > 0)
 	{
-		if (*p == '\\')
+		/* Default escape '\\' is disabled in babelfish */
+		if ((*p == '\\' && sql_dialect == SQL_DIALECT_PG)||
+			(strncmp(p, BBF_ESC_CHAR_REPLC, strlen(BBF_ESC_CHAR_REPLC)) == 0 && sql_dialect == SQL_DIALECT_TSQL))
 		{
 			/* Next pattern byte must match literally, whatever it is */
-			NextByte(p, plen);
+			if (sql_dialect == SQL_DIALECT_TSQL)
+			{
+				for (int i = 0; i < strlen(BBF_ESC_CHAR_REPLC); i++)
+				{
+					NextByte(p, plen);
+				}
+			}
+			else{
+				NextByte(p, plen);
+			}
 			/* ... and there had better be one, per SQL standard */
 			if (plen <= 0)
 				ereport(ERROR,
@@ -160,7 +173,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 			 * have to consider a match to the zero-length substring at the
 			 * end of the text.
 			 */
-			if (*p == '\\')
+			if (*p == '\\' && sql_dialect == SQL_DIALECT_PG)
 			{
 				if (plen < 2)
 					ereport(ERROR,
@@ -344,8 +357,14 @@ do_like_escape(text *pat, text *esc)
 	/*
 	 * Worst-case pattern growth is 2x --- unlikely, but it's hardly worth
 	 * trying to calculate the size more accurately than that.
+	 * 
+	 * Worst-case pattern growth is 4x in tsql. The replaced escape char is 
+	 * 4 time larger than single 1 byte char
 	 */
-	result = (text *) palloc(plen * 2 + VARHDRSZ);
+	if (sql_dialect == SQL_DIALECT_TSQL)
+		result = (text *) palloc(plen * 4 + VARHDRSZ);
+	else
+		result = (text *) palloc(plen * 2 + VARHDRSZ);
 	r = VARDATA(result);
 
 	if (elen==0 && sql_dialect == SQL_DIALECT_TSQL)
@@ -386,41 +405,69 @@ do_like_escape(text *pat, text *esc)
 
 		e = VARDATA_ANY(esc);
 
-		/*
-		 * If specified escape is '\', just copy the pattern as-is.
-		 */
-		if (*e == '\\')
+		if (sql_dialect == SQL_DIALECT_TSQL)
 		{
-			memcpy(result, pat, VARSIZE_ANY(pat));
-			return result;
+			/* convert occurrences of the specified escape character to
+			 * BBF_ESC_CHAR_REPLC \uFFFF 
+			 */
+			afterescape = false;
+			while (plen > 0)
+			{
+				if (CHAREQ(p, e) && !afterescape)
+				{
+					/* check if direct copy string (unicode char) is valid */
+					
+					for (int i = 0; i < strlen(BBF_ESC_CHAR_REPLC); i++){
+						*r++ = BBF_ESC_CHAR_REPLC[i];
+					}
+					NextChar(p, plen);
+					afterescape = true;
+				}
+				else
+				{
+					CopyAdvChar(r, p, plen);
+					afterescape = false;
+				}
+			}
 		}
-
-		/*
-		 * Otherwise, convert occurrences of the specified escape character to
-		 * '\', and double occurrences of '\' --- unless they immediately
-		 * follow an escape character!
-		 */
-		afterescape = false;
-		while (plen > 0)
+		else 
 		{
-			if (CHAREQ(p, e) && !afterescape)
+			/*
+			 * If specified escape is '\', just copy the pattern as-is.
+			 */
+			if (*e == '\\')
 			{
-				*r++ = '\\';
-				NextChar(p, plen);
-				afterescape = true;
+				memcpy(result, pat, VARSIZE_ANY(pat));
+				return result;
 			}
-			else if (*p == '\\')
+
+			/*
+			 * Otherwise, convert occurrences of the specified escape character to
+			 * '\', and double occurrences of '\' --- unless they immediately
+			 * follow an escape character!
+			 */
+			afterescape = false;
+			while (plen > 0)
 			{
-				*r++ = '\\';
-				if (!afterescape)
+				if (CHAREQ(p, e) && !afterescape)
+				{
 					*r++ = '\\';
-				NextChar(p, plen);
-				afterescape = false;
-			}
-			else
-			{
-				CopyAdvChar(r, p, plen);
-				afterescape = false;
+					NextChar(p, plen);
+					afterescape = true;
+				}
+				else if (*p == '\\')
+				{
+					*r++ = '\\';
+					if (!afterescape)
+						*r++ = '\\';
+					NextChar(p, plen);
+					afterescape = false;
+				}
+				else
+				{
+					CopyAdvChar(r, p, plen);
+					afterescape = false;
+				}
 			}
 		}
 	}

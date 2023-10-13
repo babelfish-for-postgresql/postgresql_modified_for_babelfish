@@ -54,6 +54,7 @@
 #include "jit/jit.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "parser/parsetree.h"
 #include "storage/bufmgr.h"
 #include "storage/lmgr.h"
@@ -817,9 +818,10 @@ InitPlan(QueryDesc *queryDesc, int eflags)
 	int			i;
 
 	/*
-	 * Do permissions checks
+	 * Do permissions checks if not parallel worker
 	 */
-	ExecCheckRTPerms(rangeTable, true);
+	if (!(sql_dialect == SQL_DIALECT_TSQL && IsParallelWorker()))
+		ExecCheckRTPerms(rangeTable, true);
 
 	/*
 	 * initialize the node's execution state
@@ -1029,7 +1031,7 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation)
 			switch (operation)
 			{
 				case CMD_INSERT:
-					if (!trigDesc || !trigDesc->trig_insert_instead_row)
+					if (!trigDesc || (!trigDesc->trig_insert_instead_row && (sql_dialect == SQL_DIALECT_TSQL && !trigDesc->trig_insert_instead_statement)))
 						ereport(ERROR,
 								(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 								 errmsg("cannot insert into view \"%s\"",
@@ -1037,7 +1039,7 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation)
 								 errhint("To enable inserting into the view, provide an INSTEAD OF INSERT trigger or an unconditional ON INSERT DO INSTEAD rule.")));
 					break;
 				case CMD_UPDATE:
-					if (!trigDesc || !trigDesc->trig_update_instead_row)
+					if (!trigDesc || (!trigDesc->trig_update_instead_row && (sql_dialect == SQL_DIALECT_TSQL && !trigDesc->trig_update_instead_statement)))
 						ereport(ERROR,
 								(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 								 errmsg("cannot update view \"%s\"",
@@ -1045,7 +1047,7 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation)
 								 errhint("To enable updating the view, provide an INSTEAD OF UPDATE trigger or an unconditional ON UPDATE DO INSTEAD rule.")));
 					break;
 				case CMD_DELETE:
-					if (!trigDesc || !trigDesc->trig_delete_instead_row)
+					if (!trigDesc || (!trigDesc->trig_delete_instead_row && (sql_dialect == SQL_DIALECT_TSQL && !trigDesc->trig_delete_instead_statement)))
 						ereport(ERROR,
 								(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 								 errmsg("cannot delete from view \"%s\"",
@@ -2443,7 +2445,7 @@ ExecBuildAuxRowMark(ExecRowMark *erm, List *targetlist)
  *	relation - table containing tuple
  *	rti - rangetable index of table containing tuple
  *	inputslot - tuple for processing - this can be the slot from
- *		EvalPlanQualSlot(), for the increased efficiency.
+ *		EvalPlanQualSlot() for this rel, for increased efficiency.
  *
  * This tests whether the tuple in inputslot still matches the relevant
  * quals. For that result to be useful, typically the input tuple has to be
@@ -2478,6 +2480,14 @@ EvalPlanQual(EPQState *epqstate, Relation relation,
 		ExecCopySlot(testslot, inputslot);
 
 	/*
+	 * Mark that an EPQ tuple is available for this relation.  (If there is
+	 * more than one result relation, the others remain marked as having no
+	 * tuple available.)
+	 */
+	epqstate->relsubs_done[rti - 1] = false;
+	epqstate->epqExtra->relsubs_blocked[rti - 1] = false;
+
+	/*
 	 * Run the EPQ query.  We assume it will return at most one tuple.
 	 */
 	slot = EvalPlanQualNext(epqstate);
@@ -2493,11 +2503,12 @@ EvalPlanQual(EPQState *epqstate, Relation relation,
 		ExecMaterializeSlot(slot);
 
 	/*
-	 * Clear out the test tuple.  This is needed in case the EPQ query is
-	 * re-used to test a tuple for a different relation.  (Not clear that can
-	 * really happen, but let's be safe.)
+	 * Clear out the test tuple, and mark that no tuple is available here.
+	 * This is needed in case the EPQ state is re-used to test a tuple for a
+	 * different target relation.
 	 */
 	ExecClearTuple(testslot);
+	epqstate->epqExtra->relsubs_blocked[rti - 1] = true;
 
 	return slot;
 }
@@ -2513,11 +2524,33 @@ void
 EvalPlanQualInit(EPQState *epqstate, EState *parentestate,
 				 Plan *subplan, List *auxrowmarks, int epqParam)
 {
+	EvalPlanQualInitExt(epqstate, parentestate,
+						subplan, auxrowmarks, epqParam, NIL);
+}
+
+/*
+ * EvalPlanQualInitExt -- same, but allow specification of resultRelations
+ *
+ * If the caller intends to use EvalPlanQual(), resultRelations should be
+ * a list of RT indexes of potential target relations for EvalPlanQual(),
+ * and we will arrange that the other listed relations don't return any
+ * tuple during an EvalPlanQual() call.  Otherwise resultRelations
+ * should be NIL.
+ */
+void
+EvalPlanQualInitExt(EPQState *epqstate, EState *parentestate,
+					Plan *subplan, List *auxrowmarks,
+					int epqParam, List *resultRelations)
+{
 	Index		rtsize = parentestate->es_range_table_size;
+
+	/* create some extra space to avoid ABI break */
+	epqstate->epqExtra = (EPQStateExtra *) palloc(sizeof(EPQStateExtra));
 
 	/* initialize data not changing over EPQState's lifetime */
 	epqstate->parentestate = parentestate;
 	epqstate->epqParam = epqParam;
+	epqstate->epqExtra->resultRelations = resultRelations;
 
 	/*
 	 * Allocate space to reference a slot for each potential rti - do so now
@@ -2526,7 +2559,7 @@ EvalPlanQualInit(EPQState *epqstate, EState *parentestate,
 	 * that *may* need EPQ later, without forcing the overhead of
 	 * EvalPlanQualBegin().
 	 */
-	epqstate->tuple_table = NIL;
+	epqstate->epqExtra->tuple_table = NIL;
 	epqstate->relsubs_slot = (TupleTableSlot **)
 		palloc0(rtsize * sizeof(TupleTableSlot *));
 
@@ -2540,6 +2573,7 @@ EvalPlanQualInit(EPQState *epqstate, EState *parentestate,
 	epqstate->recheckplanstate = NULL;
 	epqstate->relsubs_rowmark = NULL;
 	epqstate->relsubs_done = NULL;
+	epqstate->epqExtra->relsubs_blocked = NULL;
 }
 
 /*
@@ -2580,7 +2614,7 @@ EvalPlanQualSlot(EPQState *epqstate,
 		MemoryContext oldcontext;
 
 		oldcontext = MemoryContextSwitchTo(epqstate->parentestate->es_query_cxt);
-		*slot = table_slot_create(relation, &epqstate->tuple_table);
+		*slot = table_slot_create(relation, &epqstate->epqExtra->tuple_table);
 		MemoryContextSwitchTo(oldcontext);
 	}
 
@@ -2737,7 +2771,13 @@ EvalPlanQualBegin(EPQState *epqstate)
 		Index		rtsize = parentestate->es_range_table_size;
 		PlanState  *rcplanstate = epqstate->recheckplanstate;
 
-		MemSet(epqstate->relsubs_done, 0, rtsize * sizeof(bool));
+		/*
+		 * Reset the relsubs_done[] flags to equal relsubs_blocked[], so that
+		 * the EPQ run will never attempt to fetch tuples from blocked target
+		 * relations.
+		 */
+		memcpy(epqstate->relsubs_done, epqstate->epqExtra->relsubs_blocked,
+			   rtsize * sizeof(bool));
 
 		/* Recopy current values of parent parameters */
 		if (parentestate->es_plannedstmt->paramExecTypes != NIL)
@@ -2904,10 +2944,22 @@ EvalPlanQualStart(EPQState *epqstate, Plan *planTree)
 	}
 
 	/*
-	 * Initialize per-relation EPQ tuple states to not-fetched.
+	 * Initialize per-relation EPQ tuple states.  Result relations, if any,
+	 * get marked as blocked; others as not-fetched.
 	 */
-	epqstate->relsubs_done = (bool *)
-		palloc0(rtsize * sizeof(bool));
+	epqstate->relsubs_done = palloc_array(bool, rtsize);
+	epqstate->epqExtra->relsubs_blocked = palloc0_array(bool, rtsize);
+
+	foreach(l, epqstate->epqExtra->resultRelations)
+	{
+		int			rtindex = lfirst_int(l);
+
+		Assert(rtindex > 0 && rtindex <= rtsize);
+		epqstate->epqExtra->relsubs_blocked[rtindex - 1] = true;
+	}
+
+	memcpy(epqstate->relsubs_done, epqstate->epqExtra->relsubs_blocked,
+		   rtsize * sizeof(bool));
 
 	/*
 	 * Initialize the private state information for all the nodes in the part
@@ -2944,12 +2996,12 @@ EvalPlanQualEnd(EPQState *epqstate)
 	 * We may have a tuple table, even if EPQ wasn't started, because we allow
 	 * use of EvalPlanQualSlot() without calling EvalPlanQualBegin().
 	 */
-	if (epqstate->tuple_table != NIL)
+	if (epqstate->epqExtra->tuple_table != NIL)
 	{
 		memset(epqstate->relsubs_slot, 0,
 			   rtsize * sizeof(TupleTableSlot *));
-		ExecResetTupleTable(epqstate->tuple_table, true);
-		epqstate->tuple_table = NIL;
+		ExecResetTupleTable(epqstate->epqExtra->tuple_table, true);
+		epqstate->epqExtra->tuple_table = NIL;
 	}
 
 	/* EPQ wasn't started, nothing further to do */
@@ -2983,4 +3035,5 @@ EvalPlanQualEnd(EPQState *epqstate)
 	epqstate->recheckplanstate = NULL;
 	epqstate->relsubs_rowmark = NULL;
 	epqstate->relsubs_done = NULL;
+	epqstate->epqExtra->relsubs_blocked = NULL;
 }

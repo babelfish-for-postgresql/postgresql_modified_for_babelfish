@@ -33,6 +33,7 @@
 #include "nodes/nodeFuncs.h"
 #include "optimizer/optimizer.h"
 #include "parser/analyze.h"
+#include "parser/parser.h" 
 #include "parser/parse_coerce.h"
 #include "parser/parse_relation.h"
 #include "parser/parsetree.h"
@@ -45,6 +46,7 @@
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 
+bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook = NULL; /** BBF Hook to check Instead Of trigger on View */
 
 /* We use a list of these to detect recursion in RewriteQuery */
 typedef struct rewrite_event
@@ -477,6 +479,8 @@ rewriteRuleAction(Query *parsetree,
 					/* other RTE types don't contain bare expressions */
 					break;
 			}
+			sub_action->hasSubLinks |=
+				checkExprHasSubLink((Node *) rte->securityQuals);
 			if (sub_action->hasSubLinks)
 				break;			/* no need to keep scanning rtable */
 		}
@@ -1470,7 +1474,8 @@ rewriteValuesRTE(Query *parsetree, RangeTblEntry *rte, int rti,
 	 */
 	isAutoUpdatableView = false;
 	if (target_relation->rd_rel->relkind == RELKIND_VIEW &&
-		!view_has_instead_trigger(target_relation, CMD_INSERT))
+		(!view_has_instead_trigger(target_relation, CMD_INSERT) &&
+			!(sql_dialect == SQL_DIALECT_TSQL && bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(target_relation, CMD_INSERT))))
 	{
 		List	   *locks;
 		bool		hasUpdate;
@@ -3348,7 +3353,7 @@ rewriteTargetView(Query *parsetree, Relation view)
 								  view_targetlist,
 								  REPLACEVARS_REPORT_ERROR,
 								  0,
-								  &parsetree->hasSubLinks);
+								  NULL);
 
 	/*
 	 * Update all other RTI references in the query that point to the view
@@ -3368,7 +3373,7 @@ rewriteTargetView(Query *parsetree, Relation view)
 	 * columns to be affected.
 	 *
 	 * Note that this destroys the resno ordering of the targetlist, but that
-	 * will be fixed when we recurse through rewriteQuery, which will invoke
+	 * will be fixed when we recurse through RewriteQuery, which will invoke
 	 * rewriteTargetListIU again on the updated targetlist.
 	 */
 	if (parsetree->commandType != CMD_DELETE)
@@ -3951,7 +3956,8 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length)
 		 */
 		if (!instead &&
 			rt_entry_relation->rd_rel->relkind == RELKIND_VIEW &&
-			!view_has_instead_trigger(rt_entry_relation, event))
+			(!view_has_instead_trigger(rt_entry_relation, event) 
+			&& !(sql_dialect == SQL_DIALECT_TSQL && bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(rt_entry_relation, event))))
 		{
 			/*
 			 * If there were any qualified INSTEAD rules, don't allow the view

@@ -433,6 +433,8 @@ extern TimestampTz pgstat_get_stat_snapshot_timestamp(bool *have_snapshot);
 extern PgStat_Kind pgstat_get_kind_from_str(char *kind_str);
 extern bool pgstat_have_entry(PgStat_Kind kind, Oid dboid, Oid objoid);
 
+/* GUC hook for stats_fetch_consistency */
+extern void assign_stats_fetch_consistency(int newval, void *extra);
 
 /*
  * Functions in pgstat_archiver.c
@@ -491,6 +493,8 @@ extern void pgstat_drop_function(Oid proid);
 struct FunctionCallInfoBaseData;
 extern void pgstat_init_function_usage(struct FunctionCallInfoBaseData *fcinfo,
 									   PgStat_FunctionCallUsage *fcu);
+extern void pgstat_init_function_usage_wrapper(struct FunctionCallInfoBaseData *fcinfo,
+									   PgStat_FunctionCallUsage *fcusageptr, char *proname);
 extern void pgstat_end_function_usage(PgStat_FunctionCallUsage *fcu,
 									  bool finalize);
 
@@ -717,5 +721,8 @@ extern PGDLLIMPORT guc_newval_hook_type guc_newval_hook;
 
 typedef bool (*tsql_has_pgstat_permissions_hook_type) (Oid role);
 extern PGDLLIMPORT tsql_has_pgstat_permissions_hook_type tsql_has_pgstat_permissions_hook;
+
+typedef void (*pgstat_function_wrapper_hook_type)(FunctionCallInfo, PgStat_FunctionCallUsage *, char *);
+extern PGDLLIMPORT pgstat_function_wrapper_hook_type pgstat_function_wrapper_hook;
 
 #endif							/* PGSTAT_H */

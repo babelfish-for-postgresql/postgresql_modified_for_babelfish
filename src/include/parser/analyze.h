@@ -61,8 +61,16 @@ typedef void (*pre_transform_setop_tree_hook_type) (SelectStmt *stmt, SelectStmt
 extern PGDLLIMPORT pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook;
 
 /* Hook for handle target table before transforming from clause */
-typedef void (*post_transform_sort_clause_hook_type) (Query *qry, Query *leftmostQuery);
-extern PGDLLIMPORT post_transform_sort_clause_hook_type post_transform_sort_clause_hook;
+typedef void (*pre_transform_setop_sort_clause_hook_type) (ParseState *pstate, Query *qry, List *sortClause, Query *leftmostQuery);
+extern PGDLLIMPORT pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook;
+
+/* Hooks for handling unquoted string argumentss in T-SQL procedure calls */
+typedef Node* (*call_argument_unquoted_string_hook_type)(Node *arg);
+extern PGDLLIMPORT call_argument_unquoted_string_hook_type call_argument_unquoted_string_hook;
+
+typedef void (*call_argument_unquoted_string_reset_hook_type)(Node *colref_arg);
+extern PGDLLIMPORT call_argument_unquoted_string_reset_hook_type call_argument_unquoted_string_reset_hook;
+
 
 extern Query *parse_analyze_fixedparams(RawStmt *parseTree, const char *sourceText,
 										const Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);
