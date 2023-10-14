@@ -1919,14 +1919,15 @@ has_table_privilege_name_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = get_role_oid_or_public(NameStr(*username));
 	mode = convert_table_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(tableoid)))
-		PG_RETURN_NULL();
+	aclresult = pg_class_aclcheck_ext(tableoid, roleid, mode, &is_missing);
 
-	aclresult = pg_class_aclcheck(tableoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -1945,14 +1946,15 @@ has_table_privilege_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = GetUserId();
 	mode = convert_table_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(tableoid)))
-		PG_RETURN_NULL();
+	aclresult = pg_class_aclcheck_ext(tableoid, roleid, mode, &is_missing);
 
-	aclresult = pg_class_aclcheck(tableoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -1993,13 +1995,14 @@ has_table_privilege_id_id(PG_FUNCTION_ARGS)
 	text	   *priv_type_text = PG_GETARG_TEXT_PP(2);
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	mode = convert_table_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(tableoid)))
-		PG_RETURN_NULL();
+	aclresult = pg_class_aclcheck_ext(tableoid, roleid, mode, &is_missing);
 
-	aclresult = pg_class_aclcheck(tableoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -2138,6 +2141,7 @@ has_sequence_privilege_name_id(PG_FUNCTION_ARGS)
 	AclMode		mode;
 	AclResult	aclresult;
 	char		relkind;
+	bool		is_missing = false;
 
 	roleid = get_role_oid_or_public(NameStr(*username));
 	mode = convert_sequence_priv_string(priv_type_text);
@@ -2150,7 +2154,10 @@ has_sequence_privilege_name_id(PG_FUNCTION_ARGS)
 				 errmsg("\"%s\" is not a sequence",
 						get_rel_name(sequenceoid))));
 
-	aclresult = pg_class_aclcheck(sequenceoid, roleid, mode);
+	aclresult = pg_class_aclcheck_ext(sequenceoid, roleid, mode, &is_missing);
+
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -2170,6 +2177,7 @@ has_sequence_privilege_id(PG_FUNCTION_ARGS)
 	AclMode		mode;
 	AclResult	aclresult;
 	char		relkind;
+	bool		is_missing = false;
 
 	roleid = GetUserId();
 	mode = convert_sequence_priv_string(priv_type_text);
@@ -2182,7 +2190,10 @@ has_sequence_privilege_id(PG_FUNCTION_ARGS)
 				 errmsg("\"%s\" is not a sequence",
 						get_rel_name(sequenceoid))));
 
-	aclresult = pg_class_aclcheck(sequenceoid, roleid, mode);
+	aclresult = pg_class_aclcheck_ext(sequenceoid, roleid, mode, &is_missing);
+
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -2229,6 +2240,7 @@ has_sequence_privilege_id_id(PG_FUNCTION_ARGS)
 	AclMode		mode;
 	AclResult	aclresult;
 	char		relkind;
+	bool		is_missing = false;
 
 	mode = convert_sequence_priv_string(priv_type_text);
 	relkind = get_rel_relkind(sequenceoid);
@@ -2240,7 +2252,10 @@ has_sequence_privilege_id_id(PG_FUNCTION_ARGS)
 				 errmsg("\"%s\" is not a sequence",
 						get_rel_name(sequenceoid))));
 
-	aclresult = pg_class_aclcheck(sequenceoid, roleid, mode);
+	aclresult = pg_class_aclcheck_ext(sequenceoid, roleid, mode, &is_missing);
+
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -2349,18 +2364,22 @@ has_any_column_privilege_name_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = get_role_oid_or_public(NameStr(*username));
 	mode = convert_column_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(tableoid)))
-		PG_RETURN_NULL();
-
 	/* First check at table level, then examine each column if needed */
-	aclresult = pg_class_aclcheck(tableoid, roleid, mode);
+	aclresult = pg_class_aclcheck_ext(tableoid, roleid, mode, &is_missing);
 	if (aclresult != ACLCHECK_OK)
-		aclresult = pg_attribute_aclcheck_all(tableoid, roleid, mode,
-											  ACLMASK_ANY);
+	{
+		if (is_missing)
+			PG_RETURN_NULL();
+		aclresult = pg_attribute_aclcheck_all_ext(tableoid, roleid, mode,
+												  ACLMASK_ANY, &is_missing);
+		if (is_missing)
+			PG_RETURN_NULL();
+	}
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -2379,18 +2398,22 @@ has_any_column_privilege_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = GetUserId();
 	mode = convert_column_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(tableoid)))
-		PG_RETURN_NULL();
-
 	/* First check at table level, then examine each column if needed */
-	aclresult = pg_class_aclcheck(tableoid, roleid, mode);
+	aclresult = pg_class_aclcheck_ext(tableoid, roleid, mode, &is_missing);
 	if (aclresult != ACLCHECK_OK)
-		aclresult = pg_attribute_aclcheck_all(tableoid, roleid, mode,
-											  ACLMASK_ANY);
+	{
+		if (is_missing)
+			PG_RETURN_NULL();
+		aclresult = pg_attribute_aclcheck_all_ext(tableoid, roleid, mode,
+												  ACLMASK_ANY, &is_missing);
+		if (is_missing)
+			PG_RETURN_NULL();
+	}
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -2435,17 +2458,21 @@ has_any_column_privilege_id_id(PG_FUNCTION_ARGS)
 	text	   *priv_type_text = PG_GETARG_TEXT_PP(2);
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	mode = convert_column_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(tableoid)))
-		PG_RETURN_NULL();
-
 	/* First check at table level, then examine each column if needed */
-	aclresult = pg_class_aclcheck(tableoid, roleid, mode);
+	aclresult = pg_class_aclcheck_ext(tableoid, roleid, mode, &is_missing);
 	if (aclresult != ACLCHECK_OK)
-		aclresult = pg_attribute_aclcheck_all(tableoid, roleid, mode,
-											  ACLMASK_ANY);
+	{
+		if (is_missing)
+			PG_RETURN_NULL();
+		aclresult = pg_attribute_aclcheck_all_ext(tableoid, roleid, mode,
+												  ACLMASK_ANY, &is_missing);
+		if (is_missing)
+			PG_RETURN_NULL();
+	}
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -2985,14 +3012,17 @@ has_database_privilege_name_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = get_role_oid_or_public(NameStr(*username));
 	mode = convert_database_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(DATABASEOID, ObjectIdGetDatum(databaseoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(DatabaseRelationId, databaseoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(DatabaseRelationId, databaseoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3011,14 +3041,17 @@ has_database_privilege_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = GetUserId();
 	mode = convert_database_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(DATABASEOID, ObjectIdGetDatum(databaseoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(DatabaseRelationId, databaseoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(DatabaseRelationId, databaseoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3059,13 +3092,16 @@ has_database_privilege_id_id(PG_FUNCTION_ARGS)
 	text	   *priv_type_text = PG_GETARG_TEXT_PP(2);
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	mode = convert_database_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(DATABASEOID, ObjectIdGetDatum(databaseoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(DatabaseRelationId, databaseoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(DatabaseRelationId, databaseoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3182,14 +3218,17 @@ has_foreign_data_wrapper_privilege_name_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = get_role_oid_or_public(NameStr(*username));
 	mode = convert_foreign_data_wrapper_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(FOREIGNDATAWRAPPEROID, ObjectIdGetDatum(fdwid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(ForeignDataWrapperRelationId, fdwid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(ForeignDataWrapperRelationId, fdwid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3208,14 +3247,17 @@ has_foreign_data_wrapper_privilege_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = GetUserId();
 	mode = convert_foreign_data_wrapper_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(FOREIGNDATAWRAPPEROID, ObjectIdGetDatum(fdwid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(ForeignDataWrapperRelationId, fdwid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(ForeignDataWrapperRelationId, fdwid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3256,13 +3298,16 @@ has_foreign_data_wrapper_privilege_id_id(PG_FUNCTION_ARGS)
 	text	   *priv_type_text = PG_GETARG_TEXT_PP(2);
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	mode = convert_foreign_data_wrapper_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(FOREIGNDATAWRAPPEROID, ObjectIdGetDatum(fdwid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(ForeignDataWrapperRelationId, fdwid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(ForeignDataWrapperRelationId, fdwid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3373,14 +3418,17 @@ has_function_privilege_name_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = get_role_oid_or_public(NameStr(*username));
 	mode = convert_function_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(PROCOID, ObjectIdGetDatum(functionoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(ProcedureRelationId, functionoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(ProcedureRelationId, functionoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3399,14 +3447,17 @@ has_function_privilege_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = GetUserId();
 	mode = convert_function_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(PROCOID, ObjectIdGetDatum(functionoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(ProcedureRelationId, functionoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(ProcedureRelationId, functionoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3447,13 +3498,16 @@ has_function_privilege_id_id(PG_FUNCTION_ARGS)
 	text	   *priv_type_text = PG_GETARG_TEXT_PP(2);
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	mode = convert_function_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(PROCOID, ObjectIdGetDatum(functionoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(ProcedureRelationId, functionoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(ProcedureRelationId, functionoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3573,14 +3627,17 @@ has_language_privilege_name_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = get_role_oid_or_public(NameStr(*username));
 	mode = convert_language_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(LANGOID, ObjectIdGetDatum(languageoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(LanguageRelationId, languageoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(LanguageRelationId, languageoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3599,14 +3656,17 @@ has_language_privilege_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = GetUserId();
 	mode = convert_language_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(LANGOID, ObjectIdGetDatum(languageoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(LanguageRelationId, languageoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(LanguageRelationId, languageoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3647,13 +3707,16 @@ has_language_privilege_id_id(PG_FUNCTION_ARGS)
 	text	   *priv_type_text = PG_GETARG_TEXT_PP(2);
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	mode = convert_language_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(LANGOID, ObjectIdGetDatum(languageoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(LanguageRelationId, languageoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(LanguageRelationId, languageoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3764,14 +3827,17 @@ has_schema_privilege_name_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = get_role_oid_or_public(NameStr(*username));
 	mode = convert_schema_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(NAMESPACEOID, ObjectIdGetDatum(schemaoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(NamespaceRelationId, schemaoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(NamespaceRelationId, schemaoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3790,14 +3856,17 @@ has_schema_privilege_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = GetUserId();
 	mode = convert_schema_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(NAMESPACEOID, ObjectIdGetDatum(schemaoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(NamespaceRelationId, schemaoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(NamespaceRelationId, schemaoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3838,13 +3907,16 @@ has_schema_privilege_id_id(PG_FUNCTION_ARGS)
 	text	   *priv_type_text = PG_GETARG_TEXT_PP(2);
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	mode = convert_schema_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(NAMESPACEOID, ObjectIdGetDatum(schemaoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(NamespaceRelationId, schemaoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(NamespaceRelationId, schemaoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3957,14 +4029,17 @@ has_server_privilege_name_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = get_role_oid_or_public(NameStr(*username));
 	mode = convert_server_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(FOREIGNSERVEROID, ObjectIdGetDatum(serverid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(ForeignServerRelationId, serverid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(ForeignServerRelationId, serverid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -3983,14 +4058,17 @@ has_server_privilege_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = GetUserId();
 	mode = convert_server_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(FOREIGNSERVEROID, ObjectIdGetDatum(serverid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(ForeignServerRelationId, serverid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(ForeignServerRelationId, serverid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -4031,13 +4109,16 @@ has_server_privilege_id_id(PG_FUNCTION_ARGS)
 	text	   *priv_type_text = PG_GETARG_TEXT_PP(2);
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	mode = convert_server_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(FOREIGNSERVEROID, ObjectIdGetDatum(serverid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(ForeignServerRelationId, serverid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(ForeignServerRelationId, serverid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -4148,14 +4229,17 @@ has_tablespace_privilege_name_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = get_role_oid_or_public(NameStr(*username));
 	mode = convert_tablespace_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(TABLESPACEOID, ObjectIdGetDatum(tablespaceoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(TableSpaceRelationId, tablespaceoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(TableSpaceRelationId, tablespaceoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -4174,14 +4258,17 @@ has_tablespace_privilege_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = GetUserId();
 	mode = convert_tablespace_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(TABLESPACEOID, ObjectIdGetDatum(tablespaceoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(TableSpaceRelationId, tablespaceoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(TableSpaceRelationId, tablespaceoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -4222,13 +4309,16 @@ has_tablespace_privilege_id_id(PG_FUNCTION_ARGS)
 	text	   *priv_type_text = PG_GETARG_TEXT_PP(2);
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	mode = convert_tablespace_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(TABLESPACEOID, ObjectIdGetDatum(tablespaceoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(TableSpaceRelationId, tablespaceoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(TableSpaceRelationId, tablespaceoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -4338,14 +4428,17 @@ has_type_privilege_name_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = get_role_oid_or_public(NameStr(*username));
 	mode = convert_type_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(TYPEOID, ObjectIdGetDatum(typeoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(TypeRelationId, typeoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(TypeRelationId, typeoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -4364,14 +4457,17 @@ has_type_privilege_id(PG_FUNCTION_ARGS)
 	Oid			roleid;
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	roleid = GetUserId();
 	mode = convert_type_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(TYPEOID, ObjectIdGetDatum(typeoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(TypeRelationId, typeoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(TypeRelationId, typeoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
@@ -4412,13 +4508,16 @@ has_type_privilege_id_id(PG_FUNCTION_ARGS)
 	text	   *priv_type_text = PG_GETARG_TEXT_PP(2);
 	AclMode		mode;
 	AclResult	aclresult;
+	bool		is_missing = false;
 
 	mode = convert_type_priv_string(priv_type_text);
 
-	if (!SearchSysCacheExists1(TYPEOID, ObjectIdGetDatum(typeoid)))
-		PG_RETURN_NULL();
+	aclresult = object_aclcheck_ext(TypeRelationId, typeoid,
+									roleid, mode,
+									&is_missing);
 
-	aclresult = object_aclcheck(TypeRelationId, typeoid, roleid, mode);
+	if (is_missing)
+		PG_RETURN_NULL();
 
 	PG_RETURN_BOOL(aclresult == ACLCHECK_OK);
 }
