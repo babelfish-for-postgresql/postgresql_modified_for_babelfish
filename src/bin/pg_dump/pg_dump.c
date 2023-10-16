@@ -3334,6 +3334,11 @@ dumpDatabase(Archive *fout)
 		appendPQExpBufferStr(delQry, ";\n");
 	}
 
+	/*
+	 * We do not restore pg_database.dathasloginevt because it is set
+	 * automatically on login event trigger creation.
+	 */
+
 	/* Add database-specific SET options */
 	dumpDatabaseConfig(fout, creaQry, datname, dbCatId.oid);
 
