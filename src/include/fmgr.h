@@ -778,8 +778,8 @@ typedef void (*non_tsql_proc_entry_hook_type) (int, int);
 
 typedef void (*get_func_language_oids_hook_type)(Oid *, Oid *);
 
-typedef char *(*set_local_schema_for_func_hookType) (Oid proc_nsp_oid);
-extern set_local_schema_for_func_hookType set_local_schema_for_func_hook;
+typedef char *(*set_local_schema_for_func_hook_type) (Oid proc_nsp_oid);
+extern set_local_schema_for_func_hook_type set_local_schema_for_func_hook;
 
 extern PGDLLIMPORT needs_fmgr_hook_type needs_fmgr_hook;
 extern PGDLLIMPORT fmgr_hook_type fmgr_hook;
