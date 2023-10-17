@@ -598,6 +598,16 @@ JsonbToCStringWorker(StringInfo out, JsonbContainer *in, int estimated_len, bool
 	return out->data;
 }
 
+void
+jsonb_get_value(Datum val, bool is_null, JsonbValue *json, Oid val_type)
+{
+	JsonbInState state;
+	memset(&state, 0, sizeof(JsonbInState));
+
+	add_jsonb(val, is_null, &state, val_type, false);
+	*json = *(state.res);
+}
+
 static void
 add_indent(StringInfo out, bool indent, int level)
 {
