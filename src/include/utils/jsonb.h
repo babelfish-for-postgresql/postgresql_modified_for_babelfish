@@ -448,4 +448,5 @@ extern Datum jsonb_build_object_worker(int nargs, Datum *args, bool *nulls,
 extern Datum jsonb_build_array_worker(int nargs, Datum *args, bool *nulls,
 									  Oid *types, bool absent_on_null);
 
+extern void jsonb_get_value(Datum val, bool is_null, JsonbValue *json, Oid val_type);
 #endif							/* __JSONB_H__ */
