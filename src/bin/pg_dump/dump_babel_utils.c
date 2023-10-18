@@ -878,14 +878,8 @@ prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_
 	int 		ntups;
 	int 		i;
 
-	if (fout->dopt->binary_upgrade)
+	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade)
 		return;
-
-	if (!isBabelfishDatabase(fout))
-	{
-		pg_log_error("\"%s\" is not a Babelfish Database.", fout->dopt->cparams.dbname);
-		exit_nicely(1);
-	}
 
 	query = createPQExpBuffer();
 	/*
@@ -921,6 +915,7 @@ prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_
 	PQclear(res);
 	destroyPQExpBuffer(query);
 
+	/* Return if not logical database dump, continue otherwise. */
 	if (bbf_db_name == NULL)
 		return;
 	/*
@@ -1153,7 +1148,7 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 	 */
 	
 	if (!isBabelfishDatabase(fout) || !isBabelfishConfigTable(tbinfo))
-			return;
+		return;
 
 	if (bbf_db_name != NULL)
 		is_builtin_db = (pg_strcasecmp(bbf_db_name, "master") == 0 ||
@@ -1370,6 +1365,9 @@ getMbstrlen(const char *mbstr, Archive *fout)
  * fixCursorForBbfSqlvariantTableData:
  * Prepare custom cursor for all Babelfish tables with atleast one sql_variant
  * datatype column to correctly dump sql_variant data.
+ *
+ * Returns total number of fields in the cursor which is the sum of existing
+ * nfields and the extra fields added for each sql_variant column.
  */
 int
 fixCursorForBbfSqlvariantTableData( Archive *fout,
