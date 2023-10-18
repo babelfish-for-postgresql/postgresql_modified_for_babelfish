@@ -88,10 +88,6 @@ pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook = NULL;
 /* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
 pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook = NULL;
 
-/* Hooks for handling unquoted string argumentss in T-SQL procedure calls */
-call_argument_unquoted_string_hook_type call_argument_unquoted_string_hook = NULL;
-call_argument_unquoted_string_reset_hook_type call_argument_unquoted_string_reset_hook = NULL;
-
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
 static Query *transformInsertStmt(ParseState *pstate, InsertStmt *stmt);
@@ -3123,17 +3119,9 @@ transformCallStmt(ParseState *pstate, CallStmt *stmt)
 	targs = NIL;
 	foreach(lc, stmt->funccall->args)
 	{
-		Node *colref_arg = NULL; 
-		Node *arg = lfirst(lc);
-		if (call_argument_unquoted_string_hook) 
-			colref_arg = (*call_argument_unquoted_string_hook)(arg);
-
 		targs = lappend(targs, transformExpr(pstate,
-											 arg,
+											 (Node *) lfirst(lc),
 											 EXPR_KIND_CALL_ARGUMENT));
-
-		if (call_argument_unquoted_string_reset_hook) 
-			call_argument_unquoted_string_reset_hook(colref_arg);
 	}
 
 	node = ParseFuncOrColumn(pstate,
