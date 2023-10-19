@@ -2972,6 +2972,7 @@ VolatileFunctionStatus
 Vsrt
 WAIT_ORDER
 WALAvailability
+WalInsertClass
 WALInsertLock
 WALInsertLockPadded
 WALOpenSegment
