@@ -810,7 +810,9 @@ ExecInsert(ModifyTableContext *context,
 			return NULL;		/* "do nothing" */
 	}
 	else if (sql_dialect == SQL_DIALECT_TSQL && resultRelInfo->ri_TrigDesc &&
-		resultRelInfo->ri_TrigDesc->trig_insert_instead_statement && !TsqlRecuresiveCheck(resultRelInfo)){
+		resultRelInfo->ri_TrigDesc->trig_insert_instead_statement &&
+		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_INSERT))
+	{
 		ExecIRInsertTriggersTSQL(estate, resultRelInfo, slot, mtstate->mt_transition_capture);
 		// if it's a statement level IOT trigger, only get the transition table
 		if (canSetTag)
