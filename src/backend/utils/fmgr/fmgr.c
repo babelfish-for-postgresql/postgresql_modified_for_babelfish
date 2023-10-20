@@ -45,6 +45,7 @@ PGDLLIMPORT fmgr_hook_type fmgr_hook = NULL;
 PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook = NULL;
 PGDLLIMPORT get_func_language_oids_hook_type get_func_language_oids_hook = NULL;
 PGDLLIMPORT pgstat_function_wrapper_hook_type pgstat_function_wrapper_hook = NULL;
+set_local_schema_for_func_hook_type set_local_schema_for_func_hook;
 
 /*
  * Hashtable for fast lookup of external C functions
@@ -673,6 +674,7 @@ struct fmgr_security_definer_cache
 	Datum		arg;			/* passthrough argument for plugin modules */
 	Oid         pronamespace;
 	char 		prokind;
+	char 		*prosearchpath;
 	Oid			prolang;
 	Oid         sys_nspoid;
 };
@@ -707,6 +709,17 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	int			non_tsql_proc_count = 0;
 	void	   *newextra = NULL;
 	char 	   *cacheTupleProcname = NULL;
+	char	   *old_search_path = NULL;
+
+	if (get_func_language_oids_hook)
+		get_func_language_oids_hook(&pltsql_lang_oid, &pltsql_validator_oid);
+	else
+	{
+		pltsql_lang_oid = InvalidOid;
+		pltsql_validator_oid = InvalidOid;
+	}
+
+	set_sql_dialect = pltsql_lang_oid != InvalidOid;
 
 	if (!fcinfo->flinfo->fn_extra)
 	{
@@ -739,6 +752,19 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		fcache->prolang = procedureStruct->prolang;
 		fcache->pronamespace = procedureStruct->pronamespace;
 		fcache->sys_nspoid = InvalidOid;
+		if((set_sql_dialect && (fcache->prolang == pltsql_lang_oid || fcache->prolang == pltsql_validator_oid))
+			&& strcmp(format_type_be(procedureStruct->prorettype), "trigger") != 0
+			&& fcache->prokind == PROKIND_FUNCTION)
+		{
+			char *new_search_path = NULL;
+			new_search_path = (*set_local_schema_for_func_hook)(fcache->pronamespace);
+			if(new_search_path)
+			{
+				oldcxt = MemoryContextSwitchTo(fcinfo->flinfo->fn_mcxt);
+				fcache->prosearchpath = pstrdup(new_search_path);
+				MemoryContextSwitchTo(oldcxt);
+			}
+		}
 
 		datum = SysCacheGetAttr(PROCOID, tuple, Anum_pg_proc_proconfig,
 								&isnull);
@@ -755,17 +781,6 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	}
 	else
 		fcache = fcinfo->flinfo->fn_extra;
-
-	if (get_func_language_oids_hook)
-		get_func_language_oids_hook(&pltsql_lang_oid, &pltsql_validator_oid);
-	else
-	{
-		pltsql_lang_oid = InvalidOid;
-		pltsql_validator_oid = InvalidOid;
-	}
-
-	// get_language_procs("pltsql", &pltsql_lang_oid, &pltsql_validator_oid);
-	set_sql_dialect = pltsql_lang_oid != InvalidOid;
 
 	/* GetUserIdAndSecContext is cheap enough that no harm in a wasted call */
 	GetUserIdAndSecContext(&save_userid, &save_sec_context);
@@ -784,6 +799,13 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 						(superuser() ? PGC_SUSET : PGC_USERSET),
 						PGC_S_SESSION,
 						GUC_ACTION_SAVE);
+	}
+
+	if (fcache->prosearchpath)
+	{
+		old_search_path = namespace_search_path;
+		namespace_search_path = fcache->prosearchpath;
+		assign_search_path(fcache->prosearchpath, newextra);
 	}
 
 	if (set_sql_dialect && IsTransactionState())
@@ -881,6 +903,12 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 			sql_dialect = sql_dialect_value_old;
 			assign_sql_dialect(sql_dialect_value_old, newextra);
 		}
+		
+		if (old_search_path)
+		{
+			namespace_search_path = old_search_path;
+			assign_search_path(old_search_path, newextra);
+		}
 
 		PG_RE_THROW();
 	}
@@ -888,9 +916,14 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 
 	fcinfo->flinfo = save_flinfo;
 
+	if (old_search_path)
+	{
+		namespace_search_path = old_search_path;
+		assign_search_path(old_search_path, newextra);
+	}
+
 	if (set_sql_dialect)
 	{
-
 		sql_dialect = sql_dialect_value_old;
 		assign_sql_dialect(sql_dialect_value_old, newextra);
 
