@@ -811,7 +811,6 @@ ExecInsert(ModifyTableContext *context,
 	}
 	else if (sql_dialect == SQL_DIALECT_TSQL && resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_insert_instead_statement &&
-		sql_dialect == SQL_DIALECT_TSQL &&
 		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_INSERT))
 	{
 		ExecIRInsertTriggersTSQL(estate, resultRelInfo, slot, mtstate->mt_transition_capture);
