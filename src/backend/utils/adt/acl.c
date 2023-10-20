@@ -118,6 +118,8 @@ static AclResult pg_role_aclcheck(Oid role_oid, Oid roleid, AclMode mode);
 
 static void RoleMembershipCacheCallback(Datum arg, int cacheid, uint32 hashvalue);
 
+bbf_get_sysadmin_oid_hook_type bbf_get_sysadmin_oid_hook = NULL;
+
 
 /*
  * getid
@@ -5121,8 +5123,7 @@ select_best_grantor(Oid roleId, AclMode privileges,
 		return;
 	}
 
-	if(sql_dialect == SQL_DIALECT_TSQL &&
-		roleId == get_role_oid("sysadmin", true))
+	if(bbf_get_sysadmin_oid_hook && roleId == (*bbf_get_sysadmin_oid_hook)())
 	{
 		AclMode		sysadmin_privs;
 
