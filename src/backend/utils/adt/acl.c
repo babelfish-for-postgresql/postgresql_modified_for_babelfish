@@ -5123,12 +5123,12 @@ select_best_grantor(Oid roleId, AclMode privileges,
 		return;
 	}
 
-	if(bbf_get_sysadmin_oid_hook && roleId == (*bbf_get_sysadmin_oid_hook)())
+	if (bbf_get_sysadmin_oid_hook && roleId == (*bbf_get_sysadmin_oid_hook)())
 	{
 		AclMode		sysadmin_privs;
 
 		sysadmin_privs = aclmask_direct(acl, roleId, ownerId,
-									needed_goptions, ACLMASK_ALL);
+										needed_goptions, ACLMASK_ALL);
 		if (sysadmin_privs == needed_goptions)
 		{
 			/* Found a suitable grantor */
