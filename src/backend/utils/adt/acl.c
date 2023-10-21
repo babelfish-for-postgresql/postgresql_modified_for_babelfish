@@ -33,7 +33,6 @@
 #include "funcapi.h"
 #include "lib/qunique.h"
 #include "miscadmin.h"
-#include "parser/parser.h"
 #include "utils/acl.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
