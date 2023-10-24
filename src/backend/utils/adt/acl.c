@@ -117,6 +117,8 @@ static AclResult pg_role_aclcheck(Oid role_oid, Oid roleid, AclMode mode);
 
 static void RoleMembershipCacheCallback(Datum arg, int cacheid, uint32 hashvalue);
 
+bbf_get_sysadmin_oid_hook_type bbf_get_sysadmin_oid_hook = NULL;
+
 
 /*
  * getid
@@ -5118,6 +5120,21 @@ select_best_grantor(Oid roleId, AclMode privileges,
 		*grantorId = ownerId;
 		*grantOptions = needed_goptions;
 		return;
+	}
+
+	if (bbf_get_sysadmin_oid_hook && roleId == (*bbf_get_sysadmin_oid_hook)())
+	{
+		AclMode		sysadmin_privs;
+
+		sysadmin_privs = aclmask_direct(acl, roleId, ownerId,
+										needed_goptions, ACLMASK_ALL);
+		if (sysadmin_privs == needed_goptions)
+		{
+			/* Found a suitable grantor */
+			*grantorId = roleId;
+			*grantOptions = sysadmin_privs;
+			return;
+		}
 	}
 
 	/*
