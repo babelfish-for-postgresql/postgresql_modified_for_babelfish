@@ -176,6 +176,10 @@ coerce_type(ParseState *pstate, Node *node,
 		/* no conversion needed */
 		return node;
 	}
+	if (nodeTag((Node*)node) == T_SetToDefault)
+	{
+		return node;
+	}
 	if (targetTypeId == ANYOID ||
 		targetTypeId == ANYELEMENTOID ||
 		targetTypeId == ANYNONARRAYOID ||
@@ -674,6 +678,16 @@ can_coerce_type(int nargs, const Oid *input_typeids, const Oid *target_typeids,
 		if (targetTypeId == RECORDARRAYOID &&
 			is_complex_array(inputTypeId))
 			continue;
+
+		/*
+		 * We're using VOIDOID as representing default,
+		 * Since the function didn't pass the fargs as params
+		 */
+		if (inputTypeId == VOIDOID && sql_dialect == SQL_DIALECT_TSQL) 
+		{
+			inputTypeId = targetTypeId;
+			continue;
+		}
 
 		/*
 		 * If input is a class type that inherits from target, accept

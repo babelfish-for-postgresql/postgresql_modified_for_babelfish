@@ -3119,9 +3119,17 @@ transformCallStmt(ParseState *pstate, CallStmt *stmt)
 	targs = NIL;
 	foreach(lc, stmt->funccall->args)
 	{
-		targs = lappend(targs, transformExpr(pstate,
-											 (Node *) lfirst(lc),
-											 EXPR_KIND_CALL_ARGUMENT));
+		if (sql_dialect == SQL_DIALECT_TSQL && nodeTag((Node*)lfirst(lc)) == T_SetToDefault)
+		{
+			((SetToDefault *)lfirst(lc))->typeId = VOIDOID;
+			targs = lappend(targs, (Node *) lfirst(lc));
+		}
+		else
+		{
+			targs = lappend(targs, transformExpr(pstate,
+												(Node *) lfirst(lc),
+												EXPR_KIND_CALL_ARGUMENT));
+		}
 	}
 
 	node = ParseFuncOrColumn(pstate,

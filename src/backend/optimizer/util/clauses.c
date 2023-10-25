@@ -40,6 +40,7 @@
 #include "optimizer/plancat.h"
 #include "optimizer/planmain.h"
 #include "parser/analyze.h"
+#include "parser/parser.h"
 #include "parser/parse_agg.h"
 #include "parser/parse_coerce.h"
 #include "parser/parse_func.h"
@@ -129,6 +130,8 @@ static Expr *simplify_function(Oid funcid,
 							   eval_const_expressions_context *context);
 static List *reorder_function_arguments(List *args, int pronargs,
 										HeapTuple func_tuple);
+static List *replace_function_defaults(List *args, HeapTuple func_tuple);
+
 static List *add_function_defaults(List *args, int pronargs,
 								   HeapTuple func_tuple);
 static List *fetch_function_defaults(HeapTuple func_tuple);
@@ -4050,6 +4053,15 @@ expand_function_arguments(List *args, bool include_out_arguments,
 								   func_tuple);
 	}
 
+	/* Not add else here, for the reason to also replace the default keyword after add function defaults */
+	if (list_length(args) == pronargs && sql_dialect == SQL_DIALECT_TSQL)
+	{
+		args = replace_function_defaults(args, func_tuple);
+		recheck_cast_function_args(args, result_type,
+								   proargtypes, pronargs,
+								   func_tuple);
+	}
+
 	return args;
 }
 
@@ -4127,6 +4139,51 @@ reorder_function_arguments(List *args, int pronargs, HeapTuple func_tuple)
 	}
 
 	return args;
+}
+
+/*
+ * replace_function_defaults: replace default keyword item with default values
+ */
+static List *
+replace_function_defaults(List *args, HeapTuple func_tuple)
+{
+	List	   *defaults;
+	ListCell   *lc;
+	List       *ret = NIL;
+	int        i;
+	int			nargs = list_length(args);
+	bool need_replace = false;
+
+	if (nargs == 0)
+		return args;
+
+	foreach(lc, args)
+	{
+		if (nodeTag((Node*)lfirst(lc)) == T_RelabelType)
+		{
+		 	if( nodeTag(((RelabelType*)lfirst(lc))->arg) == T_SetToDefault)
+				need_replace = true;
+		}
+	}
+
+	if (!need_replace)
+		return args;
+
+	/* Get all the default expressions from the pg_proc tuple */
+	defaults = fetch_function_defaults(func_tuple);
+
+	i = 0;
+	foreach(lc, args)
+	{
+		if (nodeTag((Node*)lfirst(lc)) == T_RelabelType &&
+			nodeTag(((RelabelType*)lfirst(lc))->arg) == T_SetToDefault)
+		{
+			ret = lappend(ret, list_nth(defaults, i));
+		}
+		else ret = lappend(ret, lfirst(lc));
+		i++;
+	}
+	return ret;
 }
 
 /*
