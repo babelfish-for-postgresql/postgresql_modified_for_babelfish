@@ -111,6 +111,9 @@ typedef struct LogicalDecodingContext
 	TransactionId write_xid;
 	/* Are we processing the end LSN of a transaction? */
 	bool		end_xact;
+
+	/* Do we need to process any change in fast_forward mode? */
+	bool		processing_required;
 } LogicalDecodingContext;
 
 
@@ -149,5 +152,7 @@ extern void UpdateDecodingStats(LogicalDecodingContext *ctx);
 
 typedef void (*logicalrep_modify_slot_hook_type)(Relation rel, EState *estate, TupleTableSlot *slot);
 extern PGDLLEXPORT logicalrep_modify_slot_hook_type logicalrep_modify_slot_hook;
+
+extern bool LogicalReplicationSlotHasPendingWal(XLogRecPtr end_of_wal);
 
 #endif
