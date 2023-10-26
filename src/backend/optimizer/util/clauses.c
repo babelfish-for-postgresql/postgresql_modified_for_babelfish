@@ -130,7 +130,7 @@ static Expr *simplify_function(Oid funcid,
 							   eval_const_expressions_context *context);
 static List *reorder_function_arguments(List *args, int pronargs,
 										HeapTuple func_tuple);
-static List *replace_function_defaults(List *args, HeapTuple func_tuple);
+static List *replace_function_defaults(List *args, HeapTuple func_tuple, bool *need_replace);
 
 static List *add_function_defaults(List *args, int pronargs,
 								   HeapTuple func_tuple);
@@ -4056,10 +4056,14 @@ expand_function_arguments(List *args, bool include_out_arguments,
 	/* Not add else here, for the reason to also replace the default keyword after add function defaults */
 	if (list_length(args) == pronargs && sql_dialect == SQL_DIALECT_TSQL)
 	{
-		args = replace_function_defaults(args, func_tuple);
-		recheck_cast_function_args(args, result_type,
-								   proargtypes, pronargs,
-								   func_tuple);
+		bool need_replace = false;
+		// args = replace_function_defaults(args, func_tuple, &need_replace);
+		if (need_replace)
+		{
+			recheck_cast_function_args(args, result_type,
+									proargtypes, pronargs,
+									func_tuple);
+		}
 	}
 
 	return args;
@@ -4145,15 +4149,15 @@ reorder_function_arguments(List *args, int pronargs, HeapTuple func_tuple)
  * replace_function_defaults: replace default keyword item with default values
  */
 static List *
-replace_function_defaults(List *args, HeapTuple func_tuple)
+replace_function_defaults(List *args, HeapTuple func_tuple, bool *need_replace)
 {
 	List	   *defaults;
 	ListCell   *lc;
 	List       *ret = NIL;
 	int        i;
 	int			nargs = list_length(args);
-	bool need_replace = false;
 
+	*need_replace = false;
 	if (nargs == 0)
 		return args;
 
@@ -4162,7 +4166,7 @@ replace_function_defaults(List *args, HeapTuple func_tuple)
 		if (nodeTag((Node*)lfirst(lc)) == T_RelabelType)
 		{
 		 	if( nodeTag(((RelabelType*)lfirst(lc))->arg) == T_SetToDefault)
-				need_replace = true;
+				*need_replace = true;
 		}
 	}
 
