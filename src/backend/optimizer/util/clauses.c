@@ -4057,7 +4057,7 @@ expand_function_arguments(List *args, bool include_out_arguments,
 	if (list_length(args) == pronargs && sql_dialect == SQL_DIALECT_TSQL)
 	{
 		bool need_replace = false;
-		// args = replace_function_defaults(args, func_tuple, &need_replace);
+		args = replace_function_defaults(args, func_tuple, &need_replace);
 		if (need_replace)
 		{
 			recheck_cast_function_args(args, result_type,
@@ -4168,9 +4168,15 @@ replace_function_defaults(List *args, HeapTuple func_tuple, bool *need_replace)
 		 	if( nodeTag(((RelabelType*)lfirst(lc))->arg) == T_SetToDefault)
 				*need_replace = true;
 		}
+		else if (nodeTag((Node*)lfirst(lc)) == T_FuncExpr)
+		{
+		 	if(((FuncExpr*)lfirst(lc))->funcformat == COERCE_IMPLICIT_CAST &&
+				nodeTag(linitial(((FuncExpr*)lfirst(lc))->args)) == T_SetToDefault)
+				*need_replace = true;
+		}
 	}
 
-	if (!need_replace)
+	if (!(*need_replace))
 		return args;
 
 	/* Get all the default expressions from the pg_proc tuple */
@@ -4183,9 +4189,18 @@ replace_function_defaults(List *args, HeapTuple func_tuple, bool *need_replace)
 			nodeTag(((RelabelType*)lfirst(lc))->arg) == T_SetToDefault)
 		{
 			ret = lappend(ret, list_nth(defaults, i));
+			i++;
+		}
+		else if (nodeTag((Node*)lfirst(lc)) == T_FuncExpr)
+		{
+			if(((FuncExpr*)lfirst(lc))->funcformat == COERCE_IMPLICIT_CAST &&
+				nodeTag(linitial(((FuncExpr*)lfirst(lc))->args)) == T_SetToDefault)
+			{
+				ret = lappend(ret, list_nth(defaults, i));
+				i++;
+			}
 		}
 		else ret = lappend(ret, lfirst(lc));
-		i++;
 	}
 	return ret;
 }
