@@ -43,7 +43,7 @@ report_proc_not_found_error_hook_type report_proc_not_found_error_hook = NULL;
 typedef enum
 {
 	FUNCLOOKUP_NOSUCHFUNC,
-	FUNCLOOKUP_AMBIGUOUS
+	FUNCLOOKUP_AMBIGUOUS,
 } FuncLookupError;
 
 static void unify_hypothetical_args(ParseState *pstate,

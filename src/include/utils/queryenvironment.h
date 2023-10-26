@@ -25,7 +25,7 @@
 typedef enum EphemeralNameRelationType
 {
 	ENR_NAMED_TUPLESTORE,		/* named tuplestore relation; e.g., deltas */
-	ENR_TSQL_TEMP		/* Temp table created in procedure/function */
+	ENR_TSQL_TEMP,		/* Temp table created in procedure/function */
 } EphemeralNameRelationType;
 
 typedef enum ENRCatalogTupleType

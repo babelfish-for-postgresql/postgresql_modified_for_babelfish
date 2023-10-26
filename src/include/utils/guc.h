@@ -72,7 +72,7 @@ typedef enum
 	PGC_SU_BACKEND,
 	PGC_BACKEND,
 	PGC_SUSET,
-	PGC_USERSET
+	PGC_USERSET,
 } GucContext;
 
 #define GUC_CONTEXT_CONFIG (superuser() ? PGC_SUSET : PGC_USERSET)
@@ -121,7 +121,7 @@ typedef enum
 	PGC_S_OVERRIDE,				/* special case to forcibly set default */
 	PGC_S_INTERACTIVE,			/* dividing line for error reporting */
 	PGC_S_TEST,					/* test per-database or per-user setting */
-	PGC_S_SESSION				/* SET command */
+	PGC_S_SESSION,				/* SET command */
 } GucSource;
 
 /*
@@ -198,7 +198,7 @@ typedef enum
 	/* Types of set_config_option actions */
 	GUC_ACTION_SET,				/* regular SET command */
 	GUC_ACTION_LOCAL,			/* SET LOCAL command */
-	GUC_ACTION_SAVE				/* function SET option, or temp assignment */
+	GUC_ACTION_SAVE,			/* function SET option, or temp assignment */
 } GucAction;
 
 #define GUC_QUALIFIER_SEPARATOR '.'
