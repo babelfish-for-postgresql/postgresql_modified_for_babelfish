@@ -680,16 +680,6 @@ can_coerce_type(int nargs, const Oid *input_typeids, const Oid *target_typeids,
 			continue;
 
 		/*
-		 * We're using VOIDOID as representing default,
-		 * Since the function didn't pass the fargs as params
-		 */
-		if (inputTypeId == VOIDOID && sql_dialect == SQL_DIALECT_TSQL) 
-		{
-			inputTypeId = targetTypeId;
-			continue;
-		}
-
-		/*
 		 * If input is a class type that inherits from target, accept
 		 */
 		if (typeInheritsFrom(inputTypeId, targetTypeId)

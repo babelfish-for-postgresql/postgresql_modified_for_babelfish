@@ -1491,7 +1491,9 @@ transformFuncCall(ParseState *pstate, FuncCall *fn)
 	{
 		if (sql_dialect == SQL_DIALECT_TSQL && nodeTag((Node*)lfirst(args)) == T_SetToDefault)
 		{
-			((SetToDefault *)lfirst(args))->typeId = VOIDOID;
+			// For Tsql Default in function call, we set it to UNKNOWN in parser stage
+			// In analyzer it'll use other types to detect the right func candidate
+			((SetToDefault *)lfirst(args))->typeId = UNKNOWNOID;
 			targs = lappend(targs, (Node *) lfirst(args));
 		}
 		else

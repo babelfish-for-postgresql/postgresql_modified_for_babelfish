@@ -93,6 +93,7 @@ typedef struct
 } max_parallel_hazard_context;
 
 insert_pltsql_function_defaults_hook_type insert_pltsql_function_defaults_hook = NULL;
+replace_pltsql_function_defaults_hook_type replace_pltsql_function_defaults_hook = NULL;
 
 static bool contain_agg_clause_walker(Node *node, void *context);
 static bool find_window_functions_walker(Node *node, WindowFuncLists *lists);
@@ -4154,7 +4155,7 @@ replace_function_defaults(List *args, HeapTuple func_tuple, bool *need_replace)
 	List	   *defaults;
 	ListCell   *lc;
 	List       *ret = NIL;
-	int        i,j;
+	int        i;
 	int			nargs = list_length(args);
 
 	*need_replace = false;
@@ -4182,33 +4183,10 @@ replace_function_defaults(List *args, HeapTuple func_tuple, bool *need_replace)
 	/* Get all the default expressions from the pg_proc tuple */
 	defaults = fetch_function_defaults(func_tuple);
 
-	i = 0;
-	foreach(lc, args)
-	{
-		if (nodeTag((Node*)lfirst(lc)) == T_RelabelType &&
-			nodeTag(((RelabelType*)lfirst(lc))->arg) == T_SetToDefault)
-		{
-			ret = lappend(ret, list_nth(defaults, i));
-			i++;
-		}
-		else if (nodeTag((Node*)lfirst(lc)) == T_FuncExpr)
-		{
-			if(((FuncExpr*)lfirst(lc))->funcformat == COERCE_IMPLICIT_CAST &&
-				nodeTag(linitial(((FuncExpr*)lfirst(lc))->args)) == T_SetToDefault)
-			{
-				// We'll keep the implicit cast function when it needs implicit cast
-				FuncExpr *funcExpr = (FuncExpr*)lfirst(lc);
-				List *newArgs = NIL;
-				newArgs = lappend(newArgs, list_nth(defaults, i));
-				i++;
-				for (j = 1; j < list_length(funcExpr->args); ++j)
-					newArgs = lappend(newArgs, list_nth(funcExpr->args, j));
-				funcExpr->args = newArgs;
-				ret = lappend(ret, funcExpr);
-			}
-		}
-		else ret = lappend(ret, lfirst(lc));
-	}
+	if (replace_pltsql_function_defaults_hook)
+		ret = replace_pltsql_function_defaults_hook(func_tuple, defaults, args);
+	else return args;
+
 	return ret;
 }
 

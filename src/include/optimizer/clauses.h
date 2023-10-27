@@ -59,4 +59,7 @@ extern Bitmapset *pull_paramids(Expr *expr);
 typedef void (*insert_pltsql_function_defaults_hook_type)(HeapTuple func_tuple, List *defaults, Node **argarray);
 extern PGDLLIMPORT insert_pltsql_function_defaults_hook_type insert_pltsql_function_defaults_hook;
 
+typedef List* (*replace_pltsql_function_defaults_hook_type)(HeapTuple func_tuple, List *defaults, List *fargs);
+extern PGDLLIMPORT replace_pltsql_function_defaults_hook_type replace_pltsql_function_defaults_hook;
+
 #endif							/* CLAUSES_H */
