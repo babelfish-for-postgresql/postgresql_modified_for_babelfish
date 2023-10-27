@@ -4155,7 +4155,6 @@ replace_function_defaults(List *args, HeapTuple func_tuple, bool *need_replace)
 	List	   *defaults;
 	ListCell   *lc;
 	List       *ret = NIL;
-	int        i;
 	int			nargs = list_length(args);
 
 	*need_replace = false;
