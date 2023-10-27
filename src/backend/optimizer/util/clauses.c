@@ -4154,7 +4154,7 @@ replace_function_defaults(List *args, HeapTuple func_tuple, bool *need_replace)
 	List	   *defaults;
 	ListCell   *lc;
 	List       *ret = NIL;
-	int        i;
+	int        i,j;
 	int			nargs = list_length(args);
 
 	*need_replace = false;
@@ -4196,8 +4196,15 @@ replace_function_defaults(List *args, HeapTuple func_tuple, bool *need_replace)
 			if(((FuncExpr*)lfirst(lc))->funcformat == COERCE_IMPLICIT_CAST &&
 				nodeTag(linitial(((FuncExpr*)lfirst(lc))->args)) == T_SetToDefault)
 			{
-				ret = lappend(ret, list_nth(defaults, i));
+				// We'll keep the implicit cast function when it needs implicit cast
+				FuncExpr *funcExpr = (FuncExpr*)lfirst(lc);
+				List *newArgs = NIL;
+				newArgs = lappend(newArgs, list_nth(defaults, i));
 				i++;
+				for (j = 1; j < list_length(funcExpr->args); ++j)
+					newArgs = lappend(newArgs, list_nth(funcExpr->args, j));
+				funcExpr->args = newArgs;
+				ret = lappend(ret, funcExpr);
 			}
 		}
 		else ret = lappend(ret, lfirst(lc));
