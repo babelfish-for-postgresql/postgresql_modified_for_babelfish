@@ -176,6 +176,10 @@ coerce_type(ParseState *pstate, Node *node,
 		/* no conversion needed */
 		return node;
 	}
+	if (nodeTag((Node*)node) == T_SetToDefault)
+	{
+		return node;
+	}
 	if (targetTypeId == ANYOID ||
 		targetTypeId == ANYELEMENTOID ||
 		targetTypeId == ANYNONARRAYOID ||

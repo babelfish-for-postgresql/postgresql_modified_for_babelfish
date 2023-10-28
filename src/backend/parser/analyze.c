@@ -3119,9 +3119,19 @@ transformCallStmt(ParseState *pstate, CallStmt *stmt)
 	targs = NIL;
 	foreach(lc, stmt->funccall->args)
 	{
-		targs = lappend(targs, transformExpr(pstate,
-											 (Node *) lfirst(lc),
-											 EXPR_KIND_CALL_ARGUMENT));
+		if (sql_dialect == SQL_DIALECT_TSQL && nodeTag((Node*)lfirst(lc)) == T_SetToDefault)
+		{
+			// For Tsql Default in function call, we set it to UNKNOWN in parser stage
+			// In analyzer it'll use other types to detect the right func candidate
+			((SetToDefault *)lfirst(lc))->typeId = UNKNOWNOID;
+			targs = lappend(targs, (Node *) lfirst(lc));
+		}
+		else
+		{
+			targs = lappend(targs, transformExpr(pstate,
+												(Node *) lfirst(lc),
+												EXPR_KIND_CALL_ARGUMENT));
+		}
 	}
 
 	node = ParseFuncOrColumn(pstate,
