@@ -88,6 +88,9 @@ pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook = NULL;
 /* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
 pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook = NULL;
 
+/* Hooks for transform TSQL pivot clause in select stmt */
+transform_pivot_clause_hook_type transform_pivot_clause_hook = NULL;
+
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
 static Query *transformInsertStmt(ParseState *pstate, InsertStmt *stmt);
@@ -119,7 +122,6 @@ static void transformLockingClause(ParseState *pstate, Query *qry,
 #ifdef RAW_EXPRESSION_COVERAGE_TEST
 static bool test_raw_expression_coverage(Node *node, void *context);
 #endif
-
 
 /*
  * parse_analyze_fixedparams
@@ -1365,7 +1367,6 @@ count_rowexpr_columns(ParseState *pstate, Node *expr)
 	return -1;
 }
 
-
 /*
  * transformSelectStmt -
  *	  transforms a Select Statement
@@ -1403,6 +1404,11 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 
 	/* make WINDOW info available for window functions, too */
 	pstate->p_windowdefs = stmt->windowClause;
+
+	if (stmt->isPivot && transform_pivot_clause_hook)
+	{
+		(*transform_pivot_clause_hook)(pstate, stmt);
+	}
 
 	/* process the FROM clause */
 	transformFromClause(pstate, stmt->fromClause);
