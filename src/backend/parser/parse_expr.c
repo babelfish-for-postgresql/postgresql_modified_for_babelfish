@@ -1489,8 +1489,18 @@ transformFuncCall(ParseState *pstate, FuncCall *fn)
 	targs = NIL;
 	foreach(args, fn->args)
 	{
-		targs = lappend(targs, transformExprRecurse(pstate,
+		if (sql_dialect == SQL_DIALECT_TSQL && nodeTag((Node*)lfirst(args)) == T_SetToDefault)
+		{
+			// For Tsql Default in function call, we set it to UNKNOWN in parser stage
+			// In analyzer it'll use other types to detect the right func candidate
+			((SetToDefault *)lfirst(args))->typeId = UNKNOWNOID;
+			targs = lappend(targs, (Node *) lfirst(args));
+		}
+		else
+		{
+			targs = lappend(targs, transformExprRecurse(pstate,
 													(Node *) lfirst(args)));
+		}
 	}
 
 	/*
@@ -1522,10 +1532,12 @@ transformFuncCall(ParseState *pstate, FuncCall *fn)
        */
 
       if (!schemaname || (strlen(schemaname) == 3 && strncmp(schemaname, "sys", 3) == 0))
-              if (strlen(functionname) == 8 &&
-                          strncmp(functionname, "checksum", 8) == 0 &&
-                          fn->agg_star == true)
-                      targs = ExpandChecksumStar(pstate, fn, fn->location);
+	{
+        if (strlen(functionname) == 8 &&
+            strncmp(functionname, "checksum", 8) == 0 &&
+                fn->agg_star == true)
+            targs = ExpandChecksumStar(pstate, fn, fn->location);
+	}
 
 	/* ... and hand off to ParseFuncOrColumn */
 	return ParseFuncOrColumn(pstate,

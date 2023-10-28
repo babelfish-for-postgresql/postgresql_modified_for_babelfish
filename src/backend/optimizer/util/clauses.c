@@ -40,6 +40,7 @@
 #include "optimizer/plancat.h"
 #include "optimizer/planmain.h"
 #include "parser/analyze.h"
+#include "parser/parser.h"
 #include "parser/parse_agg.h"
 #include "parser/parse_coerce.h"
 #include "parser/parse_func.h"
@@ -92,6 +93,7 @@ typedef struct
 } max_parallel_hazard_context;
 
 insert_pltsql_function_defaults_hook_type insert_pltsql_function_defaults_hook = NULL;
+replace_pltsql_function_defaults_hook_type replace_pltsql_function_defaults_hook = NULL;
 
 static bool contain_agg_clause_walker(Node *node, void *context);
 static bool find_window_functions_walker(Node *node, WindowFuncLists *lists);
@@ -129,6 +131,8 @@ static Expr *simplify_function(Oid funcid,
 							   eval_const_expressions_context *context);
 static List *reorder_function_arguments(List *args, int pronargs,
 										HeapTuple func_tuple);
+static List *replace_function_defaults(List *args, HeapTuple func_tuple, bool *need_replace);
+
 static List *add_function_defaults(List *args, int pronargs,
 								   HeapTuple func_tuple);
 static List *fetch_function_defaults(HeapTuple func_tuple);
@@ -4050,6 +4054,19 @@ expand_function_arguments(List *args, bool include_out_arguments,
 								   func_tuple);
 	}
 
+	/* Not add else here, for the reason to also replace the default keyword after add function defaults */
+	if (list_length(args) == pronargs && sql_dialect == SQL_DIALECT_TSQL)
+	{
+		bool need_replace = false;
+		args = replace_function_defaults(args, func_tuple, &need_replace);
+		if (need_replace)
+		{
+			recheck_cast_function_args(args, result_type,
+									proargtypes, pronargs,
+									func_tuple);
+		}
+	}
+
 	return args;
 }
 
@@ -4127,6 +4144,49 @@ reorder_function_arguments(List *args, int pronargs, HeapTuple func_tuple)
 	}
 
 	return args;
+}
+
+/*
+ * replace_function_defaults: replace default keyword item with default values
+ */
+static List *
+replace_function_defaults(List *args, HeapTuple func_tuple, bool *need_replace)
+{
+	List	   *defaults;
+	ListCell   *lc;
+	List       *ret = NIL;
+	int			nargs = list_length(args);
+
+	*need_replace = false;
+	if (nargs == 0)
+		return args;
+
+	foreach(lc, args)
+	{
+		if (nodeTag((Node*)lfirst(lc)) == T_RelabelType)
+		{
+		 	if( nodeTag(((RelabelType*)lfirst(lc))->arg) == T_SetToDefault)
+				*need_replace = true;
+		}
+		else if (nodeTag((Node*)lfirst(lc)) == T_FuncExpr)
+		{
+		 	if(((FuncExpr*)lfirst(lc))->funcformat == COERCE_IMPLICIT_CAST &&
+				nodeTag(linitial(((FuncExpr*)lfirst(lc))->args)) == T_SetToDefault)
+				*need_replace = true;
+		}
+	}
+
+	if (!(*need_replace))
+		return args;
+
+	/* Get all the default expressions from the pg_proc tuple */
+	defaults = fetch_function_defaults(func_tuple);
+
+	if (replace_pltsql_function_defaults_hook)
+		ret = replace_pltsql_function_defaults_hook(func_tuple, defaults, args);
+	else return args;
+
+	return ret;
 }
 
 /*
