@@ -134,7 +134,7 @@ static const ObjectPropertyType ObjectProperty[] =
 		InvalidAttrNumber,
 		InvalidAttrNumber,
 		InvalidAttrNumber,
-		-1,
+		OBJECT_ACCESS_METHOD,
 		true
 	},
 	{
@@ -176,7 +176,7 @@ static const ObjectPropertyType ObjectProperty[] =
 		InvalidAttrNumber,
 		InvalidAttrNumber,
 		InvalidAttrNumber,
-		-1,
+		OBJECT_CAST,
 		false
 	},
 	{
@@ -386,7 +386,7 @@ static const ObjectPropertyType ObjectProperty[] =
 		InvalidAttrNumber,
 		InvalidAttrNumber,
 		InvalidAttrNumber,
-		-1,
+		OBJECT_ROLE,
 		true
 	},
 	{
@@ -414,7 +414,7 @@ static const ObjectPropertyType ObjectProperty[] =
 		InvalidAttrNumber,
 		InvalidAttrNumber,
 		InvalidAttrNumber,
-		-1,
+		OBJECT_RULE,
 		false
 	},
 	{
@@ -470,7 +470,7 @@ static const ObjectPropertyType ObjectProperty[] =
 		InvalidAttrNumber,
 		InvalidAttrNumber,
 		InvalidAttrNumber,
-		-1,
+		OBJECT_TRANSFORM,
 		false
 	},
 	{
@@ -484,7 +484,7 @@ static const ObjectPropertyType ObjectProperty[] =
 		InvalidAttrNumber,
 		InvalidAttrNumber,
 		InvalidAttrNumber,
-		-1,
+		OBJECT_TRIGGER,
 		false
 	},
 	{
@@ -498,7 +498,7 @@ static const ObjectPropertyType ObjectProperty[] =
 		InvalidAttrNumber,
 		InvalidAttrNumber,
 		InvalidAttrNumber,
-		-1,
+		OBJECT_POLICY,
 		false
 	},
 	{
@@ -554,7 +554,7 @@ static const ObjectPropertyType ObjectProperty[] =
 		Anum_pg_ts_parser_prsnamespace,
 		InvalidAttrNumber,
 		InvalidAttrNumber,
-		-1,
+		OBJECT_TSPARSER,
 		true
 	},
 	{
@@ -568,7 +568,7 @@ static const ObjectPropertyType ObjectProperty[] =
 		Anum_pg_ts_template_tmplnamespace,
 		InvalidAttrNumber,
 		InvalidAttrNumber,
-		-1,
+		OBJECT_TSTEMPLATE,
 		true,
 	},
 	{
