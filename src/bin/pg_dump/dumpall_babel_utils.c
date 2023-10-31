@@ -315,7 +315,7 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 						 "FROM pg_auth_members a "
 						 "INNER JOIN bbf_roles ur on ur.oid = a.roleid "
 						 "INNER JOIN bbf_roles um on um.oid = a.member "
-						 "INNER JOIN bbf_roles ug on ug.oid = a.grantor "
+						 "LEFT JOIN bbf_roles ug on ug.oid = a.grantor "
 						 "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_') "
 						 "ORDER BY 1,2,3");
 }
