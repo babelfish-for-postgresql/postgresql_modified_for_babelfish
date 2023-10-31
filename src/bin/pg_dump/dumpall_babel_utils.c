@@ -274,7 +274,7 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 
 	resetPQExpBuffer(buf);
 	appendPQExpBufferStr(buf, "WITH bbf_catalog AS (");
-	/* Include logins only in case of Babelfish physical database dump. */
+	/* Include all the logins only in case of Babelfish physical database dump. */
 	if (!bbf_db_name)
 	{
 		char *babel_init_user = getBabelfishInitUser(conn);
@@ -285,6 +285,10 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 						  babel_init_user);
 		pfree(babel_init_user);
 	}
+	/* Just include sysadmin role memberships in case of Babelfish logical database dump. */
+	else
+		appendPQExpBufferStr(buf,
+							 "SELECT 'sysadmin' AS rolname UNION ");
 	appendPQExpBuffer(buf,
 					  "SELECT rolname FROM sys.babelfish_authid_user_ext ");
 	/* Only dump users of the specific logical database we are currently dumping. */
@@ -304,14 +308,14 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 					  "bbf_roles AS (SELECT rc.* FROM %s rc INNER JOIN bbf_catalog bcat "
 					  "ON rc.rolname = bcat.rolname) ", role_catalog);
 
-	appendPQExpBuffer(buf, "SELECT ur.rolname AS roleid, "
-					  "um.rolname AS member, "
-					  "a.admin_option, "
-					  "ug.rolname AS grantor "
-					  "FROM pg_auth_members a "
-					  "LEFT JOIN %s ur on ur.oid = a.roleid "
-					  "INNER JOIN bbf_roles um on um.oid = a.member "
-					  "LEFT JOIN %s ug on ug.oid = a.grantor "
-					  "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_')"
-					  "ORDER BY 1,2,3", role_catalog, role_catalog);
+	appendPQExpBufferStr(buf, "SELECT ur.rolname AS roleid, "
+						 "um.rolname AS member, "
+						 "a.admin_option, "
+						 "ug.rolname AS grantor "
+						 "FROM pg_auth_members a "
+						 "INNER JOIN bbf_roles ur on ur.oid = a.roleid "
+						 "INNER JOIN bbf_roles um on um.oid = a.member "
+						 "INNER JOIN bbf_roles ug on ug.oid = a.grantor "
+						 "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_') "
+						 "ORDER BY 1,2,3");
 }
