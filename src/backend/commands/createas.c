@@ -53,8 +53,6 @@
 #include "utils/rls.h"
 #include "utils/snapmgr.h"
 
-bbfSelectIntoAddIdentity_hook_type bbfSelectIntoAddIdentity_hook = NULL;
-
 typedef struct
 {
 	DestReceiver pub;			/* publicly-known function pointers */
@@ -114,11 +112,6 @@ create_ctas_internal(List *attrList, IntoClause *into)
 	create->if_not_exists = false;
 	create->accessMethod = into->accessMethod;
 
-	if (sql_dialect == SQL_DIALECT_TSQL)
-	{
-		if(into->identityName && bbfSelectIntoAddIdentity_hook)
-			(*bbfSelectIntoAddIdentity_hook)(into, create->tableElts);
-	}
 	/*
 	 * Create the relation.  (This will error out if there's an existing view,
 	 * so we don't need more code to complain if "replace" is false.)

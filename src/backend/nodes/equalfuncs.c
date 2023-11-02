@@ -155,8 +155,6 @@ _equalIntoClause(const IntoClause *a, const IntoClause *b)
 	COMPARE_STRING_FIELD(tableSpaceName);
 	COMPARE_NODE_FIELD(viewQuery);
 	COMPARE_SCALAR_FIELD(skipData);
-	COMPARE_STRING_FIELD(identityName);
-	COMPARE_STRING_FIELD(identityType);
 
 	return true;
 }
