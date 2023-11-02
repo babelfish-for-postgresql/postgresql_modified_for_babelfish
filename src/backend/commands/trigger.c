@@ -2572,11 +2572,13 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 	MyTriggerDepth++;
 	PG_TRY();
 	{
+		triggerOids = lappend_oid(triggerOids, trigdata->tg_trigger->tgoid);
 		result = FunctionCallInvoke(fcinfo);
 	}
 	PG_FINALLY();
 	{
 		MyTriggerDepth--;
+		triggerOids = NIL;
 	}
 	PG_END_TRY();
 
