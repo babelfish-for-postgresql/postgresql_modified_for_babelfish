@@ -24,6 +24,7 @@
 
 #include "postgres.h"
 
+#include "access/relation.h"
 #include "access/sysattr.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
@@ -586,6 +587,14 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 	return qry;
 }
 
+List       *exec_insert_icolumns;
+List       *exec_insert_attrnos;
+InsertStmt *exec_insert_stmt;
+Relation    p_target_relation;
+bool insert_exec;
+int rd_length;
+Oid rd_id;
+
 /*
  * transformInsertStmt -
  *	  transform an Insert Statement
@@ -608,6 +617,7 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 	ListCell   *lc;
 	bool		isOnConflictUpdate;
 	AclMode		targetPerms;
+	MemoryContext oldContext;
 
 	/* There can't be any outer WITH to worry about */
 	Assert(pstate->p_ctenamespace == NIL);
@@ -707,6 +717,14 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 				((DoStmt *) stmt->execStmt)->relation = pstate->p_target_relation->rd_id;
 				((DoStmt *) stmt->execStmt)->attrnos = attrnos;
 				qry->utilityStmt = stmt->execStmt;
+                oldContext = MemoryContextSwitchTo(TopMemoryContext);
+                exec_insert_icolumns = copyObject(icolumns);
+                exec_insert_stmt = copyObject(stmt);
+                exec_insert_attrnos = copyObject(attrnos);
+                insert_exec = true;
+                rd_length = list_length(pstate->p_rtable);
+                rd_id = pstate->p_target_relation->rd_id;
+                MemoryContextSwitchTo(oldContext);
 				break;
 			default:
 				ereport(ERROR,
@@ -717,6 +735,10 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 				break;
 		}
 	}
+	else
+    {
+        insert_exec = false;
+    }
 
 	/*
 	 * Determine which variant of INSERT we have.
@@ -1416,6 +1438,62 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 	/* transform targetlist */
 	qry->targetList = transformTargetList(pstate, stmt->targetList,
 										  EXPR_KIND_SELECT_TARGET);
+	
+	 if (insert_exec)
+    {
+        List       *exprList = NIL;
+        ListCell   *lc;
+        ListCell   *icols;
+        ListCell   *attnos;
+        Relation    rel;
+
+        exprList = NIL;
+        foreach(lc, qry->targetList)
+        {
+            TargetEntry *tle = (TargetEntry *) lfirst(lc);
+            Expr       *expr;
+
+            if (tle->resjunk)
+                continue;
+            if (tle->expr)
+                expr = tle->expr;
+            else
+            {
+                Var        *var = makeVarFromTargetEntry(rd_length, tle);
+
+                var->location = exprLocation((Node *) tle->expr);
+                expr = (Expr *) var;
+            }
+            exprList = lappend(exprList, expr);
+        }
+
+        rel = relation_open(rd_id, AccessShareLock);
+        pstate->p_target_relation = rel;
+        /* Prepare row for assignment to target table */
+        exprList = transformInsertRow(pstate, exprList,
+                                      exec_insert_stmt->cols,
+                                      exec_insert_icolumns, exec_insert_attrnos,
+                                      false);
+
+        pstate->p_target_relation = NULL;
+
+        qry->targetList = NIL;
+
+        forthree(lc, exprList, icols, exec_insert_icolumns, attnos, exec_insert_attrnos)
+        {
+            Expr       *expr = (Expr *) lfirst(lc);
+            ResTarget  *col = lfirst_node(ResTarget, icols);
+            AttrNumber  attr_num = (AttrNumber) lfirst_int(attnos);
+            TargetEntry *tle;
+
+            tle = makeTargetEntry(expr,
+                                attr_num,
+                                col->name,
+                                false);
+            qry->targetList = lappend(qry->targetList, tle);
+        }
+    }
+
 
 	/* mark column origins */
 	markTargetListOrigins(pstate, qry->targetList);
