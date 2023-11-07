@@ -91,6 +91,9 @@ pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook =
 /* Hooks for transform TSQL pivot clause in select stmt */
 transform_pivot_clause_hook_type transform_pivot_clause_hook = NULL;
 
+/* Hook to transform target list to move identity function at the end of target list*/
+bbf_rewrite_targetlist_hook_type bbf_rewrite_targetlist_hook = NULL;
+
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
 static Query *transformInsertStmt(ParseState *pstate, InsertStmt *stmt);
@@ -1413,6 +1416,8 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 	/* process the FROM clause */
 	transformFromClause(pstate, stmt->fromClause);
 
+	if(sql_dialect == SQL_DIALECT_TSQL && bbf_rewrite_targetlist_hook)
+		(*bbf_rewrite_targetlist_hook)(stmt->targetList);
 	/* transform targetlist */
 	qry->targetList = transformTargetList(pstate, stmt->targetList,
 										  EXPR_KIND_SELECT_TARGET);

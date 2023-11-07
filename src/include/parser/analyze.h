@@ -68,6 +68,10 @@ extern PGDLLIMPORT pre_transform_setop_sort_clause_hook_type pre_transform_setop
 typedef void (*transform_pivot_clause_hook_type)(ParseState *pstate, SelectStmt *stmt);
 extern PGDLLIMPORT transform_pivot_clause_hook_type transform_pivot_clause_hook;
 
+/* Hook to transform target list to move identity function at the end of target list*/
+typedef void (*bbf_rewrite_targetlist_hook_type)(List *targetList);
+extern PGDLLIMPORT bbf_rewrite_targetlist_hook_type bbf_rewrite_targetlist_hook;
+
 extern Query *parse_analyze_fixedparams(RawStmt *parseTree, const char *sourceText,
 										const Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);
 extern Query *parse_analyze(RawStmt *parseTree, const char *sourceText,
