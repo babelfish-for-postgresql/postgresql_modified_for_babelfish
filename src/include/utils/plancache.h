@@ -194,6 +194,8 @@ extern PGDLLEXPORT plansource_revalidate_hook_type plansource_revalidate_hook;
 extern void InitPlanCache(void);
 extern void ResetPlanCache(void);
 
+extern void ReleaseAllPlanCacheRefsInOwner(ResourceOwner owner);
+
 extern CachedPlanSource *CreateCachedPlan(struct RawStmt *raw_parse_tree,
 										  const char *query_string,
 										  CommandTag commandTag);

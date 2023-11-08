@@ -1528,6 +1528,8 @@ MVDependencies
 MVDependency
 MVNDistinct
 MVNDistinctItem
+ManyTestResource
+ManyTestResourceKind
 Material
 MaterialPath
 MaterialState
@@ -2360,8 +2362,10 @@ ReplicationStateOnDisk
 ResTarget
 ReservoirState
 ReservoirStateData
-ResourceArray
+ResourceElem
 ResourceOwner
+ResourceOwnerData
+ResourceOwnerDesc
 ResourceReleaseCallback
 ResourceReleaseCallbackItem
 ResourceReleasePhase
