@@ -5446,6 +5446,29 @@ isTsqlInsteadofTriggerExecution(EState *estate, ResultRelInfo *relinfo, TriggerE
 	return false;
 }
 
+void checkRecursiveTriggerDepth(ResultRelInfo *relinfo)
+{
+	if (triggerOids && relinfo->ri_TrigDesc)
+	{
+		TriggerDesc *trigdesc;
+		int i;
+		trigdesc = relinfo->ri_TrigDesc;
+		for (i = 0; i < trigdesc->numtriggers; i++)
+		{
+			Trigger *trigger = &trigdesc->triggers[i];
+			Oid current_tgoid = trigger->tgoid;
+			Oid prev_tgoid = lfirst_oid(list_tail(triggerOids));
+			if (prev_tgoid != current_tgoid && list_member_oid(triggerOids, current_tgoid))
+			{
+				/** Indirect recursive trigger case*/
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("Maximum stored procedure, function, trigger, or view nesting level exceeded (limit 32)")));
+			}
+		}
+	}
+}
+
 /* ----------
  * AfterTriggerBeginXact()
  *
