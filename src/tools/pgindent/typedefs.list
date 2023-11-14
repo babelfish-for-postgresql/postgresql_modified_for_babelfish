@@ -1206,6 +1206,7 @@ IntegerSet
 InternalDefaultACL
 InternalGrant
 Interval
+IntervalAggState
 IntoClause
 InvalMessageArray
 InvalidationMsgsGroup
