@@ -307,7 +307,7 @@ check_attrmap_match(TupleDesc indesc,
 			return false;
 
 		/**
-		 * in tsql insert exec, we nned a cast
+		 * in tsql insert exec, we need a cast
 		 */
 		if (called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook()
 		 	&& (inatt->atttypid != outatt->atttypid ||

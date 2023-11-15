@@ -21,6 +21,7 @@
 #include "access/tupconvert.h"
 #include "executor/tuptable.h"
 
+exec_tsql_cast_value_hook_type exec_tsql_cast_value_hook = NULL;
 
 /*
  * The conversion setup routines have the following common API:
@@ -160,6 +161,35 @@ execute_attr_map_tuple(HeapTuple tuple, TupleConversionMap *map)
 	{
 		int			j = attrMap->attnums[i];
 
+		/**
+		 * if it's tsql insert exec, we'll consider value cast
+		 */
+		if (called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook())
+		{
+			Oid        intypeid;
+			Oid        outtypeid;
+			int        inttypemod;
+			int        outtypemod;
+
+			Form_pg_attribute outatt = TupleDescAttr(map->outdesc, i);
+			Form_pg_attribute inatt = TupleDescAttr(map->indesc, i);
+
+			outtypeid = outatt->atttypid;
+			outtypemod = outatt->atttypmod;
+			intypeid = inatt->atttypid;
+			inttypemod = inatt->atttypmod;
+
+			if (intypeid != outtypeid ||
+				inttypemod != outtypemod)
+			{
+				outisnull[i] = inisnull[j];
+				outvalues[i] = exec_tsql_cast_value_hook(
+					invalues[j], &outisnull[i],
+					intypeid, inttypemod,
+					outtypeid, outtypemod);
+				continue;
+			}
+		}
 		outvalues[i] = invalues[j];
 		outisnull[i] = inisnull[j];
 	}
