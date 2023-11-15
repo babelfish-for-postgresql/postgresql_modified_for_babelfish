@@ -26,6 +26,7 @@
 #include "access/htup_details.h"
 #include "utils/builtins.h"
 
+called_from_tsql_insert_exec_hook_type called_from_tsql_insert_exec_hook = NULL;
 
 static bool check_attrmap_match(TupleDesc indesc,
 								TupleDesc outdesc,
@@ -114,8 +115,10 @@ build_attrmap_by_position(TupleDesc indesc,
 			nincols++;
 
 			/* Found matching column, now check type */
-			if (atttypid != att->atttypid ||
-				(atttypmod != att->atttypmod && atttypmod >= 0))
+			/* skip check type if it's tsql insert exec */
+			if ((atttypid != att->atttypid ||
+				(atttypmod != att->atttypmod && atttypmod >= 0)) &&
+				!(called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook()))
 				ereport(ERROR,
 						(errcode(ERRCODE_DATATYPE_MISMATCH),
 						 errmsg_internal("%s", _(msg)),
@@ -301,6 +304,14 @@ check_attrmap_match(TupleDesc indesc,
 		 * If the input column has a missing attribute, we need a conversion.
 		 */
 		if (inatt->atthasmissing)
+			return false;
+
+		/**
+		 * in tsql insert exec, we need a cast
+		 */
+		if (called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook()
+		 	&& (inatt->atttypid != outatt->atttypid ||
+			inatt->atttypmod != outatt->atttypmod))
 			return false;
 
 		if (attrMap->attnums[i] == (i + 1))
