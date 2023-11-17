@@ -89,6 +89,7 @@ typedef enum ParseExprKind
  */
 typedef Node *(*PreParseColumnRefHook) (ParseState *pstate, ColumnRef *cref);
 typedef Node *(*PostParseColumnRefHook) (ParseState *pstate, ColumnRef *cref, Node *var);
+typedef List *(*PostParseFunctionRefHook) (ParseState *pstate, FuncCall *fn, List *fargs);
 typedef void (*PostParseExpandStarHook) (ParseState *pstate, ColumnRef *cref, List *l);
 typedef Node *(*ColumnRefOverwriteHook) (ParseState *pstate, ColumnRef *cref, Node *var);
 typedef Node *(*ParseParamRefHook) (ParseState *pstate, ParamRef *pref);
@@ -222,6 +223,7 @@ struct ParseState
 	 */
 	PreParseColumnRefHook p_pre_columnref_hook;
 	PostParseColumnRefHook p_post_columnref_hook;
+	PostParseFunctionRefHook p_post_funcref_hook;
 	PostParseExpandStarHook p_post_expand_star_hook;
 	ColumnRefOverwriteHook p_column_ref_overwrite_hook;
 	ParseParamRefHook p_paramref_hook;
