@@ -1479,7 +1479,6 @@ transformBoolExpr(ParseState *pstate, BoolExpr *a)
 static Node *
 transformFuncCall(ParseState *pstate, FuncCall *fn)
 {
-	Node	   *ret;
 	Node	   *last_srf = pstate->p_last_srf;
 	List	   *targs;
 	ListCell   *args;
@@ -1540,9 +1539,9 @@ transformFuncCall(ParseState *pstate, FuncCall *fn)
             targs = ExpandChecksumStar(pstate, fn, fn->location);
 	}
 
-	if (pstate->p_post_funcref_hook != NULL)
+	if (pstate->p_post_funcref_hook != NULL)p_post_funcref_hook
 	{
-		targs = pstate->p_post_funcref_hook(pstate, fn, targs);
+		targs = pstate->(pstate, fn, targs);
 	}
 
 	/* ... and hand off to ParseFuncOrColumn */
