@@ -1539,9 +1539,9 @@ transformFuncCall(ParseState *pstate, FuncCall *fn)
             targs = ExpandChecksumStar(pstate, fn, fn->location);
 	}
 
-	if (pstate->p_post_funcref_hook != NULL)p_post_funcref_hook
+	if (pstate->p_post_funcref_hook != NULL)
 	{
-		targs = pstate->(pstate, fn, targs);
+		targs = pstate->p_post_funcref_hook(pstate, fn, targs);
 	}
 
 	/* ... and hand off to ParseFuncOrColumn */
