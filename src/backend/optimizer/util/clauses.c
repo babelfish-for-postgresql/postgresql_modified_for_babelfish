@@ -4231,8 +4231,11 @@ fetch_function_defaults(HeapTuple func_tuple)
 	proargdefaults = SysCacheGetAttr(PROCOID, func_tuple,
 									 Anum_pg_proc_proargdefaults,
 									 &isnull);
-	if (isnull)
+	if (isnull && sql_dialect != SQL_DIALECT_TSQL)
+	// We don't want to see this error in TSQL
 		elog(ERROR, "not enough default arguments");
+	if (isnull && sql_dialect == SQL_DIALECT_TSQL)
+		return NIL;
 	str = TextDatumGetCString(proargdefaults);
 	defaults = castNode(List, stringToNode(str));
 	pfree(str);
