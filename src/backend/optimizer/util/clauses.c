@@ -4314,9 +4314,24 @@ fetch_function_defaults(HeapTuple func_tuple)
 	List	   *defaults;
 	Datum		proargdefaults;
 	char	   *str;
+	bool		isnull;
 
-	proargdefaults = SysCacheGetAttrNotNull(PROCOID, func_tuple,
-											Anum_pg_proc_proargdefaults);
+	/* The error cases here shouldn't happen, but check anyway */
+	proargdefaults = SysCacheGetAttr(PROCOID, func_tuple,
+									 Anum_pg_proc_proargdefaults,
+									 &isnull);
+	if (isnull)
+	{
+		/* This error msg is not expected in Tsql for 2 reasons
+		   1. Procedure call will throw a specific error msg later
+		   2. Func call even without defining default value, it 
+		    won't error out, it'll use NULL instead */
+		if (sql_dialect == SQL_DIALECT_TSQL)
+			return NIL;
+
+		elog(ERROR, "not enough default arguments");
+	}
+
 	str = TextDatumGetCString(proargdefaults);
 	defaults = castNode(List, stringToNode(str));
 	pfree(str);
