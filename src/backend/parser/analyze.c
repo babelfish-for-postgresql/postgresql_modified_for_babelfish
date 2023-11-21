@@ -3178,7 +3178,7 @@ transformCallStmt(ParseState *pstate, CallStmt *stmt)
 			// For Tsql Default in function call, we set it to UNKNOWN in parser stage
 			// In analyzer it'll use other types to detect the right func candidate
 			((SetToDefault *)((NamedArgExpr*)lfirst(lc))->arg)->typeId = UNKNOWNOID;
-			targs = lappend(targs, (Node *) ((NamedArgExpr*)lfirst(lc))->arg);
+			targs = lappend(targs, (Node *) lfirst(lc));
 		}
 		else
 		{
