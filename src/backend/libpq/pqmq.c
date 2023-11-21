@@ -17,6 +17,7 @@
 #include "libpq/pqformat.h"
 #include "libpq/pqmq.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "pgstat.h"
 #include "tcop/tcopprot.h"
 #include "utils/builtins.h"
@@ -309,6 +310,16 @@ pq_parse_errornotice(StringInfo msg, ErrorData *edata)
 				break;
 			case PG_DIAG_SOURCE_FUNCTION:
 				edata->funcname = pstrdup(value);
+				break;
+			case PG_DIAG_MESSAGE_ID:
+				if (sql_dialect == SQL_DIALECT_TSQL)
+				{
+					edata->message_id = pstrdup(value);
+				}
+				else
+				{
+					elog(ERROR, "Unexpected message_id found");
+				}
 				break;
 			default:
 				elog(ERROR, "unrecognized error field code: %d", (int) code);

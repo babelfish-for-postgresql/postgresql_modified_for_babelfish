@@ -72,6 +72,7 @@
 #include "libpq/pqformat.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "pgstat.h"
 #include "postmaster/bgworker.h"
 #include "postmaster/postmaster.h"
@@ -1703,6 +1704,8 @@ ThrowErrorData(ErrorData *edata)
 	if (edata->backtrace)
 		newedata->backtrace = pstrdup(edata->backtrace);
 	/* assume message_id is not available */
+	if (edata->message_id)
+		newedata->message_id = pstrdup(edata->message_id);
 	if (edata->schema_name)
 		newedata->schema_name = pstrdup(edata->schema_name);
 	if (edata->table_name)
@@ -3248,6 +3251,15 @@ send_message_to_frontend(ErrorData *edata)
 		{
 			pq_sendbyte(&msgbuf, PG_DIAG_SOURCE_FUNCTION);
 			err_sendstring(&msgbuf, edata->funcname);
+		}
+
+		if (sql_dialect == SQL_DIALECT_TSQL)
+		{
+			if (edata->message_id)
+			{
+				pq_sendbyte(&msgbuf, PG_DIAG_MESSAGE_ID);
+				err_sendstring(&msgbuf, edata->message_id);
+			}
 		}
 
 		pq_sendbyte(&msgbuf, '\0'); /* terminator */
