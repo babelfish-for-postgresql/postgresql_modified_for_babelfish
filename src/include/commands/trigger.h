@@ -298,7 +298,6 @@ extern void ExecASTruncateTriggers(EState *estate,
 								   ResultRelInfo *relinfo);
 
 extern bool isTsqlInsteadofTriggerExecution(EState *estate, ResultRelInfo *relinfo, TriggerEvent event);
-extern void checkRecursiveTriggerDepth(ResultRelInfo *relinfo);
 
 extern void AfterTriggerBeginXact(void);
 extern void AfterTriggerBeginQuery(void);

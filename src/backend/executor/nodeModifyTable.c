@@ -802,9 +802,6 @@ ExecInsert(ModifyTableContext *context,
 	if (resultRelInfo->ri_projectReturning)
 		result = ExecProcessReturning(resultRelInfo, slot, planSlot);
 
-	if (sql_dialect == SQL_DIALECT_TSQL)
-		checkRecursiveTriggerDepth(resultRelInfo);
-		
 	/* INSTEAD OF ROW INSERT Triggers */
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_insert_instead_row)
@@ -1480,8 +1477,6 @@ ExecDelete(ModifyTableContext *context,
 
 		ExecClearTuple(slot);
 	}
-	if (sql_dialect == SQL_DIALECT_TSQL)
-		checkRecursiveTriggerDepth(resultRelInfo);
 
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_delete_instead_statement &&
@@ -2337,9 +2332,6 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 	/* Process RETURNING if present */
 	if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
 		rslot = ExecProcessReturning(resultRelInfo, slot, context->planSlot);
-
-	if (sql_dialect == SQL_DIALECT_TSQL)
-		checkRecursiveTriggerDepth(resultRelInfo);
 
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&
