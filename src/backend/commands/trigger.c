@@ -72,6 +72,7 @@ int			SessionReplicationRole = SESSION_REPLICATION_ROLE_ORIGIN;
 
 /* How many levels deep into trigger execution are we? */
 static int	MyTriggerDepth = 0;
+List *triggerOids = NIL; /* To store all trigger calls information */
 
 /* Local function prototypes */
 static void renametrig_internal(Relation tgrel, Relation targetrel,
@@ -2508,11 +2509,13 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 	MyTriggerDepth++;
 	PG_TRY();
 	{
+		triggerOids = lappend_oid(triggerOids, trigdata->tg_trigger->tgoid);
 		result = FunctionCallInvoke(fcinfo);
 	}
 	PG_FINALLY();
 	{
 		MyTriggerDepth--;
+		triggerOids = list_delete_oid(triggerOids, trigdata->tg_trigger->tgoid);
 	}
 	PG_END_TRY();
 
