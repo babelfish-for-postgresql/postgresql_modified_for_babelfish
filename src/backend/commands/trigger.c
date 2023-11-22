@@ -2579,7 +2579,6 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 	{
 		MyTriggerDepth--;
 		triggerOids = list_delete_oid(triggerOids, trigdata->tg_trigger->tgoid);
-		// triggerOids = list_delete_last(triggerOids);
 	}
 	PG_END_TRY();
 
