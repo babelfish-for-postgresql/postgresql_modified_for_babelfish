@@ -1539,6 +1539,10 @@ transformFuncCall(ParseState *pstate, FuncCall *fn)
             targs = ExpandChecksumStar(pstate, fn, fn->location);
 	}
 
+	/*
+	 * Now we give the Post Func ref hook to check whether the function matches any of the Geospatial functions and handle them separately
+	 * STAsText(), STAsBinary(), STDistance()
+	 */
 	if (pstate->p_post_funcref_hook != NULL)
 	{
 		targs = pstate->p_post_funcref_hook(pstate, fn, targs);
