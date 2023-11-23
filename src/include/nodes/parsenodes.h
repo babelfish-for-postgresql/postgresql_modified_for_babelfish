@@ -1995,9 +1995,9 @@ typedef struct SelectStmt
 	bool	isPivot;
 	struct SelectStmt *srcSql;
 	struct SelectStmt *catSql;
-	List	*value_col_strlist;
-	char	*pivotCol;
-	Node	*aggFunc;
+	List		*value_col_strlist;
+	ColumnRef	*pivotCol;
+	Node		*aggFunc;
 } SelectStmt;
 
 
