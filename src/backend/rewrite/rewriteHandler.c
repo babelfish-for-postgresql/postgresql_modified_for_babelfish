@@ -3736,7 +3736,8 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length)
 		result_relation = parsetree->resultRelation;
 		Assert(result_relation != 0);
 		rt_entry = rt_fetch(result_relation, parsetree->rtable);
-		Assert(rt_entry->rtekind == RTE_RELATION);
+		/** allow transition table in TSQL inside trigger body, rtekind can be RTE_NAMEDTUPLESTORE, eg inserted and deleted*/
+		Assert(rt_entry->rtekind == RTE_RELATION || (sql_dialect == SQL_DIALECT_TSQL && rt_entry->rtekind == RTE_NAMEDTUPLESTORE));
 
 		/*
 		 * We can use NoLock here since either the parser or
