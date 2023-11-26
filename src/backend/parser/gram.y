@@ -880,7 +880,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %left		'*' '/' '%'
 %left		'^'
 /* Unary Operators */
-%left		AT				/* sets precedence for AT TIME ZONE */
+%left		AT				/* sets precedence for AT TIME ZONE, AT LOCAL */
 %left		COLLATE
 %right		UMINUS
 %left		'[' ']'
