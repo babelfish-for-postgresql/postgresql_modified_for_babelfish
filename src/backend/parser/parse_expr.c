@@ -1540,12 +1540,12 @@ transformFuncCall(ParseState *pstate, FuncCall *fn)
 	}
 
 	/*
-	 * Now we give the Post Func ref hook to check whether the function matches any of the Geospatial functions and handle them separately
+	 * Now we give the Pre Func ref hook to check whether the function matches any of the Geospatial functions and handle them separately
 	 * STAsText(), STAsBinary(), STDistance()
 	 */
-	if (pstate->p_post_funcref_hook != NULL)
+	if (pstate->p_pre_funcref_hook != NULL)
 	{
-		targs = pstate->p_post_funcref_hook(pstate, fn, targs);
+		targs = pstate->p_pre_funcref_hook(pstate, fn, targs);
 	}
 
 	/* ... and hand off to ParseFuncOrColumn */
