@@ -2731,6 +2731,7 @@ l1:
 			result = TM_Updated;
 	}
 
+	/* sanity check the result HeapTupleSatisfiesUpdate() and the logic above */
 	if (result != TM_Ok)
 	{
 		Assert(result == TM_SelfModified ||
@@ -2740,6 +2741,17 @@ l1:
 		Assert(!(tp.t_data->t_infomask & HEAP_XMAX_INVALID));
 		Assert(result != TM_Updated ||
 			   !ItemPointerEquals(&tp.t_self, &tp.t_data->t_ctid));
+	}
+
+	if (crosscheck != InvalidSnapshot && result == TM_Ok)
+	{
+		/* Perform additional check for transaction-snapshot mode RI updates */
+		if (!HeapTupleSatisfiesVisibility(&tp, crosscheck, buffer))
+			result = TM_Updated;
+	}
+
+	if (result != TM_Ok)
+	{
 		tmfd->ctid = tp.t_data->t_ctid;
 		tmfd->xmax = HeapTupleHeaderGetUpdateXid(tp.t_data);
 		if (result == TM_SelfModified)
@@ -3368,6 +3380,7 @@ l2:
 		}
 	}
 
+	/* Sanity check the result HeapTupleSatisfiesUpdate() and the logic above */
 	if (result != TM_Ok)
 	{
 		Assert(result == TM_SelfModified ||
@@ -3377,6 +3390,17 @@ l2:
 		Assert(!(oldtup.t_data->t_infomask & HEAP_XMAX_INVALID));
 		Assert(result != TM_Updated ||
 			   !ItemPointerEquals(&oldtup.t_self, &oldtup.t_data->t_ctid));
+	}
+
+	if (crosscheck != InvalidSnapshot && result == TM_Ok)
+	{
+		/* Perform additional check for transaction-snapshot mode RI updates */
+		if (!HeapTupleSatisfiesVisibility(&oldtup, crosscheck, buffer))
+			result = TM_Updated;
+	}
+
+	if (result != TM_Ok)
+	{
 		tmfd->ctid = oldtup.t_data->t_ctid;
 		tmfd->xmax = HeapTupleHeaderGetUpdateXid(oldtup.t_data);
 		if (result == TM_SelfModified)
