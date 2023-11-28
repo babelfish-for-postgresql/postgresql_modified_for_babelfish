@@ -1395,9 +1395,8 @@ get_func_arg_info(HeapTuple procTup,
 		*p_argnames = NULL;
 	else
 	{
-		deconstruct_array(DatumGetArrayTypeP(proargnames),
-						  TEXTOID, -1, false, TYPALIGN_INT,
-						  &elems, NULL, &nelems);
+		deconstruct_array_builtin(DatumGetArrayTypeP(proargnames), TEXTOID,
+								  &elems, NULL, &nelems);
 		if (nelems != numargs)	/* should not happen */
 			elog(ERROR, "proargnames must have the same number of elements as the function has arguments");
 		*p_argnames = (char **) palloc(sizeof(char *) * numargs);
@@ -1511,8 +1510,7 @@ get_func_input_arg_names(Datum proargnames, Datum proargmodes,
 		ARR_HASNULL(arr) ||
 		ARR_ELEMTYPE(arr) != TEXTOID)
 		elog(ERROR, "proargnames is not a 1-D text array or it contains nulls");
-	deconstruct_array(arr, TEXTOID, -1, false, TYPALIGN_INT,
-					  &argnames, NULL, &numargs);
+	deconstruct_array_builtin(arr, TEXTOID, &argnames, NULL, &numargs);
 	if (proargmodes != PointerGetDatum(NULL))
 	{
 		arr = DatumGetArrayTypeP(proargmodes);	/* ensure not toasted */
@@ -1626,8 +1624,7 @@ get_func_result_name(Oid functionId)
 			ARR_ELEMTYPE(arr) != TEXTOID)
 			elog(ERROR, "proargnames is not a 1-D text array of length %d or it contains nulls",
 				 numargs);
-		deconstruct_array(arr, TEXTOID, -1, false, TYPALIGN_INT,
-						  &argnames, NULL, &nargnames);
+		deconstruct_array_builtin(arr, TEXTOID, &argnames, NULL, &nargnames);
 		Assert(nargnames == numargs);
 
 		/* scan for output argument(s) */
@@ -1775,8 +1772,7 @@ build_function_result_tupdesc_d(char prokind,
 			ARR_ELEMTYPE(arr) != TEXTOID)
 			elog(ERROR, "proargnames is not a 1-D text array of length %d or it contains nulls",
 				 numargs);
-		deconstruct_array(arr, TEXTOID, -1, false, TYPALIGN_INT,
-						  &argnames, NULL, &nargnames);
+		deconstruct_array_builtin(arr, TEXTOID, &argnames, NULL, &nargnames);
 		Assert(nargnames == numargs);
 	}
 
