@@ -46,8 +46,6 @@
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 
-bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook = NULL; /** BBF Hook to check Instead Of trigger on View */
-
 /* We use a list of these to detect recursion in RewriteQuery */
 typedef struct rewrite_event
 {
@@ -1474,8 +1472,7 @@ rewriteValuesRTE(Query *parsetree, RangeTblEntry *rte, int rti,
 	 */
 	isAutoUpdatableView = false;
 	if (target_relation->rd_rel->relkind == RELKIND_VIEW &&
-		(!view_has_instead_trigger(target_relation, CMD_INSERT) &&
-			!(sql_dialect == SQL_DIALECT_TSQL && bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(target_relation, CMD_INSERT))))
+		!view_has_instead_trigger(target_relation, CMD_INSERT))
 	{
 		List	   *locks;
 		bool		hasUpdate;
@@ -3736,8 +3733,7 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length)
 		result_relation = parsetree->resultRelation;
 		Assert(result_relation != 0);
 		rt_entry = rt_fetch(result_relation, parsetree->rtable);
-		/** allow transition table in TSQL inside trigger body, rtekind can be RTE_NAMEDTUPLESTORE, eg inserted and deleted*/
-		Assert(rt_entry->rtekind == RTE_RELATION || (sql_dialect == SQL_DIALECT_TSQL && rt_entry->rtekind == RTE_NAMEDTUPLESTORE));
+		Assert(rt_entry->rtekind == RTE_RELATION);
 
 		/*
 		 * We can use NoLock here since either the parser or
@@ -3957,8 +3953,7 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length)
 		 */
 		if (!instead &&
 			rt_entry_relation->rd_rel->relkind == RELKIND_VIEW &&
-			(!view_has_instead_trigger(rt_entry_relation, event) 
-			&& !(sql_dialect == SQL_DIALECT_TSQL && bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(rt_entry_relation, event))))
+			!view_has_instead_trigger(rt_entry_relation, event))
 		{
 			/*
 			 * If there were any qualified INSTEAD rules, don't allow the view
