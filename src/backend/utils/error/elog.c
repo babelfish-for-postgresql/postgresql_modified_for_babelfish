@@ -67,6 +67,7 @@
 #endif
 
 #include "access/transam.h"
+#include "access/parallel.h"
 #include "access/xact.h"
 #include "libpq/libpq.h"
 #include "libpq/pqformat.h"
@@ -3253,7 +3254,7 @@ send_message_to_frontend(ErrorData *edata)
 			err_sendstring(&msgbuf, edata->funcname);
 		}
 
-		if (sql_dialect == SQL_DIALECT_TSQL)
+		if (IsParallelWorker() && sql_dialect == SQL_DIALECT_TSQL)
 		{
 			if (edata->message_id)
 			{
