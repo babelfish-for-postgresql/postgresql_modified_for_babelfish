@@ -110,19 +110,19 @@ typedef enum
 /* Hook for plugins to get control with visibility without providing a separate AM */
 typedef bool (*table_variable_satisfies_visibility_hook_type) (
 	HeapTuple stup, Snapshot snapshot, Buffer buffer);
-extern PGDLLIMPORT table_variable_satisfies_visibility_hook_type table_variable_satisfies_visibility_hook;
+extern PGDLLEXPORT table_variable_satisfies_visibility_hook_type table_variable_satisfies_visibility_hook;
 
 typedef TM_Result (*table_variable_satisfies_update_hook_type) (
 	HeapTuple stup, CommandId curcid, Buffer buffer);
-extern PGDLLIMPORT table_variable_satisfies_update_hook_type table_variable_satisfies_update_hook;
+extern PGDLLEXPORT table_variable_satisfies_update_hook_type table_variable_satisfies_update_hook;
 
 typedef HTSV_Result (*table_variable_satisfies_vacuum_hook_type) (
 	HeapTuple stup, TransactionId OldestXmin, Buffer buffer);
-extern PGDLLIMPORT table_variable_satisfies_vacuum_hook_type table_variable_satisfies_vacuum_hook;
+extern PGDLLEXPORT table_variable_satisfies_vacuum_hook_type table_variable_satisfies_vacuum_hook;
 
 typedef HTSV_Result (*table_variable_satisfies_vacuum_horizon_hook_type) (
 	HeapTuple htup, Buffer buffer, TransactionId *dead_after);
-extern PGDLLIMPORT table_variable_satisfies_vacuum_horizon_hook_type table_variable_satisfies_vacuum_horizon_hook;
+extern PGDLLEXPORT table_variable_satisfies_vacuum_horizon_hook_type table_variable_satisfies_vacuum_horizon_hook;
 
 /*
  * HeapScanIsValid

@@ -186,10 +186,10 @@ typedef struct CachedExpression
 } CachedExpression;
 
 typedef void (*plansource_complete_hook_type) (CachedPlanSource *plansource);
-extern PGDLLIMPORT plansource_complete_hook_type plansource_complete_hook;
+extern PGDLLEXPORT plansource_complete_hook_type plansource_complete_hook;
 
 typedef bool (*plansource_revalidate_hook_type) (CachedPlanSource *plansource);
-extern PGDLLIMPORT plansource_revalidate_hook_type plansource_revalidate_hook;
+extern PGDLLEXPORT plansource_revalidate_hook_type plansource_revalidate_hook;
 
 extern void InitPlanCache(void);
 extern void ResetPlanCache(void);

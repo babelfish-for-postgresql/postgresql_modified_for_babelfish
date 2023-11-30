@@ -97,6 +97,6 @@ extern Datum bigint_poly_aggr_final(FunctionCallInfo fcinfo, tsqlAggType aggType
 
 /* Hook interface to calculate exact numeric digits before generating numeric overflow error in TSQL */
 typedef bool (*detect_numeric_overflow_hook_type) (int weight, int dscale, int first_block, int numeric_base);
-extern PGDLLIMPORT detect_numeric_overflow_hook_type detect_numeric_overflow_hook;
+extern PGDLLEXPORT detect_numeric_overflow_hook_type detect_numeric_overflow_hook;
 
 #endif							/* _PG_NUMERIC_H_ */

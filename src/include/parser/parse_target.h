@@ -56,12 +56,12 @@ extern char *FigureColname(Node *node);
 extern char *FigureIndexColname(Node *node);
 
 typedef void (*pre_transform_target_entry_hook_type)(ResTarget *res, ParseState *pstate, ParseExprKind exprKind);
-extern PGDLLIMPORT pre_transform_target_entry_hook_type pre_transform_target_entry_hook;
+extern PGDLLEXPORT pre_transform_target_entry_hook_type pre_transform_target_entry_hook;
 
 typedef void (*resolve_target_list_unknowns_hook_type)(ParseState *pstate, List *targetlist);
-extern PGDLLIMPORT resolve_target_list_unknowns_hook_type resolve_target_list_unknowns_hook;
+extern PGDLLEXPORT resolve_target_list_unknowns_hook_type resolve_target_list_unknowns_hook;
 
 typedef void (*handle_type_and_collation_hook_type)(Node *node, Oid typeid, Oid collationid);
-extern PGDLLIMPORT handle_type_and_collation_hook_type handle_type_and_collation_hook;
+extern PGDLLEXPORT handle_type_and_collation_hook_type handle_type_and_collation_hook;
 
 #endif							/* PARSE_TARGET_H */

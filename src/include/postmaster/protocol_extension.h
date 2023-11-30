@@ -21,11 +21,11 @@
 typedef void (*listen_init_hook_type)(void);
 
 /* Globals in postmaster.c */
-extern	listen_init_hook_type listen_init_hook;
+extern	PGDLLEXPORT listen_init_hook_type listen_init_hook;
 
 /* Functions in postmaster.c */
-extern int	listen_have_free_slot(void);
-extern void	listen_add_socket(pgsocket fd,
+extern PGDLLEXPORT int	listen_have_free_slot(void);
+extern PGDLLEXPORT void	listen_add_socket(pgsocket fd,
 								ProtocolExtensionConfig *protocol_config);
 
 extern int	libpq_accept(pgsocket server_fd, Port *port);

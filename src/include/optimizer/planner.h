@@ -27,13 +27,13 @@ typedef PlannedStmt *(*planner_hook_type) (Query *parse,
 										   const char *query_string,
 										   int cursorOptions,
 										   ParamListInfo boundParams);
-extern PGDLLIMPORT planner_hook_type planner_hook;
+extern PGDLLEXPORT planner_hook_type planner_hook;
 
 /* Hook for plugins to transform qual nodes in planner */
 typedef Node* (*planner_node_transformer_hook_type) (PlannerInfo *root,
 												  Node *expr,
 												  int kind);
-extern PGDLLIMPORT planner_node_transformer_hook_type planner_node_transformer_hook;
+extern PGDLLEXPORT planner_node_transformer_hook_type planner_node_transformer_hook;
 
 /* Hook for plugins to get control when grouping_planner() plans upper rels */
 typedef void (*create_upper_paths_hook_type) (PlannerInfo *root,

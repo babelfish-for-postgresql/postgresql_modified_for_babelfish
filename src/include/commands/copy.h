@@ -98,8 +98,8 @@ extern List *CopyGetAttnums(TupleDesc tupDesc, Relation rel,
 							List *attnamelist);
 
 typedef bool (*is_tsql_rowversion_or_timestamp_datatype_hook_type)(Oid oid);
-extern PGDLLIMPORT is_tsql_rowversion_or_timestamp_datatype_hook_type is_tsql_rowversion_or_timestamp_datatype_hook;
+extern PGDLLEXPORT is_tsql_rowversion_or_timestamp_datatype_hook_type is_tsql_rowversion_or_timestamp_datatype_hook;
 typedef void (*fill_missing_values_in_copyfrom_hook_type)(Relation rel, Datum *values, bool *nulls);
-extern PGDLLIMPORT fill_missing_values_in_copyfrom_hook_type fill_missing_values_in_copyfrom_hook;
+extern PGDLLEXPORT fill_missing_values_in_copyfrom_hook_type fill_missing_values_in_copyfrom_hook;
 
 #endif							/* COPY_H */

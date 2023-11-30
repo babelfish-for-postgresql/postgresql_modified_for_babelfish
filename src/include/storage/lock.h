@@ -537,7 +537,7 @@ typedef enum
 
 /* TSQL-only handler for releasing application lock. */
 typedef void (*applock_release_func_handler_type) (bool release_session);
-extern applock_release_func_handler_type applock_release_func_handler;
+extern PGDLLEXPORT applock_release_func_handler_type applock_release_func_handler;
 
 /*
  * function prototypes

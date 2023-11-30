@@ -88,20 +88,20 @@ extern TypeName *SystemTypeName(char *name);
 
 /* Hook to extend backend parser */
 typedef List * (*raw_parser_hook_type) (const char *str, RawParseMode mode);
-extern PGDLLIMPORT raw_parser_hook_type raw_parser_hook;
+extern PGDLLEXPORT raw_parser_hook_type raw_parser_hook;
 
 /* Hooks needed in grammar rule in gram.y */
 typedef List * (*rewrite_typmod_expr_hook_type) (List *expr_list);
-extern PGDLLIMPORT rewrite_typmod_expr_hook_type rewrite_typmod_expr_hook;
+extern PGDLLEXPORT rewrite_typmod_expr_hook_type rewrite_typmod_expr_hook;
 
 typedef void (*validate_numeric_typmods_hook_type) (List **typmods, bool isNumeric, void* yyscanner);
-extern PGDLLIMPORT validate_numeric_typmods_hook_type validate_numeric_typmods_hook;
+extern PGDLLEXPORT validate_numeric_typmods_hook_type validate_numeric_typmods_hook;
 
 typedef bool (*check_recursive_cte_hook_type) (WithClause *with_clause);
-extern PGDLLIMPORT check_recursive_cte_hook_type check_recursive_cte_hook;
+extern PGDLLEXPORT check_recursive_cte_hook_type check_recursive_cte_hook;
 
 typedef void (*fix_domain_typmods_hook_type) (TypeName *typname);
-extern PGDLLIMPORT fix_domain_typmods_hook_type fix_domain_typmods_hook;
+extern PGDLLEXPORT fix_domain_typmods_hook_type fix_domain_typmods_hook;
 
 #define TSQLMaxTypmod -8000
 #define TSQLMaxNumPrecision 38

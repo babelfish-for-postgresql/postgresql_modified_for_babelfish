@@ -82,13 +82,13 @@ typedef void (*RangeVarGetRelidCallback) (const RangeVar *relation, Oid relId,
  * Hook for additional temporary relation lookup
  */
 typedef Oid (*relname_lookup_hook_type) (const char *relname, Oid relnamespace);
-extern PGDLLIMPORT relname_lookup_hook_type relname_lookup_hook;
+extern PGDLLEXPORT relname_lookup_hook_type relname_lookup_hook;
 typedef bool (*match_pltsql_func_call_hook_type) (HeapTuple proctup, int nargs, List *argnames,
 												  bool include_out_arguments, int **argnumbers,
 												  List **defaults, bool expand_defaults, bool expand_variadic,
 												  bool *use_defaults, bool *any_special,
 												  bool *variadic, Oid *va_elem_type);
-extern PGDLLIMPORT match_pltsql_func_call_hook_type match_pltsql_func_call_hook;
+extern PGDLLEXPORT match_pltsql_func_call_hook_type match_pltsql_func_call_hook;
 
 #define RangeVarGetRelid(relation, lockmode, missing_ok) \
 	RangeVarGetRelidExtended(relation, lockmode, \
@@ -108,7 +108,7 @@ extern bool RelationIsVisible(Oid relid);
 
 extern Oid	TypenameGetTypid(const char *typname);
 extern Oid	TypenameGetTypidExtended(const char *typname, bool temp_ok);
-extern Oid	typenameGetSchemaOID(const char *typname, bool temp_ok);
+extern PGDLLEXPORT Oid	typenameGetSchemaOID(const char *typname, bool temp_ok);
 extern bool TypeIsVisible(Oid typid);
 
 extern FuncCandidateList FuncnameGetCandidates(List *names,

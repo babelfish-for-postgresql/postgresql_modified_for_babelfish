@@ -87,6 +87,6 @@ extern struct ArrayType *strlist_to_textarray(List *list);
 extern ObjectType get_relkind_objtype(char relkind);
 
 typedef ObjectAddress (*get_trigger_object_address_hook_type)(List *object, Relation *relp, bool missing_ok,bool object_from_input);
-extern PGDLLIMPORT get_trigger_object_address_hook_type get_trigger_object_address_hook;
+extern PGDLLEXPORT get_trigger_object_address_hook_type get_trigger_object_address_hook;
 
 #endif							/* OBJECTADDRESS_H */

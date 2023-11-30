@@ -194,7 +194,7 @@ extern void SPI_cursor_fetch(Portal portal, bool forward, long count);
 extern void SPI_cursor_move(Portal portal, bool forward, long count);
 extern void SPI_scroll_cursor_fetch(Portal, FetchDirection direction, long count);
 extern void SPI_scroll_cursor_move(Portal, FetchDirection direction, long count);
-extern void SPI_scroll_cursor_fetch_dest(Portal portal, FetchDirection direction,
+extern PGDLLEXPORT void SPI_scroll_cursor_fetch_dest(Portal portal, FetchDirection direction,
 										 long count, DestReceiver *receiver);
 extern void SPI_cursor_close(Portal portal);
 
@@ -212,5 +212,5 @@ extern void AtEOXact_SPI(bool isCommit);
 extern void AtEOSubXact_SPI(bool isCommit, SubTransactionId mySubid);
 extern bool SPI_inside_nonatomic_context(void);
 
-extern void SPI_setCurrentInternalTxnMode(bool mode);
+extern PGDLLEXPORT void SPI_setCurrentInternalTxnMode(bool mode);
 #endif							/* SPI_H */

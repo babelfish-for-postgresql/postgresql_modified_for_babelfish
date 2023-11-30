@@ -49,6 +49,6 @@ extern AttrMap *build_attrmap_by_position(TupleDesc indesc,
 										  TupleDesc outdesc,
 										  const char *msg);
 typedef bool (*called_from_tsql_insert_exec_hook_type)();
-extern PGDLLIMPORT called_from_tsql_insert_exec_hook_type called_from_tsql_insert_exec_hook;
+extern PGDLLEXPORT called_from_tsql_insert_exec_hook_type called_from_tsql_insert_exec_hook;
 
 #endif							/* ATTMAP_H */

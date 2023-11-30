@@ -280,8 +280,8 @@ extern void guc_set_stack_value(struct config_generic *gconf, config_var_value *
 
 typedef        void (*guc_push_old_value_hook_type) (struct config_generic *gconf, GucAction action);
 
-extern PGDLLIMPORT guc_push_old_value_hook_type guc_push_old_value_hook;
+extern PGDLLEXPORT guc_push_old_value_hook_type guc_push_old_value_hook;
 typedef			void(*validate_set_config_function_hook_type) (char *name, char *value);
-extern PGDLLIMPORT validate_set_config_function_hook_type validate_set_config_function_hook;
+extern PGDLLEXPORT validate_set_config_function_hook_type validate_set_config_function_hook;
 
 #endif							/* GUC_TABLES_H */

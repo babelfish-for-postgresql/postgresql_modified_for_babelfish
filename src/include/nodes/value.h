@@ -94,6 +94,6 @@ extern Float *makeFloat(char *numericStr);
 extern Boolean *makeBoolean(bool var);
 extern String *makeString(char *str);
 extern BitString *makeBitString(char *str);
-extern TSQL_HexString *makeTSQLHexString(char *str);
+extern PGDLLEXPORT TSQL_HexString *makeTSQLHexString(char *str);
 
 #endif							/* VALUE_H */

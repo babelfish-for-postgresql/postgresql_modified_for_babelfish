@@ -470,7 +470,7 @@ extern void TouchSocketLockFiles(void);
 extern void AddToDataDirLockFile(int target_line, const char *str);
 extern bool RecheckDataDirLockFile(void);
 extern void ValidatePgVersion(const char *path);
-extern void load_libraries(const char *libraries, const char *gucname, bool restricted);
+extern PGDLLEXPORT void load_libraries(const char *libraries, const char *gucname, bool restricted);
 extern void process_shared_preload_libraries(void);
 extern void process_session_preload_libraries(void);
 extern void process_shmem_requests(void);
@@ -478,7 +478,7 @@ extern void pg_bindtextdomain(const char *domain);
 extern bool has_rolreplication(Oid roleid);
 
 typedef void (*shmem_request_hook_type) (void);
-extern PGDLLIMPORT shmem_request_hook_type shmem_request_hook;
+extern PGDLLEXPORT shmem_request_hook_type shmem_request_hook;
 
 /* in executor/nodeHash.c */
 extern size_t get_hash_memory_limit(void);

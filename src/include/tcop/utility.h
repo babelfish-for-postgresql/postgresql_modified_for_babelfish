@@ -75,7 +75,7 @@ typedef void (*ProcessUtility_hook_type) (PlannedStmt *pstmt,
 										  ParamListInfo params,
 										  QueryEnvironment *queryEnv,
 										  DestReceiver *dest, QueryCompletion *qc);
-extern PGDLLIMPORT ProcessUtility_hook_type ProcessUtility_hook;
+extern PGDLLEXPORT ProcessUtility_hook_type ProcessUtility_hook;
 
 extern void ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 						   bool readOnlyTree,
@@ -110,9 +110,9 @@ extern LogStmtLevel GetCommandLogLevel(Node *parsetree);
 extern bool CommandIsReadOnly(PlannedStmt *pstmt);
 typedef bool (*bbfCustomProcessUtility_hook_type)(struct ParseState *pstate, PlannedStmt *pstmt, const char *queryString, ProcessUtilityContext context, 
 						  ParamListInfo params, QueryCompletion *qc);
-extern PGDLLIMPORT bbfCustomProcessUtility_hook_type bbfCustomProcessUtility_hook;
+extern PGDLLEXPORT bbfCustomProcessUtility_hook_type bbfCustomProcessUtility_hook;
 typedef void (*bbfSelectIntoUtility_hook_type)(struct ParseState *pstate, PlannedStmt *pstmt, const char *queryString, QueryEnvironment *queryEnv, 
 						  ParamListInfo params, QueryCompletion *qc);
-extern PGDLLIMPORT bbfSelectIntoUtility_hook_type bbfSelectIntoUtility_hook;
+extern PGDLLEXPORT bbfSelectIntoUtility_hook_type bbfSelectIntoUtility_hook;
 
 #endif							/* UTILITY_H */

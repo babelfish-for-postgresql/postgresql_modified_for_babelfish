@@ -22,11 +22,11 @@ struct AttrMap;					/* avoid including attmap.h here */
 /* IDENTITY datatype hook */
 typedef void (*pltsql_identity_datatype_hook_type) (ParseState *pstate,
 													ColumnDef *column);
-extern PGDLLIMPORT pltsql_identity_datatype_hook_type pltsql_identity_datatype_hook;
+extern PGDLLEXPORT pltsql_identity_datatype_hook_type pltsql_identity_datatype_hook;
 typedef void (*post_transform_column_definition_hook_type) (ParseState *pstate, RangeVar* relation, ColumnDef *column, List **alist);
 typedef void (*post_transform_table_definition_hook_type) (ParseState *pstate, RangeVar* relation, char *relname, List **alist);
-extern PGDLLIMPORT post_transform_column_definition_hook_type post_transform_column_definition_hook;
-extern PGDLLIMPORT post_transform_table_definition_hook_type post_transform_table_definition_hook;
+extern PGDLLEXPORT post_transform_column_definition_hook_type post_transform_column_definition_hook;
+extern PGDLLEXPORT post_transform_table_definition_hook_type post_transform_table_definition_hook;
 
 extern List *transformCreateStmt(CreateStmt *stmt, const char *queryString);
 extern AlterTableStmt *transformAlterTableStmt(Oid relid, AlterTableStmt *stmt,

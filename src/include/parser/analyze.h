@@ -22,51 +22,51 @@
 typedef void (*post_parse_analyze_hook_type) (ParseState *pstate,
 											  Query *query,
 											  JumbleState *jstate);
-extern PGDLLIMPORT post_parse_analyze_hook_type post_parse_analyze_hook;
+extern PGDLLEXPORT post_parse_analyze_hook_type post_parse_analyze_hook;
 
 /* Hook for plugins to get control with the raw parse tree */
 typedef void (*pre_parse_analyze_hook_type) (ParseState *pstate, RawStmt *parseTree);
 
-extern PGDLLIMPORT pre_parse_analyze_hook_type pre_parse_analyze_hook;
+extern PGDLLEXPORT pre_parse_analyze_hook_type pre_parse_analyze_hook;
 
 /* Hook to handle qualifiers in returning list for output clause */
 typedef void (*pre_transform_returning_hook_type) (Query *query, List *returningList, ParseState *pstate);
-extern PGDLLIMPORT pre_transform_returning_hook_type pre_transform_returning_hook;
+extern PGDLLEXPORT pre_transform_returning_hook_type pre_transform_returning_hook;
 
 typedef void (*post_transform_delete_hook_type) (ParseState *pstate, DeleteStmt *stmt, Query *query);
-extern PGDLLIMPORT post_transform_delete_hook_type post_transform_delete_hook;
+extern PGDLLEXPORT post_transform_delete_hook_type post_transform_delete_hook;
 
 /* Hook to modify insert statement in output clause */
 typedef void (*pre_transform_insert_hook_type) (ParseState *pstate, InsertStmt *stmt, Query *query);
-extern PGDLLIMPORT pre_transform_insert_hook_type pre_transform_insert_hook;
+extern PGDLLEXPORT pre_transform_insert_hook_type pre_transform_insert_hook;
 
 /* Hook to perform self-join transformation on UpdateStmt in output clause */
 typedef Node* (*pre_output_clause_transformation_hook_type) (ParseState *pstate, UpdateStmt *stmt, Query *query);
-extern PGDLLIMPORT pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook;
+extern PGDLLEXPORT pre_output_clause_transformation_hook_type pre_output_clause_transformation_hook;
 
 /* Hook to read a global variable with info on output clause */
 typedef bool (*get_output_clause_status_hook_type) (void);
-extern PGDLLIMPORT get_output_clause_status_hook_type get_output_clause_status_hook;
+extern PGDLLEXPORT get_output_clause_status_hook_type get_output_clause_status_hook;
 
 /* Hook for plugins to get control after an insert row transform */
 typedef void (*post_transform_insert_row_hook_type) (List *icolumns, List *exprList, Oid relid);
-extern PGDLLIMPORT post_transform_insert_row_hook_type post_transform_insert_row_hook;
+extern PGDLLEXPORT post_transform_insert_row_hook_type post_transform_insert_row_hook;
 
 /* Hook for handle target table before transforming from clause */
 typedef int (*set_target_table_alternative_hook_type) (ParseState *pstate, Node *stmt, CmdType command);
-extern PGDLLIMPORT set_target_table_alternative_hook_type set_target_table_alternative_hook;
+extern PGDLLEXPORT set_target_table_alternative_hook_type set_target_table_alternative_hook;
 
 /* Hook for handle target table before transforming from clause */
 typedef void (*pre_transform_setop_tree_hook_type) (SelectStmt *stmt, SelectStmt *leftmostSelect);
-extern PGDLLIMPORT pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook;
+extern PGDLLEXPORT pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook;
 
 /* Hook for handle target table before transforming from clause */
 typedef void (*pre_transform_setop_sort_clause_hook_type) (ParseState *pstate, Query *qry, List *sortClause, Query *leftmostQuery);
-extern PGDLLIMPORT pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook;
+extern PGDLLEXPORT pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook;
 
 /* Hook for transform pivot clause in tsql select stmt */
 typedef void (*transform_pivot_clause_hook_type)(ParseState *pstate, SelectStmt *stmt);
-extern PGDLLIMPORT transform_pivot_clause_hook_type transform_pivot_clause_hook;
+extern PGDLLEXPORT transform_pivot_clause_hook_type transform_pivot_clause_hook;
 
 extern Query *parse_analyze_fixedparams(RawStmt *parseTree, const char *sourceText,
 										const Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);

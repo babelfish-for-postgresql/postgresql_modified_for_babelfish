@@ -25,6 +25,6 @@ extern void assign_expr_collations(ParseState *pstate, Node *expr);
 extern Oid	select_common_collation(ParseState *pstate, List *exprs, bool none_ok);
 
 typedef bool (*avoid_collation_override_hook_type)(Oid funcid);
-extern PGDLLIMPORT avoid_collation_override_hook_type avoid_collation_override_hook;
+extern PGDLLEXPORT avoid_collation_override_hook_type avoid_collation_override_hook;
 
 #endif							/* PARSE_COLLATE_H */

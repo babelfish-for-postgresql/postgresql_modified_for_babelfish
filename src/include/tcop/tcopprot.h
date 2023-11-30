@@ -89,7 +89,7 @@ extern long get_stack_depth_rlimit(void);
 extern void ResetUsage(void);
 extern void ShowUsage(const char *title);
 extern int	check_log_duration(char *msec_str, bool was_logged);
-extern bool check_log_statement(List *stmt);
+extern PGDLLEXPORT bool check_log_statement(List *stmt);
 extern void set_debug_options(int debug_flag,
 							  GucContext context, GucSource source);
 extern bool set_plan_disabling_options(const char *arg,
