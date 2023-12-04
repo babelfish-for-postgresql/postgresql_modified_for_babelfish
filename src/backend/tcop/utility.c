@@ -977,10 +977,6 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 							  (RecoveryInProgress() ? 0 : CHECKPOINT_FORCE));
 			break;
 
-		case T_ReindexStmt:
-			ExecReindex(pstate, (ReindexStmt *) parsetree, isTopLevel);
-			break;
-
 			/*
 			 * The following statements are supported by Event Triggers only
 			 * in some cases, so we "fast path" them in the other cases.
@@ -1589,6 +1585,13 @@ ProcessUtilitySlow(ParseState *pstate,
 					commandCollected = true;
 					EventTriggerAlterTableEnd();
 				}
+				break;
+
+			case T_ReindexStmt:
+				ExecReindex(pstate, (ReindexStmt *) parsetree, isTopLevel);
+
+				/* EventTriggerCollectSimpleCommand is called directly */
+				commandCollected = true;
 				break;
 
 			case T_CreateExtensionStmt:
