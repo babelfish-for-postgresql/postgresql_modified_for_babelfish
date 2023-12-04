@@ -236,8 +236,8 @@ extern bool CachedPlanIsSimplyValid(CachedPlanSource *plansource,
 									CachedPlan *plan,
 									ResourceOwner owner);
 
-extern bool CachedPlanAllowsSimpleValidityCheck(CachedPlanSource *plansource,
-												CachedPlan *plan);
+// extern bool CachedPlanAllowsSimpleValidityCheck(CachedPlanSource *plansource,
+// 												CachedPlan *plan);
 extern bool CachedPlanIsSimplyValid(CachedPlanSource *plansource,
 									CachedPlan *plan,
 									ResourceOwner owner);

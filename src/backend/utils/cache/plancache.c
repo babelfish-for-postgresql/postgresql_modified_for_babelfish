@@ -1324,7 +1324,7 @@ ReleaseCachedPlan(CachedPlan *plan, ResourceOwner owner)
  */
 bool
 CachedPlanAllowsSimpleValidityCheck(CachedPlanSource *plansource,
-									CachedPlan *plan)
+									CachedPlan *plan, ResourceOwner owner)
 {
 	ListCell   *lc;
 

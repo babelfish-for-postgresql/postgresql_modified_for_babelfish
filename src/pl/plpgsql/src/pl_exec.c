@@ -481,6 +481,7 @@ Datum
 plpgsql_exec_function(PLpgSQL_function *func, FunctionCallInfo fcinfo,
 					  EState *simple_eval_estate,
 					  ResourceOwner simple_eval_resowner,
+					  ResourceOwner procedure_resowner,
 					  bool atomic)
 {
 	PLpgSQL_execstate estate;
@@ -6108,7 +6109,7 @@ exec_eval_simple_expr(PLpgSQL_execstate *estate,
 			ResourceOwner saveResourceOwner = CurrentResourceOwner;
 
 			CurrentResourceOwner = estate->simple_eval_resowner;
-			ReleaseCachedPlan(expr->expr_simple_plan, true);
+			ReleaseCachedPlan(expr->expr_simple_plan, estate->simple_eval_resowner);
 			CurrentResourceOwner = saveResourceOwner;
 			expr->expr_simple_plan = NULL;
 			expr->expr_simple_plan_lxid = InvalidLocalTransactionId;
@@ -6133,7 +6134,7 @@ exec_eval_simple_expr(PLpgSQL_execstate *estate,
 		 * refcount on the new plan, stored in simple_eval_resowner.
 		 */
 		if (CachedPlanAllowsSimpleValidityCheck(expr->expr_simple_plansource,
-												cplan) &&
+												cplan, estate->simple_eval_resowner) &&
 			CachedPlanIsSimplyValid(expr->expr_simple_plansource, cplan,
 									estate->simple_eval_resowner))
 		{
@@ -6144,7 +6145,7 @@ exec_eval_simple_expr(PLpgSQL_execstate *estate,
 		else
 		{
 			/* Release SPI_plan_get_cached_plan's refcount */
-			ReleaseCachedPlan(cplan, true);
+			ReleaseCachedPlan(cplan, CurrentResourceOwner);
 			/* Mark expression as non-simple, and fail */
 			expr->expr_simple_expr = NULL;
 			return false;
@@ -8081,7 +8082,7 @@ exec_simple_check_plan(PLpgSQL_execstate *estate, PLpgSQL_expr *expr)
 	 * CachedPlanIsSimplyValid.  Given the restrictions above, it's unlikely
 	 * that this could fail, but if it does, just treat plan as not simple.
 	 */
-	if (CachedPlanAllowsSimpleValidityCheck(plansource, cplan))
+	if (CachedPlanAllowsSimpleValidityCheck(plansource, cplan, estate->simple_eval_resowner))
 	{
 		/*
 		 * OK, use CachedPlanIsSimplyValid to save a refcount on the plan in
@@ -8105,7 +8106,7 @@ exec_simple_check_plan(PLpgSQL_execstate *estate, PLpgSQL_expr *expr)
 	 * Release the plan refcount obtained by SPI_plan_get_cached_plan.  (This
 	 * refcount is held by the wrong resowner, so we can't just repurpose it.)
 	 */
-	ReleaseCachedPlan(cplan, true);
+	ReleaseCachedPlan(cplan, CurrentResourceOwner);
 }
 
 /*

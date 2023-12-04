@@ -276,6 +276,7 @@ plpgsql_call_handler(PG_FUNCTION_ARGS)
 		else
 			retval = plpgsql_exec_function(func, fcinfo,
 										   NULL, NULL,
+										   procedure_resowner,
 										   !nonatomic);
 	}
 	PG_FINALLY();
@@ -363,6 +364,7 @@ plpgsql_inline_handler(PG_FUNCTION_ARGS)
 		retval = plpgsql_exec_function(func, fake_fcinfo,
 									   simple_eval_estate,
 									   simple_eval_resowner,
+									   simple_eval_resowner,	/* see above */
 									   codeblock->atomic);
 	}
 	PG_CATCH();
