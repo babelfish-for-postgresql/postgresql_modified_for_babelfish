@@ -219,7 +219,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	Relation	rel;
 	AclResult	aclresult;
 	Relation	tgrel;
-	SysScanDesc tgscan;
+	SysScanDesc tgscan_desc;
 	ScanKeyData key;
 	Relation	pgrel;
 	HeapTuple	tuple = NULL;
@@ -935,9 +935,9 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 						Anum_pg_trigger_tgname,
 						BTEqualStrategyNumber, F_NAMEEQ,
 						CStringGetDatum(trigname));
-			tgscan = systable_beginscan(tgrel, TriggerRelidNameIndexId, false,
+			tgscan_desc = systable_beginscan(tgrel, TriggerRelidNameIndexId, false,
 										NULL, 1, &key);
-			while (HeapTupleIsValid(tuple = systable_getnext(tgscan)))
+			while (HeapTupleIsValid(tuple = systable_getnext(tgscan_desc)))
 			{
 				Form_pg_trigger pg_trigger = (Form_pg_trigger) GETSTRUCT(tuple);
 				pg_trigger_schema_name = get_namespace_name(get_rel_namespace(pg_trigger->tgrelid));
@@ -950,14 +950,14 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 							errmsg("trigger \"%s\" already exists in the database",
 									trigname)));
 			}
-			systable_endscan(tgscan);
+			systable_endscan(tgscan_desc);
 			if (TRIGGER_FOR_INSTEAD(tgtype)) {
 				ScanKeyInit(&key,
 						Anum_pg_trigger_tgrelid,
 						BTEqualStrategyNumber, F_OIDEQ,
 						ObjectIdGetDatum(RelationGetRelid(rel)));
-				tgscan = systable_beginscan(tgrel, TriggerRelidNameIndexId, true, NULL, 1, &key);
-				while (HeapTupleIsValid(tuple = systable_getnext(tgscan)))
+				tgscan_desc = systable_beginscan(tgrel, TriggerRelidNameIndexId, true, NULL, 1, &key);
+				while (HeapTupleIsValid(tuple = systable_getnext(tgscan_desc)))
 				{
 					Form_pg_trigger pg_trigger = (Form_pg_trigger) GETSTRUCT(tuple);
 					if (TRIGGER_FOR_UPDATE(tgtype) &&
@@ -980,7 +980,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 									trigname, RelationGetRelationName(rel))));
 					}
 				}
-				systable_endscan(tgscan);
+				systable_endscan(tgscan_desc);
 			}
 		}
 	}

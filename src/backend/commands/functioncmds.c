@@ -2433,7 +2433,7 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 		TupleDesc reldesc;
 		TupleDesc retdesc;
 		int natts = 0;
-		ListCell *lc;
+		ListCell *list_cell;
 		ListCell *next;
 
 		/* look up the INSERT target relation rowtype's tupdesc */
@@ -2442,11 +2442,11 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 
 		/* build a tupdesc that only contains relevant INSERT columns */
 		retdesc = CreateTemplateTupleDesc(list_length(stmt->attrnos));
-		for (lc = list_head(stmt->attrnos); lc != NULL; lc = next)
+		for (list_cell = list_head(stmt->attrnos); list_cell != NULL; list_cell = next)
 		{
 			natts += 1;
-			TupleDescCopyEntry(retdesc, natts, reldesc, lfirst_int(lc));
-			next = lnext(stmt->attrnos, lc);
+			TupleDescCopyEntry(retdesc, natts, reldesc, lfirst_int(list_cell));
+			next = lnext(stmt->attrnos, list_cell);
 		}
 
 		fcinfo->resultinfo = (Node *) &rsinfo;

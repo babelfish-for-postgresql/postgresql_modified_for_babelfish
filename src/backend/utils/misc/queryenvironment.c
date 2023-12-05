@@ -336,11 +336,11 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 
 	while (queryEnv)
 	{
-		ListCell   *lc;
+		ListCell   *outerlc;
 
-		foreach(lc, queryEnv->namedRelList)
+		foreach(outerlc, queryEnv->namedRelList)
 		{
-			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(outerlc);
 			if (enr->md.enrtype != ENR_TSQL_TEMP)
 				continue;
 
