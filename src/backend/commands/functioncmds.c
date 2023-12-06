@@ -2257,7 +2257,7 @@ ExecuteDoStmtInsertExec(DoStmt *stmt, bool atomic, DestReceiver *dest)
 		/* if trusted language, need USAGE privilege */
 		AclResult	aclresult;
 
-		aclresult = pg_language_aclcheck(codeblock->langOid, GetUserId(),
+		aclresult = object_aclcheck(LanguageRelationId, codeblock->langOid, GetUserId(),
 										 ACL_USAGE);
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error(aclresult, OBJECT_LANGUAGE,

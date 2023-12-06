@@ -269,7 +269,7 @@ void
 getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 								char *role_catalog, int binary_upgrade)
 {
-	bool		dump_inherit_option;
+	bool		dump_grant_options;
 	int			server_version;
 
 	if(!isBabelfishDatabase(conn) || binary_upgrade)
@@ -281,7 +281,7 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 	 * Previous versions of PostgreSQL also did not have a grant-level
 	 * INHERIT option.
 	 */
-	dump_inherit_option = (server_version >= 160000);
+	dump_grant_options = (server_version >= 160000);
 
 	resetPQExpBuffer(buf);
 	appendPQExpBufferStr(buf, "WITH bbf_catalog AS (");
@@ -325,8 +325,8 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 						 "ug.rolname AS grantor, "
 						 "a.admin_option");
 
-	if (dump_inherit_option)
-		appendPQExpBuffer(buf, ", a.inherit_option");
+	if (dump_grant_options)
+		appendPQExpBuffer(buf, ", a.inherit_option, a.set_option");
 		
 	appendPQExpBuffer(buf, " FROM pg_auth_members a "
 						 "INNER JOIN bbf_roles ur on ur.oid = a.roleid "

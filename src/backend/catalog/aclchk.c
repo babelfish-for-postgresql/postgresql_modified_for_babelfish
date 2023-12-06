@@ -3891,6 +3891,15 @@ object_aclmask(Oid classid, Oid objectid, Oid roleid,
 			return pg_type_aclmask(objectid, roleid, mask, how);
 	}
 
+	/*
+	 * Additionally if the babelfishpg_tsql extension is loaded, and if the current
+	 * session user is sysadmin of babelfish db then we can also bypass permission
+	 * checks for a foreign data wrapper for such a user
+	 */
+	if (classid == ForeignDataWrapperRelationId &&
+		tsql_has_linked_srv_permissions_hook && (*tsql_has_linked_srv_permissions_hook)(roleid))
+		return mask;
+
 	/* Even more special cases */
 	Assert(classid != RelationRelationId);	/* should use pg_class_acl* */
 	Assert(classid != LargeObjectMetadataRelationId);	/* should use
