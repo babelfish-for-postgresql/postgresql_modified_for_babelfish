@@ -34,7 +34,7 @@ typedef void (*pltsql_sequence_datatype_hook_type) (ParseState *pstate,
 														bool for_identity,
 														DefElem *as_type,
 														DefElem **max_value,
-														DefElem **min_value);
+														DefElem **min_value,Oid *usr_type_id);
 extern PGDLLIMPORT pltsql_sequence_datatype_hook_type pltsql_sequence_datatype_hook;
 
 /* Sequence nextval hook */

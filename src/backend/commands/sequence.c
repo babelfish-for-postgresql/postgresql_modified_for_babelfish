@@ -1297,6 +1297,7 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 	ListCell   *option;
 	bool		reset_max_value = false;
 	bool		reset_min_value = false;
+	Oid 		usr_type_id = 0;
 
 	*need_seq_rewrite = false;
 	*owned_by = NIL;
@@ -1390,6 +1391,8 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 	 */
 	if (isInit)
 		seqdataform->log_cnt = 0;
+	
+
 
 	/* AS type */
 	if (as_type != NULL)
@@ -1401,14 +1404,15 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 		 */
 
 		Oid			newtypid = 0;
+		
 
 		if (pltsql_sequence_datatype_hook)
-			(* pltsql_sequence_datatype_hook) (pstate,
+			(*pltsql_sequence_datatype_hook) (pstate,
 											   &newtypid,
 											   for_identity,
 											   as_type,
 											   &max_value,
-											   &min_value);
+											   &min_value,&usr_type_id);
 
 		if(!newtypid) newtypid = typenameTypeId(pstate,defGetTypeName(as_type));
 
@@ -1619,9 +1623,13 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 	}
 
 	if(pltsql_sequence_validate_increment_hook)
+	{
 		(* pltsql_sequence_validate_increment_hook) (seqform->seqincrement,
 													seqform->seqmax,
-													seqform->seqmin);
+													seqform->seqmin
+													);
+		seqform->seqtypid = usr_type_id;
+	}
 }
 
 /*
