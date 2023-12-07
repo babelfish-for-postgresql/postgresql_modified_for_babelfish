@@ -23,14 +23,14 @@
 
 Name: BabelfishDump
 Summary: Postgresql dump utilities modified for Babelfish
-Version: 15.latest
+Version: 15.5
 Release: 1%{?dist}
 License: PostgreSQL Global Development Group
 Url: https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish
 
 BuildRequires: make
 BuildRequires: lz4-devel
-BuildRequires: gcc
+BuildRequires: gcc perl
 BuildRequires: glibc-devel bison flex
 BuildRequires: readline-devel zlib-devel
 %if %external_libpq
