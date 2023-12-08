@@ -2492,7 +2492,6 @@ addRangeTableEntryForENR(ParseState *pstate,
 			rte->rellockmode = isLockedRefname(pstate, refname) ? RowShareLock : AccessShareLock;
 			perminfo = addRTEPermissionInfo(&pstate->p_rteperminfos, rte);
 			perminfo->requiredPerms = ACL_SELECT;
-			rte->extraUpdatedCols = NULL;
 			break;
 
 		default:

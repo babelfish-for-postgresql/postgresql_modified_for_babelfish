@@ -1886,7 +1886,7 @@ ConfigurePostmasterWaitSet(bool accept_connections)
 	{
 		for (int i = 0; i < nsockets; i++)
 			AddWaitEventToSet(pm_wait_set, WL_SOCKET_ACCEPT, ListenSocket[i],
-							  NULL, NULL);
+							  NULL, ListenConfig[i]);
 	}
 }
 
@@ -1938,7 +1938,7 @@ ServerLoop(void)
 			{
 				Port	   *port;
 
-				port = ConnCreate(events[i].fd, ListenConfig[i]);
+				port = ConnCreate(events[i].fd, (ProtocolExtensionConfig *) events[i].user_data);
 				if (port)
 				{
 					BackendStartup(port);
