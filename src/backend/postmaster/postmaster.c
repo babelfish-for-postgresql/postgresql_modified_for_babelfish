@@ -89,7 +89,6 @@
 #include <pthread.h>
 #endif
 
-#include "access/transam.h"
 #include "access/xlog.h"
 #include "access/xlogrecovery.h"
 #include "catalog/pg_control.h"
@@ -539,7 +538,6 @@ typedef struct
 #endif
 	void	   *UsedShmemSegAddr;
 	slock_t    *ShmemLock;
-	VariableCache ShmemVariableCache;
 	Backend    *ShmemBackendArray;
 #ifndef HAVE_SPINLOCKS
 	PGSemaphore *SpinlockSemaArray;
@@ -6198,7 +6196,6 @@ save_backend_variables(BackendParameters *param, Port *port, BackgroundWorker *w
 	param->UsedShmemSegAddr = UsedShmemSegAddr;
 
 	param->ShmemLock = ShmemLock;
-	param->ShmemVariableCache = ShmemVariableCache;
 	param->ShmemBackendArray = ShmemBackendArray;
 
 #ifndef HAVE_SPINLOCKS
@@ -6444,7 +6441,6 @@ restore_backend_variables(BackendParameters *param, Port **port, BackgroundWorke
 	UsedShmemSegAddr = param->UsedShmemSegAddr;
 
 	ShmemLock = param->ShmemLock;
-	ShmemVariableCache = param->ShmemVariableCache;
 	ShmemBackendArray = param->ShmemBackendArray;
 
 #ifndef HAVE_SPINLOCKS

@@ -36,6 +36,33 @@ VariableCache ShmemVariableCache = NULL;
 GetNewObjectId_hook_type GetNewObjectId_hook = NULL;
 
 /*
+ * Initialization of shared memory for ShmemVariableCache.
+ */
+Size
+VarsupShmemSize(void)
+{
+	return sizeof(VariableCacheData);
+}
+
+void
+VarsupShmemInit(void)
+{
+	bool		found;
+
+	/* Initialize our shared state struct */
+	ShmemVariableCache = ShmemInitStruct("ShmemVariableCache",
+										 sizeof(VariableCacheData),
+										 &found);
+	if (!IsUnderPostmaster)
+	{
+		Assert(!found);
+		memset(ShmemVariableCache, 0, sizeof(VariableCacheData));
+	}
+	else
+		Assert(found);
+}
+
+/*
  * Allocate the next FullTransactionId for a new transaction or
  * subtransaction.
  *
