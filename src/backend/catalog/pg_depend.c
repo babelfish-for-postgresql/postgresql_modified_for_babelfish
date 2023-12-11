@@ -326,7 +326,8 @@ deleteDependencyRecordsFor(Oid classId, Oid objectId,
 			((Form_pg_depend) GETSTRUCT(tup))->deptype == DEPENDENCY_EXTENSION)
 			continue;
 
-		CatalogTupleDelete(depRel, &tup->t_self);
+		if (!ENRdropTuple(depRel, tup))
+			CatalogTupleDelete(depRel, &tup->t_self);
 		count++;
 	}
 

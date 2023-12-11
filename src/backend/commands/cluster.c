@@ -735,7 +735,14 @@ make_new_heap(Oid OIDOldHeap, Oid NewTableSpace, Oid NewAccessMethod,
 	 * mapped.  This simplifies swap_relation_files, and is absolutely
 	 * necessary for rebuilding pg_class, for reasons explained there.
 	 */
-	snprintf(NewHeapName, sizeof(NewHeapName), "pg_temp_%u", OIDOldHeap);
+	if (sql_dialect == SQL_DIALECT_TSQL && relpersistence == RELPERSISTENCE_TEMP)
+	{
+		snprintf(NewHeapName, sizeof(NewHeapName), "#pg_temp_%u", OIDOldHeap);
+	}
+	else
+	{
+		snprintf(NewHeapName, sizeof(NewHeapName), "pg_temp_%u", OIDOldHeap);
+	}
 
 	OIDNewHeap = heap_create_with_catalog(NewHeapName,
 										  namespaceid,
@@ -1603,6 +1610,8 @@ finish_heap_swap(Oid OIDOldHeap, Oid OIDNewHeap,
 			/* rename the toast table ... */
 			if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(newrel))
 				pg_toast_prefix = "@pg_toast";
+			else if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTempTable(newrel) && get_ENR_withoid(currentQueryEnv, newrel->rd_id, ENR_TSQL_TEMP))
+				pg_toast_prefix = "#pg_toast";
 
 			snprintf(NewToastName, NAMEDATALEN, "%s_%u",
 					pg_toast_prefix, OIDOldHeap);
