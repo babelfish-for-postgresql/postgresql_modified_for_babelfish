@@ -971,11 +971,21 @@ postquel_sub_params(SQLFunctionCachePtr fcache,
 			 * because of possible function inlining during planning.)
 			 */
 			prm->isnull = fcinfo->args[i].isnull;
-			prm->value = MakeExpandedObjectReadOnly(fcinfo->args[i].value,
-													prm->isnull,
-													get_typlen(argtypes[i]));
+			if (i >= fcache->pinfo->nargs)
+			{
+				prm->value =  MakeExpandedObjectReadOnly(fcinfo->args[i].value,
+						prm->isnull
+						get_typlen(NULL));
+				prm->ptype = NULL;
+			}
+			else
+			{
+				prm->value = MakeExpandedObjectReadOnly(fcinfo->args[i].value,
+						prm->isnull,
+						get_typlen(argtypes[i]));
+				prm->ptype = argtypes[i];
+			}
 			prm->pflags = 0;
-			prm->ptype = argtypes[i];
 		}
 	}
 	else
