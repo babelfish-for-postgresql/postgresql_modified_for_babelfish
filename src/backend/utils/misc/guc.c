@@ -697,7 +697,7 @@ int			huge_page_size;
 /*
  * OIDs are stored as uint32, so we will add INT_MIN to match the range.
  */
-int 		temp_oid_buffer_start;
+int			temp_oid_buffer_start;
 int			temp_oid_buffer_size;
 
 /*
