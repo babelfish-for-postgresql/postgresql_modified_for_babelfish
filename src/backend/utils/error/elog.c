@@ -1705,8 +1705,6 @@ ThrowErrorData(ErrorData *edata)
 	if (edata->backtrace)
 		newedata->backtrace = pstrdup(edata->backtrace);
 	/* assume message_id is not available */
-	if (edata->message_id)
-		newedata->message_id = pstrdup(edata->message_id);
 	if (edata->schema_name)
 		newedata->schema_name = pstrdup(edata->schema_name);
 	if (edata->table_name)
@@ -1721,6 +1719,14 @@ ThrowErrorData(ErrorData *edata)
 	newedata->internalpos = edata->internalpos;
 	if (edata->internalquery)
 		newedata->internalquery = pstrdup(edata->internalquery);
+
+	/*
+	 * Generally, vanilla postgres does not share messaged_id with leader node from
+	 * parallel worker. But case of Babelfish where message_id is needed to find
+	 * T-SQL error code; below hook is defined to handle message_id for Babelfish. 
+	 */
+	if (edata->message_id)
+		newedata->message_id = (const char *) pstrdup(edata->message_id);
 
 	MemoryContextSwitchTo(oldcontext);
 	recursion_depth--;

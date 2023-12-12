@@ -312,14 +312,7 @@ pq_parse_errornotice(StringInfo msg, ErrorData *edata)
 				edata->funcname = pstrdup(value);
 				break;
 			case PG_DIAG_MESSAGE_ID:
-				if (sql_dialect == SQL_DIALECT_TSQL)
-				{
-					edata->message_id = pstrdup(value);
-				}
-				else
-				{
-					elog(ERROR, "Unexpected message_id found");
-				}
+				edata->message_id = (const char *) pstrdup(value);
 				break;
 			default:
 				elog(ERROR, "unrecognized error field code: %d", (int) code);
