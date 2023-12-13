@@ -921,7 +921,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		AtEOXact_GUC(true, save_nestlevel);
 	if (OidIsValid(fcache->userid))
 		SetUserIdAndSecContext(save_userid, save_sec_context);
-	if (fmgr_hook)
+	if (fmgr_hook && !set_sql_dialect)
 		(*fmgr_hook) (FHET_END, &fcache->flinfo, &fcache->arg);
 
 	return result;

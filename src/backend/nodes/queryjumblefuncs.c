@@ -340,6 +340,9 @@ _jumbleA_Const(JumbleState *jstate, Node *node)
 			case T_BitString:
 				JUMBLE_STRING(val.bsval.bsval);
 				break;
+			case T_TSQL_HexString:
+				JUMBLE_STRING(val.hsval.hsval);
+				break;
 			default:
 				elog(ERROR, "unrecognized node type: %d",
 					 (int) nodeTag(&expr->val));
