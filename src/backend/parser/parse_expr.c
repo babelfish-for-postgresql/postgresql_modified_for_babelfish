@@ -3236,7 +3236,7 @@ ExpandChecksumStar(ParseState *pstate, FuncCall *fn, int location)
         foreach(lc, pstate->p_namespace)
         {
                 ParseNamespaceItem *nsitem = (ParseNamespaceItem *) lfirst(lc);
-                target = list_concat(target, expandNSItemVars(nsitem, 0, location, NULL));
+                target = list_concat(target, expandNSItemVars(pstate, nsitem, 0, location, NULL));
         }
         fn->agg_star = false;
         return target;

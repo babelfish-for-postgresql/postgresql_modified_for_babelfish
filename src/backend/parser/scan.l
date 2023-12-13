@@ -1033,7 +1033,7 @@ other			.
 					return Op;
 				}
 
-<INITIAL>{param}	{
+{param}	{
 					SET_YYLLOC();
 					yylval->ival = atol(yytext + 1);
 					return PARAM;
