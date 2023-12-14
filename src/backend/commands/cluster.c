@@ -738,7 +738,7 @@ make_new_heap(Oid OIDOldHeap, Oid NewTableSpace, Oid NewAccessMethod,
 	 * We also must ensure that these temp tables are properly named in TSQL
 	 * so that the metadata is properly cleaned up after in this function.
 	 */
-	if (sql_dialect == SQL_DIALECT_TSQL && relpersistence == RELPERSISTENCE_TEMP)
+	if (sql_dialect == SQL_DIALECT_TSQL && relpersistence == RELPERSISTENCE_TEMP && get_ENR_withoid(currentQueryEnv, OIDOldHeap, ENR_TSQL_TEMP))
 	{
 		snprintf(NewHeapName, sizeof(NewHeapName), "#pg_temp_%u", OIDOldHeap);
 	}
