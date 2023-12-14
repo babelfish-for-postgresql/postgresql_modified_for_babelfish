@@ -73,7 +73,6 @@
 #include "libpq/pqformat.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
-#include "parser/parser.h"
 #include "pgstat.h"
 #include "postmaster/bgworker.h"
 #include "postmaster/postmaster.h"
@@ -3260,10 +3259,11 @@ send_message_to_frontend(ErrorData *edata)
 			err_sendstring(&msgbuf, edata->funcname);
 		}
 
-		if (IsParallelWorker() && sql_dialect == SQL_DIALECT_TSQL)
+		if (IsBabelfishParallelWorker())
 		{
 			if (edata->message_id)
 			{
+				elog(LOG, "Sending message_id");
 				pq_sendbyte(&msgbuf, PG_DIAG_MESSAGE_ID);
 				err_sendstring(&msgbuf, edata->message_id);
 			}

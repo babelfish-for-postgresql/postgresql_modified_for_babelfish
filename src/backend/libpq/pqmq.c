@@ -17,7 +17,6 @@
 #include "libpq/pqformat.h"
 #include "libpq/pqmq.h"
 #include "miscadmin.h"
-#include "parser/parser.h"
 #include "pgstat.h"
 #include "tcop/tcopprot.h"
 #include "utils/builtins.h"
@@ -312,7 +311,14 @@ pq_parse_errornotice(StringInfo msg, ErrorData *edata)
 				edata->funcname = pstrdup(value);
 				break;
 			case PG_DIAG_MESSAGE_ID:
-				edata->message_id = (const char *) pstrdup(value);
+				if (MyProcPort->is_tds_conn)
+				{
+					edata->message_id = (const char *) pstrdup(value);
+				}
+				else
+				{
+					elog(ERROR, "Unexpected error message_is field is found");
+				}
 				break;
 			default:
 				elog(ERROR, "unrecognized error field code: %d", (int) code);
