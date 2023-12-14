@@ -317,7 +317,7 @@ pq_parse_errornotice(StringInfo msg, ErrorData *edata)
 				}
 				else
 				{
-					elog(ERROR, "Unexpected error message_is field is found");
+					elog(ERROR, "Unexpected error field message_id is found");
 				}
 				break;
 			default:

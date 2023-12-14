@@ -3263,7 +3263,6 @@ send_message_to_frontend(ErrorData *edata)
 		{
 			if (edata->message_id)
 			{
-				elog(LOG, "Sending message_id");
 				pq_sendbyte(&msgbuf, PG_DIAG_MESSAGE_ID);
 				err_sendstring(&msgbuf, edata->message_id);
 			}
