@@ -31,7 +31,6 @@
 #include "libpq/pqmq.h"
 #include "miscadmin.h"
 #include "optimizer/optimizer.h"
-#include "parser/parser.h"
 #include "pgstat.h"
 #include "storage/ipc.h"
 #include "storage/predicate.h"
