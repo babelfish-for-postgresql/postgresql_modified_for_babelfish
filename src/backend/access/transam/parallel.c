@@ -102,6 +102,9 @@ typedef struct FixedParallelState
 
 	/* Maximum XactLastRecEnd of any worker. */
 	XLogRecPtr	last_xlog_end;
+
+	/* Track if parallel worker is spawned in the context of Babelfish */
+	bool babelfish_context;
 } FixedParallelState;
 
 /*
@@ -155,9 +158,6 @@ static void WaitForParallelWorkersToExit(ParallelContext *pcxt);
 static parallel_worker_main_type LookupParallelWorkerFunction(const char *libraryname, const char *funcname);
 static void ParallelWorkerShutdown(int code, Datum arg);
 
-
-/* To track whether this parallel worker is spawned in Babelfish context */
-bool isBabelfishParallelWorker = false;
 
 /*
  * Establish a new parallel context.  This should be done after entering
@@ -338,6 +338,7 @@ InitializeParallelDSM(ParallelContext *pcxt)
 	fps->serializable_xact_handle = ShareSerializableXact();
 	SpinLockInit(&fps->mutex);
 	fps->last_xlog_end = 0;
+	fps->babelfish_context = MyProcPort->is_tds_conn;
 	shm_toc_insert(pcxt->toc, PARALLEL_KEY_FIXED, fps);
 
 	/* We can skip the rest of this if we're not budgeting for any workers. */
@@ -571,11 +572,7 @@ LaunchParallelWorkers(ParallelContext *pcxt)
 	worker.bgw_start_time = BgWorkerStart_ConsistentState;
 	worker.bgw_restart_time = BGW_NEVER_RESTART;
 	sprintf(worker.bgw_library_name, "postgres");
-	/* If this is Babelfish connection then we need to indicate it to parallel worker */
-	if (MyProcPort->is_tds_conn)
-		sprintf(worker.bgw_function_name, "BabelfishParallelWorkerMain");
-	else
-		sprintf(worker.bgw_function_name, "ParallelWorkerMain");
+	sprintf(worker.bgw_function_name, "ParallelWorkerMain");
 	worker.bgw_main_arg = UInt32GetDatum(dsm_segment_handle(pcxt->seg));
 	worker.bgw_notify_pid = MyProcPid;
 
@@ -1253,19 +1250,6 @@ AtEOXact_Parallel(bool isCommit)
 }
 
 /*
- * Main entrypoint for parallel workers for Babelfish.
- * Only additional thing this routine doing on the top of ParallelWorkerMain is
- * it sets flag to indicate whether this parallel worker is spawned in T-SQL
- * context.
- */
-void
-BabelfishParallelWorkerMain(Datum main_arg)
-{
-	isBabelfishParallelWorker = true;
-	ParallelWorkerMain(main_arg);
-}
-
-/*
  * Main entrypoint for parallel workers.
  */
 void
@@ -1615,4 +1599,14 @@ LookupParallelWorkerFunction(const char *libraryname, const char *funcname)
 	/* Otherwise load from external library. */
 	return (parallel_worker_main_type)
 		load_external_function(libraryname, funcname, true, NULL);
+}
+
+/*
+ * IsBabelfishParallelWorker - return bool based on whether given worker is
+ * spawned in Babelfish context.
+ */
+bool
+IsBabelfishParallelWorker(void)
+{
+	return (IsParallelWorker() && MyFixedParallelState->babelfish_context);
 }

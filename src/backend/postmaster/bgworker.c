@@ -128,9 +128,6 @@ static const struct
 	},
 	{
 		"ApplyWorkerMain", ApplyWorkerMain
-	},
-	{
-		"BabelfishParallelWorkerMain", BabelfishParallelWorkerMain
 	}
 };
 
