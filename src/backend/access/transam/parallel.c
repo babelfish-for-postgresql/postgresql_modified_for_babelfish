@@ -96,14 +96,14 @@ typedef struct FixedParallelState
 	TimestampTz stmt_ts;
 	SerializableXactHandle serializable_xact_handle;
 
+	/* Track if parallel worker is spawned in the context of Babelfish */
+	bool babelfish_context;
+
 	/* Mutex protects remaining fields. */
 	slock_t		mutex;
 
 	/* Maximum XactLastRecEnd of any worker. */
 	XLogRecPtr	last_xlog_end;
-
-	/* Track if parallel worker is spawned in the context of Babelfish */
-	bool babelfish_context;
 } FixedParallelState;
 
 /*
@@ -335,9 +335,9 @@ InitializeParallelDSM(ParallelContext *pcxt)
 	fps->xact_ts = GetCurrentTransactionStartTimestamp();
 	fps->stmt_ts = GetCurrentStatementStartTimestamp();
 	fps->serializable_xact_handle = ShareSerializableXact();
+	fps->babelfish_context = MyProcPort->is_tds_conn;
 	SpinLockInit(&fps->mutex);
 	fps->last_xlog_end = 0;
-	fps->babelfish_context = MyProcPort->is_tds_conn;
 	shm_toc_insert(pcxt->toc, PARALLEL_KEY_FIXED, fps);
 
 	/* We can skip the rest of this if we're not budgeting for any workers. */
