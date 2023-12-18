@@ -305,6 +305,16 @@ pq_parse_errornotice(StringInfo msg, ErrorData *edata)
 			case PG_DIAG_SOURCE_FUNCTION:
 				edata->funcname = pstrdup(value);
 				break;
+			case PG_DIAG_MESSAGE_ID:
+				if (MyProcPort->is_tds_conn)
+				{
+					edata->message_id = (const char *) pstrdup(value);
+				}
+				else
+				{
+					elog(ERROR, "Unexpected error field message_id is found");
+				}
+				break;
 			default:
 				elog(ERROR, "unrecognized error field code: %d", (int) code);
 				break;
