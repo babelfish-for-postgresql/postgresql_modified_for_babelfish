@@ -115,7 +115,7 @@ void
 dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 {
 	PGresult	*res;
-	char		*source_server_version;
+	int     	source_server_version_num;
 	char		*source_migration_mode;
 	PQExpBuffer	qry;
 
@@ -130,8 +130,8 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 	 * differs from source server version.
 	 */
 	qry = createPQExpBuffer();
-	res = executeQuery(conn, "SHOW server_version");
-	source_server_version = pstrdup(PQgetvalue(res, 0, 0));
+	res = executeQuery(conn, "SELECT setting::INT from pg_settings WHERE name = 'server_version_num';");
+	source_server_version_num = atoi(PQgetvalue(res, 0, 0));
 
 	/*
 	 * Temporarily enable ON_ERROR_STOP so that whole restore script
@@ -141,15 +141,17 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 	appendPQExpBuffer(qry,
 					  "DO $$"
 					  "\nDECLARE"
-					  "\n    target_server_version VARCHAR;"
+					  "\n    target_server_version_num INT;"
 					  "\nBEGIN"
-					  "\n    SELECT INTO target_server_version setting from pg_settings"
-					  "\n        WHERE name = 'server_version';"
-					  "\n    IF target_server_version::VARCHAR != '%s' THEN"
+					  "\n    SELECT INTO target_server_version_num setting::INT from pg_settings"
+					  "\n        WHERE name = 'server_version_num';"
+					  "\n    IF target_server_version_num != %d THEN"
 					  "\n        RAISE 'Dump and restore across different Postgres versions is not yet supported.';"
+					  "\n    ELSIF target_server_version_num < 150005 THEN"
+					  "\n        RAISE 'Target Postgres version must be 15.5 or higher for Babelfish restore.';"
 					  "\n    END IF;"
 					  "\nEND$$;\n\n"
-					  , source_server_version);
+					  , source_server_version_num);
 	PQclear(res);
 
 	/*
@@ -177,7 +179,6 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 	fprintf(OPF, "%s", qry->data);
 
 	destroyPQExpBuffer(qry);
-	pfree(source_server_version);
 	pfree(source_migration_mode);
 }
 
