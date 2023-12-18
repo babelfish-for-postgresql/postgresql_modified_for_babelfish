@@ -97,6 +97,9 @@ typedef struct FixedParallelState
 	TimestampTz stmt_ts;
 	SerializableXactHandle serializable_xact_handle;
 
+	/* Track if parallel worker is spawned in the context of Babelfish */
+	bool babelfish_context;
+
 	/* Mutex protects remaining fields. */
 	slock_t		mutex;
 
@@ -336,6 +339,7 @@ InitializeParallelDSM(ParallelContext *pcxt)
 	fps->xact_ts = GetCurrentTransactionStartTimestamp();
 	fps->stmt_ts = GetCurrentStatementStartTimestamp();
 	fps->serializable_xact_handle = ShareSerializableXact();
+	fps->babelfish_context = MyProcPort->is_tds_conn;
 	SpinLockInit(&fps->mutex);
 	fps->last_xlog_end = 0;
 	shm_toc_insert(pcxt->toc, PARALLEL_KEY_FIXED, fps);
@@ -1619,4 +1623,14 @@ LookupParallelWorkerFunction(const char *libraryname, const char *funcname)
 	/* Otherwise load from external library. */
 	return (parallel_worker_main_type)
 		load_external_function(libraryname, funcname, true, NULL);
+}
+
+/*
+ * IsBabelfishParallelWorker - return bool based on whether given worker is
+ * spawned in Babelfish context.
+ */
+bool
+IsBabelfishParallelWorker(void)
+{
+	return (IsParallelWorker() && MyFixedParallelState->babelfish_context);
 }
