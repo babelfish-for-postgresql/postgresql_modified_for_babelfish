@@ -848,12 +848,10 @@ InitPlan(QueryDesc *queryDesc, int eflags)
 	int			i;
 
 	/*
-	 * Do permissions checks
+	 * Do permissions checks if not Babelfish parallel worker
 	 */
-	if (!(sql_dialect == SQL_DIALECT_TSQL && IsParallelWorker()))
-	{
+	if (!IsBabelfishParallelWorker())
 		ExecCheckPermissions(rangeTable, plannedstmt->permInfos, true);
-	}
 
 	/*
 	 * initialize the node's execution state

@@ -259,6 +259,7 @@ typedef struct Port
 	SSL		   *ssl;
 	X509	   *peer;
 #endif
+	bool		is_tds_conn;
 } Port;
 
 #ifdef USE_SSL
