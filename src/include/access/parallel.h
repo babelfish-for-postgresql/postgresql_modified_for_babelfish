@@ -79,4 +79,7 @@ extern void ParallelWorkerReportLastRecEnd(XLogRecPtr last_xlog_end);
 
 extern void ParallelWorkerMain(Datum main_arg);
 
+/* Below helpers are added to support parallel workers in Babelfish context */
+extern bool IsBabelfishParallelWorker(void);
+
 #endif							/* PARALLEL_H */
