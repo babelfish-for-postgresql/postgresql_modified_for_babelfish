@@ -67,6 +67,7 @@
 #endif
 
 #include "access/transam.h"
+#include "access/parallel.h"
 #include "access/xact.h"
 #include "libpq/libpq.h"
 #include "libpq/pqformat.h"
@@ -1722,6 +1723,14 @@ ThrowErrorData(ErrorData *edata)
 	newedata->internalpos = edata->internalpos;
 	if (edata->internalquery)
 		newedata->internalquery = pstrdup(edata->internalquery);
+
+	/*
+	 * Generally, vanilla postgres does not share messaged_id with leader node from
+	 * parallel worker. But case of Babelfish where message_id is needed to find
+	 * T-SQL error code; below hook is defined to handle message_id for Babelfish. 
+	 */
+	if (edata->message_id)
+		newedata->message_id = (const char *) pstrdup(edata->message_id);
 
 	MemoryContextSwitchTo(oldcontext);
 	recursion_depth--;
@@ -3434,6 +3443,15 @@ send_message_to_frontend(ErrorData *edata)
 		{
 			pq_sendbyte(&msgbuf, PG_DIAG_SOURCE_FUNCTION);
 			err_sendstring(&msgbuf, edata->funcname);
+		}
+
+		if (IsBabelfishParallelWorker())
+		{
+			if (edata->message_id)
+			{
+				pq_sendbyte(&msgbuf, PG_DIAG_MESSAGE_ID);
+				err_sendstring(&msgbuf, edata->message_id);
+			}
 		}
 
 		pq_sendbyte(&msgbuf, '\0'); /* terminator */

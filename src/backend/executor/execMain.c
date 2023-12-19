@@ -815,9 +815,9 @@ InitPlan(QueryDesc *queryDesc, int eflags)
 	int			i;
 
 	/*
-	 * Do permissions checks if not parallel worker
+	 * Do permissions checks if not Babelfish parallel worker
 	 */
-	if (!(sql_dialect == SQL_DIALECT_TSQL && IsParallelWorker()))
+	if (!IsBabelfishParallelWorker())
 		ExecCheckRTPerms(rangeTable, true);
 
 	/*
