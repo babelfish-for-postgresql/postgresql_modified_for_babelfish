@@ -87,6 +87,12 @@ extern PGDLLIMPORT ExecutorCheckPerms_hook_type ExecutorCheckPerms_hook;
 typedef bool (*TriggerRecuresiveCheck_hook_type) (ResultRelInfo *resultRelInfo);
 extern PGDLLIMPORT TriggerRecuresiveCheck_hook_type TriggerRecuresiveCheck_hook;
 
+typedef bool (*bbfViewHasInsteadofTrigger_hook_type) (Relation view, CmdType event);
+extern PGDLLIMPORT bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook;
+
+typedef bool (*bbfCheckRecursionInTrigger_hook_type) (ResultRelInfo *resultRelInfo);
+extern PGDLLIMPORT bbfCheckRecursionInTrigger_hook_type bbfCheckRecursionInTrigger_hook;
+
 typedef bool (*check_rowcount_hook_type) (int es_processed);
 extern PGDLLIMPORT check_rowcount_hook_type check_rowcount_hook;
 
