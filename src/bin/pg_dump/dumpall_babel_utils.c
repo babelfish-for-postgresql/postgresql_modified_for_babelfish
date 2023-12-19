@@ -236,7 +236,7 @@ getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog,
 							 "SELECT rolname "
 							 "FROM bbf_roles "
 							 "WHERE rolname !~ '^pg_' "
-							 "AND rolname NOT IN ('sysadmin', "
+							 "AND rolname NOT IN ('sysadmin', 'bbf_role_admin', "
 							 "'master_dbo', 'master_db_owner', 'master_guest', "
 							 "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
 							 "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') "
@@ -253,7 +253,7 @@ getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog,
 						  "rolname = current_user AS is_current_user "
 						  "FROM bbf_roles "
 						  "WHERE rolname !~ '^pg_' "
-						  "AND rolname NOT IN ('sysadmin', "
+						  "AND rolname NOT IN ('sysadmin', 'bbf_role_admin', "
 						  "'master_dbo', 'master_db_owner', 'master_guest', "
 						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
 						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') "
@@ -299,7 +299,8 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 	/* Just include sysadmin role memberships in case of Babelfish logical database dump. */
 	else
 		appendPQExpBufferStr(buf,
-							 "SELECT 'sysadmin' AS rolname UNION ");
+							 "SELECT 'sysadmin' AS rolname UNION "
+							 "SELECT 'bbf_role_admin' AS rolname UNION ");
 	appendPQExpBuffer(buf,
 					  "SELECT rolname FROM sys.babelfish_authid_user_ext ");
 	/* Only dump users of the specific logical database we are currently dumping. */
