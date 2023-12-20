@@ -54,4 +54,5 @@ XactTruncationLock					44
 WrapLimitsVacuumLock				46
 NotifyQueueTailLock					47
 WaitEventExtensionLock				48
-TsqlApplockSyncLock					49
+WALSummarizerLock					49
+TsqlApplockSyncLock					50
