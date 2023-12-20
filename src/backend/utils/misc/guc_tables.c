@@ -64,6 +64,7 @@
 #include "postmaster/postmaster.h"
 #include "postmaster/startup.h"
 #include "postmaster/syslogger.h"
+#include "postmaster/walsummarizer.h"
 #include "postmaster/walwriter.h"
 #include "replication/logicallauncher.h"
 #include "replication/slot.h"
@@ -711,6 +712,8 @@ const char *const config_group_names[] =
 	gettext_noop("Write-Ahead Log / Archive Recovery"),
 	/* WAL_RECOVERY_TARGET */
 	gettext_noop("Write-Ahead Log / Recovery Target"),
+	/* WAL_SUMMARIZATION */
+	gettext_noop("Write-Ahead Log / Summarization"),
 	/* REPLICATION_SENDING */
 	gettext_noop("Replication / Sending Servers"),
 	/* REPLICATION_PRIMARY */
@@ -1801,6 +1804,16 @@ struct config_bool ConfigureNamesBool[] =
 		},
 		&recoveryTargetInclusive,
 		true,
+		NULL, NULL, NULL
+	},
+
+	{
+		{"summarize_wal", PGC_SIGHUP, WAL_SUMMARIZATION,
+			gettext_noop("Starts the WAL summarizer process to enable incremental backup."),
+			NULL
+		},
+		&summarize_wal,
+		false,
 		NULL, NULL, NULL
 	},
 
@@ -3216,6 +3229,19 @@ struct config_int ConfigureNamesInt[] =
 		WalSegMinSize,
 		WalSegMaxSize,
 		check_wal_segment_size, NULL, NULL
+	},
+
+	{
+		{"wal_summary_keep_time", PGC_SIGHUP, WAL_SUMMARIZATION,
+			gettext_noop("Time for which WAL summary files should be kept."),
+			NULL,
+			GUC_UNIT_MIN,
+		},
+		&wal_summary_keep_time,
+		10 * 24 * 60,			/* 10 days */
+		0,
+		INT_MAX,
+		NULL, NULL, NULL
 	},
 
 	{
