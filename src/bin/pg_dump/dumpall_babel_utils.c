@@ -35,6 +35,11 @@ typedef enum {
 
 static babelfish_status bbf_status = NONE;
 
+static char default_bbf_roles[] = "('sysadmin', 'bbf_role_admin', "
+								  "'master_dbo', 'master_db_owner', 'master_guest', "
+								  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
+								  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest')";
+
 /*
  * Run a query, return the results, exit program on failure.
  */
@@ -232,15 +237,12 @@ getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog,
 
 	if (drop_query)
 	{
-		appendPQExpBufferStr(buf,
-							 "SELECT rolname "
-							 "FROM bbf_roles "
-							 "WHERE rolname !~ '^pg_' "
-							 "AND rolname NOT IN ('sysadmin', 'bbf_role_admin', "
-							 "'master_dbo', 'master_db_owner', 'master_guest', "
-							 "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
-							 "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') "
-							 "ORDER BY 1 ");
+		appendPQExpBuffer(buf,
+						  "SELECT rolname "
+						  "FROM bbf_roles "
+						  "WHERE rolname !~ '^pg_' "
+						  "AND rolname NOT IN %s "
+						  "ORDER BY 1 ", default_bbf_roles);
 	}
 	else
 	{
@@ -253,11 +255,8 @@ getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog,
 						  "rolname = current_user AS is_current_user "
 						  "FROM bbf_roles "
 						  "WHERE rolname !~ '^pg_' "
-						  "AND rolname NOT IN ('sysadmin', 'bbf_role_admin', "
-						  "'master_dbo', 'master_db_owner', 'master_guest', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') "
-						  "ORDER BY 2 ", role_catalog);
+						  "AND rolname NOT IN %s "
+						  "ORDER BY 2 ", role_catalog, default_bbf_roles);
 	}
 }
 
@@ -334,5 +333,6 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 						 "INNER JOIN bbf_roles um on um.oid = a.member "
 						 "LEFT JOIN bbf_roles ug on ug.oid = a.grantor "
 						 "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_') "
-						 "ORDER BY 1,2,4");
+						 "AND NOT (ur.rolname IN %s AND um.rolname IN %s) "
+						 "ORDER BY 1,2,4", default_bbf_roles, default_bbf_roles);
 }
