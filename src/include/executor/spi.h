@@ -214,4 +214,5 @@ extern bool SPI_inside_nonatomic_context(void);
 
 extern void SPI_setCurrentInternalTxnMode(bool mode);
 extern void SPI_get_depth(int *depth);
+extern void SPI_getCurrentInternalTxnMode(bool *mode);
 #endif							/* SPI_H */

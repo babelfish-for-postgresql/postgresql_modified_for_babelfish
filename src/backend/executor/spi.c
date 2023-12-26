@@ -3438,3 +3438,9 @@ SPI_get_depth(int *depth)
 {
 	*depth = _SPI_connected;
 }
+
+void 
+SPI_getCurrentInternalTxnMode(bool *mode)
+{
+	*mode = _SPI_current->internal_xact;
+}
