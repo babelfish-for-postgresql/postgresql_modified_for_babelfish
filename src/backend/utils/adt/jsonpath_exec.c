@@ -154,7 +154,7 @@ typedef struct JsonValueListIterator
 } JsonValueListIterator;
 
 /* strict/lax flags is decomposed into four [un]wrap/error flags */
-#define jspStrictAbsenseOfErrors(cxt)	(!(cxt)->laxMode)
+#define jspStrictAbsenceOfErrors(cxt)	(!(cxt)->laxMode)
 #define jspAutoUnwrap(cxt)				((cxt)->laxMode)
 #define jspAutoWrap(cxt)				((cxt)->laxMode)
 #define jspIgnoreStructuralErrors(cxt)	((cxt)->ignoreStructuralErrors)
@@ -791,7 +791,7 @@ executeJsonPath(JsonPath *path, Jsonb *vars, Jsonb *json, bool throwErrors,
 	cxt.throwErrors = throwErrors;
 	cxt.useTz = useTz;
 
-	if (jspStrictAbsenseOfErrors(&cxt) && !result)
+	if (jspStrictAbsenceOfErrors(&cxt) && !result)
 	{
 		/*
 		 * In strict mode we must get a complete list of values to check that
@@ -1564,7 +1564,7 @@ executeBoolItem(JsonPathExecContext *cxt, JsonPathItem *jsp,
 		case jpiExists:
 			jspGetArg(jsp, &larg);
 
-			if (jspStrictAbsenseOfErrors(cxt))
+			if (jspStrictAbsenceOfErrors(cxt))
 			{
 				/*
 				 * In strict mode we must get a complete list of values to
@@ -1762,14 +1762,14 @@ executePredicate(JsonPathExecContext *cxt, JsonPathItem *pred,
 
 			if (res == jpbUnknown)
 			{
-				if (jspStrictAbsenseOfErrors(cxt))
+				if (jspStrictAbsenceOfErrors(cxt))
 					return jpbUnknown;
 
 				error = true;
 			}
 			else if (res == jpbTrue)
 			{
-				if (!jspStrictAbsenseOfErrors(cxt))
+				if (!jspStrictAbsenceOfErrors(cxt))
 					return jpbTrue;
 
 				found = true;
