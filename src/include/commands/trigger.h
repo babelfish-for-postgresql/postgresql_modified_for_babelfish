@@ -309,6 +309,7 @@ extern void AfterTriggerEndSubXact(bool isCommit);
 extern void AfterTriggerSetState(ConstraintsSetStmt *stmt);
 extern bool AfterTriggerPendingOnRel(Oid relid);
 
+extern List *triggerInvocationSequence; /* List to store all oids for triggers called */
 
 /*
  * in utils/adt/ri_triggers.c
