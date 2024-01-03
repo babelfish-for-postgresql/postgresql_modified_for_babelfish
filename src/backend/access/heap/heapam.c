@@ -648,17 +648,6 @@ heapgettup_advance_block(HeapScanDesc scan, BlockNumber block, ScanDirection dir
 			if (block >= scan->rs_nblocks)
 				block = 0;
 
-			/* we're done if we're back at where we started */
-			if (block == scan->rs_startblock)
-				return InvalidBlockNumber;
-
-			/* check if the limit imposed by heap_setscanlimits() is met */
-			if (scan->rs_numblocks != InvalidBlockNumber)
-			{
-				if (--scan->rs_numblocks == 0)
-					return InvalidBlockNumber;
-			}
-
 			/*
 			 * Report our new scan position for synchronization purposes. We
 			 * don't do that when moving backwards, however. That would just
@@ -673,6 +662,17 @@ heapgettup_advance_block(HeapScanDesc scan, BlockNumber block, ScanDirection dir
 			 */
 			if (scan->rs_base.rs_flags & SO_ALLOW_SYNC)
 				ss_report_location(scan->rs_base.rs_rd, block);
+
+			/* we're done if we're back at where we started */
+			if (block == scan->rs_startblock)
+				return InvalidBlockNumber;
+
+			/* check if the limit imposed by heap_setscanlimits() is met */
+			if (scan->rs_numblocks != InvalidBlockNumber)
+			{
+				if (--scan->rs_numblocks == 0)
+					return InvalidBlockNumber;
+			}
 
 			return block;
 		}
@@ -1783,6 +1783,7 @@ GetBulkInsertState(void)
 	bistate->current_buf = InvalidBuffer;
 	bistate->next_free = InvalidBlockNumber;
 	bistate->last_free = InvalidBlockNumber;
+	bistate->already_extended_by = 0;
 	return bistate;
 }
 
@@ -1807,6 +1808,17 @@ ReleaseBulkInsertStatePin(BulkInsertState bistate)
 	if (bistate->current_buf != InvalidBuffer)
 		ReleaseBuffer(bistate->current_buf);
 	bistate->current_buf = InvalidBuffer;
+
+	/*
+	 * Despite the name, we also reset bulk relation extension state.
+	 * Otherwise we can end up erroring out due to looking for free space in
+	 * ->next_free of one partition, even though ->next_free was set when
+	 * extending another partition. It could obviously also be bad for
+	 * efficiency to look at existing blocks at offsets from another
+	 * partition, even if we don't error out.
+	 */
+	bistate->next_free = InvalidBlockNumber;
+	bistate->last_free = InvalidBlockNumber;
 }
 
 

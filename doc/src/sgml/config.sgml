@@ -656,10 +656,15 @@ include_dir 'conf.d'
          <literal>::</literal> allows listening for all IPv6 addresses.
          If the list is empty, the server does not listen on any IP interface
          at all, in which case only Unix-domain sockets can be used to connect
-         to it.
+         to it.  If the list is not empty, the server will start if it
+         can listen on at least one TCP/IP address.  A warning will be
+         emitted for any TCP/IP address which cannot be opened.
          The default value is <systemitem class="systemname">localhost</systemitem>,
          which allows only local TCP/IP <quote>loopback</quote> connections to be
-         made.  While client authentication (<xref
+         made.
+       </para>
+       <para>
+         While client authentication (<xref
          linkend="client-authentication"/>) allows fine-grained control
          over who can access the server, <varname>listen_addresses</varname>
          controls which interfaces accept connection attempts, which
@@ -1182,7 +1187,7 @@ include_dir 'conf.d'
        <para>
         Sets whether GSSAPI delegation should be accepted from the client.
         The default is <literal>off</literal> meaning credentials from the client will
-        NOT be accepted.  Changing this to <literal>on</literal> will make the server
+        <emphasis>not</emphasis> be accepted.  Changing this to <literal>on</literal> will make the server
         accept credentials delegated to it from the client. This parameter can only be
         set in the <filename>postgresql.conf</filename> file or on the server command line.
        </para>
@@ -1879,9 +1884,10 @@ include_dir 'conf.d'
         (such as a sort or hash table) before writing to temporary disk files.
         If this value is specified without units, it is taken as kilobytes.
         The default value is four megabytes (<literal>4MB</literal>).
-        Note that for a complex query, several sort or hash operations might be
-        running in parallel; each operation will generally be allowed
-        to use as much memory as this value specifies before it starts
+        Note that a complex query might perform several sort and hash
+        operations at the same time, with each operation generally being
+        allowed to use as much memory as this value specifies before
+        it starts
         to write data into temporary files.  Also, several running
         sessions could be doing such operations concurrently.
         Therefore, the total memory used could be many times the value
@@ -1889,14 +1895,13 @@ include_dir 'conf.d'
         fact in mind when choosing the value.  Sort operations are used
         for <literal>ORDER BY</literal>, <literal>DISTINCT</literal>,
         and merge joins.
-        Hash tables are used in hash joins, hash-based aggregation, result
-        cache nodes and hash-based processing of <literal>IN</literal>
-        subqueries.
+        Hash tables are used in hash joins, hash-based aggregation, memoize
+        nodes and hash-based processing of <literal>IN</literal> subqueries.
        </para>
        <para>
         Hash-based operations are generally more sensitive to memory
         availability than equivalent sort-based operations.  The
-        memory available for hash tables is computed by multiplying
+        memory limit for a hash table is computed by multiplying
         <varname>work_mem</varname> by
         <varname>hash_mem_multiplier</varname>.  This makes it
         possible for hash-based operations to use an amount of memory
@@ -5385,13 +5390,14 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
       <listitem>
        <para>
         Enables or disables the query planner's use of partitionwise grouping
-        or aggregation, which allows grouping or aggregation on a partitioned
-        tables performed separately for each partition.  If the <literal>GROUP
-        BY</literal> clause does not include the partition keys, only partial
-        aggregation can be performed on a per-partition basis, and
-        finalization must be performed later.  Because partitionwise grouping
-        or aggregation can use significantly more CPU time and memory during
-        planning, the default is <literal>off</literal>.
+        or aggregation, which allows grouping or aggregation on partitioned
+        tables to be performed separately for each partition.  If the
+        <literal>GROUP BY</literal> clause does not include the partition
+        keys, only partial aggregation can be performed on a per-partition
+        basis, and finalization must be performed later.  Because
+        partitionwise grouping or aggregation can use significantly more CPU
+        time and memory during planning, the default is
+        <literal>off</literal>.
        </para>
       </listitem>
      </varlistentry>
@@ -7007,8 +7013,9 @@ local0.*    /var/log/postgresql
         and included in CSV log entries.  It can also be included in regular
         log entries via the <xref linkend="guc-log-line-prefix"/> parameter.
         Only printable ASCII characters may be used in the
-        <varname>application_name</varname> value. Other characters will be
-        replaced with question marks (<literal>?</literal>).
+        <varname>application_name</varname> value.
+        Other characters are replaced with <link
+        linkend="sql-syntax-strings-escape">C-style hexadecimal escapes</link>.
        </para>
       </listitem>
      </varlistentry>
@@ -8004,10 +8011,12 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
         The name can be any string of less
         than <symbol>NAMEDATALEN</symbol> characters (64 characters in a standard
         build). Only printable ASCII characters may be used in the
-        <varname>cluster_name</varname> value. Other characters will be
-        replaced with question marks (<literal>?</literal>).  No name is shown
-        if this parameter is set to the empty string <literal>''</literal> (which is
-        the default). This parameter can only be set at server start.
+        <varname>cluster_name</varname> value.
+        Other characters are replaced with <link
+        linkend="sql-syntax-strings-escape">C-style hexadecimal escapes</link>.
+        No name is shown if this parameter is set to the empty string
+        <literal>''</literal> (which is the default).
+        This parameter can only be set at server start.
        </para>
       </listitem>
      </varlistentry>
@@ -11744,10 +11753,10 @@ LOG:  CleanUpLock: deleting: lock(0xb7acd844) id(24688,24696,0,0,0,1)
       </listitem>
      </varlistentry>
 
-     <varlistentry id="guc-logical-replication-mode" xreflabel="logical_replication_mode">
-      <term><varname>logical_replication_mode</varname> (<type>enum</type>)
+     <varlistentry id="guc-debug-logical-replication-streaming" xreflabel="debug_logical_replication_streaming">
+      <term><varname>debug_logical_replication_streaming</varname> (<type>enum</type>)
       <indexterm>
-       <primary><varname>logical_replication_mode</varname> configuration parameter</primary>
+       <primary><varname>debug_logical_replication_streaming</varname> configuration parameter</primary>
       </indexterm>
       </term>
       <listitem>
@@ -11756,12 +11765,12 @@ LOG:  CleanUpLock: deleting: lock(0xb7acd844) id(24688,24696,0,0,0,1)
         <literal>immediate</literal>. The default is <literal>buffered</literal>.
         This parameter is intended to be used to test logical decoding and
         replication of large transactions.  The effect of
-        <varname>logical_replication_mode</varname> is different for the
+        <varname>debug_logical_replication_streaming</varname> is different for the
         publisher and subscriber:
        </para>
 
        <para>
-        On the publisher side, <varname>logical_replication_mode</varname>
+        On the publisher side, <varname>debug_logical_replication_streaming</varname>
         allows streaming or serializing changes immediately in logical decoding.
         When set to <literal>immediate</literal>, stream each change if the
         <link linkend="sql-createsubscription-with-streaming"><literal>streaming</literal></link>
@@ -11774,7 +11783,7 @@ LOG:  CleanUpLock: deleting: lock(0xb7acd844) id(24688,24696,0,0,0,1)
 
        <para>
         On the subscriber side, if the <literal>streaming</literal> option is set to
-        <literal>parallel</literal>, <varname>logical_replication_mode</varname>
+        <literal>parallel</literal>, <varname>debug_logical_replication_streaming</varname>
         can be used to direct the leader apply worker to send changes to the
         shared memory queue or to serialize all changes to the file.  When set to
         <literal>buffered</literal>, the leader sends changes to parallel apply

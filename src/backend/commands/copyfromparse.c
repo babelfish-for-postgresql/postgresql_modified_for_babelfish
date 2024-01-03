@@ -873,7 +873,7 @@ NextCopyFrom(CopyFromState cstate, ExprContext *econtext,
 	/* Initialize all values for row to NULL */
 	MemSet(values, 0, num_phys_attrs * sizeof(Datum));
 	MemSet(nulls, true, num_phys_attrs * sizeof(bool));
-	cstate->defaults = (bool *) palloc0(num_phys_attrs * sizeof(bool));
+	MemSet(cstate->defaults, false, num_phys_attrs * sizeof(bool));
 
 	if (!cstate->opts.binary)
 	{
@@ -1044,8 +1044,6 @@ NextCopyFrom(CopyFromState cstate, ExprContext *econtext,
 
 	if (fill_missing_values_in_copyfrom_hook)
 		fill_missing_values_in_copyfrom_hook(cstate->rel, values, nulls);
-
-	pfree(cstate->defaults);
 
 	return true;
 }
@@ -1708,8 +1706,8 @@ CopyReadAttributesText(CopyFromState cstate)
 
 				ereport(ERROR,
 						(errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
-						 errmsg("unexpected DEFAULT in COPY data"),
-						 errdetail("Column \"%s\" has no DEFAULT value.",
+						 errmsg("unexpected default marker in COPY data"),
+						 errdetail("Column \"%s\" has no default value.",
 								   NameStr(att->attname))));
 			}
 		}
@@ -1923,8 +1921,8 @@ endfield:
 
 				ereport(ERROR,
 						(errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
-						 errmsg("unexpected DEFAULT in COPY data"),
-						 errdetail("Column \"%s\" has no DEFAULT value.",
+						 errmsg("unexpected default marker in COPY data"),
+						 errdetail("Column \"%s\" has no default value.",
 								   NameStr(att->attname))));
 			}
 		}

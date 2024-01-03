@@ -69,5 +69,6 @@ typedef PG_INT64_TYPE pg_int64;
 #define PG_DIAG_SOURCE_FILE		'F'
 #define PG_DIAG_SOURCE_LINE		'L'
 #define PG_DIAG_SOURCE_FUNCTION 'R'
+#define PG_DIAG_MESSAGE_ID      'I'
 
 #endif							/* POSTGRES_EXT_H */

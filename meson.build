@@ -8,7 +8,7 @@
 
 project('postgresql',
   ['c'],
-  version: '16beta2',
+  version: '16.1',
   license: 'PostgreSQL',
 
   # We want < 0.56 for python 3.5 compatibility on old platforms. EPEL for
@@ -224,7 +224,7 @@ elif host_system == 'darwin'
   library_path_var = 'DYLD_LIBRARY_PATH'
 
   export_file_format = 'darwin'
-  export_fmt = '-exported_symbols_list=@0@'
+  export_fmt = '-Wl,-exported_symbols_list,@0@'
 
   mod_link_args_fmt = ['-bundle_loader', '@0@']
   mod_link_with_dir = 'bindir'
@@ -742,8 +742,8 @@ endif
 ###############################################################
 
 llvmopt = get_option('llvm')
-if not llvmopt.disabled()
-  add_languages('cpp', required: true, native: false)
+llvm = not_found_dep
+if add_languages('cpp', required: llvmopt, native: false)
   llvm = dependency('llvm', version: '>=3.9', method: 'config-tool', required: llvmopt)
 
   if llvm.found()
@@ -757,8 +757,8 @@ if not llvmopt.disabled()
     ccache = find_program('ccache', native: true, required: false)
     clang = find_program(llvm_binpath / 'clang', required: true)
   endif
-else
-  llvm = not_found_dep
+elif llvmopt.auto()
+  message('llvm requires a C++ compiler')
 endif
 
 
@@ -769,8 +769,8 @@ endif
 
 icuopt = get_option('icu')
 if not icuopt.disabled()
-  icu = dependency('icu-uc', required: icuopt.enabled())
-  icu_i18n = dependency('icu-i18n', required: icuopt.enabled())
+  icu = dependency('icu-uc', required: icuopt)
+  icu_i18n = dependency('icu-i18n', required: icuopt)
 
   if icu.found()
     cdata.set('USE_ICU', 1)
@@ -1052,15 +1052,17 @@ endif
 ###############################################################
 
 pyopt = get_option('plpython')
+python3_dep = not_found_dep
 if not pyopt.disabled()
   pm = import('python')
-  python3_inst = pm.find_installation(required: pyopt.enabled())
-  python3_dep = python3_inst.dependency(embed: true, required: pyopt.enabled())
-  if not cc.check_header('Python.h', dependencies: python3_dep, required: pyopt.enabled())
-    python3_dep = not_found_dep
+  python3_inst = pm.find_installation(required: pyopt)
+  if python3_inst.found()
+    python3_dep = python3_inst.dependency(embed: true, required: pyopt)
+    # Remove this check after we depend on Meson >= 1.1.0
+    if not cc.check_header('Python.h', dependencies: python3_dep, required: pyopt)
+      python3_dep = not_found_dep
+    endif
   endif
-else
-  python3_dep = not_found_dep
 endif
 
 
@@ -1079,7 +1081,7 @@ if not get_option('readline').disabled()
     readline = dependency(readline_dep, required: false)
     if not readline.found()
       readline = cc.find_library(readline_dep,
-        required: get_option('readline').enabled(),
+        required: get_option('readline'),
         dirs: test_lib_d)
     endif
     if readline.found()
@@ -1379,7 +1381,7 @@ if not zlibopt.disabled()
     warning('did not find zlib')
   elif not cc.has_header('zlib.h',
       args: test_c_args, include_directories: postgres_inc,
-      dependencies: [zlib_t], required: zlibopt.enabled())
+      dependencies: [zlib_t], required: zlibopt)
     warning('zlib header not found')
   elif not cc.has_type('z_streamp',
       dependencies: [zlib_t], prefix: '#include <zlib.h>',
@@ -2538,7 +2540,7 @@ if not nlsopt.disabled()
   # otherwise there'd be lots of
   # "Gettext not found, all translation (po) targets will be ignored."
   # warnings if not found.
-  msgfmt = find_program('msgfmt', required: nlsopt.enabled(), native: true)
+  msgfmt = find_program('msgfmt', required: nlsopt, native: true)
 
   # meson 0.59 has this wrapped in dependency('intl')
   if (msgfmt.found() and

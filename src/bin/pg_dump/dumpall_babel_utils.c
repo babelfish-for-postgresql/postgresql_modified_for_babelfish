@@ -35,6 +35,11 @@ typedef enum {
 
 static babelfish_status bbf_status = NONE;
 
+static char default_bbf_roles[] = "('sysadmin', 'bbf_role_admin', "
+								  "'master_dbo', 'master_db_owner', 'master_guest', "
+								  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
+								  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest')";
+
 /*
  * Run a query, return the results, exit program on failure.
  */
@@ -115,7 +120,7 @@ void
 dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 {
 	PGresult	*res;
-	char		*source_server_version;
+	int     	source_server_version_num;
 	char		*source_migration_mode;
 	PQExpBuffer	qry;
 
@@ -130,8 +135,8 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 	 * differs from source server version.
 	 */
 	qry = createPQExpBuffer();
-	res = executeQuery(conn, "SHOW server_version");
-	source_server_version = pstrdup(PQgetvalue(res, 0, 0));
+	res = executeQuery(conn, "SELECT setting::INT from pg_settings WHERE name = 'server_version_num';");
+	source_server_version_num = atoi(PQgetvalue(res, 0, 0));
 
 	/*
 	 * Temporarily enable ON_ERROR_STOP so that whole restore script
@@ -141,15 +146,17 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 	appendPQExpBuffer(qry,
 					  "DO $$"
 					  "\nDECLARE"
-					  "\n    target_server_version VARCHAR;"
+					  "\n    target_server_version_num INT;"
 					  "\nBEGIN"
-					  "\n    SELECT INTO target_server_version setting from pg_settings"
-					  "\n        WHERE name = 'server_version';"
-					  "\n    IF target_server_version::VARCHAR != '%s' THEN"
+					  "\n    SELECT INTO target_server_version_num setting::INT from pg_settings"
+					  "\n        WHERE name = 'server_version_num';"
+					  "\n    IF target_server_version_num != %d THEN"
 					  "\n        RAISE 'Dump and restore across different Postgres versions is not yet supported.';"
+					  "\n    ELSIF target_server_version_num < 150005 THEN"
+					  "\n        RAISE 'Target Postgres version must be 15.5 or higher for Babelfish restore.';"
 					  "\n    END IF;"
 					  "\nEND$$;\n\n"
-					  , source_server_version);
+					  , source_server_version_num);
 	PQclear(res);
 
 	/*
@@ -177,7 +184,6 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 	fprintf(OPF, "%s", qry->data);
 
 	destroyPQExpBuffer(qry);
-	pfree(source_server_version);
 	pfree(source_migration_mode);
 }
 
@@ -232,15 +238,12 @@ getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog,
 
 	if (drop_query)
 	{
-		appendPQExpBufferStr(buf,
-							 "SELECT rolname "
-							 "FROM bbf_roles "
-							 "WHERE rolname !~ '^pg_' "
-							 "AND rolname NOT IN ('sysadmin', "
-							 "'master_dbo', 'master_db_owner', 'master_guest', "
-							 "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
-							 "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') "
-							 "ORDER BY 1 ");
+		appendPQExpBuffer(buf,
+						  "SELECT rolname "
+						  "FROM bbf_roles "
+						  "WHERE rolname !~ '^pg_' "
+						  "AND rolname NOT IN %s "
+						  "ORDER BY 1 ", default_bbf_roles);
 	}
 	else
 	{
@@ -253,11 +256,8 @@ getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog,
 						  "rolname = current_user AS is_current_user "
 						  "FROM bbf_roles "
 						  "WHERE rolname !~ '^pg_' "
-						  "AND rolname NOT IN ('sysadmin', "
-						  "'master_dbo', 'master_db_owner', 'master_guest', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') "
-						  "ORDER BY 2 ", role_catalog);
+						  "AND rolname NOT IN %s "
+						  "ORDER BY 2 ", role_catalog, default_bbf_roles);
 	}
 }
 
@@ -299,7 +299,8 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 	/* Just include sysadmin role memberships in case of Babelfish logical database dump. */
 	else
 		appendPQExpBufferStr(buf,
-							 "SELECT 'sysadmin' AS rolname UNION ");
+							 "SELECT 'sysadmin' AS rolname UNION "
+							 "SELECT 'bbf_role_admin' AS rolname UNION ");
 	appendPQExpBuffer(buf,
 					  "SELECT rolname FROM sys.babelfish_authid_user_ext ");
 	/* Only dump users of the specific logical database we are currently dumping. */
@@ -333,5 +334,6 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 						 "INNER JOIN bbf_roles um on um.oid = a.member "
 						 "LEFT JOIN bbf_roles ug on ug.oid = a.grantor "
 						 "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_') "
-						 "ORDER BY 1,2,4");
+						 "AND NOT (ur.rolname IN %s AND um.rolname IN %s) "
+						 "ORDER BY 1,2,4", default_bbf_roles, default_bbf_roles);
 }

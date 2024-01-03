@@ -848,7 +848,7 @@ brinbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 	 * whole relation will be rolled back.
 	 */
 
-	meta = ExtendBufferedRel(EB_REL(index), MAIN_FORKNUM, NULL,
+	meta = ExtendBufferedRel(BMR_REL(index), MAIN_FORKNUM, NULL,
 							 EB_LOCK_FIRST | EB_SKIP_EXTENSION_LOCK);
 	Assert(BufferGetBlockNumber(meta) == BRIN_METAPAGE_BLKNO);
 
@@ -915,7 +915,7 @@ brinbuildempty(Relation index)
 	Buffer		metabuf;
 
 	/* An empty BRIN index has a metapage only. */
-	metabuf = ExtendBufferedRel(EB_REL(index), INIT_FORKNUM, NULL,
+	metabuf = ExtendBufferedRel(BMR_REL(index), INIT_FORKNUM, NULL,
 								EB_LOCK_FIRST | EB_SKIP_EXTENSION_LOCK);
 
 	/* Initialize and xlog metabuffer. */
@@ -1102,8 +1102,14 @@ brin_summarize_range(PG_FUNCTION_ARGS)
 				 errmsg("could not open parent table of index \"%s\"",
 						RelationGetRelationName(indexRel))));
 
-	/* OK, do it */
-	brinsummarize(indexRel, heapRel, heapBlk, true, &numSummarized, NULL);
+	/* see gin_clean_pending_list() */
+	if (indexRel->rd_index->indisvalid)
+		brinsummarize(indexRel, heapRel, heapBlk, true, &numSummarized, NULL);
+	else
+		ereport(DEBUG1,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("index \"%s\" is not valid",
+						RelationGetRelationName(indexRel))));
 
 	/* Roll back any GUC changes executed by index functions */
 	AtEOXact_GUC(false, save_nestlevel);
@@ -1185,12 +1191,21 @@ brin_desummarize_range(PG_FUNCTION_ARGS)
 				 errmsg("could not open parent table of index \"%s\"",
 						RelationGetRelationName(indexRel))));
 
-	/* the revmap does the hard work */
-	do
+	/* see gin_clean_pending_list() */
+	if (indexRel->rd_index->indisvalid)
 	{
-		done = brinRevmapDesummarizeRange(indexRel, heapBlk);
+		/* the revmap does the hard work */
+		do
+		{
+			done = brinRevmapDesummarizeRange(indexRel, heapBlk);
+		}
+		while (!done);
 	}
-	while (!done);
+	else
+		ereport(DEBUG1,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("index \"%s\" is not valid",
+						RelationGetRelationName(indexRel))));
 
 	relation_close(indexRel, ShareUpdateExclusiveLock);
 	relation_close(heapRel, ShareUpdateExclusiveLock);
