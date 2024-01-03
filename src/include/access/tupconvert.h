@@ -48,4 +48,10 @@ extern Bitmapset *execute_attr_map_cols(AttrMap *attrMap, Bitmapset *inbitmap);
 
 extern void free_conversion_map(TupleConversionMap *map);
 
+typedef Datum (*exec_tsql_cast_value_hook_type)(Datum value, bool *isnull,
+							 Oid valtype, int32 valtypmod,
+							 Oid reqtype, int32 reqtypmod);
+extern PGDLLIMPORT exec_tsql_cast_value_hook_type exec_tsql_cast_value_hook;
+
+
 #endif							/* TUPCONVERT_H */

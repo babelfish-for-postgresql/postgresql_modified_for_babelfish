@@ -39,7 +39,7 @@ static char *babel_init_user = NULL;
 
 static char *getMinOid(Archive *fout);
 static bool isBabelfishConfigTable(TableInfo *tbinfo);
-static void addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_builtin_db);
+static void addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo);
 static void addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo);
 static int getMbstrlen(const char *mbstr,Archive *fout);
 static bool is_ms_shipped(DumpableObject *dobj, Archive *fout);
@@ -221,7 +221,7 @@ void
 dumpBabelRestoreChecks(Archive *fout)
 {
 	PGresult	*res;
-	char		*source_server_version;
+	int     	source_server_version_num;
 	char		*source_migration_mode;
 	PQExpBuffer	qry;
 	ArchiveFormat format = ((ArchiveHandle *) fout)->format;
@@ -237,8 +237,8 @@ dumpBabelRestoreChecks(Archive *fout)
 	 * differs from source server version.
 	 */
 	qry = createPQExpBuffer();
-	res = ExecuteSqlQueryForSingleRow(fout, "SHOW server_version");
-	source_server_version = pstrdup(PQgetvalue(res, 0, 0));
+	res = ExecuteSqlQueryForSingleRow(fout, "SELECT setting::INT from pg_settings WHERE name = 'server_version_num';");
+	source_server_version_num = atoi(PQgetvalue(res, 0, 0));
 
 	/*
 	 * Temporarily enable ON_ERROR_STOP so that whole restore script
@@ -250,15 +250,17 @@ dumpBabelRestoreChecks(Archive *fout)
 	appendPQExpBuffer(qry,
 					  "DO $$"
 					  "\nDECLARE"
-					  "\n    target_server_version VARCHAR;"
+					  "\n    target_server_version_num INT;"
 					  "\nBEGIN"
-					  "\n    SELECT INTO target_server_version setting from pg_settings"
-					  "\n        WHERE name = 'server_version';"
-					  "\n    IF target_server_version::VARCHAR != '%s' THEN"
+					  "\n    SELECT INTO target_server_version_num setting::INT from pg_settings"
+					  "\n        WHERE name = 'server_version_num';"
+					  "\n    IF target_server_version_num != %d THEN"
 					  "\n        RAISE 'Dump and restore across different Postgres versions is not yet supported.';"
+					  "\n    ELSIF target_server_version_num < 150005 THEN"
+					  "\n        RAISE 'Target Postgres version must be 15.5 or higher for Babelfish restore.';"
 					  "\n    END IF;"
 					  "\nEND$$;\n\n"
-					  , source_server_version);
+					  , source_server_version_num);
 	PQclear(res);
 
 	/*
@@ -290,7 +292,6 @@ dumpBabelRestoreChecks(Archive *fout)
 							  .section = SECTION_PRE_DATA,
 							  .createStmt = qry->data));
 	destroyPQExpBuffer(qry);
-	pfree(source_server_version);
 	pfree(source_migration_mode);
 }
 
@@ -1019,26 +1020,27 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
  * corresponding to specified logical database.
  */
 void
-addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo, bool is_builtin_db)
+addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 {
 	if (strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0)
 	{
-		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.dbid = %d",
-						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 		/*
-		 * builtin db will already be present in the target server so
-		 * no need to dump catalog entry for it.
+		 * Dump database catalog entry for specified logical database unless
+		 * it's a builtin database (dbid 1, 2, 3 or 4), in which case the db
+		 * will already be present in the target server so no need to dump
+		 * catalog entry for it.
 		 */
-		if (is_builtin_db)
-			appendPQExpBufferStr(buf, " LIMIT 0");
+		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.dbid = %d AND a.dbid > 4",
+						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	}
 	else if (strcmp(tbinfo->dobj.name, "babelfish_namespace_ext") == 0)
 	{
-		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.dbid = %d",
+		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.dbid = %d "
+						  "AND a.nspname NOT IN "
+						  "('master_dbo', 'master_guest', "
+						  "'msdb_dbo', 'msdb_guest', "
+						  "'tempdb_dbo', 'tempdb_guest') ",
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
-		if (is_builtin_db)
-			appendPQExpBuffer(buf, " AND a.nspname NOT IN ('%s_dbo', '%s_guest')",
-							  escaped_bbf_db_name, escaped_bbf_db_name);
 	}
 	else if (strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
 			 strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0)
@@ -1211,7 +1213,7 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 	if (bbf_db_name == NULL)
 		addFromClauseForPhysicalDatabaseDump(buf, tbinfo);
 	else
-		addFromClauseForLogicalDatabaseDump(buf, tbinfo, is_builtin_db);
+		addFromClauseForLogicalDatabaseDump(buf, tbinfo);
 }
 
 /*
@@ -1310,7 +1312,7 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 		if (bbf_db_name == NULL)
 			addFromClauseForPhysicalDatabaseDump(copyBuf, tbinfo);
 		else
-			addFromClauseForLogicalDatabaseDump(copyBuf, tbinfo, is_builtin_db);
+			addFromClauseForLogicalDatabaseDump(copyBuf, tbinfo);
 		appendPQExpBufferStr(copyBuf, ") TO stdout;");
 	}
 	destroyPQExpBuffer(q);

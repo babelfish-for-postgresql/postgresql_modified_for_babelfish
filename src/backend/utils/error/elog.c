@@ -67,6 +67,7 @@
 #endif
 
 #include "access/transam.h"
+#include "access/parallel.h"
 #include "access/xact.h"
 #include "libpq/libpq.h"
 #include "libpq/pqformat.h"
@@ -1718,6 +1719,14 @@ ThrowErrorData(ErrorData *edata)
 	if (edata->internalquery)
 		newedata->internalquery = pstrdup(edata->internalquery);
 
+	/*
+	 * Generally, vanilla postgres does not share messaged_id with leader node from
+	 * parallel worker. But case of Babelfish where message_id is needed to find
+	 * T-SQL error code; below hook is defined to handle message_id for Babelfish. 
+	 */
+	if (edata->message_id)
+		newedata->message_id = (const char *) pstrdup(edata->message_id);
+
 	MemoryContextSwitchTo(oldcontext);
 	recursion_depth--;
 
@@ -3250,6 +3259,15 @@ send_message_to_frontend(ErrorData *edata)
 			err_sendstring(&msgbuf, edata->funcname);
 		}
 
+		if (IsBabelfishParallelWorker())
+		{
+			if (edata->message_id)
+			{
+				pq_sendbyte(&msgbuf, PG_DIAG_MESSAGE_ID);
+				err_sendstring(&msgbuf, edata->message_id);
+			}
+		}
+
 		pq_sendbyte(&msgbuf, '\0'); /* terminator */
 
 		pq_endmessage(&msgbuf);
@@ -3405,6 +3423,34 @@ write_stderr(const char *fmt,...)
 	}
 #endif
 	va_end(ap);
+}
+
+
+/*
+ * Write a message to STDERR using only async-signal-safe functions.  This can
+ * be used to safely emit a message from a signal handler.
+ *
+ * TODO: It is likely possible to safely do a limited amount of string
+ * interpolation (e.g., %s and %d), but that is not presently supported.
+ */
+void
+write_stderr_signal_safe(const char *str)
+{
+	int			nwritten = 0;
+	int			ntotal = strlen(str);
+
+	while (nwritten < ntotal)
+	{
+		int			rc;
+
+		rc = write(STDERR_FILENO, str + nwritten, ntotal - nwritten);
+
+		/* Just give up on error.  There isn't much else we can do. */
+		if (rc == -1)
+			return;
+
+		nwritten += rc;
+	}
 }
 
 

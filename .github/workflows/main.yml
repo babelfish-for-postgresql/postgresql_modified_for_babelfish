@@ -11,13 +11,17 @@ jobs:
     steps:
       - name: clone-repository
         uses: actions/checkout@v2
+      - name: install-dependencies
+        run: |
+          sudo apt update --fix-missing -y
+          sudo apt install -y libipc-run-perl
       - name: build-postgres
         run: |
-          ./configure
-          make world-bin -j8 COPT='-Werror'
+          ./configure --with-icu --enable-cassert --enable-tap-tests
+          make world-bin -j8 COPT='-Werror -Wno-error=maybe-uninitialized'
       - name: run-tests
         run: |
-          make check -j8
+          make check-world
       - name: upload-test-summary
         if: failure()
         uses: actions/upload-artifact@v2

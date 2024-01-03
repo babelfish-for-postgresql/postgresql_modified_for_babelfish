@@ -176,6 +176,10 @@ coerce_type(ParseState *pstate, Node *node,
 		/* no conversion needed */
 		return node;
 	}
+	if (nodeTag((Node*)node) == T_SetToDefault)
+	{
+		return node;
+	}
 	if (targetTypeId == ANYOID ||
 		targetTypeId == ANYELEMENTOID ||
 		targetTypeId == ANYNONARRAYOID ||
@@ -330,9 +334,11 @@ coerce_type(ParseState *pstate, Node *node,
 												  targetTypeMod, baseTypeMod,
 												  newcon, DatumGetCString(con->constvalue),
 												  ccontext, cformat, location);
-			if (result) /* runtimer error function returned */
+			if (result)
+			{
+				ReleaseSysCache(baseType);
 				return result;
-
+			}
 			/*
 			 * If the result is NULL, the newcon should be already updated properly.
 			 * Keep advancing the code.

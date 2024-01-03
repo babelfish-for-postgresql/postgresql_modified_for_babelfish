@@ -115,7 +115,7 @@ void
 dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 {
 	PGresult	*res;
-	char		*source_server_version;
+	int     	source_server_version_num;
 	char		*source_migration_mode;
 	PQExpBuffer	qry;
 
@@ -130,8 +130,8 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 	 * differs from source server version.
 	 */
 	qry = createPQExpBuffer();
-	res = executeQuery(conn, "SHOW server_version");
-	source_server_version = pstrdup(PQgetvalue(res, 0, 0));
+	res = executeQuery(conn, "SELECT setting::INT from pg_settings WHERE name = 'server_version_num';");
+	source_server_version_num = atoi(PQgetvalue(res, 0, 0));
 
 	/*
 	 * Temporarily enable ON_ERROR_STOP so that whole restore script
@@ -141,15 +141,17 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 	appendPQExpBuffer(qry,
 					  "DO $$"
 					  "\nDECLARE"
-					  "\n    target_server_version VARCHAR;"
+					  "\n    target_server_version_num INT;"
 					  "\nBEGIN"
-					  "\n    SELECT INTO target_server_version setting from pg_settings"
-					  "\n        WHERE name = 'server_version';"
-					  "\n    IF target_server_version::VARCHAR != '%s' THEN"
+					  "\n    SELECT INTO target_server_version_num setting::INT from pg_settings"
+					  "\n        WHERE name = 'server_version_num';"
+					  "\n    IF target_server_version_num != %d THEN"
 					  "\n        RAISE 'Dump and restore across different Postgres versions is not yet supported.';"
+					  "\n    ELSIF target_server_version_num < 150005 THEN"
+					  "\n        RAISE 'Target Postgres version must be 15.5 or higher for Babelfish restore.';"
 					  "\n    END IF;"
 					  "\nEND$$;\n\n"
-					  , source_server_version);
+					  , source_server_version_num);
 	PQclear(res);
 
 	/*
@@ -177,7 +179,6 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 	fprintf(OPF, "%s", qry->data);
 
 	destroyPQExpBuffer(qry);
-	pfree(source_server_version);
 	pfree(source_migration_mode);
 }
 
@@ -274,7 +275,7 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 
 	resetPQExpBuffer(buf);
 	appendPQExpBufferStr(buf, "WITH bbf_catalog AS (");
-	/* Include logins only in case of Babelfish physical database dump. */
+	/* Include all the logins only in case of Babelfish physical database dump. */
 	if (!bbf_db_name)
 	{
 		char *babel_init_user = getBabelfishInitUser(conn);
@@ -285,6 +286,10 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 						  babel_init_user);
 		pfree(babel_init_user);
 	}
+	/* Just include sysadmin role memberships in case of Babelfish logical database dump. */
+	else
+		appendPQExpBufferStr(buf,
+							 "SELECT 'sysadmin' AS rolname UNION ");
 	appendPQExpBuffer(buf,
 					  "SELECT rolname FROM sys.babelfish_authid_user_ext ");
 	/* Only dump users of the specific logical database we are currently dumping. */
@@ -304,14 +309,14 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 					  "bbf_roles AS (SELECT rc.* FROM %s rc INNER JOIN bbf_catalog bcat "
 					  "ON rc.rolname = bcat.rolname) ", role_catalog);
 
-	appendPQExpBuffer(buf, "SELECT ur.rolname AS roleid, "
-					  "um.rolname AS member, "
-					  "a.admin_option, "
-					  "ug.rolname AS grantor "
-					  "FROM pg_auth_members a "
-					  "LEFT JOIN %s ur on ur.oid = a.roleid "
-					  "INNER JOIN bbf_roles um on um.oid = a.member "
-					  "LEFT JOIN %s ug on ug.oid = a.grantor "
-					  "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_')"
-					  "ORDER BY 1,2,3", role_catalog, role_catalog);
+	appendPQExpBufferStr(buf, "SELECT ur.rolname AS roleid, "
+						 "um.rolname AS member, "
+						 "a.admin_option, "
+						 "ug.rolname AS grantor "
+						 "FROM pg_auth_members a "
+						 "INNER JOIN bbf_roles ur on ur.oid = a.roleid "
+						 "INNER JOIN bbf_roles um on um.oid = a.member "
+						 "LEFT JOIN bbf_roles ug on ug.oid = a.grantor "
+						 "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_') "
+						 "ORDER BY 1,2,3");
 }

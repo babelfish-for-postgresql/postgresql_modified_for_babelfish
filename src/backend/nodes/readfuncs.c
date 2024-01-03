@@ -602,8 +602,6 @@ _readIntoClause(void)
 	READ_STRING_FIELD(tableSpaceName);
 	READ_NODE_FIELD(viewQuery);
 	READ_BOOL_FIELD(skipData);
-	READ_STRING_FIELD(identityName);
-	READ_STRING_FIELD(identityType);
 
 	READ_DONE();
 }

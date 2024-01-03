@@ -56,6 +56,8 @@ tle_name_comparison_hook_type  tle_name_comparison_hook = NULL;
 
 sortby_nulls_hook_type  sortby_nulls_hook = NULL;
 
+optimize_explicit_cast_hook_type optimize_explicit_cast_hook = NULL;
+
 static int	extractRemainingColumns(ParseNamespaceColumn *src_nscolumns,
 									List *src_colnames,
 									List **src_colnos,
@@ -1741,11 +1743,13 @@ transformWhereClause(ParseState *pstate, Node *clause,
 
 	qual = transformExpr(pstate, clause, exprKind);
 
+	if (optimize_explicit_cast_hook)
+		qual = optimize_explicit_cast_hook(pstate, qual);
+	
 	qual = coerce_to_boolean(pstate, qual, constructName);
 
 	return qual;
 }
-
 
 /*
  * transformLimitClause -

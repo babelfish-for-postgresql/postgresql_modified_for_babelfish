@@ -88,6 +88,9 @@ pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook = NULL;
 /* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
 pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook = NULL;
 
+/* Hooks for transform TSQL pivot clause in select stmt */
+transform_pivot_clause_hook_type transform_pivot_clause_hook = NULL;
+
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
 static Query *transformInsertStmt(ParseState *pstate, InsertStmt *stmt);
@@ -119,7 +122,6 @@ static void transformLockingClause(ParseState *pstate, Query *qry,
 #ifdef RAW_EXPRESSION_COVERAGE_TEST
 static bool test_raw_expression_coverage(Node *node, void *context);
 #endif
-
 
 /*
  * parse_analyze_fixedparams
@@ -373,6 +375,11 @@ transformStmt(ParseState *pstate, Node *parseTree)
 	}
 #endif							/* RAW_EXPRESSION_COVERAGE_TEST */
 
+	/*
+	 * Caution: when changing the set of statement types that have non-default
+	 * processing here, see also stmt_requires_parse_analysis() and
+	 * analyze_requires_snapshot().
+	 */
 	switch (nodeTag(parseTree))
 	{
 			/*
@@ -459,14 +466,22 @@ transformStmt(ParseState *pstate, Node *parseTree)
 }
 
 /*
- * analyze_requires_snapshot
- *		Returns true if a snapshot must be set before doing parse analysis
- *		on the given raw parse tree.
+ * stmt_requires_parse_analysis
+ *		Returns true if parse analysis will do anything non-trivial
+ *		with the given raw parse tree.
  *
- * Classification here should match transformStmt().
+ * Generally, this should return true for any statement type for which
+ * transformStmt() does more than wrap a CMD_UTILITY Query around it.
+ * When it returns false, the caller can assume that there is no situation
+ * in which parse analysis of the raw statement could need to be re-done.
+ *
+ * Currently, since the rewriter and planner do nothing for CMD_UTILITY
+ * Queries, a false result means that the entire parse analysis/rewrite/plan
+ * pipeline will never need to be re-done.  If that ever changes, callers
+ * will likely need adjustment.
  */
 bool
-analyze_requires_snapshot(RawStmt *parseTree)
+stmt_requires_parse_analysis(RawStmt *parseTree)
 {
 	bool		result;
 
@@ -480,6 +495,7 @@ analyze_requires_snapshot(RawStmt *parseTree)
 		case T_UpdateStmt:
 		case T_MergeStmt:
 		case T_SelectStmt:
+		case T_ReturnStmt:
 		case T_PLAssignStmt:
 			result = true;
 			break;
@@ -490,17 +506,41 @@ analyze_requires_snapshot(RawStmt *parseTree)
 		case T_DeclareCursorStmt:
 		case T_ExplainStmt:
 		case T_CreateTableAsStmt:
-			/* yes, because we must analyze the contained statement */
+		case T_CallStmt:
 			result = true;
 			break;
 
 		default:
-			/* other utility statements don't have any real parse analysis */
+			/* all other statements just get wrapped in a CMD_UTILITY Query */
 			result = false;
 			break;
 	}
 
 	return result;
+}
+
+/*
+ * analyze_requires_snapshot
+ *		Returns true if a snapshot must be set before doing parse analysis
+ *		on the given raw parse tree.
+ */
+bool
+analyze_requires_snapshot(RawStmt *parseTree)
+{
+	/*
+	 * Currently, this should return true in exactly the same cases that
+	 * stmt_requires_parse_analysis() does, so we just invoke that function
+	 * rather than duplicating it.  We keep the two entry points separate for
+	 * clarity of callers, since from the callers' standpoint these are
+	 * different conditions.
+	 *
+	 * While there may someday be a statement type for which transformStmt()
+	 * does something nontrivial and yet no snapshot is needed for that
+	 * processing, it seems likely that making such a choice would be fragile.
+	 * If you want to install an exception, document the reasoning for it in a
+	 * comment.
+	 */
+	return stmt_requires_parse_analysis(parseTree);
 }
 
 /*
@@ -1365,7 +1405,6 @@ count_rowexpr_columns(ParseState *pstate, Node *expr)
 	return -1;
 }
 
-
 /*
  * transformSelectStmt -
  *	  transforms a Select Statement
@@ -1403,6 +1442,11 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 
 	/* make WINDOW info available for window functions, too */
 	pstate->p_windowdefs = stmt->windowClause;
+
+	if (stmt->isPivot && transform_pivot_clause_hook)
+	{
+		(*transform_pivot_clause_hook)(pstate, stmt);
+	}
 
 	/* process the FROM clause */
 	transformFromClause(pstate, stmt->fromClause);
@@ -3119,9 +3163,29 @@ transformCallStmt(ParseState *pstate, CallStmt *stmt)
 	targs = NIL;
 	foreach(lc, stmt->funccall->args)
 	{
-		targs = lappend(targs, transformExpr(pstate,
-											 (Node *) lfirst(lc),
-											 EXPR_KIND_CALL_ARGUMENT));
+		if (sql_dialect == SQL_DIALECT_TSQL && 
+			(nodeTag((Node*)lfirst(lc)) == T_SetToDefault))
+		{
+			// For Tsql Default in function call, we set it to UNKNOWN in parser stage
+			// In analyzer it'll use other types to detect the right func candidate
+			((SetToDefault *)lfirst(lc))->typeId = UNKNOWNOID;
+			targs = lappend(targs, (Node *) lfirst(lc));
+		}
+		else if (sql_dialect == SQL_DIALECT_TSQL && 
+			 nodeTag((Node*)lfirst(lc)) == T_NamedArgExpr &&
+			 nodeTag(((NamedArgExpr*)lfirst(lc))->arg) == T_SetToDefault)
+		{
+			// For Tsql Default in function call, we set it to UNKNOWN in parser stage
+			// In analyzer it'll use other types to detect the right func candidate
+			((SetToDefault *)((NamedArgExpr*)lfirst(lc))->arg)->typeId = UNKNOWNOID;
+			targs = lappend(targs, (Node *) lfirst(lc));
+		}
+		else
+		{
+			targs = lappend(targs, transformExpr(pstate,
+												(Node *) lfirst(lc),
+												EXPR_KIND_CALL_ARGUMENT));
+		}
 	}
 
 	node = ParseFuncOrColumn(pstate,

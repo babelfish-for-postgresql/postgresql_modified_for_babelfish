@@ -115,7 +115,4 @@ typedef void (*bbfSelectIntoUtility_hook_type)(struct ParseState *pstate, Planne
 						  ParamListInfo params, QueryCompletion *qc);
 extern PGDLLIMPORT bbfSelectIntoUtility_hook_type bbfSelectIntoUtility_hook;
 
-typedef void (*bbfSelectIntoAddIdentity_hook_type)(IntoClause *into, List *tableElts);
-extern PGDLLIMPORT bbfSelectIntoAddIdentity_hook_type bbfSelectIntoAddIdentity_hook;
-
 #endif							/* UTILITY_H */
