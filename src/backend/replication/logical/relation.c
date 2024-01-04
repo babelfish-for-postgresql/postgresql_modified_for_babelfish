@@ -749,11 +749,9 @@ static Oid
 FindUsableIndexForReplicaIdentityFull(Relation localrel, AttrMap *attrmap)
 {
 	List	   *idxlist = RelationGetIndexList(localrel);
-	ListCell   *lc;
 
-	foreach(lc, idxlist)
+	foreach_oid(idxoid, idxlist)
 	{
-		Oid			idxoid = lfirst_oid(lc);
 		bool		isUsableIdx;
 		Relation	idxRel;
 		IndexInfo  *idxInfo;
