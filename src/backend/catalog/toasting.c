@@ -202,7 +202,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	{
 		pg_toast_prefix = "@pg_toast";
 	}
-	else if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTempTable(rel) && get_ENR_withoid(currentQueryEnv, rel->rd_id, ENR_TSQL_TEMP))
+	else if (sql_dialect == SQL_DIALECT_TSQL && rel->rd_rel->relpersistence == RELPERSISTENCE_TEMP && get_ENR_withoid(currentQueryEnv, rel->rd_id, ENR_TSQL_TEMP))
 	{
 		pg_toast_prefix = "#pg_toast";
 	}

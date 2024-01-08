@@ -1613,7 +1613,7 @@ finish_heap_swap(Oid OIDOldHeap, Oid OIDNewHeap,
 			/* rename the toast table ... */
 			if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(newrel))
 				pg_toast_prefix = "@pg_toast";
-			else if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTempTable(newrel) && get_ENR_withoid(currentQueryEnv, newrel->rd_id, ENR_TSQL_TEMP))
+			else if (sql_dialect == SQL_DIALECT_TSQL && newrel->rd_rel->relpersistence == RELPERSISTENCE_TEMP && get_ENR_withoid(currentQueryEnv, newrel->rd_id, ENR_TSQL_TEMP))
 				pg_toast_prefix = "#pg_toast";
 
 			snprintf(NewToastName, NAMEDATALEN, "%s_%u",

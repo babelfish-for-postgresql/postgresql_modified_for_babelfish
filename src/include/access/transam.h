@@ -255,7 +255,7 @@ typedef struct VariableCacheData
 	/*
 	 * These fields are also protected by OidGenLock. For tempOidStart, Shmem will
 	 * be the source of truth, as another process may have gotten there first and 
-	 * updated the start. For tempOidBufferSize, the GUC will be the source of truth.
+	 * updated the start.
 	 */
 	Oid			tempOidStart;
 	uint32		tempOidBufferSize;
