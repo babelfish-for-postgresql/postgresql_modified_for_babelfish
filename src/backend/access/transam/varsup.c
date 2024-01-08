@@ -33,9 +33,6 @@
 /* Number of OIDs to prefetch (preallocate) per XLOG write */
 #define VAR_OID_PREFETCH		8192
 
-#define OID_TO_BUFFER_START(oid) 		((oid) + INT_MIN)
-#define BUFFER_START_TO_OID 			((Oid) (temp_oid_buffer_start) - INT_MIN)
-
 /* pointer to "variable cache" in shared memory (set up by shmem.c) */
 VariableCache ShmemVariableCache = NULL;
 
@@ -519,6 +516,7 @@ ForceTransactionIdLimitUpdate(void)
 		return true;			/* could happen, per comments above */
 	return false;
 }
+
 
 /*
  * GetNewObjectId -- allocate a new OID

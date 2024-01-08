@@ -565,29 +565,21 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 		/* Generate the OID */
 		if (pg_class)
 		{
+			/* Temp tables use temp OID logic */
 			if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL && GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0)
-			{
-				/* Temp tables use temp OID logic */
 				rnode.node.relNode = GetNewTempOidWithIndex_hook(pg_class, ClassOidIndexId,
 													Anum_pg_class_oid);
-			}
 			else
-			{
 				rnode.node.relNode = GetNewOidWithIndex(pg_class, ClassOidIndexId,
 													Anum_pg_class_oid);
-			}
 		}	
 		else
 		{
+			/* Temp tables use temp OID logic */
 			if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL && GetNewTempObjectId_hook && temp_oid_buffer_size > 0)
-			{
-				/* Temp tables use temp OID logic */
 				rnode.node.relNode = GetNewTempObjectId_hook();
-			}
 			else
-			{
 				rnode.node.relNode = GetNewObjectId();
-			}
 		}
 
 		/* Check for existing file of same name */
@@ -611,15 +603,11 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 		}
 
 		if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL && tries > temp_oid_buffer_size)
-		{
 			ereport(ERROR,
 				(errmsg("Unable to allocate oid for temp table. Drop some temporary tables or start a new session.")));
-		}
 		else if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL && tries >= (0.8 * temp_oid_buffer_size))
-		{
 			ereport(WARNING,
 				(errmsg("Temp object OID usage is over 80%%. Consider dropping some temp tables or starting a new session.")));
-		}
 
 		pfree(rpath);
 		tries++;

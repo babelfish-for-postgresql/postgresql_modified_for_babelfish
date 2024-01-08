@@ -701,4 +701,3 @@ extern void RelationDecrementReferenceCount(Relation rel);
 	 (relation)->rd_rel->relname.data[0] == '@')
 
 #endif							/* REL_H */
-
