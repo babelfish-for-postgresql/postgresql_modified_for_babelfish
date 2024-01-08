@@ -739,13 +739,9 @@ make_new_heap(Oid OIDOldHeap, Oid NewTableSpace, Oid NewAccessMethod,
 	 * so that the metadata is properly cleaned up after in this function.
 	 */
 	if (sql_dialect == SQL_DIALECT_TSQL && relpersistence == RELPERSISTENCE_TEMP && get_ENR_withoid(currentQueryEnv, OIDOldHeap, ENR_TSQL_TEMP))
-	{
 		snprintf(NewHeapName, sizeof(NewHeapName), "#pg_temp_%u", OIDOldHeap);
-	}
 	else
-	{
 		snprintf(NewHeapName, sizeof(NewHeapName), "pg_temp_%u", OIDOldHeap);
-	}
 
 	OIDNewHeap = heap_create_with_catalog(NewHeapName,
 										  namespaceid,

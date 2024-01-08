@@ -59,6 +59,11 @@ GetNewTempOidWithIndex_hook_type GetNewTempOidWithIndex_hook;
 GetNewPermanentRelFileNode_hook_type GetNewPermanentRelFileNode_hook;
 
 /*
+ * Temp tables in BBF should use the OID buffer.
+ */
+#define USE_BBF_OID_BUFFER (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL && GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0)
+
+/*
  * Parameters to determine when to emit a log message in
  * GetNewOidWithIndex()
  */
@@ -566,7 +571,7 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 		if (pg_class)
 		{
 			/* Temp tables use temp OID logic */
-			if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL && GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0)
+			if (USE_BBF_OID_BUFFER)
 				rnode.node.relNode = GetNewTempOidWithIndex_hook(pg_class, ClassOidIndexId,
 													Anum_pg_class_oid);
 			else
@@ -576,7 +581,7 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 		else
 		{
 			/* Temp tables use temp OID logic */
-			if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL && GetNewTempObjectId_hook && temp_oid_buffer_size > 0)
+			if (USE_BBF_OID_BUFFER)
 				rnode.node.relNode = GetNewTempObjectId_hook();
 			else
 				rnode.node.relNode = GetNewObjectId();
@@ -602,10 +607,10 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 			collides = false;
 		}
 
-		if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL && tries > temp_oid_buffer_size)
+		if (USE_BBF_OID_BUFFER && tries > temp_oid_buffer_size)
 			ereport(ERROR,
 				(errmsg("Unable to allocate oid for temp table. Drop some temporary tables or start a new session.")));
-		else if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL && tries >= (0.8 * temp_oid_buffer_size))
+		else if (USE_BBF_OID_BUFFER && tries >= (0.8 * temp_oid_buffer_size))
 			ereport(WARNING,
 				(errmsg("Temp object OID usage is over 80%%. Consider dropping some temp tables or starting a new session.")));
 

@@ -274,7 +274,6 @@ extern bool TransactionStartedDuringRecovery(void);
 
 /* in transam/varsup.c */
 extern PGDLLIMPORT VariableCache ShmemVariableCache;
-extern PGDLLIMPORT VariableCache TempVariableCache;
 
 /*
  * prototypes for functions in transam/transam.c
@@ -300,7 +299,6 @@ extern void SetTransactionIdLimit(TransactionId oldest_datfrozenxid,
 								  Oid oldest_datoid);
 extern void AdvanceOldestClogXid(TransactionId oldest_datfrozenxid);
 extern bool ForceTransactionIdLimitUpdate(void);
-extern Oid	GetNewTempObjectId(void);
 extern Oid	GetNewObjectId(void);
 extern void StopGeneratingPinnedObjectIds(void);
 

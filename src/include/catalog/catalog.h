@@ -36,13 +36,9 @@ extern bool IsSharedRelation(Oid relationId);
 
 extern bool IsPinnedObject(Oid classId, Oid objectId);
 
-extern Oid	GetNewTempOidWithIndex(Relation relation, Oid indexId,
-							   AttrNumber oidcolumn);
 extern Oid	GetNewOidWithIndex(Relation relation, Oid indexId,
 							   AttrNumber oidcolumn);
 extern Oid	GetNewRelFileNode(Oid reltablespace, Relation pg_class,
-							  char relpersistence);
-extern Oid	GetNewPermanentRelFileNode(Oid reltablespace, Relation pg_class,
 							  char relpersistence);
 
 typedef Oid (*GetNewTempObjectId_hook_type) (void);
