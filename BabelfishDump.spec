@@ -23,7 +23,7 @@
 
 Name: BabelfishDump
 Summary: Postgresql dump utilities modified for Babelfish
-Version: 15.5
+Version: 16.1
 Release: 1%{?dist}
 License: PostgreSQL Global Development Group
 Url: https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish
