@@ -213,4 +213,5 @@ extern void AtEOSubXact_SPI(bool isCommit, SubTransactionId mySubid);
 extern bool SPI_inside_nonatomic_context(void);
 
 extern void SPI_setCurrentInternalTxnMode(bool mode);
+extern int  SPI_get_depth(void);
 #endif							/* SPI_H */
