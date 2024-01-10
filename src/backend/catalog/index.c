@@ -950,12 +950,12 @@ index_create(Relation heapRelation,
 		}
 		else
 		{
-			/* Index OIDs must be kept in normal OID range. */
-			if (is_enr && GetNewPermanentRelFileNode_hook)
-				indexRelationId = GetNewPermanentRelFileNode_hook(tableSpaceId, pg_class, relpersistence);
-			else
-				indexRelationId =
-					GetNewRelFileNode(tableSpaceId, pg_class, relpersistence);
+			/* 
+			 * Index OIDs must be kept in normal OID range due to deletion issues.
+			 * Since deletion is sorted by OID, adding indexes to temp OID range 
+			 * causes deletion order issues.
+			 */
+			indexRelationId = GetNewRelFileNode(tableSpaceId, pg_class, relpersistence, is_enr);
 		}
 	}
 

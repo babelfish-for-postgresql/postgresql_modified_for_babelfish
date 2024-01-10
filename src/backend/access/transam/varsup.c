@@ -13,8 +13,6 @@
 
 #include "postgres.h"
 
-#include <unistd.h>
-
 #include "access/clog.h"
 #include "access/commit_ts.h"
 #include "access/subtrans.h"
@@ -26,7 +24,6 @@
 #include "postmaster/autovacuum.h"
 #include "storage/pmsignal.h"
 #include "storage/proc.h"
-#include "utils/guc.h"
 #include "utils/syscache.h"
 
 

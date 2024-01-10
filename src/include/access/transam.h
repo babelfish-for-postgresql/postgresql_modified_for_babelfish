@@ -253,12 +253,11 @@ typedef struct VariableCacheData
 	TransactionId oldestClogXid;	/* oldest it's safe to look up in clog */
 
 	/*
-	 * These fields are also protected by OidGenLock. For tempOidStart, Shmem will
+	 * This field is also protected by OidGenLock. For tempOidStart, Shmem will
 	 * be the source of truth, as another process may have gotten there first and 
 	 * updated the start.
 	 */
 	Oid			tempOidStart;
-	uint32		tempOidBufferSize;
 } VariableCacheData;
 
 typedef VariableCacheData *VariableCache;

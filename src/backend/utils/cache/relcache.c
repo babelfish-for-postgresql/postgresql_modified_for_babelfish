@@ -3735,7 +3735,7 @@ RelationSetNewRelfilenode(Relation relation, char persistence)
 	{
 		/* Allocate a new relfilenode */
 		newrelfilenode = GetNewRelFileNode(relation->rd_rel->reltablespace,
-										   NULL, persistence);
+										   NULL, persistence, false);
 	}
 	else if (relation->rd_rel->relkind == RELKIND_INDEX)
 	{

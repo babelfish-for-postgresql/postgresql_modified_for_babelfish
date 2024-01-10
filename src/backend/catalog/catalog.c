@@ -56,12 +56,6 @@ IsToastClassHookType IsToastClassHook;
 
 GetNewTempObjectId_hook_type GetNewTempObjectId_hook;
 GetNewTempOidWithIndex_hook_type GetNewTempOidWithIndex_hook;
-GetNewPermanentRelFileNode_hook_type GetNewPermanentRelFileNode_hook;
-
-/*
- * Temp tables in BBF should use the OID buffer.
- */
-#define USE_BBF_OID_BUFFER (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL && GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0)
 
 /*
  * Parameters to determine when to emit a log message in
@@ -523,13 +517,14 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
  * created by bootstrap have preassigned OIDs, so there's no need.
  */
 Oid
-GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
+GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence, bool override_temp)
 {
 	RelFileNodeBackend rnode;
 	char	   *rpath;
 	bool		collides;
 	BackendId	backend;
 	int			tries = 0;
+	bool use_bbf_oid_buffer;
 
 	/*
 	 * If we ever get here during pg_upgrade, there's something wrong; all
@@ -563,6 +558,9 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 	 */
 	rnode.backend = backend;
 
+	use_bbf_oid_buffer = (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL 
+						&& GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0 && !override_temp);
+
 	do
 	{
 		CHECK_FOR_INTERRUPTS();
@@ -571,7 +569,7 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 		if (pg_class)
 		{
 			/* Temp tables use temp OID logic */
-			if (USE_BBF_OID_BUFFER)
+			if (use_bbf_oid_buffer)
 				rnode.node.relNode = GetNewTempOidWithIndex_hook(pg_class, ClassOidIndexId,
 													Anum_pg_class_oid);
 			else
@@ -581,7 +579,7 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 		else
 		{
 			/* Temp tables use temp OID logic */
-			if (USE_BBF_OID_BUFFER)
+			if (use_bbf_oid_buffer)
 				rnode.node.relNode = GetNewTempObjectId_hook();
 			else
 				rnode.node.relNode = GetNewObjectId();
@@ -607,7 +605,7 @@ GetNewRelFileNode(Oid reltablespace, Relation pg_class, char relpersistence)
 			collides = false;
 		}
 
-		if (USE_BBF_OID_BUFFER && tries > temp_oid_buffer_size)
+		if (use_bbf_oid_buffer && tries > temp_oid_buffer_size)
 			ereport(ERROR,
 				(errmsg("Unable to allocate oid for temp table. Drop some temporary tables or start a new session.")));
 

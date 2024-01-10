@@ -39,16 +39,13 @@ extern bool IsPinnedObject(Oid classId, Oid objectId);
 extern Oid	GetNewOidWithIndex(Relation relation, Oid indexId,
 							   AttrNumber oidcolumn);
 extern Oid	GetNewRelFileNode(Oid reltablespace, Relation pg_class,
-							  char relpersistence);
+							  char relpersistence, bool override_temp);
 
 typedef Oid (*GetNewTempObjectId_hook_type) (void);
 extern GetNewTempObjectId_hook_type GetNewTempObjectId_hook;
 
 typedef Oid (*GetNewTempOidWithIndex_hook_type) (Relation relation, Oid indexId, AttrNumber oidcolumn);
 extern GetNewTempOidWithIndex_hook_type GetNewTempOidWithIndex_hook;
-
-typedef Oid (*GetNewPermanentRelFileNode_hook_type) (Oid reltablespace, Relation pg_class, char relpersistence);
-extern GetNewPermanentRelFileNode_hook_type GetNewPermanentRelFileNode_hook;
 
 typedef bool (*IsExtendedCatalogHookType) (Oid relationId);
 extern IsExtendedCatalogHookType IsExtendedCatalogHook;

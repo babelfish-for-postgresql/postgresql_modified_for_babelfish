@@ -14582,7 +14582,7 @@ ATExecSetTableSpace(Oid tableOid, Oid newTableSpace, LOCKMODE lockmode)
 	 * to allocate a new one in the new tablespace.
 	 */
 	newrelfilenode = GetNewRelFileNode(newTableSpace, NULL,
-									   rel->rd_rel->relpersistence);
+									   rel->rd_rel->relpersistence, false);
 
 	/* Open old and new relation */
 	newrnode = rel->rd_node;
