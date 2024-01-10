@@ -82,4 +82,12 @@ extern void ParallelWorkerMain(Datum main_arg);
 /* Below helpers are added to support parallel workers in Babelfish context */
 extern bool IsBabelfishParallelWorker(void);
 
+/* Hooks for communicating babelfish related information to parallel worker */
+typedef void (*bbf_parallel_serialise_babelfixedparallelstate_and_insert_into_dsm_hook_type)(ParallelContext *pcxt, bool estimate);
+extern PGDLLIMPORT bbf_parallel_serialise_babelfixedparallelstate_and_insert_into_dsm_hook_type bbf_parallel_serialise_babelfixedparallelstate_and_insert_into_dsm_hook;
+
+typedef void (*bbf_parallel_restore_babelfishfixedparallelstate_hook_type)(shm_toc *toc);
+extern PGDLLIMPORT bbf_parallel_restore_babelfishfixedparallelstate_hook_type bbf_parallel_restore_babelfishfixedparallelstate_hook;
+
+
 #endif							/* PARALLEL_H */
