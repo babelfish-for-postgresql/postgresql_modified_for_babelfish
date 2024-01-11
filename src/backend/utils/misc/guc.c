@@ -1744,7 +1744,7 @@ RemoveGUCFromLists(struct config_generic *gconf)
 {
 	if (gconf->source != PGC_S_DEFAULT)
 		dlist_delete(&gconf->nondef_link);
-	if (gconf->stack != NULL || gconf->session_stack != NULL)
+	if (gconf->stack != NULL)
 		slist_delete(&guc_stack_list, &gconf->stack_link);
 	if (gconf->status & GUC_NEEDS_REPORT)
 		slist_delete(&guc_report_list, &gconf->report_link);
@@ -4961,7 +4961,7 @@ reapply_stacked_values(struct config_generic *variable,
 			(void) set_config_option_ext(name, curvalue,
 										 curscontext, cursource, cursrole,
 										 GUC_ACTION_SET, true, WARNING, false);
-			if (variable->stack != NULL || variable->session_stack != NULL)
+			if (variable->stack != NULL)
 			{
 				slist_delete(&guc_stack_list, &variable->stack_link);
 				variable->stack = NULL;
@@ -6817,19 +6817,6 @@ void
 guc_set_stack_value(struct config_generic *gconf, config_var_value *val)
 {
 	set_stack_value(gconf,  val);
-}
-
-
-void
-update_guc_stack_list(slist_node *stack_link)
-{
-	slist_push_head(&guc_stack_list, stack_link);
-}
-
-void 
-delete_guc_stack_list(slist_node *stack_link)
-{
-	slist_delete(&guc_stack_list, stack_link);
 }
 
 void
