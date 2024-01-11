@@ -330,4 +330,6 @@ extern PGDLLEXPORT guc_push_old_value_hook_type guc_push_old_value_hook;
 typedef			void(*validate_set_config_function_hook_type) (char *name, char *value);
 extern PGDLLEXPORT validate_set_config_function_hook_type validate_set_config_function_hook;
 
+extern void babelfish_set_guc_source(struct config_generic *gconf, GucSource newsource);
+
 #endif							/* GUC_TABLES_H */

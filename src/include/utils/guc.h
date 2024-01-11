@@ -12,6 +12,7 @@
 #ifndef GUC_H
 #define GUC_H
 
+#include "lib/ilist.h"
 #include "nodes/parsenodes.h"
 #include "tcop/dest.h"
 #include "utils/array.h"
@@ -442,5 +443,10 @@ extern void GUC_check_errcode(int sqlerrcode);
 #define GUC_check_errhint \
 	pre_format_elog_string(errno, TEXTDOMAIN), \
 	GUC_check_errhint_string = format_elog_string
+
+
+extern void update_guc_stack_list(slist_node *stack_link);
+
+extern void delete_guc_stack_list(slist_node *stack_link);
 
 #endif							/* GUC_H */
