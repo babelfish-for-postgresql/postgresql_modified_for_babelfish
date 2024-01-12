@@ -78,8 +78,8 @@
 #define PARALLEL_KEY_UNCOMMITTEDENUMS		UINT64CONST(0xFFFFFFFFFFFF000E)
 
 /* Hooks for communicating babelfish related information to parallel worker */
-bbf_parallel_serialise_babelfixedparallelstate_and_insert_into_dsm_hook_type bbf_parallel_serialise_babelfixedparallelstate_and_insert_into_dsm_hook;
-bbf_parallel_restore_babelfishfixedparallelstate_hook_type bbf_parallel_restore_babelfishfixedparallelstate_hook;
+babelfixedparallelstate_insert_hook_type babelfixedparallelstate_insert_hook;
+babelfixedparallelstate_restore_hook_type babelfixedparallelstate_restore_hook;
 
 /* Fixed-size parallel state. */
 typedef struct FixedParallelState
@@ -297,8 +297,8 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		shm_toc_estimate_keys(&pcxt->estimator, 1);
 
 		/* Estimate how much we'll need for the babelfish fixed parallel state */
-		if (MyProcPort->is_tds_conn && bbf_parallel_serialise_babelfixedparallelstate_and_insert_into_dsm_hook)
-			(*bbf_parallel_serialise_babelfixedparallelstate_and_insert_into_dsm_hook) (pcxt, true);
+		if (MyProcPort->is_tds_conn && babelfixedparallelstate_insert_hook)
+			(*babelfixedparallelstate_insert_hook) (pcxt, true);
 	}
 
 	
@@ -477,8 +477,8 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		shm_toc_insert(pcxt->toc, PARALLEL_KEY_ENTRYPOINT, entrypointstate);
 
 		/* Initialize babelfish fixed-size state in shared memory. */
-		if (MyProcPort->is_tds_conn && bbf_parallel_serialise_babelfixedparallelstate_and_insert_into_dsm_hook)
-			(*bbf_parallel_serialise_babelfixedparallelstate_and_insert_into_dsm_hook) (pcxt, false);
+		if (MyProcPort->is_tds_conn && babelfixedparallelstate_insert_hook)
+			(*babelfixedparallelstate_insert_hook) (pcxt, false);
 	}
 	
 
@@ -1503,8 +1503,8 @@ ParallelWorkerMain(Datum main_arg)
 
 
 	/* Hook for babelfish to restore babelfish fixed parallel state */
-	if (MyFixedParallelState->babelfish_context && bbf_parallel_restore_babelfishfixedparallelstate_hook)
-		(*bbf_parallel_restore_babelfishfixedparallelstate_hook) (toc);
+	if (MyFixedParallelState->babelfish_context && babelfixedparallelstate_restore_hook)
+		(*babelfixedparallelstate_restore_hook) (toc);
 
 
 	/*
