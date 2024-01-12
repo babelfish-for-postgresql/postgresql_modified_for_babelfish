@@ -43,12 +43,12 @@ extern RelFileNumber GetNewRelFileNumber(Oid reltablespace,
 										 char relpersistence);
 
 typedef bool (*IsExtendedCatalogHookType) (Oid relationId);
-extern PGDLLEXPORT IsExtendedCatalogHookType IsExtendedCatalogHook;
+extern IsExtendedCatalogHookType IsExtendedCatalogHook;
 
 typedef bool (*IsToastRelationHookType) (Relation relation);
-extern PGDLLEXPORT IsToastRelationHookType IsToastRelationHook;
+extern IsToastRelationHookType IsToastRelationHook;
 
 typedef bool (*IsToastClassHookType) (Form_pg_class pg_class_tup);
-extern PGDLLEXPORT IsToastClassHookType IsToastClassHook;
+extern IsToastClassHookType IsToastClassHook;
 
 #endif							/* CATALOG_H */

@@ -52,12 +52,12 @@ extern Index assignSortGroupRef(TargetEntry *tle, List *tlist);
 extern bool targetIsInSortList(TargetEntry *tle, Oid sortop, List *sortList);
 
 typedef bool (*tle_name_comparison_hook_type)(const char *tlename, const char *identifier);
-extern PGDLLEXPORT tle_name_comparison_hook_type tle_name_comparison_hook;
+extern PGDLLIMPORT tle_name_comparison_hook_type tle_name_comparison_hook;
 
 typedef void (*sortby_nulls_hook_type)(SortGroupClause *sortcl, bool reverse);
-extern PGDLLEXPORT sortby_nulls_hook_type sortby_nulls_hook;
+extern PGDLLIMPORT sortby_nulls_hook_type sortby_nulls_hook;
 
 typedef Node* (*optimize_explicit_cast_hook_type)(ParseState *pstate, Node *node);
-extern PGDLLEXPORT optimize_explicit_cast_hook_type optimize_explicit_cast_hook;
+extern PGDLLIMPORT optimize_explicit_cast_hook_type optimize_explicit_cast_hook;
 
 #endif							/* PARSE_CLAUSE_H */

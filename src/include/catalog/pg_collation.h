@@ -100,7 +100,7 @@ extern Oid CLUSTER_COLLATION_OID(void);
 
 /* Hook for plugins to get control in CLUSTER_COLLATION_OID() */
 typedef Oid (*CLUSTER_COLLATION_OID_hook_type)(void);
-extern PGDLLEXPORT CLUSTER_COLLATION_OID_hook_type CLUSTER_COLLATION_OID_hook;
+extern PGDLLIMPORT CLUSTER_COLLATION_OID_hook_type CLUSTER_COLLATION_OID_hook;
 
 typedef void (*PreCreateCollation_hook_type) (char collprovider,
 											  bool collisdeterministic,
@@ -108,15 +108,15 @@ typedef void (*PreCreateCollation_hook_type) (char collprovider,
 											  const char **collcollate,  /* The pointer may be modified */
 											  const char **collctype,    /* The pointer may be modified */
 											  const char *collversion);
-extern PGDLLEXPORT PreCreateCollation_hook_type PreCreateCollation_hook;
+extern PGDLLIMPORT PreCreateCollation_hook_type PreCreateCollation_hook;
 
 typedef const char * (*TranslateCollation_hook_type) (const char *collname, Oid collnamespace, int32 encoding);
-extern PGDLLEXPORT TranslateCollation_hook_type TranslateCollation_hook;
+extern PGDLLIMPORT TranslateCollation_hook_type TranslateCollation_hook;
 
 typedef void (*set_like_collation_hook_type) (Oid collation);
-extern PGDLLEXPORT set_like_collation_hook_type set_like_collation_hook;
+extern PGDLLIMPORT set_like_collation_hook_type set_like_collation_hook;
 
 typedef Oid (*get_like_collation_hook_type) (void);
-extern PGDLLEXPORT get_like_collation_hook_type get_like_collation_hook;
+extern PGDLLIMPORT get_like_collation_hook_type get_like_collation_hook;
 
 #endif							/* PG_COLLATION_H */

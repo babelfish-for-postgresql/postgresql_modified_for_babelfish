@@ -36,7 +36,6 @@ extern uint64 hex_encode(const char *src, size_t len, char *dst);
 extern uint64 hex_decode(const char *src, size_t len, char *dst);
 extern uint64 hex_decode_safe(const char *src, size_t len, char *dst,
 							  Node *escontext);
-extern PGDLLEXPORT uint64 hex_decode_allow_odd_digits(const char *src, unsigned len, char *dst);
 
 /* int.c */
 extern int2vector *buildint2vector(const int16 *int2s, int n);
@@ -136,10 +135,10 @@ extern char *quote_literal_cstr(const char *rawstr);
 
 /* varchar.c */
 typedef bool (*suppress_string_truncation_error_hook_type)();
-extern PGDLLEXPORT suppress_string_truncation_error_hook_type suppress_string_truncation_error_hook;
+extern PGDLLIMPORT suppress_string_truncation_error_hook_type suppress_string_truncation_error_hook;
 
 /* name.c */
 typedef Name (*cstr_to_name_hook_type)(char *s, int len);
-extern PGDLLEXPORT cstr_to_name_hook_type cstr_to_name_hook;
+extern PGDLLIMPORT cstr_to_name_hook_type cstr_to_name_hook;
 
 #endif							/* BUILTINS_H */
