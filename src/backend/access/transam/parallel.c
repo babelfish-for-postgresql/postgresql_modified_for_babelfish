@@ -78,8 +78,8 @@
 #define PARALLEL_KEY_UNCOMMITTEDENUMS		UINT64CONST(0xFFFFFFFFFFFF000E)
 
 /* Hooks for communicating babelfish related information to parallel worker */
-babelfixedparallelstate_insert_hook_type babelfixedparallelstate_insert_hook;
-babelfixedparallelstate_restore_hook_type babelfixedparallelstate_restore_hook;
+InitializeParallelDSM_hook_type InitializeParallelDSM_hook;
+ParallelWorkerMain_hook_type ParallelWorkerMain_hook;
 
 /* Fixed-size parallel state. */
 typedef struct FixedParallelState
@@ -297,11 +297,9 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		shm_toc_estimate_keys(&pcxt->estimator, 1);
 
 		/* Estimate how much we'll need for the babelfish fixed parallel state */
-		if (MyProcPort->is_tds_conn && babelfixedparallelstate_insert_hook)
-			(*babelfixedparallelstate_insert_hook) (pcxt, true);
+		if (MyProcPort->is_tds_conn && InitializeParallelDSM_hook)
+			(*InitializeParallelDSM_hook) (pcxt, true);
 	}
-
-	
 
 	/*
 	 * Create DSM and initialize with new table of contents.  But if the user
@@ -477,8 +475,8 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		shm_toc_insert(pcxt->toc, PARALLEL_KEY_ENTRYPOINT, entrypointstate);
 
 		/* Initialize babelfish fixed-size state in shared memory. */
-		if (MyProcPort->is_tds_conn && babelfixedparallelstate_insert_hook)
-			(*babelfixedparallelstate_insert_hook) (pcxt, false);
+		if (MyProcPort->is_tds_conn && InitializeParallelDSM_hook)
+			(*InitializeParallelDSM_hook) (pcxt, false);
 	}
 	
 
@@ -1493,6 +1491,10 @@ ParallelWorkerMain(Datum main_arg)
 	relmapperspace = shm_toc_lookup(toc, PARALLEL_KEY_RELMAPPER_STATE, false);
 	RestoreRelationMap(relmapperspace);
 
+	/* Hook for babelfish to restore babelfish fixed parallel state */
+	if (MyFixedParallelState->babelfish_context && ParallelWorkerMain_hook)
+		(*ParallelWorkerMain_hook) (toc);
+
 	/* Restore uncommitted enums. */
 	uncommittedenumsspace = shm_toc_lookup(toc, PARALLEL_KEY_UNCOMMITTEDENUMS,
 										   false);
@@ -1500,12 +1502,6 @@ ParallelWorkerMain(Datum main_arg)
 
 	/* Attach to the leader's serializable transaction, if SERIALIZABLE. */
 	AttachSerializableXact(fps->serializable_xact_handle);
-
-
-	/* Hook for babelfish to restore babelfish fixed parallel state */
-	if (MyFixedParallelState->babelfish_context && babelfixedparallelstate_restore_hook)
-		(*babelfixedparallelstate_restore_hook) (toc);
-
 
 	/*
 	 * We've initialized all of our state now; nothing should change
