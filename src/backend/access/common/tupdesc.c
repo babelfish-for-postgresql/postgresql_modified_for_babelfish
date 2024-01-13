@@ -454,8 +454,6 @@ equalTupleDescs(TupleDesc tupdesc1, TupleDesc tupdesc2)
 			return false;
 		if (attr1->atttypid != attr2->atttypid)
 			return false;
-		if (attr1->attstattarget != attr2->attstattarget)
-			return false;
 		if (attr1->attlen != attr2->attlen)
 			return false;
 		if (attr1->attndims != attr2->attndims)
@@ -640,7 +638,6 @@ TupleDescInitEntry(TupleDesc desc,
 	else if (attributeName != NameStr(att->attname))
 		namestrcpy(&(att->attname), attributeName);
 
-	att->attstattarget = -1;
 	att->attcacheoff = -1;
 	att->atttypmod = typmod;
 
@@ -703,7 +700,6 @@ TupleDescInitBuiltinEntry(TupleDesc desc,
 	Assert(attributeName != NULL);
 	namestrcpy(&(att->attname), attributeName);
 
-	att->attstattarget = -1;
 	att->attcacheoff = -1;
 	att->atttypmod = typmod;
 
