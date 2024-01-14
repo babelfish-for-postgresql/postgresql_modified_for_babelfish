@@ -3488,3 +3488,14 @@ error_stack_full(void)
 {
 	return (errordata_stack_depth+1 >= ERRORDATA_STACK_SIZE);
 }
+
+void
+pop_top_error_stack(void)
+{
+	if (errordata_stack_depth > 0)
+	{
+		errordata_stack_depth--;
+	}
+	else
+		FlushErrorState();
+}
