@@ -83,11 +83,11 @@ extern void ParallelWorkerMain(Datum main_arg);
 extern bool IsBabelfishParallelWorker(void);
 
 /* Hooks for communicating babelfish related information to parallel worker */
-typedef void (*InitializeParallelDSM_hook_type)(ParallelContext *pcxt, bool estimate);
-extern PGDLLIMPORT InitializeParallelDSM_hook_type InitializeParallelDSM_hook;
+typedef void (*bbf_InitializeParallelDSM_hook_type)(ParallelContext *pcxt, bool estimate);
+extern PGDLLIMPORT bbf_InitializeParallelDSM_hook_type bbf_InitializeParallelDSM_hook;
 
-typedef void (*ParallelWorkerMain_hook_type)(shm_toc *toc);
-extern PGDLLIMPORT ParallelWorkerMain_hook_type ParallelWorkerMain_hook;
+typedef void (*bbf_ParallelWorkerMain_hook_type)(shm_toc *toc);
+extern PGDLLIMPORT bbf_ParallelWorkerMain_hook_type bbf_ParallelWorkerMain_hook;
 
 
 #endif							/* PARALLEL_H */

@@ -78,8 +78,8 @@
 #define PARALLEL_KEY_UNCOMMITTEDENUMS		UINT64CONST(0xFFFFFFFFFFFF000E)
 
 /* Hooks for communicating babelfish related information to parallel worker */
-InitializeParallelDSM_hook_type InitializeParallelDSM_hook;
-ParallelWorkerMain_hook_type ParallelWorkerMain_hook;
+bbf_InitializeParallelDSM_hook_type bbf_InitializeParallelDSM_hook = NULL;
+bbf_ParallelWorkerMain_hook_type bbf_ParallelWorkerMain_hook = NULL;
 
 /* Fixed-size parallel state. */
 typedef struct FixedParallelState
@@ -297,8 +297,8 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		shm_toc_estimate_keys(&pcxt->estimator, 1);
 
 		/* Estimate how much we'll need for the babelfish fixed parallel state */
-		if (MyProcPort->is_tds_conn && InitializeParallelDSM_hook)
-			(*InitializeParallelDSM_hook) (pcxt, true);
+		if (MyProcPort->is_tds_conn && bbf_InitializeParallelDSM_hook)
+			(*bbf_InitializeParallelDSM_hook) (pcxt, true);
 	}
 
 	/*
@@ -475,10 +475,9 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		shm_toc_insert(pcxt->toc, PARALLEL_KEY_ENTRYPOINT, entrypointstate);
 
 		/* Initialize babelfish fixed-size state in shared memory. */
-		if (MyProcPort->is_tds_conn && InitializeParallelDSM_hook)
-			(*InitializeParallelDSM_hook) (pcxt, false);
+		if (MyProcPort->is_tds_conn && bbf_InitializeParallelDSM_hook)
+			(*bbf_InitializeParallelDSM_hook) (pcxt, false);
 	}
-	
 
 	/* Restore previous memory context. */
 	MemoryContextSwitchTo(oldcontext);
@@ -1492,8 +1491,8 @@ ParallelWorkerMain(Datum main_arg)
 	RestoreRelationMap(relmapperspace);
 
 	/* Hook for babelfish to restore babelfish fixed parallel state */
-	if (MyFixedParallelState->babelfish_context && ParallelWorkerMain_hook)
-		(*ParallelWorkerMain_hook) (toc);
+	if (MyFixedParallelState->babelfish_context && bbf_ParallelWorkerMain_hook)
+		(*bbf_ParallelWorkerMain_hook) (toc);
 
 	/* Restore uncommitted enums. */
 	uncommittedenumsspace = shm_toc_lookup(toc, PARALLEL_KEY_UNCOMMITTEDENUMS,
