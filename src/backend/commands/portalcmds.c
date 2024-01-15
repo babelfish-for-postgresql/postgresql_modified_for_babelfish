@@ -417,7 +417,7 @@ PersistHoldablePortal(Portal portal)
 										NULL,
 										NULL);
 
-		if(persist_holdable_cursor_executor_hook)
+		if (persist_holdable_cursor_executor_hook)
 		{
 			(*persist_holdable_cursor_executor_hook)(portal, queryDesc, direction);
 		}
