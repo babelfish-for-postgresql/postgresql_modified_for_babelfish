@@ -69,6 +69,7 @@ tarball: rpm-clean
 	cp -p GNUmakefile* $(PACKAGE_NAME)
 	cp -p Makefile $(PACKAGE_NAME)
 	cp -rp config src $(PACKAGE_NAME)
+	cp COPYRIGHT LICENSE.PostgreSQL $(PACKAGE_NAME)
 
 	tar -czf $(SOURCE_TARBALL) $(PACKAGE_NAME)/*
 
