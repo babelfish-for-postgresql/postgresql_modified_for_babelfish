@@ -1490,14 +1490,14 @@ ParallelWorkerMain(Datum main_arg)
 	relmapperspace = shm_toc_lookup(toc, PARALLEL_KEY_RELMAPPER_STATE, false);
 	RestoreRelationMap(relmapperspace);
 
-	/* Hook for babelfish to restore babelfish fixed parallel state */
-	if (MyFixedParallelState->babelfish_context && bbf_ParallelWorkerMain_hook)
-		(*bbf_ParallelWorkerMain_hook) (toc);
-
 	/* Restore uncommitted enums. */
 	uncommittedenumsspace = shm_toc_lookup(toc, PARALLEL_KEY_UNCOMMITTEDENUMS,
 										   false);
 	RestoreUncommittedEnums(uncommittedenumsspace);
+
+	/* Hook for babelfish to restore babelfish fixed parallel state */
+	if (MyFixedParallelState->babelfish_context && bbf_ParallelWorkerMain_hook)
+		(*bbf_ParallelWorkerMain_hook) (toc);
 
 	/* Attach to the leader's serializable transaction, if SERIALIZABLE. */
 	AttachSerializableXact(fps->serializable_xact_handle);
