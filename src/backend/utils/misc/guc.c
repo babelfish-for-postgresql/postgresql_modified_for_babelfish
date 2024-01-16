@@ -6818,3 +6818,9 @@ guc_set_stack_value(struct config_generic *gconf, config_var_value *val)
 {
 	set_stack_value(gconf,  val);
 }
+
+void
+babelfish_set_guc_source(struct config_generic *gconf, GucSource newsource)
+{
+	set_guc_source(gconf, newsource);
+}
