@@ -19,13 +19,16 @@
 # https://fedoraproject.org/wiki/Packaging:Guidelines#Packaging_of_Additional_RPM_Macros
 %global macrosdir %(d=%{_rpmconfigdir}/macros.d; [ -d $d ] || d=%{_sysconfdir}/rpm; echo $d)
 
+%define _trivial .0
+%define _buildid .1
+
 %undefine _missing_build_ids_terminate_build
 
 Name: BabelfishDump
 Summary: Postgresql dump utilities modified for Babelfish
 Version: 16.1
-Release: 1%{?dist}
-License: PostgreSQL Global Development Group
+Release: 1%{?dist}%{?_trivial}%{?_buildid}
+License: PostgreSQL
 Url: https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish
 
 BuildRequires: make
@@ -134,6 +137,8 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 
 # FILES sections.
 %files
+%doc COPYRIGHT
+%doc LICENSE.PostgreSQL
 %{_bindir}/bbf_dump
 %{_bindir}/bbf_dumpall
 
