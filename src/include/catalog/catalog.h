@@ -40,7 +40,14 @@ extern Oid	GetNewOidWithIndex(Relation relation, Oid indexId,
 							   AttrNumber oidcolumn);
 extern RelFileNumber GetNewRelFileNumber(Oid reltablespace,
 										 Relation pg_class,
-										 char relpersistence);
+										 char relpersistence,
+										 bool override_temp);
+
+typedef Oid (*GetNewTempObjectId_hook_type) (void);
+extern GetNewTempObjectId_hook_type GetNewTempObjectId_hook;
+
+typedef Oid (*GetNewTempOidWithIndex_hook_type) (Relation relation, Oid indexId, AttrNumber oidcolumn);
+extern GetNewTempOidWithIndex_hook_type GetNewTempOidWithIndex_hook;
 
 typedef bool (*IsExtendedCatalogHookType) (Oid relationId);
 extern PGDLLEXPORT IsExtendedCatalogHookType IsExtendedCatalogHook;

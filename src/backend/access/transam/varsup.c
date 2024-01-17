@@ -591,6 +591,14 @@ GetNewObjectId(void)
 }
 
 /*
+ * Simple function to get VAR_OID_PREFETCH when needed outside of this file.
+ */
+int GetVarOidPrefetch(void)
+{
+	return VAR_OID_PREFETCH;
+}
+
+/*
  * SetNextObjectId
  *
  * This may only be called during initdb; it advances the OID counter
