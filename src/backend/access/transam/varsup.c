@@ -27,6 +27,9 @@
 #include "utils/syscache.h"
 
 
+/* Number of OIDs to prefetch (preallocate) per XLOG write */
+#define VAR_OID_PREFETCH		8192
+
 /* pointer to "variable cache" in shared memory (set up by shmem.c) */
 VariableCache ShmemVariableCache = NULL;
 

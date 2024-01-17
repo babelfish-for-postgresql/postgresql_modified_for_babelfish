@@ -196,9 +196,6 @@ FullTransactionIdAdvance(FullTransactionId *dest)
 #define FirstUnpinnedObjectId	12000
 #define FirstNormalObjectId		16384
 
-/* Number of OIDs to prefetch (preallocate) per XLOG write */
-#define VAR_OID_PREFETCH		8192
-
 /*
  * VariableCache is a data structure in shared memory that is used to track
  * OID and XID assignment state.  For largely historical reasons, there is
