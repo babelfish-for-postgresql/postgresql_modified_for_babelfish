@@ -301,6 +301,8 @@ extern bool ForceTransactionIdLimitUpdate(void);
 extern Oid	GetNewObjectId(void);
 extern void StopGeneratingPinnedObjectIds(void);
 
+extern int GetVarOidPrefetch(void);
+
 typedef void (*GetNewObjectId_hook_type) (VariableCache variableCache);
 extern PGDLLIMPORT GetNewObjectId_hook_type GetNewObjectId_hook;
 
