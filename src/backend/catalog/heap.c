@@ -1307,7 +1307,7 @@ heap_create_with_catalog(const char *relname,
 
 		if (!OidIsValid(relid))
 			relid = GetNewRelFileNumber(reltablespace, pg_class_desc,
-										relpersistence);
+										relpersistence, false);
 	}
 
 	/*
