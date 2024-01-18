@@ -70,6 +70,7 @@ int			SessionReplicationRole = SESSION_REPLICATION_ROLE_ORIGIN;
 
 /* How many levels deep into trigger execution are we? */
 static int	MyTriggerDepth = 0;
+List *triggerInvocationSequence = NIL; /* List to store all oids for triggers called*/
 
 /* Local function prototypes */
 static void renametrig_internal(Relation tgrel, Relation targetrel,
@@ -489,7 +490,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 								RelationGetRelationName(rel)),
 						 errdetail("Triggers on foreign tables cannot have transition tables.")));
 
-			if (rel->rd_rel->relkind == RELKIND_VIEW)
+			if (rel->rd_rel->relkind == RELKIND_VIEW && sql_dialect != SQL_DIALECT_TSQL)
 				ereport(ERROR,
 						(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 						 errmsg("\"%s\" is a view",
@@ -2571,11 +2572,13 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 	MyTriggerDepth++;
 	PG_TRY();
 	{
+		triggerInvocationSequence = lappend_oid(triggerInvocationSequence, trigdata->tg_trigger->tgoid);
 		result = FunctionCallInvoke(fcinfo);
 	}
 	PG_FINALLY();
 	{
 		MyTriggerDepth--;
+		triggerInvocationSequence = list_delete_last(triggerInvocationSequence);
 	}
 	PG_END_TRY();
 

@@ -810,7 +810,8 @@ ExecInsert(ModifyTableContext *context,
 			return NULL;		/* "do nothing" */
 	}
 	else if (sql_dialect == SQL_DIALECT_TSQL && resultRelInfo->ri_TrigDesc &&
-		resultRelInfo->ri_TrigDesc->trig_insert_instead_statement &&
+		resultRelInfo->ri_TrigDesc->trig_insert_instead_statement && 
+		bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(resultRelationDesc, CMD_INSERT) &&
 		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_INSERT))
 	{
 		ExecIRInsertTriggersTSQL(estate, resultRelInfo, slot, mtstate->mt_transition_capture);
@@ -1481,6 +1482,7 @@ ExecDelete(ModifyTableContext *context,
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_delete_instead_statement &&
 		sql_dialect == SQL_DIALECT_TSQL &&
+		bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(resultRelationDesc, CMD_DELETE) &&
 		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_DELETE))
 	{
 		ExecIRDeleteTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, context->mtstate->mt_transition_capture);
@@ -2335,7 +2337,7 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&
-		sql_dialect == SQL_DIALECT_TSQL &&
+		sql_dialect == SQL_DIALECT_TSQL && bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(resultRelationDesc, CMD_UPDATE) &&
 		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_INSTEAD))
 	{
 		ExecIRUpdateTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, slot, context->mtstate->mt_transition_capture);

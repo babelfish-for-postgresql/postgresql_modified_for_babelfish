@@ -79,4 +79,18 @@ extern void ParallelWorkerReportLastRecEnd(XLogRecPtr last_xlog_end);
 
 extern void ParallelWorkerMain(Datum main_arg);
 
+/* Below helpers are added to support parallel workers in Babelfish context */
+extern bool IsBabelfishParallelWorker(void);
+
+/* Key for BabelfishFixedParallelState */
+#define BABELFISH_PARALLEL_KEY_FIXED        UINT64CONST(0xBBF0000000000001)
+
+/* Hooks for communicating babelfish related information to parallel worker */
+typedef void (*bbf_InitializeParallelDSM_hook_type)(ParallelContext *pcxt, bool estimate);
+extern PGDLLIMPORT bbf_InitializeParallelDSM_hook_type bbf_InitializeParallelDSM_hook;
+
+typedef void (*bbf_ParallelWorkerMain_hook_type)(shm_toc *toc);
+extern PGDLLIMPORT bbf_ParallelWorkerMain_hook_type bbf_ParallelWorkerMain_hook;
+
+
 #endif							/* PARALLEL_H */

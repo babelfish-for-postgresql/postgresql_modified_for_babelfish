@@ -77,6 +77,10 @@
 #define PARALLEL_KEY_RELMAPPER_STATE		UINT64CONST(0xFFFFFFFFFFFF000D)
 #define PARALLEL_KEY_UNCOMMITTEDENUMS		UINT64CONST(0xFFFFFFFFFFFF000E)
 
+/* Hooks for communicating babelfish related information to parallel worker */
+bbf_InitializeParallelDSM_hook_type bbf_InitializeParallelDSM_hook = NULL;
+bbf_ParallelWorkerMain_hook_type bbf_ParallelWorkerMain_hook = NULL;
+
 /* Fixed-size parallel state. */
 typedef struct FixedParallelState
 {
@@ -95,6 +99,9 @@ typedef struct FixedParallelState
 	TimestampTz xact_ts;
 	TimestampTz stmt_ts;
 	SerializableXactHandle serializable_xact_handle;
+
+	/* Track if parallel worker is spawned in the context of Babelfish */
+	bool babelfish_context;
 
 	/* Mutex protects remaining fields. */
 	slock_t		mutex;
@@ -288,6 +295,10 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		shm_toc_estimate_chunk(&pcxt->estimator, strlen(pcxt->library_name) +
 							   strlen(pcxt->function_name) + 2);
 		shm_toc_estimate_keys(&pcxt->estimator, 1);
+
+		/* Estimate how much we'll need for the babelfish fixed parallel state */
+		if (MyProcPort->is_tds_conn && bbf_InitializeParallelDSM_hook)
+			(*bbf_InitializeParallelDSM_hook) (pcxt, true);
 	}
 
 	/*
@@ -332,6 +343,7 @@ InitializeParallelDSM(ParallelContext *pcxt)
 	fps->xact_ts = GetCurrentTransactionStartTimestamp();
 	fps->stmt_ts = GetCurrentStatementStartTimestamp();
 	fps->serializable_xact_handle = ShareSerializableXact();
+	fps->babelfish_context = MyProcPort->is_tds_conn;
 	SpinLockInit(&fps->mutex);
 	fps->last_xlog_end = 0;
 	shm_toc_insert(pcxt->toc, PARALLEL_KEY_FIXED, fps);
@@ -461,6 +473,10 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		strcpy(entrypointstate, pcxt->library_name);
 		strcpy(entrypointstate + lnamelen + 1, pcxt->function_name);
 		shm_toc_insert(pcxt->toc, PARALLEL_KEY_ENTRYPOINT, entrypointstate);
+
+		/* Initialize babelfish fixed-size state in shared memory. */
+		if (MyProcPort->is_tds_conn && bbf_InitializeParallelDSM_hook)
+			(*bbf_InitializeParallelDSM_hook) (pcxt, false);
 	}
 
 	/* Restore previous memory context. */
@@ -1479,6 +1495,10 @@ ParallelWorkerMain(Datum main_arg)
 										   false);
 	RestoreUncommittedEnums(uncommittedenumsspace);
 
+	/* Hook for babelfish to restore babelfish fixed parallel state */
+	if (MyFixedParallelState->babelfish_context && bbf_ParallelWorkerMain_hook)
+		(*bbf_ParallelWorkerMain_hook) (toc);
+
 	/* Attach to the leader's serializable transaction, if SERIALIZABLE. */
 	AttachSerializableXact(fps->serializable_xact_handle);
 
@@ -1594,4 +1614,14 @@ LookupParallelWorkerFunction(const char *libraryname, const char *funcname)
 	/* Otherwise load from external library. */
 	return (parallel_worker_main_type)
 		load_external_function(libraryname, funcname, true, NULL);
+}
+
+/*
+ * IsBabelfishParallelWorker - return bool based on whether given worker is
+ * spawned in Babelfish context.
+ */
+bool
+IsBabelfishParallelWorker(void)
+{
+	return (IsParallelWorker() && MyFixedParallelState->babelfish_context);
 }
