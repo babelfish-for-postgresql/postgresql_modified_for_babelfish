@@ -1406,7 +1406,6 @@ LPVOID
 LPWSTR
 LSEG
 LUID
-LVPagePruneState
 LVRelState
 LVSavedErrInfo
 LWLock
