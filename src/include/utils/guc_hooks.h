@@ -165,6 +165,6 @@ extern void assign_xlog_sync_method(int new_sync_method, void *extra);
 
 /* Babelfish-specific hook for updating GUCs */
 typedef void (*guc_newval_hook_type) (const char *guc, bool boolVal, const char *strVal, int intVal);
-extern PGDLLEXPORT guc_newval_hook_type guc_newval_hook;
+extern PGDLLIMPORT guc_newval_hook_type guc_newval_hook;
 
 #endif							/* GUC_HOOKS_H */

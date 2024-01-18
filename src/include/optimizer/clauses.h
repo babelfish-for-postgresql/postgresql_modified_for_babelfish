@@ -57,9 +57,9 @@ extern Query *inline_set_returning_function(PlannerInfo *root,
 extern Bitmapset *pull_paramids(Expr *expr);
 
 typedef void (*insert_pltsql_function_defaults_hook_type)(HeapTuple func_tuple, List *defaults, Node **argarray);
-extern PGDLLEXPORT insert_pltsql_function_defaults_hook_type insert_pltsql_function_defaults_hook;
+extern PGDLLIMPORT insert_pltsql_function_defaults_hook_type insert_pltsql_function_defaults_hook;
 
 typedef List* (*replace_pltsql_function_defaults_hook_type)(HeapTuple func_tuple, List *defaults, List *fargs);
-extern PGDLLEXPORT replace_pltsql_function_defaults_hook_type replace_pltsql_function_defaults_hook;
+extern PGDLLIMPORT replace_pltsql_function_defaults_hook_type replace_pltsql_function_defaults_hook;
 
 #endif							/* CLAUSES_H */

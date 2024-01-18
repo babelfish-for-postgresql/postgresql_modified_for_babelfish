@@ -304,7 +304,7 @@ extern void StopGeneratingPinnedObjectIds(void);
 extern int GetVarOidPrefetch(void);
 
 typedef void (*GetNewObjectId_hook_type) (VariableCache variableCache);
-extern PGDLLEXPORT GetNewObjectId_hook_type GetNewObjectId_hook;
+extern PGDLLIMPORT GetNewObjectId_hook_type GetNewObjectId_hook;
 
 #ifdef USE_ASSERT_CHECKING
 extern void AssertTransactionIdInAllowableRange(TransactionId xid);

@@ -128,7 +128,7 @@ extern bool isQueryUsingTempRelation(Query *query);
 
 typedef int (*find_attr_by_name_from_relation_hook_type) (
 	Relation rd, const char *attname, bool sysColOK);
-extern PGDLLEXPORT find_attr_by_name_from_relation_hook_type
+extern PGDLLIMPORT find_attr_by_name_from_relation_hook_type
 	find_attr_by_name_from_relation_hook;
 
 #endif							/* PARSE_RELATION_H */

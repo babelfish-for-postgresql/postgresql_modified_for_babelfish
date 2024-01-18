@@ -50,12 +50,12 @@ typedef Oid (*GetNewTempOidWithIndex_hook_type) (Relation relation, Oid indexId,
 extern GetNewTempOidWithIndex_hook_type GetNewTempOidWithIndex_hook;
 
 typedef bool (*IsExtendedCatalogHookType) (Oid relationId);
-extern PGDLLEXPORT IsExtendedCatalogHookType IsExtendedCatalogHook;
+extern IsExtendedCatalogHookType IsExtendedCatalogHook;
 
 typedef bool (*IsToastRelationHookType) (Relation relation);
-extern PGDLLEXPORT IsToastRelationHookType IsToastRelationHook;
+extern IsToastRelationHookType IsToastRelationHook;
 
 typedef bool (*IsToastClassHookType) (Form_pg_class pg_class_tup);
-extern PGDLLEXPORT IsToastClassHookType IsToastClassHook;
+extern IsToastClassHookType IsToastClassHook;
 
 #endif							/* CATALOG_H */

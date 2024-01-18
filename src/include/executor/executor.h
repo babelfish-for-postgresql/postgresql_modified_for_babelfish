@@ -73,22 +73,22 @@
 
 /* Hook for plugins to get control in ExecutorStart() */
 typedef void (*ExecutorStart_hook_type) (QueryDesc *queryDesc, int eflags);
-extern PGDLLEXPORT ExecutorStart_hook_type ExecutorStart_hook;
+extern PGDLLIMPORT ExecutorStart_hook_type ExecutorStart_hook;
 
 /* Hook for plugins to get control in ExecutorRun() */
 typedef void (*ExecutorRun_hook_type) (QueryDesc *queryDesc,
 									   ScanDirection direction,
 									   uint64 count,
 									   bool execute_once);
-extern PGDLLEXPORT ExecutorRun_hook_type ExecutorRun_hook;
+extern PGDLLIMPORT ExecutorRun_hook_type ExecutorRun_hook;
 
 /* Hook for plugins to get control in ExecutorFinish() */
 typedef void (*ExecutorFinish_hook_type) (QueryDesc *queryDesc);
-extern PGDLLEXPORT ExecutorFinish_hook_type ExecutorFinish_hook;
+extern PGDLLIMPORT ExecutorFinish_hook_type ExecutorFinish_hook;
 
 /* Hook for plugins to get control in ExecutorEnd() */
 typedef void (*ExecutorEnd_hook_type) (QueryDesc *queryDesc);
-extern PGDLLEXPORT ExecutorEnd_hook_type ExecutorEnd_hook;
+extern PGDLLIMPORT ExecutorEnd_hook_type ExecutorEnd_hook;
 
 /* Hook for plugins to get control in ExecCheckPermissions() */
 typedef bool (*ExecutorCheckPerms_hook_type) (List *rangeTable,
@@ -97,13 +97,13 @@ typedef bool (*ExecutorCheckPerms_hook_type) (List *rangeTable,
 extern PGDLLIMPORT ExecutorCheckPerms_hook_type ExecutorCheckPerms_hook;
 
 typedef bool (*TriggerRecuresiveCheck_hook_type) (ResultRelInfo *resultRelInfo);
-extern PGDLLEXPORT TriggerRecuresiveCheck_hook_type TriggerRecuresiveCheck_hook;
+extern PGDLLIMPORT TriggerRecuresiveCheck_hook_type TriggerRecuresiveCheck_hook;
 
 typedef bool (*bbfViewHasInsteadofTrigger_hook_type) (Relation view, CmdType event);
 extern PGDLLIMPORT bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook;
 
 typedef bool (*check_rowcount_hook_type) (int es_processed);
-extern PGDLLEXPORT check_rowcount_hook_type check_rowcount_hook;
+extern PGDLLIMPORT check_rowcount_hook_type check_rowcount_hook;
 
 /*
  * prototypes from functions in execAmi.c

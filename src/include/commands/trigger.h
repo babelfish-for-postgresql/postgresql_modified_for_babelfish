@@ -312,12 +312,12 @@ extern void RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel,
 
 extern int	RI_FKey_trigger_type(Oid tgfoid);
 
-extern PGDLLEXPORT void BeginCompositeTriggers(MemoryContext curCxt);
-extern PGDLLEXPORT void EndCompositeTriggers(bool error);
+extern void BeginCompositeTriggers(MemoryContext curCxt);
+extern void EndCompositeTriggers(bool error);
 
 extern bool TsqlRecuresiveCheck(ResultRelInfo *resultRelInfo);
 
 typedef bool (*check_pltsql_support_tsql_transactions_hook_type) (void);
-extern PGDLLEXPORT check_pltsql_support_tsql_transactions_hook_type check_pltsql_support_tsql_transactions_hook;
+extern PGDLLIMPORT check_pltsql_support_tsql_transactions_hook_type check_pltsql_support_tsql_transactions_hook;
 
 #endif							/* TRIGGER_H */

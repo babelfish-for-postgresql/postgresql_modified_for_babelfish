@@ -137,7 +137,7 @@ typedef void (*object_access_hook_type_str) (ObjectAccessType access,
 											 void *arg);
 
 /* Plugin sets this variable to a suitable hook function. */
-extern PGDLLEXPORT object_access_hook_type object_access_hook;
+extern PGDLLIMPORT object_access_hook_type object_access_hook;
 extern PGDLLIMPORT object_access_hook_type_str object_access_hook_str;
 
 

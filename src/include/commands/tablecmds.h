@@ -106,17 +106,17 @@ extern bool PartConstraintImpliedByRelConstraint(Relation scanrel,
 												 List *partConstraint);
 
 typedef void (*InvokePreDropColumnHook_type) (Relation rel, AttrNumber attnum);
-extern PGDLLEXPORT InvokePreDropColumnHook_type InvokePreDropColumnHook;
+extern PGDLLIMPORT InvokePreDropColumnHook_type InvokePreDropColumnHook;
 
 typedef void (*InvokePreAddConstraintsHook_type) (Relation rel, ParseState *pstate,
 												  List *newColDefaults);
-extern PGDLLEXPORT InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook;
+extern PGDLLIMPORT InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook;
 typedef bool (*check_extended_attoptions_hook_type) (Node *options);
-extern PGDLLEXPORT check_extended_attoptions_hook_type check_extended_attoptions_hook;
+extern check_extended_attoptions_hook_type check_extended_attoptions_hook;
 
 typedef int (*find_attr_by_name_from_column_def_list_hook_type) (
 	const char *attributeName, List *schema);
-extern PGDLLEXPORT find_attr_by_name_from_column_def_list_hook_type
+extern PGDLLIMPORT find_attr_by_name_from_column_def_list_hook_type
 	find_attr_by_name_from_column_def_list_hook;
 
 #endif							/* TABLECMDS_H */
