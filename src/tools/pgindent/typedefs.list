@@ -478,6 +478,7 @@ CopyHeaderChoice
 CopyInsertMethod
 CopyMultiInsertBuffer
 CopyMultiInsertInfo
+CopyOnErrorChoice
 CopySource
 CopyStmt
 CopyToState
@@ -4042,4 +4043,3 @@ manifest_writer
 rfile
 ws_options
 ws_file_info
-CopySaveErrorToChoice
