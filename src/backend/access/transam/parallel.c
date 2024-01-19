@@ -78,6 +78,10 @@
 #define PARALLEL_KEY_UNCOMMITTEDENUMS		UINT64CONST(0xFFFFFFFFFFFF000E)
 #define PARALLEL_KEY_CLIENTCONNINFO			UINT64CONST(0xFFFFFFFFFFFF000F)
 
+/* Hooks for communicating babelfish related information to parallel worker */
+bbf_InitializeParallelDSM_hook_type bbf_InitializeParallelDSM_hook = NULL;
+bbf_ParallelWorkerMain_hook_type bbf_ParallelWorkerMain_hook = NULL;
+
 /* Fixed-size parallel state. */
 typedef struct FixedParallelState
 {
@@ -295,6 +299,10 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		shm_toc_estimate_chunk(&pcxt->estimator, strlen(pcxt->library_name) +
 							   strlen(pcxt->function_name) + 2);
 		shm_toc_estimate_keys(&pcxt->estimator, 1);
+
+		/* Estimate how much we'll need for the babelfish fixed parallel state */
+		if (MyProcPort->is_tds_conn && bbf_InitializeParallelDSM_hook)
+			(*bbf_InitializeParallelDSM_hook) (pcxt, true);
 	}
 
 	/*
@@ -476,6 +484,10 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		strcpy(entrypointstate, pcxt->library_name);
 		strcpy(entrypointstate + lnamelen + 1, pcxt->function_name);
 		shm_toc_insert(pcxt->toc, PARALLEL_KEY_ENTRYPOINT, entrypointstate);
+
+		/* Initialize babelfish fixed-size state in shared memory. */
+		if (MyProcPort->is_tds_conn && bbf_InitializeParallelDSM_hook)
+			(*bbf_InitializeParallelDSM_hook) (pcxt, false);
 	}
 
 	/* Restore previous memory context. */
@@ -1507,6 +1519,10 @@ ParallelWorkerMain(Datum main_arg)
 	if (MyClientConnectionInfo.authn_id)
 		InitializeSystemUser(MyClientConnectionInfo.authn_id,
 							 hba_authname(MyClientConnectionInfo.auth_method));
+
+	/* Hook for babelfish to restore babelfish fixed parallel state */
+	if (MyFixedParallelState->babelfish_context && bbf_ParallelWorkerMain_hook)
+		(*bbf_ParallelWorkerMain_hook) (toc);
 
 	/* Attach to the leader's serializable transaction, if SERIALIZABLE. */
 	AttachSerializableXact(fps->serializable_xact_handle);
