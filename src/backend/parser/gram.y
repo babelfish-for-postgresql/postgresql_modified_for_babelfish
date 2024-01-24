@@ -544,7 +544,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 				columnref in_expr having_clause func_table xmltable array_expr
 				OptWhereClause operator_def_arg
 %type <list>	rowsfrom_item rowsfrom_list opt_col_def_list
-%type <boolean> opt_ordinality
+%type <boolean> opt_ordinality opt_without_overlaps
 %type <list>	ExclusionConstraintList ExclusionConstraintElem
 %type <list>	func_arg_list func_arg_list_opt
 %type <node>	func_arg_expr
@@ -4169,7 +4169,7 @@ ConstraintElem:
 					n->initially_valid = true;
 					$$ = (Node *) n;
 				}
-			| UNIQUE opt_unique_null_treatment '(' columnList ')' opt_c_include opt_definition OptConsTableSpace
+			| UNIQUE opt_unique_null_treatment '(' columnList opt_without_overlaps ')' opt_c_include opt_definition OptConsTableSpace
 				ConstraintAttributeSpec
 				{
 					Constraint *n = makeNode(Constraint);
@@ -4178,11 +4178,12 @@ ConstraintElem:
 					n->location = @1;
 					n->nulls_not_distinct = !$2;
 					n->keys = $4;
-					n->including = $6;
-					n->options = $7;
+					n->without_overlaps = $5;
+					n->including = $7;
+					n->options = $8;
 					n->indexname = NULL;
-					n->indexspace = $8;
-					processCASbits($9, @9, "UNIQUE",
+					n->indexspace = $9;
+					processCASbits($10, @10, "UNIQUE",
 								   &n->deferrable, &n->initdeferred, NULL,
 								   NULL, yyscanner);
 					$$ = (Node *) n;
@@ -4203,7 +4204,7 @@ ConstraintElem:
 								   NULL, yyscanner);
 					$$ = (Node *) n;
 				}
-			| PRIMARY KEY '(' columnList ')' opt_c_include opt_definition OptConsTableSpace
+			| PRIMARY KEY '(' columnList opt_without_overlaps ')' opt_c_include opt_definition OptConsTableSpace
 				ConstraintAttributeSpec
 				{
 					Constraint *n = makeNode(Constraint);
@@ -4211,11 +4212,12 @@ ConstraintElem:
 					n->contype = CONSTR_PRIMARY;
 					n->location = @1;
 					n->keys = $4;
-					n->including = $6;
-					n->options = $7;
+					n->without_overlaps = $5;
+					n->including = $7;
+					n->options = $8;
 					n->indexname = NULL;
-					n->indexspace = $8;
-					processCASbits($9, @9, "PRIMARY KEY",
+					n->indexspace = $9;
+					processCASbits($10, @10, "PRIMARY KEY",
 								   &n->deferrable, &n->initdeferred, NULL,
 								   NULL, yyscanner);
 					$$ = (Node *) n;
@@ -4282,6 +4284,11 @@ ConstraintElem:
 opt_no_inherit:	NO INHERIT							{  $$ = true; }
 			| /* EMPTY */							{  $$ = false; }
 		;
+
+opt_without_overlaps:
+			WITHOUT OVERLAPS						{ $$ = true; }
+			| /*EMPTY*/								{ $$ = false; }
+	;
 
 opt_column_list:
 			'(' columnList ')'						{ $$ = $2; }
