@@ -6553,6 +6553,8 @@ plan_cluster_use_sort(Oid tableOid, Oid indexOid)
 	/* Set up mostly-dummy planner state */
 	query = makeNode(Query);
 	query->commandType = CMD_SELECT;
+	query->isPivot = false;
+	query->pivotInfoList = NIL;
 
 	glob = makeNode(PlannerGlobal);
 
@@ -6675,7 +6677,9 @@ plan_create_index_workers(Oid tableOid, Oid indexOid)
 	/* Set up largely-dummy planner state */
 	query = makeNode(Query);
 	query->commandType = CMD_SELECT;
-
+	query->isPivot = false;
+	query->pivotInfoList = NIL;
+	
 	glob = makeNode(PlannerGlobal);
 
 	root = makeNode(PlannerInfo);

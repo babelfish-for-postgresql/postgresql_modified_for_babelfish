@@ -1936,6 +1936,8 @@ tlist_coercion_finished:
 		newquery->querySource = parse->querySource;
 		newquery->canSetTag = true;
 		newquery->targetList = upper_tlist;
+		newquery->isPivot = false;
+		newquery->pivotInfoList = NIL;
 
 		/* We need a moderately realistic colnames list for the subquery RTE */
 		colnames = NIL;

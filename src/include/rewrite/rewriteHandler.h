@@ -32,4 +32,8 @@ extern int	relation_is_updatable(Oid reloid,
 								  bool include_triggers,
 								  Bitmapset *include_cols);
 
+/* Hooks for restoring PIVOT info from previously created view */
+typedef void (*rewrite_pivot_view_hook_type)(Query *qry);
+extern PGDLLEXPORT rewrite_pivot_view_hook_type rewrite_pivot_view_hook;
+
 #endif							/* REWRITEHANDLER_H */
