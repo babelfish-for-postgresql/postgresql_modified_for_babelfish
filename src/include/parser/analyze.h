@@ -65,7 +65,7 @@ typedef void (*pre_transform_setop_sort_clause_hook_type) (ParseState *pstate, Q
 extern PGDLLEXPORT pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook;
 
 /* Hook for transform pivot clause in tsql select stmt */
-typedef void (*transform_pivot_clause_hook_type)(ParseState *pstate, SelectStmt *stmt);
+typedef void (*transform_pivot_clause_hook_type)(Query *qry, ParseState *pstate, SelectStmt *stmt);
 extern PGDLLEXPORT transform_pivot_clause_hook_type transform_pivot_clause_hook;
 
 extern Query *parse_analyze_fixedparams(RawStmt *parseTree, const char *sourceText,

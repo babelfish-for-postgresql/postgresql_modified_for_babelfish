@@ -407,11 +407,23 @@ transformStmt(ParseState *pstate, Node *parseTree)
 				SelectStmt *n = (SelectStmt *) parseTree;
 
 				if (n->valuesLists)
+				{
 					result = transformValuesClause(pstate, n);
+					result->isPivot = false;	
+					result->pivotInfoList = NIL;
+				}
+					
 				else if (n->op == SETOP_NONE)
+				{
 					result = transformSelectStmt(pstate, n);
+				}
 				else
+				{
 					result = transformSetOperationStmt(pstate, n);
+					result->isPivot = false;	
+					result->pivotInfoList = NIL;
+				}
+					
 			}
 			break;
 
@@ -459,6 +471,11 @@ transformStmt(ParseState *pstate, Node *parseTree)
 			break;
 	}
 
+	if (nodeTag(parseTree) != T_SelectStmt)
+	{
+		result->isPivot = false;
+		result->pivotInfoList = NIL;
+	}
 	/* Mark as original query until we learn differently */
 	result->querySource = QSRC_ORIGINAL;
 	result->canSetTag = true;
@@ -1450,9 +1467,12 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 	/* make WINDOW info available for window functions, too */
 	pstate->p_windowdefs = stmt->windowClause;
 
+	qry->isPivot = false;
+	qry->pivotInfoList = NIL;
+	
 	if (stmt->isPivot && transform_pivot_clause_hook)
 	{
-		(*transform_pivot_clause_hook)(pstate, stmt);
+		(*transform_pivot_clause_hook)(qry, pstate, stmt);					
 	}
 
 	/* process the FROM clause */

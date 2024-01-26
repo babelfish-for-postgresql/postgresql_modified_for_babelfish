@@ -235,6 +235,9 @@ typedef struct Query
 	int			stmt_location;
 	/* length in bytes; 0 means "rest of string" */
 	int			stmt_len pg_node_attr(query_jumble_ignore);
+
+	bool		isPivot pg_node_attr(query_jumble_ignore);
+	List		*pivotInfoList pg_node_attr(query_jumble_ignore);
 } Query;
 
 
