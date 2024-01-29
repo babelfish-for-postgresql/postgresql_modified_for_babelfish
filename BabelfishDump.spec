@@ -20,7 +20,7 @@
 %global macrosdir %(d=%{_rpmconfigdir}/macros.d; [ -d $d ] || d=%{_sysconfdir}/rpm; echo $d)
 
 %define _trivial .0
-%define _buildid .1
+%define _buildid .2
 
 %undefine _missing_build_ids_terminate_build
 
@@ -143,3 +143,12 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
+* Dec 29, 2023 Rishabh Tanwar <ritanwar@amazon.com>
+	- Do not dump default GRANTs
+	Skip dumping GRANTs between default Babelfish roles.
+
+* Dec 29, 2023 Rishabh Tanwar <ritanwar@amazon.com>
+	- Handle dump logic for new bbf_role_admin role
+	Skip dumping bbf_role_admin role since it is default role
+	and should already exists on the target server.
+	Allow dumping memberships of bbf_role_admin role.
