@@ -2352,7 +2352,6 @@ ReorderBufferStreamTruncateCB
 ReorderBufferTXN
 ReorderBufferTXNByIdEnt
 ReorderBufferToastEnt
-ReorderBufferTupleBuf
 ReorderBufferTupleCidEnt
 ReorderBufferTupleCidKey
 ReorderBufferUpdateProgressTxnCB
