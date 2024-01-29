@@ -22,7 +22,6 @@
 %define _trivial .0
 %define _buildid .2
 
-%define _build_id_links none
 %undefine _missing_build_ids_terminate_build
 
 Name: BabelfishDump
@@ -148,10 +147,5 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 - Updated BabelfishDump RPM version to 16.1
 
 * Fri Dec 29 2023 Rishabh Tanwar <ritanwar@amazon.com> - 16.1-2
-- Do not dump default GRANTs
-	Skip dumping GRANTs between default Babelfish roles.
-
+- Skip dumping GRANTs between default Babelfish roles.
 - Handle dump logic for new bbf_role_admin role
-	1. Skip dumping bbf_role_admin role since it is default role
-	and should already exists on the target server.
-	2. Allow dumping memberships of bbf_role_admin role.
