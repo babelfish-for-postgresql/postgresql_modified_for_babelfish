@@ -20,7 +20,7 @@
 %global macrosdir %(d=%{_rpmconfigdir}/macros.d; [ -d $d ] || d=%{_sysconfdir}/rpm; echo $d)
 
 %define _trivial .0
-%define _buildid .1
+%define _buildid .2
 
 %undefine _missing_build_ids_terminate_build
 
@@ -143,3 +143,9 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
+* Tue Jan 16 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.1-2
+- Updated BabelfishDump RPM version to 16.1
+
+* Fri Dec 29 2023 Rishabh Tanwar <ritanwar@amazon.com> - 16.1-2
+- Skip dumping GRANTs between default Babelfish roles.
+- Handle dump logic for new bbf_role_admin role
