@@ -2663,7 +2663,7 @@ executeDateTimeMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 													value);
 						break;
 					default:
-						elog(ERROR, "type with oid %d not supported", typid);
+						elog(ERROR, "type with oid %u not supported", typid);
 				}
 
 				typid = DATEOID;
@@ -2695,7 +2695,7 @@ executeDateTimeMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 													value);
 						break;
 					default:
-						elog(ERROR, "type with oid %d not supported", typid);
+						elog(ERROR, "type with oid %u not supported", typid);
 				}
 
 				/* Force the user-given time precision, if any */
@@ -2740,7 +2740,7 @@ executeDateTimeMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 													value);
 						break;
 					default:
-						elog(ERROR, "type with oid %d not supported", typid);
+						elog(ERROR, "type with oid %u not supported", typid);
 				}
 
 				/* Force the user-given time precision, if any */
@@ -2785,7 +2785,7 @@ executeDateTimeMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 													value);
 						break;
 					default:
-						elog(ERROR, "type with oid %d not supported", typid);
+						elog(ERROR, "type with oid %u not supported", typid);
 				}
 
 				/* Force the user-given time precision, if any */
@@ -2837,7 +2837,7 @@ executeDateTimeMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					case TIMESTAMPTZOID:	/* Nothing to do for TIMESTAMPTZ */
 						break;
 					default:
-						elog(ERROR, "type with oid %d not supported", typid);
+						elog(ERROR, "type with oid %u not supported", typid);
 				}
 
 				/* Force the user-given time precision, if any */
