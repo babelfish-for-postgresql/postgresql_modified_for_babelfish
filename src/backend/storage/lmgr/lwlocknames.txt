@@ -57,4 +57,5 @@ WaitEventExtensionLock				48
 WALSummarizerLock					49
 DSMRegistryLock						50
 InjectionPointLock				51
-TsqlApplockSyncLock					52
+SerialControlLock					52
+TsqlApplockSyncLock					53
