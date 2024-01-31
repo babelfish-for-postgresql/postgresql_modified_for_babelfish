@@ -2595,6 +2595,7 @@ TSQuerySign
 TSReadPointer
 TSTemplateInfo
 TSTernaryValue
+TSTokenTypeItem
 TSTokenTypeStorage
 TSVector
 TSVectorBuildState
