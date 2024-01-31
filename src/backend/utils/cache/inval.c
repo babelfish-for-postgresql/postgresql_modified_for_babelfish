@@ -782,7 +782,7 @@ LocalExecuteInvalidationMessage(SharedInvalidationMessage *msg)
 
 		rlocator.locator = msg->sm.rlocator;
 		rlocator.backend = (msg->sm.backend_hi << 16) | (int) msg->sm.backend_lo;
-		smgrcloserellocator(rlocator);
+		smgrreleaserellocator(rlocator);
 	}
 	else if (msg->id == SHAREDINVALRELMAP_ID)
 	{
