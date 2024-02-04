@@ -878,15 +878,21 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL);
 					break;
 				case ENR_OP_UPDATE:
-					oldtup = lfirst(lc);
-					lfirst(lc) = heap_copytuple(tup);
-					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup);
+					if (lc)
+					{
+						oldtup = lfirst(lc);
+						lfirst(lc) = heap_copytuple(tup);
+						CacheInvalidateHeapTuple(catalog_rel, oldtup, tup);
+					}
 					break;
 				case ENR_OP_DROP:
-					tmp = lfirst(lc);
-					*list_ptr = list_delete_ptr(*list_ptr, tmp);
-					CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
-					heap_freetuple(tmp);
+					if (lc)
+					{
+						tmp = lfirst(lc);
+						*list_ptr = list_delete_ptr(*list_ptr, tmp);
+						CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
+						heap_freetuple(tmp);
+					}
 					break;
 				default:
 					break;
