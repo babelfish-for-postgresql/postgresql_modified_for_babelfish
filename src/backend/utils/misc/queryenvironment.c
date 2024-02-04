@@ -27,6 +27,7 @@
 #include "access/tupdesc.h"
 #include "access/htup_details.h"
 #include "access/relscan.h"        /* SysScan related */
+#include "access/xact.h"           /* GetCurrentCommandId */
 #include "catalog/catalog.h"
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
@@ -867,8 +868,13 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 			default:
 				break;
 		}
+
 		/* add/drop/update is possible. Do it now. */
-		if (ret) {
+		if (ret)
+		{
+			/* Tell CommandCounterIncrement() we are about to create some inval messages */
+			GetCurrentCommandId(true);
+
 			Assert(queryEnv->memctx);
 			oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
 			switch (op) {
@@ -878,14 +884,23 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL);
 					break;
 				case ENR_OP_UPDATE:
+					/*
+					* Invalidate the tuple before updating / removing it from the List.
+					* Consider the case when we remove the tuple and cache invalidation
+					* failed, then error handling would try to remove it again but would
+					* crash because entry is gone from the List but we could still find it in the syscache.
+					* If we failed to drop because we failed to invalidate, then subsequent
+					* creation of the same table would fail saying the tuple exists already
+					* which is much better than crashing.
+					*/
 					oldtup = lfirst(lc);
-					lfirst(lc) = heap_copytuple(tup);
 					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup);
+					lfirst(lc) = heap_copytuple(tup);
 					break;
 				case ENR_OP_DROP:
+					CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
 					tmp = lfirst(lc);
 					*list_ptr = list_delete_ptr(*list_ptr, tmp);
-					CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
 					heap_freetuple(tmp);
 					break;
 				default:
