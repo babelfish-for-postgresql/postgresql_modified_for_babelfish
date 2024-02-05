@@ -353,10 +353,6 @@ plpgsql_inline_handler(PG_FUNCTION_ARGS)
 	 * unconditionally try to clean them up below.  (Hence, be wary of adding
 	 * anything that could fail between here and the PG_TRY block.)  See the
 	 * comments for shared_simple_eval_estate.
-	 *
-	 * Because this resowner isn't tied to the calling transaction, we can
-	 * also use it as the "procedure" resowner for any CALL statements.  That
-	 * helps reduce the opportunities for failure here.
 	 */
 	simple_eval_estate = CreateExecutorState();
 	simple_eval_resowner =

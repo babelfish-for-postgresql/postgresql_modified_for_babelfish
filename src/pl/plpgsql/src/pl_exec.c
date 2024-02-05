@@ -494,7 +494,6 @@ plpgsql_exec_function(PLpgSQL_function *func, FunctionCallInfo fcinfo,
 	 */
 	plpgsql_estate_setup(&estate, func, (ReturnSetInfo *) fcinfo->resultinfo,
 						 simple_eval_estate, simple_eval_resowner);
-	estate.procedure_resowner = procedure_resowner;
 	estate.atomic = atomic;
 
 	/*
@@ -6107,8 +6106,11 @@ exec_eval_simple_expr(PLpgSQL_execstate *estate,
 		 */
 		if (expr->expr_simple_plan_lxid == curlxid)
 		{
-			ReleaseCachedPlan(expr->expr_simple_plan,
-							  estate->simple_eval_resowner);
+			ResourceOwner saveResourceOwner = CurrentResourceOwner;
+
+			CurrentResourceOwner = estate->simple_eval_resowner;
+			ReleaseCachedPlan(expr->expr_simple_plan, estate->simple_eval_resowner);
+			CurrentResourceOwner = saveResourceOwner;
 			expr->expr_simple_plan = NULL;
 			expr->expr_simple_plan_lxid = InvalidLocalTransactionId;
 		}
@@ -6127,13 +6129,14 @@ exec_eval_simple_expr(PLpgSQL_execstate *estate,
 		Assert(cplan != NULL);
 
 		/*
-		 * This test probably can't fail either, but if it does, cope by
+		 * These tests probably can't fail either, but if they do, cope by
 		 * declaring the plan to be non-simple.  On success, we'll acquire a
 		 * refcount on the new plan, stored in simple_eval_resowner.
 		 */
 		if (CachedPlanAllowsSimpleValidityCheck(expr->expr_simple_plansource,
-												cplan,
-												estate->simple_eval_resowner))
+												cplan, estate->simple_eval_resowner) &&
+			CachedPlanIsSimplyValid(expr->expr_simple_plansource, cplan,
+									estate->simple_eval_resowner))
 		{
 			/* Remember that we have the refcount */
 			expr->expr_simple_plan = cplan;
@@ -6145,7 +6148,6 @@ exec_eval_simple_expr(PLpgSQL_execstate *estate,
 			ReleaseCachedPlan(cplan, CurrentResourceOwner);
 			/* Mark expression as non-simple, and fail */
 			expr->expr_simple_expr = NULL;
-			expr->expr_rw_param = NULL;
 			return false;
 		}
 
@@ -8078,19 +8080,26 @@ exec_simple_check_plan(PLpgSQL_execstate *estate, PLpgSQL_expr *expr)
 	/*
 	 * Verify that plancache.c thinks the plan is simple enough to use
 	 * CachedPlanIsSimplyValid.  Given the restrictions above, it's unlikely
-	 * that this could fail, but if it does, just treat plan as not simple. On
-	 * success, save a refcount on the plan in the simple-expression resowner.
+	 * that this could fail, but if it does, just treat plan as not simple.
 	 */
-	if (CachedPlanAllowsSimpleValidityCheck(plansource, cplan,
-											estate->simple_eval_resowner))
+	if (CachedPlanAllowsSimpleValidityCheck(plansource, cplan, estate->simple_eval_resowner))
 	{
-		/* Remember that we have the refcount */
-		expr->expr_simple_plansource = plansource;
-		expr->expr_simple_plan = cplan;
-		expr->expr_simple_plan_lxid = MyProc->lxid;
+		/*
+		 * OK, use CachedPlanIsSimplyValid to save a refcount on the plan in
+		 * the simple-expression resowner.  This shouldn't fail either, but if
+		 * somehow it does, again we can cope by treating plan as not simple.
+		 */
+		if (CachedPlanIsSimplyValid(plansource, cplan,
+									estate->simple_eval_resowner))
+		{
+			/* Remember that we have the refcount */
+			expr->expr_simple_plansource = plansource;
+			expr->expr_simple_plan = cplan;
+			expr->expr_simple_plan_lxid = MyProc->lxid;
 
-		/* Share the remaining work with the replan code path */
-		exec_save_simple_expr(expr, cplan);
+			/* Share the remaining work with the replan code path */
+			exec_save_simple_expr(expr, cplan);
+		}
 	}
 
 	/*

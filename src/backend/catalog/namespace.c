@@ -4020,7 +4020,7 @@ recomputeNamespacePath(void)
 	/*
 	 * We want to detect the case where the effective value of the base search
 	 * path variables didn't change.  As long as we're doing so, we can avoid
-	 * copying the OID list unnecessarily.
+	 * copying the OID list unncessarily.
 	 */
 	if (baseCreationNamespace == firstNS &&
 		baseTempCreationPending == temp_missing &&
