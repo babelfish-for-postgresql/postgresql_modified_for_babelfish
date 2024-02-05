@@ -25,10 +25,10 @@
  *    is copied into 'line_buf', with quotes and escape characters still
  *    intact.
  *
- * 4. CopyReadAttributesText/CSV() function takes the input line from
- *    'line_buf', and splits it into fields, unescaping the data as required.
- *    The fields are stored in 'attribute_buf', and 'raw_fields' array holds
- *    pointers to each field.
+ * 4. CopyReadAttributesText/CSV() function (via copy_read_attribute) takes
+ *    the input line from 'line_buf', and splits it into fields, unescaping
+ *    the data as required.  The fields are stored in 'attribute_buf', and
+ *    'raw_fields' array holds pointers to each field.
  *
  * If encoding conversion is not required, a shortcut is taken in step 2 to
  * avoid copying the data unnecessarily.  The 'input_buf' pointer is set to
@@ -154,8 +154,6 @@ fill_missing_values_in_copyfrom_hook_type fill_missing_values_in_copyfrom_hook =
 /* non-export function prototypes */
 static bool CopyReadLine(CopyFromState cstate);
 static bool CopyReadLineText(CopyFromState cstate);
-static int	CopyReadAttributesText(CopyFromState cstate);
-static int	CopyReadAttributesCSV(CopyFromState cstate);
 static Datum CopyReadBinaryAttribute(CopyFromState cstate, FmgrInfo *flinfo,
 									 Oid typioparam, int32 typmod,
 									 bool *isnull);
@@ -777,10 +775,7 @@ NextCopyFromRawFields(CopyFromState cstate, char ***fields, int *nfields)
 		{
 			int			fldnum;
 
-			if (cstate->opts.csv_mode)
-				fldct = CopyReadAttributesCSV(cstate);
-			else
-				fldct = CopyReadAttributesText(cstate);
+			fldct = cstate->copy_read_attributes(cstate);
 
 			if (fldct != list_length(cstate->attnumlist))
 				ereport(ERROR,
@@ -832,10 +827,7 @@ NextCopyFromRawFields(CopyFromState cstate, char ***fields, int *nfields)
 		return false;
 
 	/* Parse the line into de-escaped field values */
-	if (cstate->opts.csv_mode)
-		fldct = CopyReadAttributesCSV(cstate);
-	else
-		fldct = CopyReadAttributesText(cstate);
+	fldct = cstate->copy_read_attributes(cstate);
 
 	*fields = cstate->raw_fields;
 	*nfields = fldct;
@@ -1509,7 +1501,7 @@ GetDecimalFromHex(char hex)
  *
  * The return value is the number of fields actually read.
  */
-static int
+int
 CopyReadAttributesText(CopyFromState cstate)
 {
 	char		delimc = cstate->opts.delim[0];
@@ -1763,7 +1755,7 @@ CopyReadAttributesText(CopyFromState cstate)
  * CopyReadAttributesText, except we parse the fields according to
  * "standard" (i.e. common) CSV usage.
  */
-static int
+int
 CopyReadAttributesCSV(CopyFromState cstate)
 {
 	char		delimc = cstate->opts.delim[0];
