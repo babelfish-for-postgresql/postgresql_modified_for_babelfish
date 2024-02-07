@@ -799,4 +799,6 @@ extern PGDLLEXPORT tsql_has_pgstat_permissions_hook_type tsql_has_pgstat_permiss
 typedef void (*pgstat_function_wrapper_hook_type)(FunctionCallInfo, PgStat_FunctionCallUsage *, char *);
 extern PGDLLEXPORT pgstat_function_wrapper_hook_type pgstat_function_wrapper_hook;
 
+extern bool lookup_pgstat_entry_in_cache(PgStat_Kind kind, Oid dboid, Oid objoid);
+
 #endif							/* PGSTAT_H */

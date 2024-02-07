@@ -47,7 +47,8 @@ PGDLLIMPORT fmgr_hook_type fmgr_hook = NULL;
 PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook = NULL;
 PGDLLIMPORT get_func_language_oids_hook_type get_func_language_oids_hook = NULL;
 PGDLLIMPORT pgstat_function_wrapper_hook_type pgstat_function_wrapper_hook = NULL;
-set_local_schema_for_func_hook_type set_local_schema_for_func_hook;
+pltsql_pgstat_function_check_hook_type pltsql_pgstat_function_check_hook = NULL;
+set_local_schema_for_func_hook_type set_local_schema_for_func_hook = NULL;
 
 /*
  * Hashtable for fast lookup of external C functions
@@ -869,10 +870,13 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		 * We could be calling either a regular or a set-returning function,
 		 * so we have to test to see what finalize flag to use.
 		 */
-		pgstat_end_function_usage(&fcusage,
-								  (fcinfo->resultinfo == NULL ||
-								   !IsA(fcinfo->resultinfo, ReturnSetInfo) ||
-								   ((ReturnSetInfo *) fcinfo->resultinfo)->isDone != ExprMultipleResult));
+		
+		if (!pltsql_pgstat_function_check_hook || ((&fcusage)->fs != NULL
+		     && ((*pltsql_pgstat_function_check_hook)(fcinfo->flinfo->fn_oid))))
+			pgstat_end_function_usage(&fcusage,
+									  (fcinfo->resultinfo == NULL ||
+									   !IsA(fcinfo->resultinfo, ReturnSetInfo) ||
+									   ((ReturnSetInfo *) fcinfo->resultinfo)->isDone != ExprMultipleResult));
 	}
 	PG_CATCH();
 	{
