@@ -587,14 +587,6 @@ static void ShmemBackendArrayAdd(Backend *bn);
 static void ShmemBackendArrayRemove(Backend *bn);
 #endif							/* EXEC_BACKEND */
 
-#define StartupDataBase()		StartChildProcess(StartupProcess)
-#define StartArchiver()			StartChildProcess(ArchiverProcess)
-#define StartBackgroundWriter() StartChildProcess(BgWriterProcess)
-#define StartCheckpointer()		StartChildProcess(CheckpointerProcess)
-#define StartWalWriter()		StartChildProcess(WalWriterProcess)
-#define StartWalReceiver()		StartChildProcess(WalReceiverProcess)
-#define StartWalSummarizer()	StartChildProcess(WalSummarizerProcess)
-
 /* Macros to check exit status of a child process */
 #define EXIT_STATUS_0(st)  ((st) == 0)
 #define EXIT_STATUS_1(st)  (WIFEXITED(st) && WEXITSTATUS(st) == 1)
@@ -1490,14 +1482,14 @@ PostmasterMain(int argc, char *argv[])
 
 	/* Start bgwriter and checkpointer so they can help with recovery */
 	if (CheckpointerPID == 0)
-		CheckpointerPID = StartCheckpointer();
+		CheckpointerPID = StartChildProcess(CheckpointerProcess);
 	if (BgWriterPID == 0)
-		BgWriterPID = StartBackgroundWriter();
+		BgWriterPID = StartChildProcess(BgWriterProcess);
 
 	/*
 	 * We're ready to rock and roll...
 	 */
-	StartupPID = StartupDataBase();
+	StartupPID = StartChildProcess(StartupProcess);
 	Assert(StartupPID != 0);
 	StartupStatus = STARTUP_RUNNING;
 	pmState = PM_STARTUP;
@@ -1958,9 +1950,9 @@ ServerLoop(void)
 			pmState == PM_HOT_STANDBY || pmState == PM_STARTUP)
 		{
 			if (CheckpointerPID == 0)
-				CheckpointerPID = StartCheckpointer();
+				CheckpointerPID = StartChildProcess(CheckpointerProcess);
 			if (BgWriterPID == 0)
-				BgWriterPID = StartBackgroundWriter();
+				BgWriterPID = StartChildProcess(BgWriterProcess);
 		}
 
 		/*
@@ -1969,7 +1961,7 @@ ServerLoop(void)
 		 * be writing any new WAL).
 		 */
 		if (WalWriterPID == 0 && pmState == PM_RUN)
-			WalWriterPID = StartWalWriter();
+			WalWriterPID = StartChildProcess(WalWriterProcess);
 
 		/*
 		 * If we have lost the autovacuum launcher, try to start a new one. We
@@ -1988,7 +1980,7 @@ ServerLoop(void)
 
 		/* If we have lost the archiver, try to start a new one. */
 		if (PgArchPID == 0 && PgArchStartupAllowed())
-			PgArchPID = StartArchiver();
+			PgArchPID = StartChildProcess(ArchiverProcess);
 
 		/* If we need to signal the autovacuum launcher, do so now */
 		if (avlauncher_needs_signal)
@@ -3182,11 +3174,11 @@ process_pm_child_exit(void)
 			 * if this fails, we'll just try again later.
 			 */
 			if (CheckpointerPID == 0)
-				CheckpointerPID = StartCheckpointer();
+				CheckpointerPID = StartChildProcess(CheckpointerProcess);
 			if (BgWriterPID == 0)
-				BgWriterPID = StartBackgroundWriter();
+				BgWriterPID = StartChildProcess(BgWriterProcess);
 			if (WalWriterPID == 0)
-				WalWriterPID = StartWalWriter();
+				WalWriterPID = StartChildProcess(WalWriterProcess);
 			MaybeStartWalSummarizer();
 
 			/*
@@ -3196,7 +3188,7 @@ process_pm_child_exit(void)
 			if (!IsBinaryUpgrade && AutoVacuumingActive() && AutoVacPID == 0)
 				AutoVacPID = StartAutoVacLauncher();
 			if (PgArchStartupAllowed() && PgArchPID == 0)
-				PgArchPID = StartArchiver();
+				PgArchPID = StartChildProcess(ArchiverProcess);
 
 			/* workers may be scheduled to start now */
 			maybe_start_bgworkers();
@@ -3351,7 +3343,7 @@ process_pm_child_exit(void)
 				HandleChildCrash(pid, exitstatus,
 								 _("archiver process"));
 			if (PgArchStartupAllowed())
-				PgArchPID = StartArchiver();
+				PgArchPID = StartChildProcess(ArchiverProcess);
 			continue;
 		}
 
@@ -3930,7 +3922,7 @@ PostmasterStateMachine(void)
 				Assert(Shutdown > NoShutdown);
 				/* Start the checkpointer if not running */
 				if (CheckpointerPID == 0)
-					CheckpointerPID = StartCheckpointer();
+					CheckpointerPID = StartChildProcess(CheckpointerProcess);
 				/* And tell it to shut down */
 				if (CheckpointerPID != 0)
 				{
@@ -4062,7 +4054,7 @@ PostmasterStateMachine(void)
 
 	/*
 	 * If we need to recover from a crash, wait for all non-syslogger children
-	 * to exit, then reset shmem and StartupDataBase.
+	 * to exit, then reset shmem and start the startup process.
 	 */
 	if (FatalError && pmState == PM_NO_CHILDREN)
 	{
@@ -4084,7 +4076,7 @@ PostmasterStateMachine(void)
 		/* re-create shared memory and semaphores */
 		CreateSharedMemoryAndSemaphores();
 
-		StartupPID = StartupDataBase();
+		StartupPID = StartChildProcess(StartupProcess);
 		Assert(StartupPID != 0);
 		StartupStatus = STARTUP_RUNNING;
 		pmState = PM_STARTUP;
@@ -5230,7 +5222,7 @@ process_pm_pmsignal(void)
 		 */
 		Assert(PgArchPID == 0);
 		if (XLogArchivingAlways())
-			PgArchPID = StartArchiver();
+			PgArchPID = StartChildProcess(ArchiverProcess);
 
 		/*
 		 * If we aren't planning to enter hot standby mode later, treat
@@ -5665,7 +5657,7 @@ MaybeStartWalReceiver(void)
 		 pmState == PM_HOT_STANDBY) &&
 		Shutdown <= SmartShutdown)
 	{
-		WalReceiverPID = StartWalReceiver();
+		WalReceiverPID = StartChildProcess(WalReceiverProcess);
 		if (WalReceiverPID != 0)
 			WalReceiverRequested = false;
 		/* else leave the flag set, so we'll try again later */
@@ -5682,7 +5674,7 @@ MaybeStartWalSummarizer(void)
 	if (summarize_wal && WalSummarizerPID == 0 &&
 		(pmState == PM_RUN || pmState == PM_HOT_STANDBY) &&
 		Shutdown <= SmartShutdown)
-		WalSummarizerPID = StartWalSummarizer();
+		WalSummarizerPID = StartChildProcess(WalSummarizerProcess);
 }
 
 
