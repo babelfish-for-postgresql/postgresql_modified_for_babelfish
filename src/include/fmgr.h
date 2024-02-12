@@ -797,7 +797,7 @@ typedef void (*non_tsql_proc_entry_hook_type) (int, int);
 
 typedef void (*get_func_language_oids_hook_type)(Oid *, Oid *);
 
-typedef bool (*pltsql_pgstat_function_check_hook_type) (Oid oid);
+typedef bool (*pltsql_pgstat_function_check_hook_type) (FunctionCallInfo fcinfo);
 
 typedef char *(*set_local_schema_for_func_hook_type) (Oid proc_nsp_oid);
 

@@ -2519,7 +2519,9 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 	}
 	PG_END_TRY();
 
-	pgstat_end_function_usage(&fcusage, true);
+	if (!pltsql_pgstat_function_check_hook || ((&fcusage)->fs != NULL
+	    && (*pltsql_pgstat_function_check_hook)(fcinfo)))
+		pgstat_end_function_usage(&fcusage, true);
 
 	MemoryContextSwitchTo(oldContext);
 

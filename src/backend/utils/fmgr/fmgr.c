@@ -23,6 +23,7 @@
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
 #include "commands/proclang.h"
+#include "commands/trigger.h"
 #include "executor/functions.h"
 #include "lib/stringinfo.h"
 #include "miscadmin.h"
@@ -871,8 +872,9 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		 * so we have to test to see what finalize flag to use.
 		 */
 		
-		if (!pltsql_pgstat_function_check_hook || ((&fcusage)->fs != NULL
-		     && ((*pltsql_pgstat_function_check_hook)(fcinfo->flinfo->fn_oid))))
+		if (!pltsql_pgstat_function_check_hook ||
+		    (fcache->prokind != PROKIND_PROCEDURE && !CALLED_AS_TRIGGER(fcinfo)) ||
+		    ((&fcusage)->fs != NULL && (*pltsql_pgstat_function_check_hook)(fcinfo)))
 			pgstat_end_function_usage(&fcusage,
 									  (fcinfo->resultinfo == NULL ||
 									   !IsA(fcinfo->resultinfo, ReturnSetInfo) ||

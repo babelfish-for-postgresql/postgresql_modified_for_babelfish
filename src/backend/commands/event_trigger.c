@@ -917,7 +917,9 @@ EventTriggerInvoke(List *fn_oid_list, EventTriggerData *trigdata)
 								 InvalidOid, (Node *) trigdata, NULL);
 		pgstat_init_function_usage(fcinfo, &fcusage);
 		FunctionCallInvoke(fcinfo);
-		pgstat_end_function_usage(&fcusage, true);
+		if (!pltsql_pgstat_function_check_hook || ((&fcusage)->fs != NULL
+		    && (*pltsql_pgstat_function_check_hook)(fcinfo)))
+			pgstat_end_function_usage(&fcusage, true);
 
 		/* Reclaim memory. */
 		MemoryContextReset(context);
