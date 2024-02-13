@@ -23,7 +23,6 @@
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
 #include "commands/proclang.h"
-#include "commands/trigger.h"
 #include "executor/functions.h"
 #include "lib/stringinfo.h"
 #include "miscadmin.h"
@@ -48,7 +47,6 @@ PGDLLIMPORT fmgr_hook_type fmgr_hook = NULL;
 PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook = NULL;
 PGDLLIMPORT get_func_language_oids_hook_type get_func_language_oids_hook = NULL;
 PGDLLIMPORT pgstat_function_wrapper_hook_type pgstat_function_wrapper_hook = NULL;
-pltsql_pgstat_function_check_hook_type pltsql_pgstat_function_check_hook = NULL;
 set_local_schema_for_func_hook_type set_local_schema_for_func_hook = NULL;
 
 /*
@@ -872,13 +870,20 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		 * so we have to test to see what finalize flag to use.
 		 */
 		
-		if (!pltsql_pgstat_function_check_hook ||
-		    (fcache->prokind != PROKIND_PROCEDURE && !CALLED_AS_TRIGGER(fcinfo)) ||
-		    ((&fcusage)->fs != NULL && (*pltsql_pgstat_function_check_hook)(fcinfo)))
+		if (pltsql_pgstat_end_function_usage_hook && (&fcusage)->fs != NULL)
+		{
+			(*pltsql_pgstat_end_function_usage_hook)(fcinfo, &fcusage, fcache->prokind, 
+													 (fcinfo->resultinfo == NULL ||
+													  !IsA(fcinfo->resultinfo, ReturnSetInfo) ||
+													  ((ReturnSetInfo *) fcinfo->resultinfo)->isDone != ExprMultipleResult));
+		}
+		else
+		{
 			pgstat_end_function_usage(&fcusage,
 									  (fcinfo->resultinfo == NULL ||
 									   !IsA(fcinfo->resultinfo, ReturnSetInfo) ||
 									   ((ReturnSetInfo *) fcinfo->resultinfo)->isDone != ExprMultipleResult));
+		}
 	}
 	PG_CATCH();
 	{
