@@ -870,7 +870,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		 * so we have to test to see what finalize flag to use.
 		 */
 		
-		if (pltsql_pgstat_end_function_usage_hook && (&fcusage)->fs != NULL)
+		if (pltsql_pgstat_end_function_usage_hook)
 		{
 			(*pltsql_pgstat_end_function_usage_hook)(fcinfo, &fcusage, fcache->prokind, 
 													 (fcinfo->resultinfo == NULL ||

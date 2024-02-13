@@ -917,14 +917,13 @@ EventTriggerInvoke(List *fn_oid_list, EventTriggerData *trigdata)
 								 InvalidOid, (Node *) trigdata, NULL);
 		pgstat_init_function_usage(fcinfo, &fcusage);
 		FunctionCallInvoke(fcinfo);
-		if (pltsql_pgstat_end_function_usage_hook && (&fcusage)->fs != NULL)
+		if (pltsql_pgstat_end_function_usage_hook)
 		{
 			(*pltsql_pgstat_end_function_usage_hook)(fcinfo, &fcusage, PROKIND_FUNCTION, true);
 		}
 		else
 		{
 			pgstat_end_function_usage(&fcusage, true);
-
 		}
 
 		/* Reclaim memory. */
