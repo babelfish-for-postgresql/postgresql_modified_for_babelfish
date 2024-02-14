@@ -1001,3 +1001,14 @@ pgstat_setup_memcxt(void)
 								  "PgStat Shared Ref Hash",
 								  ALLOCSET_SMALL_SIZES);
 }
+
+bool
+lookup_pgstat_entry_in_cache(PgStat_Kind kind, Oid dboid, Oid objoid)
+{
+	if (pgStatEntryRefHash)
+	{
+		PgStat_HashKey key = {.kind = kind,.dboid = dboid,.objoid = objoid};
+		return pgstat_entry_ref_hash_lookup(pgStatEntryRefHash, key);
+	}
+	return false;
+}
