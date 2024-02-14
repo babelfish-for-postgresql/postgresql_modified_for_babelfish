@@ -2519,7 +2519,14 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 	}
 	PG_END_TRY();
 
-	pgstat_end_function_usage(&fcusage, true);
+	if (pltsql_pgstat_end_function_usage_hook)
+	{
+		(*pltsql_pgstat_end_function_usage_hook)(fcinfo,  &fcusage, PROKIND_FUNCTION, true);
+	}
+	else
+	{
+		pgstat_end_function_usage(&fcusage, true);
+	}
 
 	MemoryContextSwitchTo(oldContext);
 

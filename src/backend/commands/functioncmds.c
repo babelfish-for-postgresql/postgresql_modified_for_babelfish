@@ -2490,7 +2490,14 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 	/* Here we actually call the procedure */
 	pgstat_init_function_usage(fcinfo, &fcusage);
 	retval = FunctionCallInvoke(fcinfo);
-	pgstat_end_function_usage(&fcusage, true);
+	if (pltsql_pgstat_end_function_usage_hook)
+	{
+		(*pltsql_pgstat_end_function_usage_hook)(fcinfo,  &fcusage, PROKIND_FUNCTION, true);
+	}
+	else
+	{
+		pgstat_end_function_usage(&fcusage, true);
+	}
 
 	/* Handle the procedure's outputs */
 	if (((stmt->relation && stmt->attrnos) || (stmt->retdesc && stmt->dest)) &&
