@@ -1043,7 +1043,8 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	}
 	else if (strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
-			 strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0)
+			 strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.dbid = %d",
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	else if (strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0)
@@ -1121,7 +1122,8 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 			strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0)
+			strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
+			strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
 						  fmtQualifiedDumpable(tbinfo));
 	else
