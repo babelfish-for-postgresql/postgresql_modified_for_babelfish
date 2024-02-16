@@ -57,6 +57,7 @@
 #include "commands/tablecmds.h"
 #include "commands/typecmds.h"
 #include "executor/spi.h"
+#include "common/int.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/optimizer.h"
@@ -2903,11 +2904,7 @@ list_cookedconstr_attnum_cmp(const ListCell *p1, const ListCell *p2)
 	AttrNumber	v1 = ((CookedConstraint *) lfirst(p1))->attnum;
 	AttrNumber	v2 = ((CookedConstraint *) lfirst(p2))->attnum;
 
-	if (v1 < v2)
-		return -1;
-	if (v1 > v2)
-		return 1;
-	return 0;
+	return pg_cmp_s16(v1, v2);
 }
 
 /*
