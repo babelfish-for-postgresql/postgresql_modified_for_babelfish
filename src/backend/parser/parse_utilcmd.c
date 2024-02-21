@@ -70,6 +70,7 @@
 
 /* Hook for pltsql plugin */
 pltsql_identity_datatype_hook_type pltsql_identity_datatype_hook = NULL;
+pltsql_unique_constraint_nulls_ordering_hook_type pltsql_unique_constraint_nulls_ordering_hook = NULL;
 post_transform_column_definition_hook_type post_transform_column_definition_hook = NULL;
 post_transform_table_definition_hook_type post_transform_table_definition_hook = NULL;
 
@@ -2592,20 +2593,9 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 				iparam->ordering = i->ordering;
 			}
 
-			if (sql_dialect == SQL_DIALECT_TSQL && constraint->contype == CONSTR_UNIQUE)
+			if (pltsql_unique_constraint_nulls_ordering_hook)
 			{
-				switch (iparam->ordering)
-				{
-					case SORTBY_ASC:
-					case SORTBY_DEFAULT:
-						iparam->nulls_ordering = SORTBY_NULLS_FIRST;
-						break;
-					case SORTBY_DESC:
-						iparam->nulls_ordering = SORTBY_NULLS_LAST;
-						break;
-					default:
-						break;
-				}
+				iparam->nulls_ordering = (* pltsql_unique_constraint_nulls_ordering_hook) (constraint->contype, iparam->ordering);
 			}
 
 			/*
