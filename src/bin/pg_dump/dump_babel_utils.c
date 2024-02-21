@@ -978,6 +978,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 {
 	PQExpBuffer		query;
 	PGresult		*res;
+	TableInfo		*extprop_table;
 	TableInfo		*sysdb_table;
 	TableInfo		*namespace_ext_table;
 	DumpableObject		*dobj;
@@ -991,22 +992,26 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	appendPQExpBufferStr(query,
 						 "SELECT oid "
 						 "FROM pg_class "
-						 "WHERE relname in ('babelfish_sysdatabases', 'babelfish_namespace_ext') "
+						 "WHERE relname in ('babelfish_sysdatabases', "
+						 "'babelfish_namespace_ext', 'babelfish_extended_properties') "
 						 "AND relnamespace = 'sys'::regnamespace "
 						 "ORDER BY relname;");
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
-	
-	Assert(PQntuples(res) == 2);
-	namespace_ext_table = findTableByOid(atooid(PQgetvalue(res, 0, 0)));
-	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 1, 0)));
-	Assert(sysdb_table != NULL && namespace_ext_table != NULL);
-	dobj = (DumpableObject *) namespace_ext_table->dataObj;
+
+	Assert(PQntuples(res) == 3);
+	extprop_table = findTableByOid(atooid(PQgetvalue(res, 0, 0)));
+	namespace_ext_table = findTableByOid(atooid(PQgetvalue(res, 1, 0)));
+	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 2, 0)));
+	Assert(sysdb_table != NULL && namespace_ext_table != NULL && extprop_table != NULL);
 	refdobj = (DumpableObject *) sysdb_table->dataObj;
 	/*
-	 * Make babelfish_namespace_ext table dependent babelfish_sysdatabases
-	 * table so that we dump babelfish_sysdatabases's data before babelfish_namespace_ext.
+	 * Make babelfish_namespace_ext and babelfish_extended_properties tables dependent upon
+	 * babelfish_sysdatabases table so that we dump babelfish_sysdatabases's data before babelfish_namespace_ext.
 	 * This is needed to generate and handle new "dbid" during logical database restore.
 	 */
+	dobj = (DumpableObject *) namespace_ext_table->dataObj;
+	addObjectDependency(dobj, refdobj->dumpId);
+	dobj = (DumpableObject *) extprop_table->dataObj;
 	addObjectDependency(dobj, refdobj->dumpId);
 
 	PQclear(res);
