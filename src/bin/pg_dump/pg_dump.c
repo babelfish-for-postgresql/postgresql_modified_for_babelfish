@@ -2295,8 +2295,6 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		attgenerated[nfields] = tbinfo->attgenerated[i];
 		nfields++;
 	}
-	nfields_new = fixCursorForBbfSqlvariantTableData(fout, tbinfo, q, nfields,
-										&sqlvar_metadata_pos);
 	/* Servers before 9.4 will complain about zero-column SELECT */
 	if (nfields == 0)
 		appendPQExpBufferStr(q, "NULL");
@@ -2306,6 +2304,8 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		appendPQExpBuffer(q, " %s", tdinfo->filtercond);
 
 	fixCursorForBbfCatalogTableData(fout, tbinfo, q, &nfields, attgenerated);
+	nfields_new = fixCursorForBbfSqlvariantTableData(fout, tbinfo, q, nfields,
+										&sqlvar_metadata_pos);
 	ExecuteSqlStatement(fout, q->data);
 
 	while (1)

@@ -43,6 +43,7 @@ static void addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbin
 static void addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo);
 static int getMbstrlen(const char *mbstr,Archive *fout);
 static bool is_ms_shipped(DumpableObject *dobj, Archive *fout);
+static bool hasSqlvariantColumn(TableInfo *tbinfo);
 
 /* enum to check if database to be dumped is a Babelfish Database */
 typedef enum {
@@ -1148,6 +1149,7 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 	bool	is_builtin_db = false;
 	bool	is_bbf_usr_ext_tab = false;
 	bool	is_bbf_sysdatabases_tab = false;
+	bool	has_sqlv_col = hasSqlvariantColumn(tbinfo);
 
 	/*
 	 * Return if not a Babelfish database, or if the table is not a Babelfish
@@ -1176,7 +1178,7 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 	{
 		if (tbinfo->attisdropped[i])
 			continue;
-		if (tbinfo->attgenerated[i] && fout->dopt->column_inserts)
+		if (tbinfo->attgenerated[i] && (fout->dopt->column_inserts || has_sqlv_col))
 			continue;
 		/*
 		 * Skip dbid column for logical database dump, we will generate new 
@@ -1214,11 +1216,18 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 		attgenerated[*nfields] = tbinfo->attgenerated[i];
 		(*nfields)++;
 	}
-	/* Add FROM clause differently for physical or logical database dump. */
-	if (bbf_db_name == NULL)
-		addFromClauseForPhysicalDatabaseDump(buf, tbinfo);
-	else
-		addFromClauseForLogicalDatabaseDump(buf, tbinfo);
+
+	/*
+	 * Delay the FROM as fixCursorForBbfSqlvariantTableData might append more
+	 * columns if there exist sql_variant columns in the table.
+	 */
+	if (!has_sqlv_col) {
+		/* Add FROM clause differently for physical or logical database dump. */
+		if (bbf_db_name == NULL)
+			addFromClauseForPhysicalDatabaseDump(buf, tbinfo);
+		else
+			addFromClauseForLogicalDatabaseDump(buf, tbinfo);
+	}
 }
 
 /*
@@ -1341,7 +1350,7 @@ bbfIsDumpWithInsert(Archive *fout, TableInfo *tbinfo)
  * hasSqlvariantColumn:
  * Returns true if any of the columns in table is a sqlvariant data type column
  */
-bool
+static bool
 hasSqlvariantColumn(TableInfo *tbinfo)
 {
 	for (int i = 0; i < tbinfo->numatts; i++)
@@ -1385,6 +1394,7 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 {
 	int orig_nfields = 0;
 	PQExpBuffer buf = createPQExpBuffer();
+	bool is_catalog_table = isBabelfishConfigTable(tbinfo);
 
 	if (!isBabelfishDatabase(fout) || !hasSqlvariantColumn(tbinfo))
 		return nfields;
@@ -1414,8 +1424,14 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 		if (pg_strcasecmp(tbinfo->atttypnames[i],
 			quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
 		{
-			appendPQExpBuffer(buf, ", sys.SQL_VARIANT_PROPERTY(%s, 'BaseType')", fmtId(tbinfo->attnames[i]));
-			appendPQExpBuffer(buf, ", sys.datalength(%s)", fmtId(tbinfo->attnames[i]));
+			appendPQExpBufferStr(buf, ", sys.SQL_VARIANT_PROPERTY(");
+			if (is_catalog_table)
+				appendPQExpBufferStr(buf, "a.");
+			appendPQExpBuffer(buf, "%s, 'BaseType')", fmtId(tbinfo->attnames[i]));
+			appendPQExpBufferStr(buf, ", sys.datalength(");
+			if (is_catalog_table)
+				appendPQExpBufferStr(buf, "a.");
+			appendPQExpBuffer(buf, "%s)", fmtId(tbinfo->attnames[i]));
 			(*sqlvar_metadata_pos)[orig_nfields] = nfields;
 			nfields = nfields + 2;
 		}
@@ -1423,6 +1439,30 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 	}
 	appendPQExpBufferStr(query, buf->data);
 	destroyPQExpBuffer(buf);
+
+	/*
+	 * Add the FROM clause which we delayed in fixCursorForBbfCatalogTableData function
+	 * for catalog tables.
+	 */
+	if (is_catalog_table) {
+		/* Add FROM clause differently for physical or logical database dump. */
+		if (bbf_db_name == NULL)
+			addFromClauseForPhysicalDatabaseDump(query, tbinfo);
+		else
+			addFromClauseForLogicalDatabaseDump(query, tbinfo);
+	}
+	/* Add the generic FROM clause if not a catalog table. */
+	else
+	{
+		TableDataInfo *tdinfo = (TableDataInfo *) tbinfo->dataObj;
+		if (nfields == 0)
+			appendPQExpBufferStr(query, "NULL");
+		appendPQExpBuffer(query, " FROM ONLY %s",
+						  fmtQualifiedDumpable(tbinfo));
+		if (tdinfo && tdinfo->filtercond)
+			appendPQExpBuffer(query, " %s", tdinfo->filtercond);
+	}
+
 	return nfields;
 }
 
