@@ -25,6 +25,7 @@ extern char *bbf_db_name;
 extern void bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout);
 extern void fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo);
 extern bool isBabelfishDatabase(Archive *fout);
+extern bool isBabelfishConfigTable(Archive *fout, TableInfo *tbinfo);
 extern void fixOprRegProc(Archive *fout, const OprInfo *oprinfo, const char *oprleft, const char *oprright, char **oprregproc);
 extern void fixTsqlTableTypeDependency(Archive *fout, DumpableObject *func, DumpableObject *tabletype, char deptype);
 extern bool isTsqlTableType(Archive *fout, const TableInfo *tbinfo);
@@ -37,14 +38,15 @@ extern char *babelfish_handle_view_def(Archive *fout, char *view_def);
 extern void prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_patterns);
 extern void setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout);
 extern void dumpBabelGUCs(Archive *fout);
-extern void fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields, char *attgenerated);
 extern void fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFrom);
 extern bool bbfIsDumpWithInsert(Archive *fout, TableInfo *tbinfo);
-extern int fixCursorForBbfSqlvariantTableData(Archive *fout,
-                                            TableInfo *tbinfo,
-                                            PQExpBuffer query,
-                                            int nfields,
-                                            int **sqlvar_metdata_pos);
+extern void fixCursorForBbfTableData(Archive *fout,
+                                     TableInfo *tbinfo,
+                                     PQExpBuffer buf,
+                                     int *nfields,
+                                     int *nfields_new,
+                                     char *attgenerated,
+                                     int **sqlvar_metdata_pos);
 extern void castSqlvariantToBasetype(PGresult *res,
                                     Archive *fout,
                                     int row,

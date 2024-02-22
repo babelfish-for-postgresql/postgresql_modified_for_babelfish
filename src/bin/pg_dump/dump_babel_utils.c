@@ -38,7 +38,6 @@ static SimpleOidList catalog_table_include_oids = {NULL, NULL};
 static char *babel_init_user = NULL;
 
 static char *getMinOid(Archive *fout);
-static bool isBabelfishConfigTable(TableInfo *tbinfo);
 static void addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo);
 static void addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo);
 static int getMbstrlen(const char *mbstr,Archive *fout);
@@ -158,9 +157,11 @@ is_ms_shipped(DumpableObject *dobj, Archive *fout)
  * Returns true if given table is a configuration table (for which catalog
  * table data needs to be dumped), false otherwise.
  */
-static bool
-isBabelfishConfigTable(TableInfo *tbinfo)
+bool
+isBabelfishConfigTable(Archive *fout, TableInfo *tbinfo)
 {
+	if (!isBabelfishDatabase(fout))
+		return false;
 	/* 
 	 * We don't want to dump babelfish_authid_login_ext and 
 	 * babelfish_server_options in case of logical database dump.
@@ -386,7 +387,7 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 							 * are not marked to be dumped so catalog table data explicitly
 							 * need to be marked as dumpable.
 							 */
-							if (isBabelfishConfigTable(tbinfo))
+							if (isBabelfishConfigTable(fout, tbinfo))
 								tbinfo->dobj.dump |= DUMP_COMPONENT_DATA;
 						}
 				}
@@ -1142,7 +1143,7 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
  * Prepare custom cursor for all Babelfish catalog tables to selectively dump 
  * the data corresponding to specified physical/logical database.
  */
-void
+static void
 fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer buf, int *nfields, char *attgenerated)
 {
 	int 	i;
@@ -1151,12 +1152,8 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 	bool	is_bbf_sysdatabases_tab = false;
 	bool	has_sqlv_col = hasSqlvariantColumn(tbinfo);
 
-	/*
-	 * Return if not a Babelfish database, or if the table is not a Babelfish
-	 * configuration table.
-	 */
-	
-	if (!isBabelfishDatabase(fout) || !isBabelfishConfigTable(tbinfo))
+	/* Return if the table is not a Babelfish configuration table. */
+	if (!isBabelfishConfigTable(fout, tbinfo))
 		return;
 
 	if (bbf_db_name != NULL)
@@ -1251,7 +1248,7 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 	 * Return if not a Babelfish database, or if the table is not a Babelfish
 	 * configuration table.
 	 */
-	if (!isBabelfishDatabase(fout) || !isBabelfishConfigTable(tbinfo))
+	if (!isBabelfishDatabase(fout) || !isBabelfishConfigTable(fout, tbinfo))
 		return;
 
 	if (bbf_db_name != NULL)
@@ -1385,7 +1382,7 @@ getMbstrlen(const char *mbstr, Archive *fout)
  * Returns total number of fields in the cursor which is the sum of existing
  * nfields and the extra fields added for each sql_variant column.
  */
-int
+static int
 fixCursorForBbfSqlvariantTableData( Archive *fout,
 									TableInfo *tbinfo,
 									PQExpBuffer query,
@@ -1394,9 +1391,9 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 {
 	int orig_nfields = 0;
 	PQExpBuffer buf = createPQExpBuffer();
-	bool is_catalog_table = isBabelfishConfigTable(tbinfo);
+	bool is_catalog_table = isBabelfishConfigTable(fout, tbinfo);
 
-	if (!isBabelfishDatabase(fout) || !hasSqlvariantColumn(tbinfo))
+	if (!hasSqlvariantColumn(tbinfo))
 		return nfields;
 
 	*sqlvar_metadata_pos = (int *) pg_malloc0(tbinfo->numatts * sizeof(int));
@@ -1450,17 +1447,6 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 			addFromClauseForPhysicalDatabaseDump(query, tbinfo);
 		else
 			addFromClauseForLogicalDatabaseDump(query, tbinfo);
-	}
-	/* Add the generic FROM clause if not a catalog table. */
-	else
-	{
-		TableDataInfo *tdinfo = (TableDataInfo *) tbinfo->dataObj;
-		if (nfields == 0)
-			appendPQExpBufferStr(query, "NULL");
-		appendPQExpBuffer(query, " FROM ONLY %s",
-						  fmtQualifiedDumpable(tbinfo));
-		if (tdinfo && tdinfo->filtercond)
-			appendPQExpBuffer(query, " %s", tdinfo->filtercond);
 	}
 
 	return nfields;
@@ -1555,4 +1541,28 @@ castSqlvariantToBasetype(PGresult *res,
 		archprintf(fout, "%s",type);
 	archputs(")", fout);
 	destroyPQExpBuffer(q);
+}
+
+/*
+ * fixCursorForBbfTableData:
+ * Common wrapper for fixCursorForBbfCatalogTableData and fixCursorForBbfSqlvariantTableData
+ * functions. This handles preparation of custom cursor for all Babelfish catalog tables and
+ * tables with sql_variant column(s).
+ */
+void
+fixCursorForBbfTableData(Archive *fout,
+						 TableInfo *tbinfo,
+						 PQExpBuffer buf,
+						 int *nfields,
+						 int *nfields_new,
+						 char *attgenerated,
+						 int **sqlvar_metadata_pos)
+{
+	/* Return if it is not a Babelfish database */
+	if (!isBabelfishDatabase(fout))
+		return;
+
+	fixCursorForBbfCatalogTableData(fout, tbinfo, buf, nfields, attgenerated);
+	*nfields_new = fixCursorForBbfSqlvariantTableData(fout, tbinfo, buf, *nfields,
+													  sqlvar_metadata_pos);
 }
