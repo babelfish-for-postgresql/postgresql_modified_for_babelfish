@@ -333,6 +333,8 @@ BuildAccumulator
 BuiltinScript
 BulkInsertState
 BulkInsertStateData
+BulkWriteBuffer
+BulkWriteState
 CACHESIGN
 CAC_state
 CCFastEqualFN
@@ -2019,6 +2021,7 @@ PendingFsyncEntry
 PendingRelDelete
 PendingRelSync
 PendingUnlinkEntry
+PendingWrite
 PendingWriteback
 PerLockTagEntry
 PerlInterpreter
