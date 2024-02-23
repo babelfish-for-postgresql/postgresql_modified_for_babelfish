@@ -4807,7 +4807,8 @@ ExecISInsertTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
     IOTState prevState;
     trigdesc = relinfo->ri_TrigDesc;
     if (trigdesc == NULL)
-       	return IOT_NOT_REQUIRED;
+		return IOT_NOT_REQUIRED;
+	
 	if (!trigdesc->trig_insert_instead_statement || !isTsqlInsteadofTriggerExecution(estate, relinfo, TRIGGER_EVENT_INSERT))
 	{
 		set_iot_state(RelationGetRelid(rel), CMD_INSERT, IOT_NOT_REQUIRED);
@@ -4864,6 +4865,7 @@ ExecISDeleteTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
 
 	if (trigdesc == NULL)
 		return IOT_NOT_REQUIRED;
+
 	if (!trigdesc->trig_delete_instead_statement || !isTsqlInsteadofTriggerExecution(estate, relinfo, TRIGGER_EVENT_DELETE))
 	{
 		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_DELETE, IOT_NOT_REQUIRED);
