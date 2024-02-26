@@ -496,10 +496,6 @@ AlterSequence(ParseState *pstate, AlterSeqStmt *stmt)
 				seqform, newdataform,
 				&need_seq_rewrite, &owned_by);
 
-	/* Clear local cache so that we don't think we have cached numbers */
-	/* Note that we do not change the currval() state */
-	elm->cached = elm->last;
-
 	/* If needed, rewrite the sequence relation itself */
 	if (need_seq_rewrite)
 	{
@@ -526,6 +522,10 @@ AlterSequence(ParseState *pstate, AlterSeqStmt *stmt)
 		 */
 		fill_seq_with_data(seqrel, newdatatuple);
 	}
+
+	/* Clear local cache so that we don't think we have cached numbers */
+	/* Note that we do not change the currval() state */
+	elm->cached = elm->last;
 
 	/* process OWNED BY if given */
 	if (owned_by)
@@ -691,7 +691,6 @@ nextval_internal(Oid relid, bool check_permissions)
 	seq = read_seq_tuple(seqrel, &buf, &seqdatatuple);
 	page = BufferGetPage(buf);
 
-	elm->increment = incby;
 	last = next = result = seq->last_value;
 	fetch = cache;
 	log = seq->log_cnt;
@@ -789,6 +788,7 @@ nextval_internal(Oid relid, bool check_permissions)
 	Assert(log >= 0);
 
 	/* save info in local cache */
+	elm->increment = incby;
 	elm->last = result;			/* last returned number */
 	elm->cached = last;			/* last fetched number */
 	elm->last_valid = true;
