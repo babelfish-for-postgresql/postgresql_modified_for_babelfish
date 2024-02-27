@@ -168,7 +168,14 @@ unregister_ENR(QueryEnvironment *queryEnv, const char *name)
  */
 List *get_namedRelList()
 {
-	return currentQueryEnv->namedRelList;
+	List *relList = NIL;
+	QueryEnvironment *qe = currentQueryEnv;
+	while (qe)
+	{
+		relList = list_concat(relList, qe->namedRelList);
+		qe = qe->parentEnv;
+	}
+	return relList;
 }
 
 bool has_existing_enr_relations()
@@ -194,18 +201,23 @@ EphemeralNamedRelation
 get_ENR(QueryEnvironment *queryEnv, const char *name)
 {
 	ListCell   *lc;
+	QueryEnvironment *qe = queryEnv;
 
 	Assert(name != NULL);
 
 	if (queryEnv == NULL)
 		return NULL;
 
-	foreach(lc, queryEnv->namedRelList)
+	while (qe)
 	{
-		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+		foreach(lc, qe->namedRelList)
+		{
+			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		if (strcmp(enr->md.name, name) == 0)
-			return enr;
+			if (strcmp(enr->md.name, name) == 0)
+				return enr;
+		}
+		qe = qe->parentEnv;
 	}
 
 	return NULL;
@@ -218,16 +230,21 @@ EphemeralNamedRelation
 get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType type)
 {
 	ListCell   *lc;
+	QueryEnvironment *qe = queryEnv;
 
 	if (queryEnv == NULL)
 		return NULL;
 
-	foreach(lc, queryEnv->namedRelList)
+	while (qe)
 	{
-		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+		foreach(lc, qe->namedRelList)
+		{
+			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		if (enr->md.reliddesc == id && enr->md.enrtype == type)
-			return enr;
+			if (enr->md.reliddesc == id && enr->md.enrtype == type)
+				return enr;
+		}
+		qe = qe->parentEnv;
 	}
 
 	return NULL;
