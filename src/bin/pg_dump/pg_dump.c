@@ -2322,8 +2322,10 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	/* Servers before 9.4 will complain about zero-column SELECT */
 	if (nfields == 0)
 		appendPQExpBufferStr(q, "NULL");
-	/* Skip the FROM clause for Babelfish catalog tables */
-	if (!isBabelfishConfigTable(fout, tbinfo))
+	/* Add the FROM clause for Babelfish catalog tables */
+	if (isBabelfishConfigTable(fout, tbinfo))
+		addFromClauseForBabelfishCatalogTable(q, tbinfo);
+	else
 		appendPQExpBuffer(q, " FROM ONLY %s",
 						  fmtQualifiedDumpable(tbinfo));
 	if (tdinfo->filtercond)

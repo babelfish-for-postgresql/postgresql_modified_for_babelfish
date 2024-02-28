@@ -1008,7 +1008,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	refdobj = (DumpableObject *) sysdb_table->dataObj;
 	/*
 	 * Make babelfish_namespace_ext and babelfish_extended_properties tables dependent upon
-	 * babelfish_sysdatabases table so that we dump babelfish_sysdatabases's data before babelfish_namespace_ext.
+	 * babelfish_sysdatabases table so that we dump babelfish_sysdatabases table's data before both of them.
 	 * This is needed to generate and handle new "dbid" during logical database restore.
 	 */
 	dobj = (DumpableObject *) namespace_ext_table->dataObj;
@@ -1026,7 +1026,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
  * Responsible for adding a FROM clause to the buffer so as to dump catalog data
  * corresponding to specified logical database.
  */
-void
+static void
 addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 {
 	if (strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0)
@@ -1139,6 +1139,20 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 }
 
 /*
+ * addFromClauseForBabelfishCatalogTable:
+ * Wrapper function to add FROM clause for a Babelfish catalog table.
+ */
+void
+addFromClauseForBabelfishCatalogTable(PQExpBuffer buf, TableInfo *tbinfo)
+{
+	/* Add FROM clause differently for physical or logical database dump. */
+	if (bbf_db_name == NULL)
+		addFromClauseForPhysicalDatabaseDump(buf, tbinfo);
+	else
+		addFromClauseForLogicalDatabaseDump(buf, tbinfo);
+}
+
+/*
  * fixCursorForBbfCatalogTableData:
  * Prepare custom cursor for all Babelfish catalog tables to selectively dump 
  * the data corresponding to specified physical/logical database.
@@ -1213,18 +1227,6 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 		attgenerated[*nfields] = tbinfo->attgenerated[i];
 		(*nfields)++;
 	}
-
-	/*
-	 * Delay the FROM as fixCursorForBbfSqlvariantTableData might append more
-	 * columns if there exist sql_variant columns in the table.
-	 */
-	if (!has_sqlv_col) {
-		/* Add FROM clause differently for physical or logical database dump. */
-		if (bbf_db_name == NULL)
-			addFromClauseForPhysicalDatabaseDump(buf, tbinfo);
-		else
-			addFromClauseForLogicalDatabaseDump(buf, tbinfo);
-	}
 }
 
 /*
@@ -1248,7 +1250,7 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 	 * Return if not a Babelfish database, or if the table is not a Babelfish
 	 * configuration table.
 	 */
-	if (!isBabelfishDatabase(fout) || !isBabelfishConfigTable(fout, tbinfo))
+	if (!isBabelfishConfigTable(fout, tbinfo))
 		return;
 
 	if (bbf_db_name != NULL)
@@ -1319,11 +1321,7 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 	{
 		appendPQExpBuffer(copyBuf, "COPY (SELECT %s ",
 						  q->data);
-		/* Add FROM clause differently for physical or logical database dump. */
-		if (bbf_db_name == NULL)
-			addFromClauseForPhysicalDatabaseDump(copyBuf, tbinfo);
-		else
-			addFromClauseForLogicalDatabaseDump(copyBuf, tbinfo);
+		addFromClauseForBabelfishCatalogTable(copyBuf, tbinfo);
 		appendPQExpBufferStr(copyBuf, ") TO stdout;");
 	}
 	destroyPQExpBuffer(q);
@@ -1421,6 +1419,11 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 		if (pg_strcasecmp(tbinfo->atttypnames[i],
 			quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
 		{
+			/*
+			 * We need to qualify the column names with table alias 'a' if it is a
+			 * Babelfish catalog table to match the convention of fixCursorForBbfCatalogTableData
+			 * function.
+			 */
 			appendPQExpBufferStr(buf, ", sys.SQL_VARIANT_PROPERTY(");
 			if (is_catalog_table)
 				appendPQExpBufferStr(buf, "a.");
@@ -1436,19 +1439,6 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 	}
 	appendPQExpBufferStr(query, buf->data);
 	destroyPQExpBuffer(buf);
-
-	/*
-	 * Add the FROM clause which we delayed in fixCursorForBbfCatalogTableData function
-	 * for catalog tables.
-	 */
-	if (is_catalog_table) {
-		/* Add FROM clause differently for physical or logical database dump. */
-		if (bbf_db_name == NULL)
-			addFromClauseForPhysicalDatabaseDump(query, tbinfo);
-		else
-			addFromClauseForLogicalDatabaseDump(query, tbinfo);
-	}
-
 	return nfields;
 }
 

@@ -34,12 +34,12 @@ extern void fixAttoptionsBbfOriginalName(Archive *fout, Oid relOid, const TableI
 extern void setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *finfo, char prokind, bool proretset, bool is_set);
 extern void dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf);
 extern void updateExtConfigArray(Archive *fout, char ***extconfigarray, int nconfigitems);
-extern char *babelfish_handle_view_def(Archive *fout, char *view_def);
 extern void prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_patterns);
 extern void setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout);
 extern void dumpBabelGUCs(Archive *fout);
 extern void fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFrom);
 extern bool bbfIsDumpWithInsert(Archive *fout, TableInfo *tbinfo);
+extern void addFromClauseForBabelfishCatalogTable(PQExpBuffer buf, TableInfo *tbinfo);
 extern void fixCursorForBbfTableData(Archive *fout,
                                      TableInfo *tbinfo,
                                      PQExpBuffer buf,
