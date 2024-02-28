@@ -51,6 +51,7 @@
 #include "utils/syscache.h"
 
 IsExtendedCatalogHookType IsExtendedCatalogHook;
+IsExtendedCatalogNamespaceHookType IsExtendedCatalogNamespaceHook;
 IsToastRelationHookType IsToastRelationHook;
 IsToastClassHookType IsToastClassHook;
 
@@ -203,6 +204,10 @@ IsToastClass(Form_pg_class reltuple)
 bool
 IsCatalogNamespace(Oid namespaceId)
 {
+	/* Allows extensions to add new catalog schemas */
+	if (IsExtendedCatalogNamespaceHook && IsExtendedCatalogNamespaceHook(namespaceId))
+		return true;
+
 	return namespaceId == PG_CATALOG_NAMESPACE;
 }
 

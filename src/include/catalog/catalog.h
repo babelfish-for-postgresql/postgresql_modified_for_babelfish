@@ -52,6 +52,9 @@ extern GetNewTempOidWithIndex_hook_type GetNewTempOidWithIndex_hook;
 typedef bool (*IsExtendedCatalogHookType) (Oid relationId);
 extern PGDLLEXPORT IsExtendedCatalogHookType IsExtendedCatalogHook;
 
+typedef bool (*IsExtendedCatalogNamespaceHookType) (Oid namespaceId);
+extern PGDLLEXPORT IsExtendedCatalogNamespaceHookType IsExtendedCatalogNamespaceHook;
+
 typedef bool (*IsToastRelationHookType) (Relation relation);
 extern PGDLLEXPORT IsToastRelationHookType IsToastRelationHook;
 
