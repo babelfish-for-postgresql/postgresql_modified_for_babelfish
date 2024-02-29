@@ -112,7 +112,6 @@ typedef struct ModifyTableContext
  */
 typedef struct UpdateContext
 {
-	bool		updated;		/* did UPDATE actually occur? */
 	bool		crossPartUpdate;	/* was it a cross-partition update? */
 	TU_UpdateIndexes updateIndexes; /* Which index updates are required? */
 
@@ -2113,7 +2112,6 @@ lreplace:
 									 &insert_destrel))
 		{
 			/* success! */
-			updateCxt->updated = true;
 			updateCxt->crossPartUpdate = true;
 
 			/*
@@ -2182,8 +2180,6 @@ lreplace:
 								true /* wait for commit */ ,
 								&context->tmfd, &updateCxt->lockmode,
 								&updateCxt->updateIndexes);
-	if (result == TM_Ok)
-		updateCxt->updated = true;
 
 	return result;
 }
@@ -3009,7 +3005,7 @@ lmerge_matched:
 					return true;
 				}
 
-				if (result == TM_Ok && updateCxt.updated)
+				if (result == TM_Ok)
 				{
 					ExecUpdateEpilogue(context, &updateCxt, resultRelInfo,
 									   tupleid, NULL, newslot);
