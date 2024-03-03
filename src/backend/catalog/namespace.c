@@ -50,7 +50,7 @@
 #include "parser/parser.h"
 #include "storage/ipc.h"
 #include "storage/lmgr.h"
-#include "storage/sinvaladt.h"
+#include "storage/procarray.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/catcache.h"
