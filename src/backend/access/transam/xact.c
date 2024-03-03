@@ -600,9 +600,9 @@ GetStableLatestTransactionId(void)
 	static LocalTransactionId lxid = InvalidLocalTransactionId;
 	static TransactionId stablexid = InvalidTransactionId;
 
-	if (lxid != MyProc->lxid)
+	if (lxid != MyProc->vxid.lxid)
 	{
-		lxid = MyProc->lxid;
+		lxid = MyProc->vxid.lxid;
 		stablexid = GetTopTransactionIdIfAny();
 		if (!TransactionIdIsValid(stablexid))
 			stablexid = ReadNextTransactionId();
@@ -2106,8 +2106,8 @@ StartTransaction(void)
 	 * Advertise it in the proc array.  We assume assignment of
 	 * localTransactionId is atomic, and the backendId should be set already.
 	 */
-	Assert(MyProc->backendId == vxid.backendId);
-	MyProc->lxid = vxid.localTransactionId;
+	Assert(MyProc->vxid.backendId == vxid.backendId);
+	MyProc->vxid.lxid = vxid.localTransactionId;
 
 	TRACE_POSTGRESQL_TRANSACTION_START(vxid.localTransactionId);
 
@@ -2299,7 +2299,7 @@ CommitTransaction(void)
 		ParallelWorkerReportLastRecEnd(XactLastRecEnd);
 	}
 
-	TRACE_POSTGRESQL_TRANSACTION_COMMIT(MyProc->lxid);
+	TRACE_POSTGRESQL_TRANSACTION_COMMIT(MyProc->vxid.lxid);
 
 	/*
 	 * Let others know about no transaction in progress by me. Note that this
@@ -2853,7 +2853,7 @@ AbortTransaction(void)
 		XLogSetAsyncXactLSN(XactLastRecEnd);
 	}
 
-	TRACE_POSTGRESQL_TRANSACTION_ABORT(MyProc->lxid);
+	TRACE_POSTGRESQL_TRANSACTION_ABORT(MyProc->vxid.lxid);
 
 	/*
 	 * Let others know about no transaction in progress by me. Note that this
