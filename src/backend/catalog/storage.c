@@ -19,7 +19,6 @@
 
 #include "postgres.h"
 
-#include "access/parallel.h"
 #include "access/visibilitymap.h"
 #include "access/xact.h"
 #include "access/xlog.h"
@@ -31,6 +30,7 @@
 #include "parser/parser.h"      /* sql_dialect */
 #include "storage/bulk_write.h"
 #include "storage/freespace.h"
+#include "storage/proc.h"
 #include "storage/smgr.h"
 #include "utils/hsearch.h"
 #include "utils/memutils.h"

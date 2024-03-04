@@ -66,7 +66,6 @@
 #include <execinfo.h>
 #endif
 
-#include "access/transam.h"
 #include "access/parallel.h"
 #include "access/xact.h"
 #include "libpq/libpq.h"

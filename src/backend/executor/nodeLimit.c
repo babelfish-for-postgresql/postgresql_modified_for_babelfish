@@ -24,7 +24,6 @@
 #include "executor/executor.h"
 #include "executor/nodeLimit.h"
 #include "miscadmin.h"
-#include "nodes/nodeFuncs.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
 
 static void recompute_limits(LimitState *node);

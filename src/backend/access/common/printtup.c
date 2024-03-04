@@ -17,7 +17,6 @@
 
 #include "miscadmin.h"
 #include "access/printtup.h"
-#include "libpq/libpq.h"
 #include "libpq/pqformat.h"
 #include "tcop/pquery.h"
 #include "utils/lsyscache.h"

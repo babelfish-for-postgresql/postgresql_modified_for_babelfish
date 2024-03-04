@@ -24,14 +24,12 @@
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "pgstat.h"
-#include "postmaster/bgworker_internals.h"
-#include "postmaster/postmaster.h"
+#include "postmaster/bgworker.h"
 #include "replication/logicallauncher.h"
 #include "storage/proc.h"
 #include "storage/procarray.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
-#include "utils/inet.h"
 #include "utils/timestamp.h"
 
 tsql_has_pgstat_permissions_hook_type tsql_has_pgstat_permissions_hook = NULL;

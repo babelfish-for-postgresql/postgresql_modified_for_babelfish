@@ -23,7 +23,6 @@
 #include "postgres.h"
 
 #include "access/attmap.h"
-#include "access/htup_details.h"
 #include "utils/builtins.h"
 
 called_from_tsql_insert_exec_hook_type called_from_tsql_insert_exec_hook = NULL;

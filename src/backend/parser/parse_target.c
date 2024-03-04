@@ -14,6 +14,7 @@
  */
 #include "postgres.h"
 
+#include "catalog/namespace.h"
 #include "catalog/pg_type.h"
 #include "commands/dbcommands.h"
 #include "funcapi.h"
@@ -23,7 +24,6 @@
 #include "parser/parser.h" /* needed for sql_dialect */
 #include "parser/parse_coerce.h"
 #include "parser/parse_expr.h"
-#include "parser/parse_func.h"
 #include "parser/parse_relation.h"
 #include "parser/parse_target.h"
 #include "parser/parse_type.h"
@@ -31,7 +31,6 @@
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
-#include "utils/typcache.h"
 
 pre_transform_target_entry_hook_type pre_transform_target_entry_hook = NULL;
 resolve_target_list_unknowns_hook_type resolve_target_list_unknowns_hook = NULL;

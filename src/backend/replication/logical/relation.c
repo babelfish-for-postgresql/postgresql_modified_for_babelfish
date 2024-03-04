@@ -24,7 +24,6 @@
 #include "access/table.h"
 #include "commands/copy.h"
 #include "catalog/namespace.h"
-#include "catalog/pg_am_d.h"
 #include "catalog/pg_subscription_rel.h"
 #include "executor/executor.h"
 #include "nodes/makefuncs.h"
