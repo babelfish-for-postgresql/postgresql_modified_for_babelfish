@@ -24,15 +24,10 @@
 #include "nodes/nodeFuncs.h"
 #include "nodes/subscripting.h"
 #include "parser/parser.h" // Needed for TSQLHexConstTypmod
-#include "parser/parse_coerce.h"
-#include "parser/parse_expr.h"
-#include "parser/parse_relation.h"
-#include "parser/parsetree.h"
+#include "parser/parse_node.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/snapmgr.h"
-#include "utils/syscache.h"
-#include "utils/varbit.h"
 
 static void pcb_error_callback(void *arg);
 static Oid lookup_varbinary_oid();

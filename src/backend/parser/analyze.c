@@ -49,10 +49,8 @@
 #include "parser/parse_type.h"
 #include "parser/parser.h"
 #include "parser/parsetree.h"
-#include "rewrite/rewriteManip.h"
 #include "utils/backend_status.h"
 #include "utils/builtins.h"
-#include "utils/guc.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
 

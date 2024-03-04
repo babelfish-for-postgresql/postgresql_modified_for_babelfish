@@ -62,7 +62,6 @@
 #include "catalog/pg_collation.h"
 #include "catalog/pg_type.h"
 #include "funcapi.h"
-#include "lib/stringinfo.h"
 #include "miscadmin.h"
 #include "parser/parser.h"
 #include "nodes/miscnodes.h"
@@ -70,14 +69,10 @@
 #include "utils/builtins.h"
 #include "utils/date.h"
 #include "utils/datetime.h"
-#include "utils/datum.h"
 #include "utils/float.h"
 #include "utils/formatting.h"
-#include "utils/guc.h"
-#include "utils/json.h"
 #include "utils/jsonpath.h"
 #include "utils/timestamp.h"
-#include "utils/varlena.h"
 
 /*
  * Represents "base object" and it's "id" for .keyvalue() evaluation.

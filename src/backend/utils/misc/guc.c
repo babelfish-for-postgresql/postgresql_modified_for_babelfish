@@ -25,6 +25,7 @@
 #include "postgres.h"
 
 #include <limits.h>
+#include <math.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -37,6 +38,7 @@
 #include "guc_internal.h"
 #include "libpq/libpq.h"
 #include "libpq/pqformat.h"
+#include "libpq/protocol.h"
 #include "miscadmin.h"
 #include "parser/scansup.h"
 #include "port/pg_bitutils.h"
@@ -45,10 +47,8 @@
 #include "storage/shmem.h"
 #include "tcop/tcopprot.h"
 #include "utils/acl.h"
-#include "utils/backend_status.h"
 #include "utils/builtins.h"
 #include "utils/conffiles.h"
-#include "utils/float.h"
 #include "utils/guc_tables.h"
 #include "utils/memutils.h"
 #include "utils/timestamp.h"
