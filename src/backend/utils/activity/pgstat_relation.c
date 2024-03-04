@@ -255,7 +255,7 @@ pgstat_report_vacuum(Oid tableoid, bool shared,
 	 */
 	tabentry->ins_since_vacuum = 0;
 
-	if (IsAutoVacuumWorkerProcess())
+	if (AmAutoVacuumWorkerProcess())
 	{
 		tabentry->last_autovacuum_time = ts;
 		tabentry->autovacuum_count++;
@@ -346,7 +346,7 @@ pgstat_report_analyze(Relation rel,
 	if (resetcounter)
 		tabentry->mod_since_analyze = 0;
 
-	if (IsAutoVacuumWorkerProcess())
+	if (AmAutoVacuumWorkerProcess())
 	{
 		tabentry->last_autoanalyze_time = GetCurrentTimestamp();
 		tabentry->autoanalyze_count++;
