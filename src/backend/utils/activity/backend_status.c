@@ -1111,8 +1111,8 @@ pgstat_get_local_beentry_by_proc_number(ProcNumber procNumber)
 /* ----------
  * pgstat_get_local_beentry_by_index() -
  *
- *	Like pgstat_get_beentry_by_proc_number() but with locally computed additions
- *	(like xid and xmin values of the backend)
+ *	Like pgstat_get_beentry_by_proc_number() but with locally computed
+ *	additions (like xid and xmin values of the backend)
  *
  *	The idx argument is a 1-based index in the localBackendStatusTable
  *	(note that this is unlike pgstat_get_beentry_by_proc_number()).
