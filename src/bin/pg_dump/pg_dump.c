@@ -2179,7 +2179,7 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 
 	/*
 	 * sqlvar_metadata_pos stores the position of the extra columns added in
-	 * fixCursorForBbfSqlvariantTableData which fetch the metadata of sql_variant
+	 * fixCursorForBbfTableData which fetch the metadata of sql_variant
 	 * column values. The array is NULL if no sql_variant columns are present in
 	 * the table, and the value stored is 0 if it is not a sql_variant column.
 	 */
@@ -2221,17 +2221,20 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 		attgenerated[nfields] = tbinfo->attgenerated[i];
 		nfields++;
 	}
-	nfields_new = fixCursorForBbfSqlvariantTableData(fout, tbinfo, q, nfields,
-										&sqlvar_metadata_pos);
+	fixCursorForBbfTableData(fout, tbinfo, q, &nfields, &nfields_new,
+							 attgenerated, &sqlvar_metadata_pos);
 	/* Servers before 9.4 will complain about zero-column SELECT */
 	if (nfields == 0)
 		appendPQExpBufferStr(q, "NULL");
-	appendPQExpBuffer(q, " FROM ONLY %s",
-					  fmtQualifiedDumpable(tbinfo));
+	/* Add the FROM clause for Babelfish catalog tables */
+	if (isBabelfishConfigTable(fout, tbinfo))
+		addFromClauseForBabelfishCatalogTable(q, tbinfo);
+	else
+		appendPQExpBuffer(q, " FROM ONLY %s",
+						  fmtQualifiedDumpable(tbinfo));
 	if (tdinfo->filtercond)
 		appendPQExpBuffer(q, " %s", tdinfo->filtercond);
 
-	fixCursorForBbfCatalogTableData(fout, tbinfo, q, &nfields, attgenerated);
 	ExecuteSqlStatement(fout, q->data);
 
 	while (1)
