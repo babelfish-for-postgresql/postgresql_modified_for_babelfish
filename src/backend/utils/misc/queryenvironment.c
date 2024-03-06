@@ -127,7 +127,7 @@ get_visible_ENR_metadata(QueryEnvironment *queryEnv, const char *refname)
 	if (queryEnv == NULL)
 		return NULL;
 
-	enr = get_ENR(queryEnv, refname);
+	enr = get_ENR(queryEnv, refname, true);
 	if (enr)
 		return &(enr->md);
 
@@ -144,7 +144,7 @@ void
 register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 {
 	Assert(enr != NULL);
-	Assert(get_ENR(queryEnv, enr->md.name) == NULL);
+	Assert(get_ENR(queryEnv, enr->md.name, false) == NULL);
 
 	queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);
 }
@@ -158,7 +158,7 @@ unregister_ENR(QueryEnvironment *queryEnv, const char *name)
 {
 	EphemeralNamedRelation match;
 
-	match = get_ENR(queryEnv, name);
+	match = get_ENR(queryEnv, name, false);
 	if (match)
 		queryEnv->namedRelList = list_delete(queryEnv->namedRelList, match);
 }
@@ -196,9 +196,16 @@ bool has_existing_enr_relations()
 /*
  * This returns an ENR if there is a name match in the given collection.  It
  * must quietly return NULL if no match is found.
+ * 
+ * search - true if we want to include parent queryEnvs (such as in 
+ * 			babelfish_get_enr_list, object_id).
+ * 
+ * 			Other such places (like in HeapCreateWithCatalog, SPI)
+ * 			allow duplicate ENR names in the top level queryEnv, so 
+ * 			it must be false there.
  */
 EphemeralNamedRelation
-get_ENR(QueryEnvironment *queryEnv, const char *name)
+get_ENR(QueryEnvironment *queryEnv, const char *name, bool search)
 {
 	ListCell   *lc;
 	QueryEnvironment *qe = queryEnv;
@@ -217,6 +224,8 @@ get_ENR(QueryEnvironment *queryEnv, const char *name)
 			if (strcmp(enr->md.name, name) == 0)
 				return enr;
 		}
+		if (!search)
+			break;
 		qe = qe->parentEnv;
 	}
 
@@ -227,7 +236,7 @@ get_ENR(QueryEnvironment *queryEnv, const char *name)
  * Same as get_ENR() but just search for relation oid
  */
 EphemeralNamedRelation
-get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType type)
+get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType type, bool search)
 {
 	ListCell   *lc;
 	QueryEnvironment *qe = queryEnv;
@@ -244,6 +253,8 @@ get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType ty
 			if (enr->md.reliddesc == id && enr->md.enrtype == type)
 				return enr;
 		}
+		if (!search)
+			break;
 		qe = qe->parentEnv;
 	}
 
@@ -628,7 +639,7 @@ find_enr(Form_pg_depend entry)
 			* to register the dependency of the ENR relation to this object.
 			*/
 			case RelationRelationId:
-				return get_ENR_withoid(queryEnv, entry->objid, ENR_TSQL_TEMP);
+				return get_ENR_withoid(queryEnv, entry->objid, ENR_TSQL_TEMP, true);
 
 			case TypeRelationId:
 				foreach(curlc, queryEnv->namedRelList) {
@@ -655,7 +666,7 @@ find_enr(Form_pg_depend entry)
 				break;
 
 			case ConstraintRelationId:
-				return get_ENR_withoid(queryEnv, entry->refobjid, ENR_TSQL_TEMP);
+				return get_ENR_withoid(queryEnv, entry->refobjid, ENR_TSQL_TEMP, true);
 
 			default:
 				break;
@@ -694,7 +705,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 		switch (catalog_oid) {
 			case RelationRelationId:
 				rel_oid = ((Form_pg_class) GETSTRUCT(tup))->oid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, true))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_CLASS];
 					lc = list_head(enr->md.cattups[ENR_CATTUP_CLASS]);
 					ret = true;
@@ -725,7 +736,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				{
 					Form_pg_shdepend tf1 = (Form_pg_shdepend) GETSTRUCT((HeapTuple)tup);
 					rel_oid = ((Form_pg_shdepend) GETSTRUCT(tup))->objid;
-					if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+					if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, true))) {
 						ListCell *curlc;
 						Form_pg_shdepend tf2; /* tuple forms*/
 
@@ -746,7 +757,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				}
 			case IndexRelationId:
 				rel_oid = ((Form_pg_index) GETSTRUCT(tup))->indrelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, true))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_INDEX];
 					lc = list_head(enr->md.cattups[ENR_CATTUP_INDEX]);
 					ret = true;
@@ -756,7 +767,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				/* Composite type */
 				if (((Form_pg_type) GETSTRUCT(tup))->typelem == InvalidOid) {
 					rel_oid = ((Form_pg_type) GETSTRUCT(tup))->typrelid;
-					if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+					if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, true))) {
 						list_ptr = &enr->md.cattups[ENR_CATTUP_TYPE];
 						lc = list_head(enr->md.cattups[ENR_CATTUP_TYPE]);
 						ret = true;
@@ -792,7 +803,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				break;
 			case AttributeRelationId:
 				rel_oid = ((Form_pg_attribute) GETSTRUCT(tup))->attrelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, true))) {
 					ListCell *curlc;
 					Form_pg_attribute tf1, tf2; /* tuple forms*/
 
@@ -819,7 +830,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				break;
 			case ConstraintRelationId:
 				rel_oid = ((Form_pg_constraint) GETSTRUCT(tup))->conrelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, true))) {
 					Form_pg_constraint tf1, tf2; /* tuple forms*/
 					ListCell *curlc;
 
@@ -838,7 +849,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				break;
 			case StatisticRelationId:
 				rel_oid = ((Form_pg_statistic) GETSTRUCT(tup))->starelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, true))) {
 					Form_pg_statistic tf1, tf2; /* tuple forms*/
 					ListCell *curlc;
 
@@ -857,7 +868,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				break;
 			case StatisticExtRelationId:
 				rel_oid = ((Form_pg_statistic_ext) GETSTRUCT(tup))->stxrelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, true))) {
 					Form_pg_statistic_ext tf1, tf2; /* tuple forms*/
 					ListCell *curlc;
 
@@ -876,7 +887,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				break;
 			case SequenceRelationId:
 				rel_oid = ((Form_pg_sequence) GETSTRUCT(tup))->seqrelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, true))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_SEQUENCE];
 					lc = list_head(enr->md.cattups[ENR_CATTUP_SEQUENCE]);
 					ret = true;
@@ -969,7 +980,7 @@ void ENRDropEntry(Oid id)
 	if (sql_dialect != SQL_DIALECT_TSQL || !currentQueryEnv)
 		return;
 
-	if ((enr = get_ENR_withoid(currentQueryEnv, id, ENR_TSQL_TEMP)) == NULL)
+	if ((enr = get_ENR_withoid(currentQueryEnv, id, ENR_TSQL_TEMP, true)) == NULL)
 		return;
 
 	oldcxt = MemoryContextSwitchTo(currentQueryEnv->memctx);
@@ -1036,7 +1047,7 @@ extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
 	{
 		switch (catalog_oid) {
 			case AttributeRelationId:
-				if ((enr = get_ENR_withoid(queryEnv, relid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, relid, ENR_TSQL_TEMP, true))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_ATTRIBUTE];
 					ret = true;
 				}

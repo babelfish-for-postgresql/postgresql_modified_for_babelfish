@@ -96,8 +96,8 @@ extern EphemeralNamedRelationMetadata get_visible_ENR_metadata(QueryEnvironment 
 extern void register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr);
 extern void unregister_ENR(QueryEnvironment *queryEnv, const char *name);
 extern PGDLLEXPORT List *get_namedRelList(void);
-extern EphemeralNamedRelation get_ENR(QueryEnvironment *queryEnv, const char *name);
-extern PGDLLEXPORT EphemeralNamedRelation get_ENR_withoid(QueryEnvironment *queryEnv, Oid oid, EphemeralNameRelationType type);
+extern EphemeralNamedRelation get_ENR(QueryEnvironment *queryEnv, const char *name, bool search);
+extern PGDLLEXPORT EphemeralNamedRelation get_ENR_withoid(QueryEnvironment *queryEnv, Oid oid, EphemeralNameRelationType type, bool search);
 extern TupleDesc ENRMetadataGetTupDesc(EphemeralNamedRelationMetadata enrmd);
 extern bool ENRaddTuple(Relation rel, HeapTuple tup);
 extern bool ENRdropTuple(Relation rel, HeapTuple tup);

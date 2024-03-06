@@ -1146,7 +1146,7 @@ retry:
 			break;
 		case RELPERSISTENCE_TEMP:
 			if (isTempOrTempToastNamespace(relation->rd_rel->relnamespace)
-				|| get_ENR(currentQueryEnv, relp->relname.data))
+				|| get_ENR(currentQueryEnv, relp->relname.data, false))
 			{
 				relation->rd_backend = BackendIdForTempRelations();
 				relation->rd_islocaltemp = true;
