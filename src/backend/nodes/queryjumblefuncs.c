@@ -367,8 +367,8 @@ _jumbleRangeTblEntry(JumbleState *jstate, Node *node)
 	{
 		case RTE_RELATION:
 			JUMBLE_FIELD(relid);
-			JUMBLE_NODE(tablesample);
 			JUMBLE_FIELD(inh);
+			JUMBLE_NODE(tablesample);
 			break;
 		case RTE_SUBQUERY:
 			JUMBLE_NODE(subquery);
