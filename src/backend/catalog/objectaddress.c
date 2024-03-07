@@ -1011,7 +1011,7 @@ get_object_address(ObjectType objtype, Node *object,
 													   &relation, missing_ok);
 				break;
 			case OBJECT_TRIGGER:
-				if(get_trigger_object_address_hook){
+				if(get_trigger_object_address_hook && sql_dialect == SQL_DIALECT_TSQL){
 						address = (*get_trigger_object_address_hook)(castNode(List, object),
 															&relation, missing_ok,false);
 				}
