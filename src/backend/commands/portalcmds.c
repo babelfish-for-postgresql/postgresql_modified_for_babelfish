@@ -433,10 +433,13 @@ PersistHoldablePortal(Portal portal)
 		/*
 		 * Now shut down the inner executor.
 		 */
-		portal->queryDesc = NULL;	/* prevent double shutdown */
-		ExecutorFinish(queryDesc);
-		ExecutorEnd(queryDesc);
-		FreeQueryDesc(queryDesc);
+		if (persist_holdable_cursor_executor_hook == NULL || portal->queryDesc)
+		{
+			portal->queryDesc = NULL;	/* prevent double shutdown */
+			ExecutorFinish(queryDesc);
+			ExecutorEnd(queryDesc);
+			FreeQueryDesc(queryDesc);
+		}
 
 		/*
 		 * Set the position in the result set.
