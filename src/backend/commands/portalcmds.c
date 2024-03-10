@@ -34,6 +34,7 @@
 #include "utils/memutils.h"
 #include "utils/snapmgr.h"
 
+PGDLLIMPORT persist_holdable_cursor_executor_hook_type persist_holdable_cursor_executor_hook = NULL;
 
 /*
  * PerformCursorOpen
@@ -416,8 +417,15 @@ PersistHoldablePortal(Portal portal)
 										NULL,
 										NULL);
 
-		/* Fetch the result set into the tuplestore */
-		ExecutorRun(queryDesc, direction, 0L, false);
+		if (persist_holdable_cursor_executor_hook)
+		{
+			(*persist_holdable_cursor_executor_hook)(portal, queryDesc, direction);
+		}
+		else
+		{
+			/* Fetch the result set into the tuplestore */
+			ExecutorRun(queryDesc, direction, 0L, false);
+		}
 
 		queryDesc->dest->rDestroy(queryDesc->dest);
 		queryDesc->dest = NULL;
@@ -425,10 +433,13 @@ PersistHoldablePortal(Portal portal)
 		/*
 		 * Now shut down the inner executor.
 		 */
-		portal->queryDesc = NULL;	/* prevent double shutdown */
-		ExecutorFinish(queryDesc);
-		ExecutorEnd(queryDesc);
-		FreeQueryDesc(queryDesc);
+		if (persist_holdable_cursor_executor_hook == NULL || portal->queryDesc)
+		{
+			portal->queryDesc = NULL;	/* prevent double shutdown */
+			ExecutorFinish(queryDesc);
+			ExecutorEnd(queryDesc);
+			FreeQueryDesc(queryDesc);
+		}
 
 		/*
 		 * Set the position in the result set.

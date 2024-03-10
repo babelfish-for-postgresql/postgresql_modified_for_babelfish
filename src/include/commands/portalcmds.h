@@ -31,4 +31,7 @@ extern void PortalCleanup(Portal portal);
 
 extern void PersistHoldablePortal(Portal portal);
 
+typedef void (*persist_holdable_cursor_executor_hook_type) (Portal, QueryDesc *, ScanDirection);
+extern PGDLLIMPORT persist_holdable_cursor_executor_hook_type persist_holdable_cursor_executor_hook;
+
 #endif							/* PORTALCMDS_H */
