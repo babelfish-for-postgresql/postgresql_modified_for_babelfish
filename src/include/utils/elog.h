@@ -471,7 +471,7 @@ extern void set_syslog_parameters(const char *ident, int facility);
 extern void write_stderr(const char *fmt,...) pg_attribute_printf(1, 2);
 
 extern bool error_stack_full(void);
-extern void pop_top_error_stack(void);
+extern void pop_error_stack(void);
 /*
  * Write a message to STDERR using only async-signal-safe functions.  This can
  * be used to safely emit a message from a signal handler.

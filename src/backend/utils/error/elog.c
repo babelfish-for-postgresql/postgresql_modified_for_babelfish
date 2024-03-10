@@ -3490,7 +3490,7 @@ error_stack_full(void)
 }
 
 void
-pop_top_error_stack(void)
+pop_error_stack(void)
 {
 	if (errordata_stack_depth > 0)
 	{
