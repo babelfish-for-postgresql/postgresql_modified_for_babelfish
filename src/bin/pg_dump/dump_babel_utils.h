@@ -53,5 +53,6 @@ extern void castSqlvariantToBasetype(PGresult *res,
                                     int field,
                                     int sqlvariant_pos);
 extern void dumpBabelRestoreChecks(Archive *fout);
+extern void makeTableDataInfo(DumpOptions *dopt, TableInfo *tbinfo);
 
 #endif

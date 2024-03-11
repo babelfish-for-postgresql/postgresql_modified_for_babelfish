@@ -282,7 +282,6 @@ static void addBoundaryDependencies(DumpableObject **dobjs, int numObjs,
 static void addConstrChildIdxDeps(DumpableObject *dobj, const IndxInfo *refidx);
 static void getDomainConstraints(Archive *fout, TypeInfo *tyinfo);
 static void getTableData(DumpOptions *dopt, TableInfo *tblinfo, int numTables, char relkind);
-static void makeTableDataInfo(DumpOptions *dopt, TableInfo *tbinfo);
 static void buildMatViewRefreshDependencies(Archive *fout);
 static void getTableDataFKConstraints(void);
 static char *format_function_arguments(const FuncInfo *finfo, const char *funcargs,
@@ -1007,7 +1006,8 @@ main(int argc, char **argv)
 	ropt->cparams.promptPassword = dopt.cparams.promptPassword;
 	ropt->dropSchema = dopt.outputClean;
 	ropt->dataOnly = dopt.dataOnly;
-	ropt->schemaOnly = dopt.schemaOnly;
+	if (dopt.binary_upgrade)
+		ropt->schemaOnly = dopt.schemaOnly;
 	ropt->if_exists = dopt.if_exists;
 	ropt->column_inserts = dopt.column_inserts;
 	ropt->dumpSections = dopt.dumpSections;
@@ -1144,6 +1144,8 @@ help(const char *progname)
 	printf(_("  --use-set-session-authorization\n"
 			 "                               use SET SESSION AUTHORIZATION commands instead of\n"
 			 "                               ALTER OWNER commands to set ownership\n"));
+	printf(_("  --bbf-database-name=BBF_DBNAME\n"
+			 "                               The name of the Babelfish T-SQL database to dump\n"));
 
 	printf(_("\nConnection options:\n"));
 	printf(_("  -d, --dbname=DBNAME      database to dump\n"));
@@ -2783,7 +2785,7 @@ getTableData(DumpOptions *dopt, TableInfo *tblinfo, int numTables, char relkind)
  * Note: we make a TableDataInfo if and only if we are going to dump the
  * table data; the "dump" field in such objects isn't very interesting.
  */
-static void
+void
 makeTableDataInfo(DumpOptions *dopt, TableInfo *tbinfo)
 {
 	TableDataInfo *tdinfo;

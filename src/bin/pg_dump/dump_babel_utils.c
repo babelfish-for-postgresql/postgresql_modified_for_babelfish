@@ -388,7 +388,10 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 							 * need to be marked as dumpable.
 							 */
 							if (isBabelfishConfigTable(fout, tbinfo))
+							{
 								tbinfo->dobj.dump |= DUMP_COMPONENT_DATA;
+								makeTableDataInfo(fout->dopt, tbinfo);
+							}
 						}
 				}
 			}
