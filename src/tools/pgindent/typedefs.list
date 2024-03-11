@@ -600,6 +600,7 @@ DiscardMode
 DiscardStmt
 DistanceValue
 DistinctExpr
+DoState
 DoStmt
 DocRepresentation
 DomainConstraintCache
@@ -1294,6 +1295,7 @@ JsonExprState
 JsonFormat
 JsonFormatType
 JsonHashEntry
+JsonIncrementalState
 JsonIsPredicate
 JsonIterateStringValuesAction
 JsonKeyValue
@@ -1301,15 +1303,19 @@ JsonLexContext
 JsonLikeRegexContext
 JsonManifestFileField
 JsonManifestParseContext
+JsonManifestParseIncrementalState
 JsonManifestParseState
 JsonManifestSemanticState
 JsonManifestWALRangeField
+JsonNonTerminal
 JsonObjectAgg
 JsonObjectConstructor
 JsonOutput
 JsonParseExpr
 JsonParseContext
 JsonParseErrorType
+JsonParserSem
+JsonParserStack
 JsonPath
 JsonPathBool
 JsonPathDatatypeStatus
