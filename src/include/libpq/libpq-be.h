@@ -60,17 +60,6 @@ typedef struct
 #include "tcop/dest.h"
 
 
-typedef enum CAC_state
-{
-	CAC_OK,
-	CAC_STARTUP,
-	CAC_SHUTDOWN,
-	CAC_RECOVERY,
-	CAC_NOTCONSISTENT,
-	CAC_TOOMANY,
-} CAC_state;
-
-
 /*
  * GSSAPI specific state information
  */
@@ -186,7 +175,6 @@ typedef struct Port
 	int			remote_hostname_resolv; /* see above */
 	int			remote_hostname_errcode;	/* see above */
 	char	   *remote_port;	/* text rep of remote port */
-	CAC_state	canAcceptConnections;	/* postmaster connection status */
 
 	ProtocolExtensionConfig *protocol_config;	/* wire protocol functions */
 
