@@ -996,7 +996,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 						 "SELECT oid "
 						 "FROM pg_class "
 						 "WHERE relname in ('babelfish_sysdatabases', "
-						 "'babelfish_namespace_ext', 'babelfish_extended_properties', 'babelfish_schema_permissions') "
+						 "'babelfish_schema_permissions', 'babelfish_namespace_ext', 'babelfish_extended_properties') "
 						 "AND relnamespace = 'sys'::regnamespace "
 						 "ORDER BY relname;");
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
@@ -1004,8 +1004,8 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	Assert(PQntuples(res) == 4);
 	extprop_table = findTableByOid(atooid(PQgetvalue(res, 0, 0)));
 	namespace_ext_table = findTableByOid(atooid(PQgetvalue(res, 1, 0)));
-	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 2, 0)));
-	schema_perms_table = findTableByOid(atooid(PQgetvalue(res, 3, 0)));
+	schema_perms_table = findTableByOid(atooid(PQgetvalue(res, 2, 0)));
+	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 3, 0)));
 	Assert(sysdb_table != NULL && namespace_ext_table != NULL && extprop_table != NULL && schema_perms_table != NULL);
 	refdobj = (DumpableObject *) sysdb_table->dataObj;
 	/*
