@@ -1001,12 +1001,12 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 						 "ORDER BY relname;");
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
-	Assert(PQntuples(res) == 3);
+	Assert(PQntuples(res) == 4);
 	extprop_table = findTableByOid(atooid(PQgetvalue(res, 0, 0)));
 	namespace_ext_table = findTableByOid(atooid(PQgetvalue(res, 1, 0)));
 	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 2, 0)));
 	schema_perms_table = findTableByOid(atooid(PQgetvalue(res, 3, 0)));
-	Assert(sysdb_table != NULL && namespace_ext_table != NULL && extprop_table != NULL);
+	Assert(sysdb_table != NULL && namespace_ext_table != NULL && extprop_table != NULL && schema_perms_table != NULL);
 	refdobj = (DumpableObject *) sysdb_table->dataObj;
 	/*
 	 * Make babelfish_schema_permissions, babelfish_namespace_ext and babelfish_extended_properties tables dependent upon
