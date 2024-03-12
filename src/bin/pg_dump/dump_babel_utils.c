@@ -983,6 +983,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	TableInfo		*extprop_table;
 	TableInfo		*sysdb_table;
 	TableInfo		*namespace_ext_table;
+	TableInfo		*schema_perms_table;
 	DumpableObject		*dobj;
 	DumpableObject		*refdobj;
 
@@ -990,12 +991,12 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 		return;
 
 	query = createPQExpBuffer();
-	/* get oids of sys.babelfish_sysdatabases and sys.babelfish_namespace_ext tables */
+	/* get oids of sys.babelfish_sysdatabases, sys.babelfish_namespace_ext, babelfish_extended_properties, babelfish_schema_permissions tables */
 	appendPQExpBufferStr(query,
 						 "SELECT oid "
 						 "FROM pg_class "
 						 "WHERE relname in ('babelfish_sysdatabases', "
-						 "'babelfish_namespace_ext', 'babelfish_extended_properties') "
+						 "'babelfish_namespace_ext', 'babelfish_extended_properties', 'babelfish_schema_permissions') "
 						 "AND relnamespace = 'sys'::regnamespace "
 						 "ORDER BY relname;");
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
@@ -1004,16 +1005,19 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	extprop_table = findTableByOid(atooid(PQgetvalue(res, 0, 0)));
 	namespace_ext_table = findTableByOid(atooid(PQgetvalue(res, 1, 0)));
 	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 2, 0)));
+	schema_perms_table = findTableByOid(atooid(PQgetvalue(res, 3, 0)));
 	Assert(sysdb_table != NULL && namespace_ext_table != NULL && extprop_table != NULL);
 	refdobj = (DumpableObject *) sysdb_table->dataObj;
 	/*
-	 * Make babelfish_namespace_ext and babelfish_extended_properties tables dependent upon
+	 * Make babelfish_schema_permissions, babelfish_namespace_ext and babelfish_extended_properties tables dependent upon
 	 * babelfish_sysdatabases table so that we dump babelfish_sysdatabases table's data before both of them.
 	 * This is needed to generate and handle new "dbid" during logical database restore.
 	 */
 	dobj = (DumpableObject *) namespace_ext_table->dataObj;
 	addObjectDependency(dobj, refdobj->dumpId);
 	dobj = (DumpableObject *) extprop_table->dataObj;
+	addObjectDependency(dobj, refdobj->dumpId);
+	dobj = (DumpableObject *) schema_perms_table->dataObj;
 	addObjectDependency(dobj, refdobj->dumpId);
 
 	PQclear(res);
@@ -1128,7 +1132,8 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 			strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0)
+			strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
+			strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
 						  fmtQualifiedDumpable(tbinfo));
 	else
