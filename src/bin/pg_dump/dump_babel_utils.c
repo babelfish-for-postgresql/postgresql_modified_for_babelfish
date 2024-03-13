@@ -993,7 +993,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	DumpableObject		*dobj;
 	DumpableObject		*refdobj;
 
-	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade)
+	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade || fout->dopt->dataOnly)
 		return;
 
 	query = createPQExpBuffer();
