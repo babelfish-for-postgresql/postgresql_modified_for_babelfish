@@ -433,7 +433,6 @@ my %tests = (
 			data_only => 1,
 			section_data => 1,
 			extension_schema => 1,
-			schema_only => 1,
 		},
 		unlike => { without_extension => 1, },
 	},
@@ -457,7 +456,6 @@ my %tests = (
 			data_only => 1,
 			section_data => 1,
 			extension_schema => 1,
-			schema_only => 1,
 		},
 		unlike => {
 			binary_upgrade => 1,
