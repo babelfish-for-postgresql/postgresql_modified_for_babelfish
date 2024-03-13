@@ -204,6 +204,10 @@ dumpBabelGUCs(Archive *fout)
 		free(oid);
 	}
 
+	/* Disable triggers if data-only dump */
+	if(!fout->dopt->binary_upgrade && fout->dopt->dataOnly)
+		appendPQExpBufferStr(qry, "SET session_replication_role = replica;\n");
+
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
 				 ARCHIVE_OPTS(.tag = "BABELFISHGUCS",
 							  .description = "BABELFISHGUCS",
