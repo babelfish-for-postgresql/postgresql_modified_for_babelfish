@@ -19,12 +19,12 @@
 
 #include "access/twophase_rmgr.h"
 #include "access/xact.h"
+#include "catalog/catalog.h"
 #include "postmaster/autovacuum.h"
 #include "utils/memutils.h"
 #include "utils/pgstat_internal.h"
 #include "utils/rel.h"
 #include "utils/timestamp.h"
-#include "catalog/catalog.h"
 #include "utils/guc.h"
 
 #include "parser/parser.h"
