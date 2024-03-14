@@ -1705,7 +1705,6 @@ typedef enum
  *		prefetch_target			current target prefetch distance
  *		state					current state of the TIDBitmap
  *		cv						conditional wait variable
- *		phs_snapshot_data		snapshot data shared to workers
  * ----------------
  */
 typedef struct ParallelBitmapHeapState
@@ -1717,7 +1716,6 @@ typedef struct ParallelBitmapHeapState
 	int			prefetch_target;
 	SharedBitmapState state;
 	ConditionVariable cv;
-	char		phs_snapshot_data[FLEXIBLE_ARRAY_MEMBER];
 } ParallelBitmapHeapState;
 
 /* ----------------
@@ -1737,7 +1735,6 @@ typedef struct ParallelBitmapHeapState
  *		prefetch_pages	   # pages prefetch iterator is ahead of current
  *		prefetch_target    current target prefetch distance
  *		prefetch_maximum   maximum value for prefetch_target
- *		pscan_len		   size of the shared memory for parallel bitmap
  *		initialized		   is node is ready to iterate
  *		shared_tbmiterator	   shared iterator
  *		shared_prefetch_iterator shared iterator for prefetching
@@ -1761,7 +1758,6 @@ typedef struct BitmapHeapScanState
 	int			prefetch_pages;
 	int			prefetch_target;
 	int			prefetch_maximum;
-	Size		pscan_len;
 	bool		initialized;
 	TBMSharedIterator *shared_tbmiterator;
 	TBMSharedIterator *shared_prefetch_iterator;
