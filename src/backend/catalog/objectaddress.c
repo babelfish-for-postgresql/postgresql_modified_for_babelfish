@@ -74,6 +74,7 @@
 #include "commands/trigger.h"
 #include "foreign/foreign.h"
 #include "funcapi.h"
+#include "libpq/libpq-be.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "parser/parse_func.h"
@@ -1011,7 +1012,7 @@ get_object_address(ObjectType objtype, Node *object,
 													   &relation, missing_ok);
 				break;
 			case OBJECT_TRIGGER:
-				if(get_trigger_object_address_hook){
+				if(get_trigger_object_address_hook && MyProcPort->is_tds_conn && sql_dialect == SQL_DIALECT_TSQL){
 						address = (*get_trigger_object_address_hook)(castNode(List, object),
 															&relation, missing_ok,false);
 				}
