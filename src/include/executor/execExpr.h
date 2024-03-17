@@ -252,6 +252,7 @@ typedef enum ExprEvalOp
 	EEOP_AGGREF,
 	EEOP_GROUPING_FUNC,
 	EEOP_WINDOW_FUNC,
+	EEOP_MERGE_SUPPORT_FUNC,
 	EEOP_SUBPLAN,
 
 	/* aggregation related nodes */
@@ -819,6 +820,8 @@ extern void ExecEvalJsonConstructor(ExprState *state, ExprEvalStep *op,
 									ExprContext *econtext);
 extern void ExecEvalJsonIsPredicate(ExprState *state, ExprEvalStep *op);
 extern void ExecEvalGroupingFunc(ExprState *state, ExprEvalStep *op);
+extern void ExecEvalMergeSupportFunc(ExprState *state, ExprEvalStep *op,
+									 ExprContext *econtext);
 extern void ExecEvalSubPlan(ExprState *state, ExprEvalStep *op,
 							ExprContext *econtext);
 extern void ExecEvalWholeRowVar(ExprState *state, ExprEvalStep *op,
