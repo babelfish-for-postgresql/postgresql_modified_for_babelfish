@@ -4646,7 +4646,7 @@ stats_param:	ColId
  *****************************************************************************/
 
 AlterStatsStmt:
-			ALTER STATISTICS any_name SET STATISTICS SignedIconst
+			ALTER STATISTICS any_name SET STATISTICS set_statistics_value
 				{
 					AlterStatsStmt *n = makeNode(AlterStatsStmt);
 
@@ -4655,7 +4655,7 @@ AlterStatsStmt:
 					n->stxstattarget = $6;
 					$$ = (Node *) n;
 				}
-			| ALTER STATISTICS IF_P EXISTS any_name SET STATISTICS SignedIconst
+			| ALTER STATISTICS IF_P EXISTS any_name SET STATISTICS set_statistics_value
 				{
 					AlterStatsStmt *n = makeNode(AlterStatsStmt);
 
