@@ -7206,8 +7206,13 @@ get_merge_query_def(Query *query, deparse_context *context,
 			appendStringInfoString(buf, "DO NOTHING");
 	}
 
-	/* No RETURNING support in MERGE yet */
-	Assert(query->returningList == NIL);
+	/* Add RETURNING if present */
+	if (query->returningList)
+	{
+		appendContextKeyword(context, " RETURNING",
+							 -PRETTYINDENT_STD, PRETTYINDENT_STD, 1);
+		get_target_list(query->returningList, context, NULL, colNamesVisible);
+	}
 }
 
 
@@ -8307,6 +8312,7 @@ isSimpleNode(Node *node, Node *parentNode, int prettyFlags)
 		case T_Aggref:
 		case T_GroupingFunc:
 		case T_WindowFunc:
+		case T_MergeSupportFunc:
 		case T_FuncExpr:
 		case T_JsonConstructorExpr:
 			/* function-like: name(..) or name[..] */
@@ -8659,6 +8665,10 @@ get_rule_expr(Node *node, deparse_context *context,
 
 		case T_WindowFunc:
 			get_windowfunc_expr((WindowFunc *) node, context);
+			break;
+
+		case T_MergeSupportFunc:
+			appendStringInfoString(buf, "MERGE_ACTION()");
 			break;
 
 		case T_SubscriptingRef:

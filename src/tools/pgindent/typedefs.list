@@ -1579,6 +1579,7 @@ MergeJoinState
 MergePath
 MergeScanSelCache
 MergeStmt
+MergeSupportFunc
 MergeWhenClause
 MetaCommand
 MinMaxAggInfo
