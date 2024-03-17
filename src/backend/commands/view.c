@@ -32,7 +32,7 @@
 
 store_view_definition_hook_type store_view_definition_hook = NULL;
 
-static void checkViewTupleDesc(TupleDesc newdesc, TupleDesc olddesc);
+static void checkViewColumns(TupleDesc newdesc, TupleDesc olddesc);
 
 inherit_view_constraints_from_table_hook_type inherit_view_constraints_from_table_hook = NULL;
 
@@ -137,7 +137,7 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 		 * column list.
 		 */
 		descriptor = BuildDescForRelation(attrList);
-		checkViewTupleDesc(descriptor, rel->rd_att);
+		checkViewColumns(descriptor, rel->rd_att);
 
 		/*
 		 * If new attributes have been added, we must add pg_attribute entries
@@ -265,13 +265,13 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 }
 
 /*
- * Verify that tupledesc associated with proposed new view definition
- * matches tupledesc of old view.  This is basically a cut-down version
- * of equalTupleDescs(), with code added to generate specific complaints.
- * Also, we allow the new tupledesc to have more columns than the old.
+ * Verify that the columns associated with proposed new view definition match
+ * the columns of the old view.  This is similar to equalRowTypes(), with code
+ * added to generate specific complaints.  Also, we allow the new view to have
+ * more columns than the old.
  */
 static void
-checkViewTupleDesc(TupleDesc newdesc, TupleDesc olddesc)
+checkViewColumns(TupleDesc newdesc, TupleDesc olddesc)
 {
 	int			i;
 
