@@ -231,6 +231,7 @@ BY_HANDLE_FILE_INFORMATION
 Backend
 BackendId
 BackendParameters
+BackendStartupData
 BackendState
 BackendType
 BackgroundWorker
@@ -2137,6 +2138,7 @@ PortalStrategy
 PostParseColumnRefHook
 PostgresPollingStatusType
 PostingItem
+PostmasterChildType
 PreParseColumnRefHook
 PredClass
 PredIterInfo
@@ -3260,6 +3262,7 @@ check_network_data
 check_object_relabel_type
 check_password_hook_type
 check_ungrouped_columns_context
+child_process_kind
 chr
 cmpEntriesArg
 codes_t
@@ -4043,6 +4046,7 @@ BlockRefTableReader
 BlockRefTableSerializedEntry
 BlockRefTableWriter
 SummarizerReadLocalXLogPrivate
+SysloggerStartupData
 WalSummarizerData
 WalSummaryFile
 WalSummaryIO
