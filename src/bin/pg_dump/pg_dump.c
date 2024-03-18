@@ -1005,11 +1005,8 @@ main(int argc, char **argv)
 	ropt->cparams.username = dopt.cparams.username ? pg_strdup(dopt.cparams.username) : NULL;
 	ropt->cparams.promptPassword = dopt.cparams.promptPassword;
 	ropt->dropSchema = dopt.outputClean;
-	if (!isBabelfishDatabase(fout) || dopt.binary_upgrade)
-	{
-		ropt->dataOnly = dopt.dataOnly;
-		ropt->schemaOnly = dopt.schemaOnly;
-	}
+	ropt->dataOnly = dopt.dataOnly;
+	ropt->schemaOnly = dopt.schemaOnly;
 	ropt->if_exists = dopt.if_exists;
 	ropt->column_inserts = dopt.column_inserts;
 	ropt->dumpSections = dopt.dumpSections;
@@ -1032,6 +1029,7 @@ main(int argc, char **argv)
 	ropt->enable_row_security = dopt.enable_row_security;
 	ropt->sequence_data = dopt.sequence_data;
 	ropt->binary_upgrade = dopt.binary_upgrade;
+	ropt->babelfish_db = isBabelfishDatabase(fout);
 
 	ropt->compression_spec = compression_spec;
 

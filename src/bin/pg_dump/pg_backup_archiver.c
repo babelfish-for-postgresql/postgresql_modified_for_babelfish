@@ -3038,8 +3038,14 @@ _tocEntryRequired(TocEntry *te, teSection curSection, ArchiveHandle *AH)
 	if ((strcmp(te->desc, "<Init>") == 0) && (strcmp(te->tag, "Max OID") == 0))
 		return 0;
 
-	/* Mask it if we only want schema */
-	if (ropt->schemaOnly)
+	/*
+	 * Mask it if we only want schema.
+	 * Babelfish db dump overrides schemaOnly option unless it is binary-upgrade
+	 * mode. This is needed to make sure that we dump Babelfish configuration
+	 * tables' data even in schema only mode as user data in a configuration table
+	 * is treated like schema metadata.
+	 */
+	if (ropt->schemaOnly && !(ropt->babelfish_db && !ropt->binary_upgrade))
 	{
 		/*
 		 * The sequence_data option overrides schemaOnly for SEQUENCE SET.
@@ -3061,8 +3067,14 @@ _tocEntryRequired(TocEntry *te, teSection curSection, ArchiveHandle *AH)
 			res = res & REQ_SCHEMA;
 	}
 
-	/* Mask it if we only want data */
-	if (ropt->dataOnly)
+	/*
+	 * Mask it if we only want data.
+	 * Babelfish db dump overrides dataOnly option unless it is binary-upgrade
+	 * mode. This is needed to make sure that we do not dump Babelfish configuration
+	 * tables' data in data only mode as user data in a configuration table is
+	 * treated like schema metadata.
+	 */
+	if (ropt->dataOnly && !(ropt->babelfish_db && !ropt->binary_upgrade))
 		res = res & REQ_DATA;
 
 	return res;
