@@ -765,6 +765,17 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		/* funccollid and inputcollid will be set by parse_collate.c */
 		funcexpr->args = fargs;
 		funcexpr->location = location;
+		if (fn != NULL)
+		{
+			funcexpr->pivot_parsetree = copyObject(fn->pivot_parsetree);
+			funcexpr->pivot_extrainfo = copyObject(fn->pivot_extrainfo);
+		}
+		else
+		{
+			funcexpr->pivot_parsetree = NIL;
+			funcexpr->pivot_extrainfo = NIL;
+		}
+
 
 		retval = (Node *) funcexpr;
 	}

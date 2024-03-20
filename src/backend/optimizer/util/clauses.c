@@ -2601,6 +2601,8 @@ eval_const_expressions_mutator(Node *node,
 				newexpr->inputcollid = expr->inputcollid;
 				newexpr->args = args;
 				newexpr->location = expr->location;
+				newexpr->pivot_parsetree = expr->pivot_parsetree;
+				newexpr->pivot_extrainfo = expr->pivot_extrainfo;
 				return (Node *) newexpr;
 			}
 		case T_OpExpr:
@@ -4562,6 +4564,8 @@ evaluate_function(Oid funcid, Oid result_type, int32 result_typmod,
 	newexpr->inputcollid = input_collid;
 	newexpr->args = args;
 	newexpr->location = -1;
+	newexpr->pivot_parsetree = NIL;
+	newexpr->pivot_extrainfo = NIL;
 
 	return evaluate_expr((Expr *) newexpr, result_type, result_typmod,
 						 result_collid);
@@ -4674,6 +4678,8 @@ inline_function(Oid funcid, Oid result_type, Oid result_collid,
 	fexpr->inputcollid = input_collid;
 	fexpr->args = args;
 	fexpr->location = -1;
+	fexpr->pivot_parsetree = NIL;
+	fexpr->pivot_extrainfo = NIL;
 
 	/* Fetch the function body */
 	tmp = SysCacheGetAttrNotNull(PROCOID, func_tuple, Anum_pg_proc_prosrc);

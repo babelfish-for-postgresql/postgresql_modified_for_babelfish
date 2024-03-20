@@ -279,8 +279,6 @@ rewriteSearchAndCycle(CommonTableExpr *cte)
 	newq1 = makeNode(Query);
 	newq1->commandType = CMD_SELECT;
 	newq1->canSetTag = true;
-	newq1->isPivot = false;
-	newq1->pivotInfoList = NIL;
 
 	newrte = makeNode(RangeTblEntry);
 	newrte->rtekind = RTE_SUBQUERY;
@@ -368,8 +366,6 @@ rewriteSearchAndCycle(CommonTableExpr *cte)
 	newq2 = makeNode(Query);
 	newq2->commandType = CMD_SELECT;
 	newq2->canSetTag = true;
-	newq2->isPivot = false;
-	newq2->pivotInfoList = NIL;
 
 	newrte = makeNode(RangeTblEntry);
 	newrte->rtekind = RTE_SUBQUERY;

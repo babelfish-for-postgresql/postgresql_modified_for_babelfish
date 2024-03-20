@@ -3102,8 +3102,6 @@ transformRuleStmt(RuleStmt *stmt, const char *queryString,
 		nothing_qry->rtable = pstate->p_rtable;
 		nothing_qry->rteperminfos = pstate->p_rteperminfos;
 		nothing_qry->jointree = makeFromExpr(NIL, NULL);	/* no join wanted */
-		nothing_qry->isPivot = false;
-		nothing_qry->pivotInfoList = NIL;
 
 		*actions = list_make1(nothing_qry);
 	}
