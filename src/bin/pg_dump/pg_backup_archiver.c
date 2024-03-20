@@ -2806,6 +2806,11 @@ _tocEntryRequired(TocEntry *te, teSection curSection, ArchiveHandle *AH)
 		strcmp(te->desc, "SEARCHPATH") == 0)
 		return REQ_SPECIAL;
 
+	/* These items are always dumped */
+	if (strcmp(te->desc, "BABELFISHGUCS") == 0 ||
+		strcmp(te->desc, "BABELFISHCHECKS") == 0)
+		return res;
+
 	/*
 	 * DATABASE and DATABASE PROPERTIES also have a special rule: they are
 	 * restored in createDB mode, and not restored otherwise, independently of
@@ -3067,14 +3072,8 @@ _tocEntryRequired(TocEntry *te, teSection curSection, ArchiveHandle *AH)
 			res = res & REQ_SCHEMA;
 	}
 
-	/*
-	 * Mask it if we only want data.
-	 * Babelfish db dump overrides dataOnly option unless it is binary-upgrade
-	 * mode. This is needed to make sure that we do not dump Babelfish configuration
-	 * tables' data in data only mode as user data in a configuration table is
-	 * treated like schema metadata.
-	 */
-	if (ropt->dataOnly && !(ropt->babelfish_db && !ropt->binary_upgrade))
+	/* Mask it if we only want data */
+	if (ropt->dataOnly)
 		res = res & REQ_DATA;
 
 	return res;
