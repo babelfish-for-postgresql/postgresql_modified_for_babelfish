@@ -48,9 +48,6 @@
 
 bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook = NULL; /** BBF Hook to check Instead Of trigger on View */
 
-/* Hooks for restoring PIVOT info from previously created view */
-rewrite_pivot_view_hook_type rewrite_pivot_view_hook = NULL;
-
 /* We use a list of these to detect recursion in RewriteQuery */
 typedef struct rewrite_event
 {
@@ -1828,16 +1825,6 @@ ApplyRetrieveRule(Query *parsetree,
 	 * rels if there's a FOR [KEY] UPDATE/SHARE clause affecting this view.
 	 */
 	rule_action = copyObject(linitial(rule->actions));
-
-	/* 
-	 * If action query is a pivot stmt, we save the pivot related info to 
-	 * tsql_outmost_context
-	 */
-	if (sql_dialect == SQL_DIALECT_TSQL && rule_action->isPivot && rewrite_pivot_view_hook)
-	{
-		/* save information to tsql_outmost_context */
-		(*rewrite_pivot_view_hook)(rule_action);
-	}
 
 	AcquireRewriteLocks(rule_action, true, (rc != NULL));
 
