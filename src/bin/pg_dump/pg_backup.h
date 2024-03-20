@@ -154,7 +154,7 @@ typedef struct _restoreOptions
 	int			enable_row_security;
 	int			sequence_data;	/* dump sequence data even in schema-only mode */
 	int			binary_upgrade;
-	bool			babelfish_db; /* is this a Babelfish database? */
+	bool		babelfish_db; /* is this a Babelfish database? */
 } RestoreOptions;
 
 typedef struct _dumpOptions

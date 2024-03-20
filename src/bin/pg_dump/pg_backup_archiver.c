@@ -3050,7 +3050,7 @@ _tocEntryRequired(TocEntry *te, teSection curSection, ArchiveHandle *AH)
 	 * tables' data even in schema only mode as user data in a configuration table
 	 * is treated like schema metadata.
 	 */
-	if (ropt->schemaOnly && !(ropt->babelfish_db && !ropt->binary_upgrade))
+	if (ropt->schemaOnly && (!ropt->babelfish_db || ropt->binary_upgrade))
 	{
 		/*
 		 * The sequence_data option overrides schemaOnly for SEQUENCE SET.
