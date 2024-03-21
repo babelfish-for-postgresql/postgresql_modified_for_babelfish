@@ -16,6 +16,7 @@
 
 #include "fmgr.h"
 #include "nodes/pg_list.h"
+#include "nodes/primnodes.h"
 #include "utils/jsonb.h"
 
 typedef struct
@@ -202,6 +203,7 @@ extern bool jspGetBool(JsonPathItem *v);
 extern char *jspGetString(JsonPathItem *v, int32 *len);
 extern bool jspGetArraySubscript(JsonPathItem *v, JsonPathItem *from,
 								 JsonPathItem *to, int i);
+extern bool jspIsMutable(JsonPath *path, List *varnames, List *varexprs);
 
 extern const char *jspOperationName(JsonPathItemType type);
 
@@ -281,4 +283,27 @@ extern bool jspConvertRegexFlags(uint32 xflags, int *result,
 
 extern Jsonb *tsql_openjson_with_get_subjsonb(PG_FUNCTION_ARGS);
 extern List *tsql_openjson_with_columnize(Jsonb *jb, char *col_info);
+
+/*
+ * Evaluation of jsonpath
+ */
+
+/* External variable passed into jsonpath. */
+typedef struct JsonPathVariable
+{
+	char	   *name;
+	Oid			typid;
+	int32		typmod;
+	Datum		value;
+	bool		isnull;
+} JsonPathVariable;
+
+
+/* SQL/JSON item */
+extern bool JsonPathExists(Datum jb, JsonPath *path, bool *error, List *vars);
+extern Datum JsonPathQuery(Datum jb, JsonPath *jp, JsonWrapper wrapper,
+						   bool *empty, bool *error, List *vars);
+extern JsonbValue *JsonPathValue(Datum jb, JsonPath *jp, bool *empty,
+								 bool *error, List *vars);
+
 #endif
