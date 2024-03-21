@@ -2443,6 +2443,7 @@ RuleLock
 RuleStmt
 RunningTransactions
 RunningTransactionsData
+SASLStatus
 SC_HANDLE
 SECURITY_ATTRIBUTES
 SECURITY_STATUS
