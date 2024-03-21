@@ -127,7 +127,7 @@ get_visible_ENR_metadata(QueryEnvironment *queryEnv, const char *refname)
 	if (queryEnv == NULL)
 		return NULL;
 
-	enr = get_ENR(queryEnv, refname, true);
+	enr = get_ENR(queryEnv, refname, false);
 	if (enr)
 		return &(enr->md);
 
