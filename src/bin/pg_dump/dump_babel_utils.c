@@ -204,6 +204,16 @@ dumpBabelGUCs(Archive *fout)
 		free(oid);
 	}
 
+	/*
+	 * Disable triggers for data-only dump.
+	 * Although pg_restore provides an option for this (--disable-triggers)
+	 * but this option needs superuser privileges. So we will use this
+	 * session_replication_role session GUC to temporarily disable the triggers
+	 * for the data-only dump so as to allow non-superuser to perform the restore.
+	 */
+	if(!fout->dopt->binary_upgrade && fout->dopt->dataOnly)
+		appendPQExpBufferStr(qry, "SET session_replication_role = replica;\n");
+
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
 				 ARCHIVE_OPTS(.tag = "BABELFISHGUCS",
 							  .description = "BABELFISHGUCS",
@@ -387,8 +397,12 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 							 * are not marked to be dumped so catalog table data explicitly
 							 * need to be marked as dumpable.
 							 */
-							if (isBabelfishConfigTable(fout, tbinfo))
+							if (isBabelfishConfigTable(fout, tbinfo) && !fout->dopt->dataOnly)
+							{
 								tbinfo->dobj.dump |= DUMP_COMPONENT_DATA;
+								/* also prepare the dumpable object upfront */
+								makeTableDataInfo(fout->dopt, tbinfo);
+							}
 						}
 				}
 			}
@@ -987,7 +1001,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	DumpableObject		*dobj;
 	DumpableObject		*refdobj;
 
-	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade)
+	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade || fout->dopt->dataOnly)
 		return;
 
 	query = createPQExpBuffer();

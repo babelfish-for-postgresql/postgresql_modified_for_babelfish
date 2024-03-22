@@ -680,6 +680,9 @@ help(void)
 	printf(_("  --use-set-session-authorization\n"
 			 "                               use SET SESSION AUTHORIZATION commands instead of\n"
 			 "                               ALTER OWNER commands to set ownership\n"));
+	printf(_("  --bbf-database-name=BBF_DBNAME\n"
+			 "                               The name of the Babelfish T-SQL database to selectively\n"
+			 "                               dump T-SQL logins associated with that specific T-SQL database\n"));
 
 	printf(_("\nConnection options:\n"));
 	printf(_("  -d, --dbname=CONNSTR     connect using connection string\n"));
