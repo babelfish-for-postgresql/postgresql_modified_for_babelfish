@@ -749,5 +749,6 @@ extern void getPublicationNamespaces(Archive *fout);
 extern void getPublicationTables(Archive *fout, TableInfo tblinfo[],
 								 int numTables);
 extern void getSubscriptions(Archive *fout);
+extern void makeTableDataInfo(DumpOptions *dopt, TableInfo *tbinfo);
 
 #endif							/* PG_DUMP_H */
