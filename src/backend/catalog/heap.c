@@ -72,6 +72,7 @@
 #include "storage/predicate.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
+#include "utils/guc.h"
 #include "utils/inval.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
@@ -79,6 +80,8 @@
 InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook = NULL;
 transform_check_constraint_expr_hook_type transform_check_constraint_expr_hook = NULL;
 drop_relation_refcnt_hook_type drop_relation_refcnt_hook = NULL;
+AssignTempTypeArrayOid_hook_type AssignTempTypeArrayOid_hook = NULL;
+AddNewTempRelationType_hook_type AddNewTempRelationType_hook = NULL;
 
 /* Potentially set by pg_upgrade_support functions */
 Oid			binary_upgrade_next_heap_pg_class_oid = InvalidOid;
@@ -1180,6 +1183,7 @@ heap_create_with_catalog(const char *relname,
 	TransactionId relfrozenxid;
 	MultiXactId relminmxid;
 	bool		is_enr = false;
+	bool		use_bbf_oid_buffer = false;
 
 	if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL)
 	{
@@ -1193,6 +1197,9 @@ heap_create_with_catalog(const char *relname,
 		 */
 		if (relname && strlen(relname) > 0)
 			is_enr = (relname[0] == '@') || (relname[0] == '#' && !CheckTempTableHasDependencies(tupdesc));
+
+		if (is_enr)
+			use_bbf_oid_buffer = (AssignTempTypeArrayOid_hook && AddNewTempRelationType_hook && temp_oid_buffer_size > 0);
 	}
 
 	pg_class_desc = table_open(RelationRelationId, RowExclusiveLock);
@@ -1399,7 +1406,10 @@ heap_create_with_catalog(const char *relname,
 		 * We'll make an array over the composite type, too.  For largely
 		 * historical reasons, the array type's OID is assigned first.
 		 */
-		new_array_oid = AssignTypeArrayOid();
+		if (is_enr && use_bbf_oid_buffer && AssignTempTypeArrayOid_hook)
+			new_array_oid = AssignTempTypeArrayOid_hook();
+		else
+			new_array_oid = AssignTypeArrayOid();
 
 		/*
 		 * Make the pg_type entry for the composite type.  The OID of the
@@ -1410,13 +1420,23 @@ heap_create_with_catalog(const char *relname,
 		 * else is creating the same type name in parallel but hadn't
 		 * committed yet when we checked for a duplicate name above.
 		 */
-		new_type_addr = AddNewRelationType(relname,
+		if (is_enr && use_bbf_oid_buffer && AddNewTempRelationType_hook)
+			new_type_addr = AddNewTempRelationType_hook(relname,
 										   relnamespace,
 										   relid,
 										   relkind,
 										   ownerid,
 										   reltypeid,
 										   new_array_oid);
+		else
+			new_type_addr = AddNewRelationType(relname,
+										   relnamespace,
+										   relid,
+										   relkind,
+										   ownerid,
+										   reltypeid,
+										   new_array_oid);
+
 		new_type_oid = new_type_addr.objectId;
 		if (typaddress)
 			*typaddress = new_type_addr;
