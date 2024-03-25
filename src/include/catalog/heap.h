@@ -166,4 +166,16 @@ extern PGDLLEXPORT transform_check_constraint_expr_hook_type transform_check_con
 typedef void (*drop_relation_refcnt_hook_type) (Relation rel);
 extern PGDLLEXPORT drop_relation_refcnt_hook_type drop_relation_refcnt_hook;
 
+typedef Oid (*AssignTempTypeArrayOid_hook_type) (void);
+extern PGDLLEXPORT AssignTempTypeArrayOid_hook_type AssignTempTypeArrayOid_hook;
+
+typedef ObjectAddress (*AddNewTempRelationType_hook_type) (const char *typeName,
+				   Oid typeNamespace,
+				   Oid new_rel_oid,
+				   char new_rel_kind,
+				   Oid ownerid,
+				   Oid new_row_type,
+				   Oid new_array_type);
+extern PGDLLEXPORT AddNewTempRelationType_hook_type AddNewTempRelationType_hook;
+
 #endif							/* HEAP_H */
