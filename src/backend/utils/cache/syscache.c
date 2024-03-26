@@ -1075,7 +1075,7 @@ InitExtensionCatalogCache(struct cachedesc *ext_cacheinfo, int startid, int ext_
 	int			cacheId;
 	int			i;
 
-	SysCacheRelationOidSize = SysCacheSupportingRelOidSize = 0;
+	Assert(CacheInitialized);
 
 	for (i = 0; i < ext_cachelength; i++)
 	{
