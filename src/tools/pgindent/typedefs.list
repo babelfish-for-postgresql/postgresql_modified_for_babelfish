@@ -1688,7 +1688,6 @@ ObjectAddressAndFlags
 ObjectAddressExtra
 ObjectAddressStack
 ObjectAddresses
-ObjectClass
 ObjectPropertyType
 ObjectType
 ObjectWithArgs
