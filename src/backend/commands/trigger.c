@@ -4807,11 +4807,12 @@ ExecISInsertTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
     IOTState prevState;
     trigdesc = relinfo->ri_TrigDesc;
     if (trigdesc == NULL)
-       	return IOT_NOT_REQUIRED;
-    if (!trigdesc->trig_insert_instead_statement) 
+		return IOT_NOT_REQUIRED;
+	
+	if (!trigdesc->trig_insert_instead_statement || !isTsqlInsteadofTriggerExecution(estate, relinfo, TRIGGER_EVENT_INSERT))
 	{
 		set_iot_state(RelationGetRelid(rel), CMD_INSERT, IOT_NOT_REQUIRED);
-    		return IOT_NOT_REQUIRED;
+		return IOT_NOT_REQUIRED;
 	}
 
     // if the trigger is already fired or not required
@@ -4836,7 +4837,8 @@ ExecISUpdateTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
 	if (trigdesc == NULL)
 		return IOT_NOT_REQUIRED;
 
-	if (!trigdesc->trig_update_instead_statement) {
+	if (!trigdesc->trig_update_instead_statement || !isTsqlInsteadofTriggerExecution(estate, relinfo, TRIGGER_EVENT_UPDATE))
+	{
 		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_UPDATE, IOT_NOT_REQUIRED);
 		return IOT_NOT_REQUIRED;
 	}
@@ -4863,7 +4865,9 @@ ExecISDeleteTriggers(EState *estate, ResultRelInfo *relinfo, TransitionCaptureSt
 
 	if (trigdesc == NULL)
 		return IOT_NOT_REQUIRED;
-	if (!trigdesc->trig_delete_instead_statement) {
+
+	if (!trigdesc->trig_delete_instead_statement || !isTsqlInsteadofTriggerExecution(estate, relinfo, TRIGGER_EVENT_DELETE))
+	{
 		set_iot_state(RelationGetRelid(relinfo->ri_RelationDesc), CMD_DELETE, IOT_NOT_REQUIRED);
 		return IOT_NOT_REQUIRED;
 	}
@@ -5371,7 +5375,11 @@ isTsqlInsteadofTriggerExecution(EState *estate, ResultRelInfo *relinfo, TriggerE
 	for (i = 0; i < trigdesc->numtriggers; i++)
 	{
 		Trigger *trigger = &trigdesc->triggers[i];
-		if (TriggerEnabled(estate, relinfo, trigger, event, NULL, NULL, NULL)){
+		if (TriggerEnabled(estate, relinfo, trigger, event, NULL, NULL, NULL) &&
+			(TRIGGER_TYPE_MATCHES(trigger->tgtype, TRIGGER_TYPE_STATEMENT, TRIGGER_TYPE_INSTEAD, TRIGGER_TYPE_INSERT) ||
+			 TRIGGER_TYPE_MATCHES(trigger->tgtype, TRIGGER_TYPE_STATEMENT, TRIGGER_TYPE_INSTEAD, TRIGGER_TYPE_UPDATE) ||
+			 TRIGGER_TYPE_MATCHES(trigger->tgtype, TRIGGER_TYPE_STATEMENT, TRIGGER_TYPE_INSTEAD, TRIGGER_TYPE_DELETE)))
+		{
 			return !TsqlRecuresiveCheck(relinfo);
 		}
 	}

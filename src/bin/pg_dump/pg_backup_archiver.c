@@ -2806,6 +2806,11 @@ _tocEntryRequired(TocEntry *te, teSection curSection, ArchiveHandle *AH)
 		strcmp(te->desc, "SEARCHPATH") == 0)
 		return REQ_SPECIAL;
 
+	/* These items are always dumped */
+	if (strcmp(te->desc, "BABELFISHGUCS") == 0 ||
+		strcmp(te->desc, "BABELFISHCHECKS") == 0)
+		return res;
+
 	/*
 	 * DATABASE and DATABASE PROPERTIES also have a special rule: they are
 	 * restored in createDB mode, and not restored otherwise, independently of
@@ -3038,8 +3043,14 @@ _tocEntryRequired(TocEntry *te, teSection curSection, ArchiveHandle *AH)
 	if ((strcmp(te->desc, "<Init>") == 0) && (strcmp(te->tag, "Max OID") == 0))
 		return 0;
 
-	/* Mask it if we only want schema */
-	if (ropt->schemaOnly)
+	/*
+	 * Mask it if we only want schema.
+	 * Babelfish db dump overrides schemaOnly option unless it is binary-upgrade
+	 * mode. This is needed to make sure that we dump Babelfish configuration
+	 * tables' data even in schema only mode as user data in a configuration table
+	 * is treated like schema metadata.
+	 */
+	if (ropt->schemaOnly && (!ropt->babelfish_db || ropt->binary_upgrade))
 	{
 		/*
 		 * The sequence_data option overrides schemaOnly for SEQUENCE SET.

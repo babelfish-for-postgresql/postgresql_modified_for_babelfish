@@ -204,6 +204,16 @@ dumpBabelGUCs(Archive *fout)
 		free(oid);
 	}
 
+	/*
+	 * Disable triggers for data-only dump.
+	 * Although pg_restore provides an option for this (--disable-triggers)
+	 * but this option needs superuser privileges. So we will use this
+	 * session_replication_role session GUC to temporarily disable the triggers
+	 * for the data-only dump so as to allow non-superuser to perform the restore.
+	 */
+	if(!fout->dopt->binary_upgrade && fout->dopt->dataOnly)
+		appendPQExpBufferStr(qry, "SET session_replication_role = replica;\n");
+
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
 				 ARCHIVE_OPTS(.tag = "BABELFISHGUCS",
 							  .description = "BABELFISHGUCS",
@@ -387,8 +397,12 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 							 * are not marked to be dumped so catalog table data explicitly
 							 * need to be marked as dumpable.
 							 */
-							if (isBabelfishConfigTable(fout, tbinfo))
+							if (isBabelfishConfigTable(fout, tbinfo) && !fout->dopt->dataOnly)
+							{
 								tbinfo->dobj.dump |= DUMP_COMPONENT_DATA;
+								/* also prepare the dumpable object upfront */
+								makeTableDataInfo(fout->dopt, tbinfo);
+							}
 						}
 				}
 			}
@@ -983,37 +997,41 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	TableInfo		*extprop_table;
 	TableInfo		*sysdb_table;
 	TableInfo		*namespace_ext_table;
+	TableInfo		*schema_perms_table;
 	DumpableObject		*dobj;
 	DumpableObject		*refdobj;
 
-	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade)
+	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade || fout->dopt->dataOnly)
 		return;
 
 	query = createPQExpBuffer();
-	/* get oids of sys.babelfish_sysdatabases and sys.babelfish_namespace_ext tables */
+	/* get oids of sys.babelfish_sysdatabases, sys.babelfish_namespace_ext, babelfish_extended_properties, babelfish_schema_permissions tables */
 	appendPQExpBufferStr(query,
 						 "SELECT oid "
 						 "FROM pg_class "
 						 "WHERE relname in ('babelfish_sysdatabases', "
-						 "'babelfish_namespace_ext', 'babelfish_extended_properties') "
+						 "'babelfish_schema_permissions', 'babelfish_namespace_ext', 'babelfish_extended_properties') "
 						 "AND relnamespace = 'sys'::regnamespace "
 						 "ORDER BY relname;");
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
-	Assert(PQntuples(res) == 3);
+	Assert(PQntuples(res) == 4);
 	extprop_table = findTableByOid(atooid(PQgetvalue(res, 0, 0)));
 	namespace_ext_table = findTableByOid(atooid(PQgetvalue(res, 1, 0)));
-	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 2, 0)));
-	Assert(sysdb_table != NULL && namespace_ext_table != NULL && extprop_table != NULL);
+	schema_perms_table = findTableByOid(atooid(PQgetvalue(res, 2, 0)));
+	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 3, 0)));
+	Assert(sysdb_table != NULL && namespace_ext_table != NULL && extprop_table != NULL && schema_perms_table != NULL);
 	refdobj = (DumpableObject *) sysdb_table->dataObj;
 	/*
-	 * Make babelfish_namespace_ext and babelfish_extended_properties tables dependent upon
+	 * Make babelfish_schema_permissions, babelfish_namespace_ext and babelfish_extended_properties tables dependent upon
 	 * babelfish_sysdatabases table so that we dump babelfish_sysdatabases table's data before both of them.
 	 * This is needed to generate and handle new "dbid" during logical database restore.
 	 */
 	dobj = (DumpableObject *) namespace_ext_table->dataObj;
 	addObjectDependency(dobj, refdobj->dumpId);
 	dobj = (DumpableObject *) extprop_table->dataObj;
+	addObjectDependency(dobj, refdobj->dumpId);
+	dobj = (DumpableObject *) schema_perms_table->dataObj;
 	addObjectDependency(dobj, refdobj->dumpId);
 
 	PQclear(res);
@@ -1050,7 +1068,8 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	}
 	else if (strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
-			 strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0)
+			 strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.dbid = %d",
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	else if (strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0)
@@ -1128,7 +1147,8 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 			strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0)
+			strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
+			strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
 						  fmtQualifiedDumpable(tbinfo));
 	else
