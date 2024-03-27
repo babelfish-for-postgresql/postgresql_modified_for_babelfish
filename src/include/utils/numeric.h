@@ -14,6 +14,7 @@
 #ifndef _PG_NUMERIC_H_
 #define _PG_NUMERIC_H_
 
+#include "common/pg_prng.h"
 #include "fmgr.h"
 
 /*
@@ -114,5 +115,8 @@ extern Datum bigint_poly_aggr_final(FunctionCallInfo fcinfo, tsqlAggType aggType
 /* Hook interface to calculate exact numeric digits before generating numeric overflow error in TSQL */
 typedef bool (*detect_numeric_overflow_hook_type) (int weight, int dscale, int first_block, int numeric_base);
 extern PGDLLEXPORT detect_numeric_overflow_hook_type detect_numeric_overflow_hook;
+
+extern Numeric random_numeric(pg_prng_state *state,
+							  Numeric rmin, Numeric rmax);
 
 #endif							/* _PG_NUMERIC_H_ */
