@@ -432,6 +432,8 @@ typedef struct FuncCall
 	bool		func_variadic;	/* last argument was labeled VARIADIC */
 	CoercionForm funcformat;	/* how to display this node */
 	int			location;		/* token location, or -1 if unknown */
+	List	   *pivot_parsetree; /* bbf_pivot function required rewritted parsetrees */
+	List	   *pivot_extrainfo; /* bbf_pivot function required aggregation function and source sql string */
 } FuncCall;
 
 /*

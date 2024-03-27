@@ -25,6 +25,7 @@
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
+#include "parser/parser.h"
 #include "parser/parse_coerce.h"
 #include "pgstat.h"
 #include "utils/acl.h"
@@ -203,6 +204,12 @@ ExecMakeTableFunctionResult(SetExprState *setexpr,
 		InitFunctionCallInfoData(*fcinfo, NULL, 0, InvalidOid, NULL, NULL);
 	}
 
+	if (sql_dialect == SQL_DIALECT_TSQL && IsA(setexpr->expr, FuncExpr))
+	{
+		fcinfo->pivot_parsetree = ((FuncExpr*) setexpr->expr)->pivot_parsetree;
+		fcinfo->pivot_extrainfo = ((FuncExpr*) setexpr->expr)->pivot_extrainfo;
+	}
+		
 	/*
 	 * Switch to short-lived context for calling the function or expression.
 	 */
