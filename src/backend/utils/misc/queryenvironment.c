@@ -239,12 +239,11 @@ EphemeralNamedRelation
 get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType type)
 {
 	ListCell   *lc;
-	QueryEnvironment *qe = queryEnv;
 
 	if (queryEnv == NULL)
 		return NULL;
 
-	foreach(lc, qe->namedRelList)
+	foreach(lc, queryEnv->namedRelList)
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
