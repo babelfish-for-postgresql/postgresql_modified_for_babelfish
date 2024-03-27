@@ -3303,7 +3303,7 @@ _SPI_find_ENR_by_name(const char *name)
 	if (_SPI_current->queryEnv == NULL)
 		return NULL;
 
-	return get_ENR(_SPI_current->queryEnv, name);
+	return get_ENR(_SPI_current->queryEnv, name, false);
 }
 
 /*
