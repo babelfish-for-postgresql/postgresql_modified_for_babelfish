@@ -922,6 +922,9 @@ subquery_planner(PlannerGlobal *glob, Query *parse,
 								  EXPRKIND_QUAL);
 	}
 
+	parse->mergeJoinCondition =
+		preprocess_expression(root, parse->mergeJoinCondition, EXPRKIND_QUAL);
+
 	root->append_rel_list = (List *)
 		preprocess_expression(root, (Node *) root->append_rel_list,
 							  EXPRKIND_APPINFO);
@@ -1825,6 +1828,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 			List	   *withCheckOptionLists = NIL;
 			List	   *returningLists = NIL;
 			List	   *mergeActionLists = NIL;
+			List	   *mergeJoinConditions = NIL;
 			List	   *rowMarks;
 
 			if (bms_membership(root->all_result_relids) == BMS_MULTIPLE)
@@ -1931,6 +1935,19 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 						mergeActionLists = lappend(mergeActionLists,
 												   mergeActionList);
 					}
+					if (parse->commandType == CMD_MERGE)
+					{
+						Node	   *mergeJoinCondition = parse->mergeJoinCondition;
+
+						if (this_result_rel != top_result_rel)
+							mergeJoinCondition =
+								adjust_appendrel_attrs_multilevel(root,
+																  mergeJoinCondition,
+																  this_result_rel,
+																  top_result_rel);
+						mergeJoinConditions = lappend(mergeJoinConditions,
+													  mergeJoinCondition);
+					}
 				}
 
 				if (resultRelations == NIL)
@@ -1955,6 +1972,8 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 						returningLists = list_make1(parse->returningList);
 					if (parse->mergeActionList)
 						mergeActionLists = list_make1(parse->mergeActionList);
+					if (parse->commandType == CMD_MERGE)
+						mergeJoinConditions = list_make1(parse->mergeJoinCondition);
 				}
 			}
 			else
@@ -1970,6 +1989,8 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 					returningLists = list_make1(parse->returningList);
 				if (parse->mergeActionList)
 					mergeActionLists = list_make1(parse->mergeActionList);
+				if (parse->commandType == CMD_MERGE)
+					mergeJoinConditions = list_make1(parse->mergeJoinCondition);
 			}
 
 			/*
@@ -1997,6 +2018,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 										rowMarks,
 										parse->onConflict,
 										mergeActionLists,
+										mergeJoinConditions,
 										assign_special_exec_param(root));
 		}
 
