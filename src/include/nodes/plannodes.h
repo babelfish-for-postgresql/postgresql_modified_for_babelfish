@@ -252,6 +252,8 @@ typedef struct ModifyTable
 	Node	   *callStmt; 		/* for INSERT ... EXECUTE */
 	List	   *mergeActionLists;	/* per-target-table lists of actions for
 									 * MERGE */
+	List	   *mergeJoinConditions;	/* per-target-table join conditions
+										 * for MERGE */
 } ModifyTable;
 
 struct PartitionPruneInfo;		/* forward reference to struct below */
