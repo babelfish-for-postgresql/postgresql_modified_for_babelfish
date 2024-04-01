@@ -58,10 +58,8 @@ static HTSV_Result heap_prune_satisfies_vacuum(Relation relation,
 											   PruneState *prstate,
 											   HeapTuple tup,
 											   Buffer buffer);
-static int	heap_prune_chain(Buffer buffer,
-							 OffsetNumber rootoffnum,
-							 int8 *htsv,
-							 PruneState *prstate);
+static int	heap_prune_chain(Page page, BlockNumber blockno, OffsetNumber maxoff,
+							 OffsetNumber rootoffnum, int8 *htsv, PruneState *prstate);
 static void heap_prune_record_prunable(PruneState *prstate, TransactionId xid);
 static void heap_prune_record_redirect(PruneState *prstate,
 									   OffsetNumber offnum, OffsetNumber rdoffnum);
@@ -146,6 +144,7 @@ heap_page_prune_opt(Relation relation, Buffer buffer)
 		 */
 		if (PageIsFull(page) || PageGetHeapFreeSpace(page) < minfree)
 		{
+			OffsetNumber dummy_off_loc;
 			PruneResult presult;
 
 			/*
@@ -154,7 +153,7 @@ heap_page_prune_opt(Relation relation, Buffer buffer)
 			 * that during on-access pruning with the current implementation.
 			 */
 			heap_page_prune(relation, buffer, vistest, false,
-							&presult, PRUNE_ON_ACCESS, NULL);
+							&presult, PRUNE_ON_ACCESS, &dummy_off_loc);
 
 			/*
 			 * Report the number of tuples reclaimed to pgstats.  This is
@@ -297,8 +296,7 @@ heap_page_prune(Relation relation, Buffer buffer,
 		 * Set the offset number so that we can display it along with any
 		 * error that occurred while processing this tuple.
 		 */
-		if (off_loc)
-			*off_loc = offnum;
+		*off_loc = offnum;
 
 		presult->htsv[offnum] = heap_prune_satisfies_vacuum(relation, &prstate, &tup,
 															buffer);
@@ -316,8 +314,7 @@ heap_page_prune(Relation relation, Buffer buffer,
 			continue;
 
 		/* see preceding loop */
-		if (off_loc)
-			*off_loc = offnum;
+		*off_loc = offnum;
 
 		/* Nothing to do if slot is empty */
 		itemid = PageGetItemId(page, offnum);
@@ -325,13 +322,12 @@ heap_page_prune(Relation relation, Buffer buffer,
 			continue;
 
 		/* Process this item or chain of items */
-		presult->ndeleted += heap_prune_chain(buffer, offnum,
+		presult->ndeleted += heap_prune_chain(page, blockno, maxoff, offnum,
 											  presult->htsv, &prstate);
 	}
 
 	/* Clear the offset information once we have processed the given page. */
-	if (off_loc)
-		*off_loc = InvalidOffsetNumber;
+	*off_loc = InvalidOffsetNumber;
 
 	/* Any error while applying the changes is critical */
 	START_CRIT_SECTION();
@@ -453,22 +449,20 @@ heap_prune_satisfies_vacuum(Relation relation, PruneState *prstate, HeapTuple tu
  * Returns the number of tuples (to be) deleted from the page.
  */
 static int
-heap_prune_chain(Buffer buffer, OffsetNumber rootoffnum,
-				 int8 *htsv, PruneState *prstate)
+heap_prune_chain(Page page, BlockNumber blockno, OffsetNumber maxoff,
+				 OffsetNumber rootoffnum, int8 *htsv, PruneState *prstate)
 {
 	int			ndeleted = 0;
-	Page		dp = (Page) BufferGetPage(buffer);
 	TransactionId priorXmax = InvalidTransactionId;
 	ItemId		rootlp;
 	HeapTupleHeader htup;
 	OffsetNumber latestdead = InvalidOffsetNumber,
-				maxoff = PageGetMaxOffsetNumber(dp),
 				offnum;
 	OffsetNumber chainitems[MaxHeapTuplesPerPage];
 	int			nchain = 0,
 				i;
 
-	rootlp = PageGetItemId(dp, rootoffnum);
+	rootlp = PageGetItemId(page, rootoffnum);
 
 	/*
 	 * If it's a heap-only tuple, then it is not the start of a HOT chain.
@@ -476,7 +470,7 @@ heap_prune_chain(Buffer buffer, OffsetNumber rootoffnum,
 	if (ItemIdIsNormal(rootlp))
 	{
 		Assert(htsv[rootoffnum] != -1);
-		htup = (HeapTupleHeader) PageGetItem(dp, rootlp);
+		htup = (HeapTupleHeader) PageGetItem(page, rootlp);
 
 		if (HeapTupleHeaderIsHeapOnly(htup))
 		{
@@ -537,7 +531,7 @@ heap_prune_chain(Buffer buffer, OffsetNumber rootoffnum,
 		if (prstate->marked[offnum])
 			break;
 
-		lp = PageGetItemId(dp, offnum);
+		lp = PageGetItemId(page, offnum);
 
 		/* Unused item obviously isn't part of the chain */
 		if (!ItemIdIsUsed(lp))
@@ -576,7 +570,7 @@ heap_prune_chain(Buffer buffer, OffsetNumber rootoffnum,
 		}
 
 		Assert(ItemIdIsNormal(lp));
-		htup = (HeapTupleHeader) PageGetItem(dp, lp);
+		htup = (HeapTupleHeader) PageGetItem(page, lp);
 
 		/*
 		 * Check the tuple XMIN against prior XMAX, if any
@@ -667,8 +661,7 @@ heap_prune_chain(Buffer buffer, OffsetNumber rootoffnum,
 		/*
 		 * Advance to next chain member.
 		 */
-		Assert(ItemPointerGetBlockNumber(&htup->t_ctid) ==
-			   BufferGetBlockNumber(buffer));
+		Assert(ItemPointerGetBlockNumber(&htup->t_ctid) == blockno);
 		offnum = ItemPointerGetOffsetNumber(&htup->t_ctid);
 		priorXmax = HeapTupleHeaderGetUpdateXid(htup);
 	}
