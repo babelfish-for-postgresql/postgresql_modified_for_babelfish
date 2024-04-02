@@ -127,7 +127,7 @@ get_visible_ENR_metadata(QueryEnvironment *queryEnv, const char *refname)
 	if (queryEnv == NULL)
 		return NULL;
 
-	enr = get_ENR(queryEnv, refname);
+	enr = get_ENR(queryEnv, refname, false);
 	if (enr)
 		return &(enr->md);
 
@@ -144,7 +144,7 @@ void
 register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 {
 	Assert(enr != NULL);
-	Assert(get_ENR(queryEnv, enr->md.name) == NULL);
+	Assert(get_ENR(queryEnv, enr->md.name, false) == NULL);
 
 	queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);
 }
@@ -158,7 +158,7 @@ unregister_ENR(QueryEnvironment *queryEnv, const char *name)
 {
 	EphemeralNamedRelation match;
 
-	match = get_ENR(queryEnv, name);
+	match = get_ENR(queryEnv, name, false);
 	if (match)
 		queryEnv->namedRelList = list_delete(queryEnv->namedRelList, match);
 }
@@ -168,7 +168,14 @@ unregister_ENR(QueryEnvironment *queryEnv, const char *name)
  */
 List *get_namedRelList()
 {
-	return currentQueryEnv->namedRelList;
+	List *relList = NIL;
+	QueryEnvironment *qe = currentQueryEnv;
+	while (qe)
+	{
+		relList = list_concat(relList, qe->namedRelList);
+		qe = qe->parentEnv;
+	}
+	return relList;
 }
 
 bool has_existing_enr_relations()
@@ -189,23 +196,37 @@ bool has_existing_enr_relations()
 /*
  * This returns an ENR if there is a name match in the given collection.  It
  * must quietly return NULL if no match is found.
+ * 
+ * search - true if we want to include parent queryEnvs (such as in 
+ * 			babelfish_get_enr_list, object_id).
+ * 
+ * 			Other such places (like in HeapCreateWithCatalog, SPI)
+ * 			allow duplicate ENR names in the top level queryEnv, so 
+ * 			it must be false there.
  */
 EphemeralNamedRelation
-get_ENR(QueryEnvironment *queryEnv, const char *name)
+get_ENR(QueryEnvironment *queryEnv, const char *name, bool search)
 {
 	ListCell   *lc;
+	QueryEnvironment *qe = queryEnv;
 
 	Assert(name != NULL);
 
 	if (queryEnv == NULL)
 		return NULL;
 
-	foreach(lc, queryEnv->namedRelList)
+	while (qe)
 	{
-		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+		foreach(lc, qe->namedRelList)
+		{
+			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		if (strcmp(enr->md.name, name) == 0)
-			return enr;
+			if (strcmp(enr->md.name, name) == 0)
+				return enr;
+		}
+		if (!search)
+			break;
+		qe = qe->parentEnv;
 	}
 
 	return NULL;

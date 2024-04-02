@@ -426,7 +426,7 @@ TypeCreate(Oid newTypeOid,
 	 * If the tuple is for an ENR that's not in the current query environment,
 	 * we are still allowed to create new type.
 	 */
-	if (HeapTupleIsValid(tup) && get_ENR(currentQueryEnv, typeName) == NULL)
+	if (HeapTupleIsValid(tup) && get_ENR(currentQueryEnv, typeName, false) == NULL)
 	{
 		Form_pg_type typform = (Form_pg_type) GETSTRUCT(tup);
 
