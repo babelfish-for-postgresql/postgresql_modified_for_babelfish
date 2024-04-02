@@ -1216,7 +1216,7 @@ heap_create_with_catalog(const char *relname,
 	 * But allow same-name ENR as long as the it's not in the current query env.
 	 */
 	existing_relid = get_relname_relid(relname, relnamespace);
-	if (existing_relid != InvalidOid && (!is_enr || get_ENR(currentQueryEnv, relname)))
+	if (existing_relid != InvalidOid && (!is_enr || get_ENR(currentQueryEnv, relname, false)))
 		ereport(ERROR,
 				(errcode(ERRCODE_DUPLICATE_TABLE),
 				 errmsg("relation \"%s\" already exists", relname)));
@@ -1230,7 +1230,7 @@ heap_create_with_catalog(const char *relname,
 	old_type_oid = GetSysCacheOid2(TYPENAMENSP, Anum_pg_type_oid,
 								   CStringGetDatum(relname),
 								   ObjectIdGetDatum(relnamespace));
-	if (OidIsValid(old_type_oid) && (!is_enr || get_ENR(currentQueryEnv, relname)))
+	if (OidIsValid(old_type_oid) && (!is_enr || get_ENR(currentQueryEnv, relname, false)))
 	{
 		if (!moveArrayTypeName(old_type_oid, relname, relnamespace))
 			ereport(ERROR,

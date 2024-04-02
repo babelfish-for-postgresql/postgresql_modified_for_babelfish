@@ -102,7 +102,7 @@ ExecInitNamedTuplestoreScan(NamedTuplestoreScan *node, EState *estate, int eflag
 	scanstate->ss.ps.state = estate;
 	scanstate->ss.ps.ExecProcNode = ExecNamedTuplestoreScan;
 
-	enr = get_ENR(estate->es_queryEnv, node->enrname);
+	enr = get_ENR(estate->es_queryEnv, node->enrname, false);
 	if (!enr)
 		elog(ERROR, "executor could not find named tuplestore \"%s\"",
 			 node->enrname);
