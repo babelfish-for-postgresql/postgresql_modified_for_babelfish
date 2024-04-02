@@ -163,15 +163,16 @@ isBabelfishConfigTable(Archive *fout, TableInfo *tbinfo)
 	if (!isBabelfishDatabase(fout))
 		return false;
 	/* 
-	 * We don't want to dump babelfish_authid_login_ext and 
-	 * babelfish_server_options in case of logical database dump.
+	 * We don't want to dump babelfish_authid_login_ext, babelfish_domain_mapping
+	 * and babelfish_server_options in case of logical database dump.
 	 */
 	if (tbinfo == NULL || tbinfo->relkind != RELKIND_RELATION ||
 		(tbinfo->dobj.namespace &&
 		strcmp(tbinfo->dobj.namespace->dobj.name, "sys") == 0 &&
 		(bbf_db_name != NULL && 
 			(strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0 ||
-				strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0))))
+				strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0 ||
+				strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0))))
 			return false;
 
 	if (catalog_table_include_oids.head != NULL &&
@@ -1090,9 +1091,6 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') ",
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	}
-	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0)
-		appendPQExpBuffer(buf, " FROM ONLY %s a",
-						  fmtQualifiedDumpable(tbinfo));
 	else
 	{
 		pg_log_error("Unrecognized Babelfish catalog table %s.", fmtQualifiedDumpable(tbinfo));
