@@ -124,6 +124,7 @@ static AclResult pg_role_aclcheck(Oid role_oid, Oid roleid, AclMode mode);
 static void RoleMembershipCacheCallback(Datum arg, int cacheid, uint32 hashvalue);
 
 bbf_get_sysadmin_oid_hook_type bbf_get_sysadmin_oid_hook = NULL;
+get_bbf_admin_oid_hook_type get_bbf_admin_oid_hook = NULL;
 
 
 /*
@@ -5122,6 +5123,11 @@ select_best_admin(Oid member, Oid role)
 	/* By policy, a role cannot have WITH ADMIN OPTION on itself. */
 	if (member == role)
 		return InvalidOid;
+
+	if (get_bbf_admin_oid_hook  && member == (*get_bbf_admin_oid_hook)())
+	{
+		return member;
+	}
 
 	(void) roles_is_member_of(member, ROLERECURSE_PRIVS, role, &admin_role);
 	return admin_role;
