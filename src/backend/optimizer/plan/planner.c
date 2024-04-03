@@ -7985,7 +7985,6 @@ generate_setop_child_grouplist(SetOperationStmt *op, List *targetlist)
 
 		/* assign a tleSortGroupRef, or reuse the existing one */
 		sgc->tleSortGroupRef = assignSortGroupRef(tle, targetlist);
-		tle->ressortgroupref = sgc->tleSortGroupRef;
 	}
 	Assert(lg == NULL);
 	return grouplist;
