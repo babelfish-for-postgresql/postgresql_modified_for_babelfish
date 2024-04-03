@@ -4092,3 +4092,4 @@ TidStoreIter
 TidStoreIterResult
 BlocktableEntry
 ItemArray
+bh_nodeidx_entry
