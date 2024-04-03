@@ -154,5 +154,7 @@ typedef void (*logicalrep_modify_slot_hook_type)(Relation rel, EState *estate, T
 extern PGDLLEXPORT logicalrep_modify_slot_hook_type logicalrep_modify_slot_hook;
 
 extern bool LogicalReplicationSlotHasPendingWal(XLogRecPtr end_of_wal);
+extern XLogRecPtr LogicalSlotAdvanceAndCheckSnapState(XLogRecPtr moveto,
+													  bool *found_consistent_snapshot);
 
 #endif
