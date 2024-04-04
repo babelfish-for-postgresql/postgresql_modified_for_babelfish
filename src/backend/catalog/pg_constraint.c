@@ -178,10 +178,10 @@ CreateConstraintEntry(const char *constraintName,
 
 	if (sql_dialect == SQL_DIALECT_TSQL && isTempNamespace(constraintNamespace))
 	{
-		is_enr = get_ENR_withoid(currentQueryEnv, relId, ENR_TSQL_TEMP) && GetNewTempOidWithIndex_hook;
+		is_enr = get_ENR_withoid(currentQueryEnv, relId, ENR_TSQL_TEMP);
 	}
 
-	if (is_enr)
+	if (is_enr && GetNewTempOidWithIndex_hook)
 		conOid = GetNewTempOidWithIndex_hook(conDesc, ConstraintOidIndexId,
 									Anum_pg_constraint_oid);
 	else
