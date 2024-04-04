@@ -59,5 +59,7 @@ extern PGDLLEXPORT sortby_nulls_hook_type sortby_nulls_hook;
 
 typedef Node* (*optimize_explicit_cast_hook_type)(ParseState *pstate, Node *node);
 extern PGDLLEXPORT optimize_explicit_cast_hook_type optimize_explicit_cast_hook;
+/* functions in parse_jsontable.c */
+extern ParseNamespaceItem *transformJsonTable(ParseState *pstate, JsonTable *jt);
 
 #endif							/* PARSE_CLAUSE_H */
