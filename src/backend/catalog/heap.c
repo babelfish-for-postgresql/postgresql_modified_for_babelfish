@@ -80,7 +80,6 @@
 InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook = NULL;
 transform_check_constraint_expr_hook_type transform_check_constraint_expr_hook = NULL;
 drop_relation_refcnt_hook_type drop_relation_refcnt_hook = NULL;
-AssignTempTypeOid_hook_type AssignTempTypeOid_hook = NULL;
 
 /* Potentially set by pg_upgrade_support functions */
 Oid			binary_upgrade_next_heap_pg_class_oid = InvalidOid;
@@ -1446,12 +1445,12 @@ heap_create_with_catalog(const char *relname,
 		 * committed yet when we checked for a duplicate name above.
 		 */
 		new_type_addr = AddNewRelationType(relname,
-										relnamespace,
-										relid,
-										relkind,
-										ownerid,
-										reltypeid,
-										new_array_oid);
+										   relnamespace,
+										   relid,
+										   relkind,
+										   ownerid,
+										   reltypeid,
+										   new_array_oid);
 
 		new_type_oid = new_type_addr.objectId;
 		if (typaddress)

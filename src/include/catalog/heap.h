@@ -166,7 +166,4 @@ extern PGDLLEXPORT transform_check_constraint_expr_hook_type transform_check_con
 typedef void (*drop_relation_refcnt_hook_type) (Relation rel);
 extern PGDLLEXPORT drop_relation_refcnt_hook_type drop_relation_refcnt_hook;
 
-typedef Oid (*AssignTempTypeOid_hook_type) (void);
-extern PGDLLEXPORT AssignTempTypeOid_hook_type AssignTempTypeOid_hook;
-
 #endif							/* HEAP_H */
