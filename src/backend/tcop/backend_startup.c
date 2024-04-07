@@ -38,6 +38,8 @@
 #include "utils/ps_status.h"
 #include "utils/timeout.h"
 
+/* GUCs */
+bool		Trace_connection_negotiation = false;
 static void BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionConfig *protocol_config);
 int	ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done);
 static void SendNegotiateProtocolVersion(List *unrecognized_protocol_options);
@@ -476,6 +478,16 @@ ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done)
 		SSLok = 'N';			/* No support for SSL */
 #endif
 
+		if (Trace_connection_negotiation)
+		{
+			if (SSLok == 'S')
+				ereport(LOG,
+						(errmsg("SSLRequest accepted")));
+			else
+				ereport(LOG,
+						(errmsg("SSLRequest rejected")));
+		}
+
 retry1:
 		if (send(port->sock, &SSLok, 1, 0) != 1)
 		{
@@ -520,6 +532,16 @@ retry1:
 		if (port->laddr.addr.ss_family != AF_UNIX)
 			GSSok = 'G';
 #endif
+
+		if (Trace_connection_negotiation)
+		{
+			if (GSSok == 'G')
+				ereport(LOG,
+						(errmsg("GSSENCRequest accepted")));
+			else
+				ereport(LOG,
+						(errmsg("GSSENCRequest rejected")));
+		}
 
 		while (send(port->sock, &GSSok, 1, 0) != 1)
 		{
