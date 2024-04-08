@@ -1359,6 +1359,7 @@ JsonTablePathSpec
 JsonTablePlan
 JsonTablePlanRowSource
 JsonTablePlanState
+JsonTableSiblingJoin
 JsonTokenType
 JsonTransformStringValuesAction
 JsonTypeCategory
