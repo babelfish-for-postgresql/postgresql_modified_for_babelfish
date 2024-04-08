@@ -1220,6 +1220,7 @@ InitSampleScan_function
 InitializeDSMForeignScan_function
 InitializeWorkerForeignScan_function
 InjectionPointCacheEntry
+InjectionPointCondition
 InjectionPointEntry
 InjectionPointSharedState
 InlineCodeBlock
