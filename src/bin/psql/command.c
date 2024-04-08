@@ -3919,6 +3919,7 @@ printSSLInfo(void)
 	const char *protocol;
 	const char *cipher;
 	const char *compression;
+	const char *alpn;
 
 	if (!PQsslInUse(pset.db))
 		return;					/* no SSL */
@@ -3926,11 +3927,13 @@ printSSLInfo(void)
 	protocol = PQsslAttribute(pset.db, "protocol");
 	cipher = PQsslAttribute(pset.db, "cipher");
 	compression = PQsslAttribute(pset.db, "compression");
+	alpn = PQsslAttribute(pset.db, "alpn");
 
-	printf(_("SSL connection (protocol: %s, cipher: %s, compression: %s)\n"),
+	printf(_("SSL connection (protocol: %s, cipher: %s, compression: %s, ALPN: %s)\n"),
 		   protocol ? protocol : _("unknown"),
 		   cipher ? cipher : _("unknown"),
-		   (compression && strcmp(compression, "off") != 0) ? _("on") : _("off"));
+		   (compression && strcmp(compression, "off") != 0) ? _("on") : _("off"),
+		   alpn ? alpn : _("none"));
 }
 
 /*
