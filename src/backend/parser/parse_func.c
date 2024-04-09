@@ -37,6 +37,7 @@
 #include "utils/syscache.h"
 
 func_select_candidate_hook_type func_select_candidate_hook = NULL;
+func_select_candidate_for_exception_hook_type func_select_candidate_for_exception_hook = NULL;
 make_fn_arguments_from_stored_proc_probin_hook_type make_fn_arguments_from_stored_proc_probin_hook = NULL;
 report_proc_not_found_error_hook_type report_proc_not_found_error_hook = NULL;
 /* Possible error codes from LookupFuncNameInternal */
@@ -1076,7 +1077,8 @@ func_select_candidate(int nargs,
 	 * If we resolve all the unknwon types but still too many candidates,
 	 * let's try to choose the best candidate by T-SQL precedence rule.
 	 */
-	if ((sql_dialect == SQL_DIALECT_TSQL ||
+	if (nunknowns == 0 && 
+		(sql_dialect == SQL_DIALECT_TSQL ||
 	    (dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 	    func_select_candidate_hook != NULL)
 	{
@@ -1448,6 +1450,7 @@ func_get_detail(List *funcname,
 {
 	FuncCandidateList raw_candidates;
 	FuncCandidateList best_candidate;
+	const char	*dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
 	/* initialize output arguments to silence compiler warnings */
 	*funcid = InvalidOid;
@@ -1597,7 +1600,22 @@ func_get_detail(List *funcname,
 			 */
 			else if (ncandidates > 1)
 			{
-				best_candidate = func_select_candidate(nargs,
+				if ((sql_dialect == SQL_DIALECT_TSQL ||
+					(dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
+					func_select_candidate_for_exception_hook != NULL)
+				{
+					best_candidate = func_select_candidate_for_exception_hook(funcname, 
+																		nargs, 
+																		argtypes, 
+																		current_candidates);
+				
+					if (best_candidate == NULL)
+						best_candidate = func_select_candidate(nargs,
+														argtypes,
+														current_candidates);
+				}
+				else
+					best_candidate = func_select_candidate(nargs,
 													   argtypes,
 													   current_candidates);
 
