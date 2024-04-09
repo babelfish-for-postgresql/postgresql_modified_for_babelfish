@@ -21313,12 +21313,6 @@ ATExecSplitPartition(List **wqueue, AlteredTableInfo *tab, Relation rel,
 	 */
 	splitRel = table_openrv(cmd->name, AccessExclusiveLock);
 
-	if (splitRel->rd_rel->relkind != RELKIND_RELATION)
-		ereport(ERROR,
-				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				 errmsg("cannot split non-table partition \"%s\"",
-						RelationGetRelationName(splitRel))));
-
 	splitRelOid = RelationGetRelid(splitRel);
 
 	/* Check descriptions of new partitions. */
@@ -21552,12 +21546,6 @@ ATExecMergePartitions(List **wqueue, AlteredTableInfo *tab, Relation rel,
 		 * exclusive lock for preventing DML-queries to the partition.
 		 */
 		mergingPartition = table_openrv(name, AccessExclusiveLock);
-
-		if (mergingPartition->rd_rel->relkind != RELKIND_RELATION)
-			ereport(ERROR,
-					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-					 errmsg("cannot merge non-table partition \"%s\"",
-							RelationGetRelationName(mergingPartition))));
 
 		/*
 		 * Checking that two partitions have the same name was before, in
