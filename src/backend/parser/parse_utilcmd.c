@@ -2593,7 +2593,7 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 				iparam->ordering = i->ordering;
 			}
 
-			if (pltsql_unique_constraint_nulls_ordering_hook)
+			if (sql_dialect != SQL_DIALECT_TSQL && pltsql_unique_constraint_nulls_ordering_hook)
 			{
 				iparam->nulls_ordering = (* pltsql_unique_constraint_nulls_ordering_hook) (constraint->contype, iparam->ordering);
 			}
