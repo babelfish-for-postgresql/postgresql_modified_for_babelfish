@@ -4211,7 +4211,6 @@ restore_toc_entries_parallel(ArchiveHandle *AH, ParallelState *pstate,
 	/* Set up ready_heap with enough room for all known TocEntrys */
 	ready_heap = binaryheap_allocate(AH->tocCount,
 									 TocEntrySizeCompareBinaryheap,
-									 false,
 									 NULL);
 
 	/*
