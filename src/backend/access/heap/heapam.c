@@ -2264,8 +2264,7 @@ heap_multi_insert_pages(HeapTuple *heaptuples, int done, int ntuples, Size saveF
  */
 void
 heap_multi_insert(Relation relation, TupleTableSlot **slots, int ntuples,
-				  CommandId cid, int options, BulkInsertState bistate,
-				  bool *insert_indexes)
+				  CommandId cid, int options, BulkInsertState bistate)
 {
 	TransactionId xid = GetCurrentTransactionId();
 	HeapTuple  *heaptuples;
@@ -2614,7 +2613,6 @@ heap_multi_insert(Relation relation, TupleTableSlot **slots, int ntuples,
 		slots[i]->tts_tid = heaptuples[i]->t_self;
 
 	pgstat_count_heap_insert(relation, ntuples);
-	*insert_indexes = true;
 }
 
 /*
