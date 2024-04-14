@@ -2316,6 +2316,8 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 
 	if (sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook && c->tsql_is_null)
 		newc->coalescetype = select_common_type(pstate, newargs, "ISNULL", NULL);
+	else if(sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook && c->tsql_coalesce_func)
+		newc->coalescetype = select_common_type(pstate, newargs, "TSQL_COALESCE", NULL);
 	else
 		newc->coalescetype = select_common_type(pstate, newargs, "COALESCE", NULL);
 	/* coalescecollid will be set by parse_collate.c */
@@ -2325,10 +2327,20 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 	{
 		Node	   *e = (Node *) lfirst(args);
 		Node	   *newe;
+		Oid		   etype = exprType(e);
+
+		if (sql_dialect == SQL_DIALECT_TSQL && c->tsql_coalesce_func && etype == UNKNOWNOID)
+		{
+			e = coerce_to_common_type(pstate, e,
+									 	VARCHAROID,
+									 	"COALESCE");
+		}
 
 		newe = coerce_to_common_type(pstate, e,
 									 newc->coalescetype,
 									 "COALESCE");
+
+		
 
 		/*
 		 * If we get a RelabelType node, we would need to adjust its typmod
