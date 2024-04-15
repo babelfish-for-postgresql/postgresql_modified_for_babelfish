@@ -2327,14 +2327,14 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 	{
 		Node	   *e = (Node *) lfirst(args);
 		Node	   *newe;
-		Oid		   etype = exprType(e);
+		// Oid		   etype = exprType(e);
 
-		if (sql_dialect == SQL_DIALECT_TSQL && c->tsql_coalesce_func && etype == UNKNOWNOID)
-		{
-			e = coerce_to_common_type(pstate, e,
-									 	VARCHAROID,
-									 	"COALESCE");
-		}
+		// if (sql_dialect == SQL_DIALECT_TSQL && c->tsql_coalesce_func && etype == UNKNOWNOID)
+		// {
+		// 	e = coerce_to_common_type(pstate, e,
+		// 							 	VARCHAROID,
+		// 							 	"COALESCE");
+		// }
 
 		newe = coerce_to_common_type(pstate, e,
 									 newc->coalescetype,
