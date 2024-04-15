@@ -2316,8 +2316,8 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 
 	if (sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook && c->tsql_is_null)
 		newc->coalescetype = select_common_type(pstate, newargs, "ISNULL", NULL);
-	else if(sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook && c->tsql_coalesce_func)
-		newc->coalescetype = select_common_type(pstate, newargs, "TSQL_COALESCE", NULL);
+	// else if(sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook && c->tsql_coalesce_func)
+	// 	newc->coalescetype = select_common_type(pstate, newargs, "TSQL_COALESCE", NULL);
 	else
 		newc->coalescetype = select_common_type(pstate, newargs, "COALESCE", NULL);
 	/* coalescecollid will be set by parse_collate.c */
