@@ -1802,7 +1802,7 @@ typedef struct JsonFuncExpr
 	JsonBehavior *on_error;		/* ON ERROR behavior */
 	JsonWrapper wrapper;		/* array wrapper behavior (JSON_QUERY only) */
 	JsonQuotes	quotes;			/* omit or keep quotes? (JSON_QUERY only) */
-	int			location;		/* token location, or -1 if unknown */
+	ParseLoc	location;		/* token location, or -1 if unknown */
 } JsonFuncExpr;
 
 /*
@@ -1816,8 +1816,8 @@ typedef struct JsonTablePathSpec
 
 	Node	   *string;
 	char	   *name;
-	int			name_location;
-	int			location;		/* location of 'string' */
+	ParseLoc	name_location;
+	ParseLoc	location;		/* location of 'string' */
 } JsonTablePathSpec;
 
 /*
@@ -1834,7 +1834,7 @@ typedef struct JsonTable
 	JsonBehavior *on_error;		/* ON ERROR behavior */
 	Alias	   *alias;			/* table alias in FROM clause */
 	bool		lateral;		/* does it have LATERAL prefix? */
-	int			location;		/* token location, or -1 if unknown */
+	ParseLoc	location;		/* token location, or -1 if unknown */
 } JsonTable;
 
 /*
@@ -1867,7 +1867,7 @@ typedef struct JsonTableColumn
 	List	   *columns;		/* nested columns */
 	JsonBehavior *on_empty;		/* ON EMPTY behavior */
 	JsonBehavior *on_error;		/* ON ERROR behavior */
-	int			location;		/* token location, or -1 if unknown */
+	ParseLoc	location;		/* token location, or -1 if unknown */
 } JsonTableColumn;
 
 /*
