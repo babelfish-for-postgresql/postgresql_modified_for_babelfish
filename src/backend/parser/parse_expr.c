@@ -2329,6 +2329,10 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 		Node	   *newe;
 		Oid		   etype = exprType(e);
 
+		/*
+		 *	T-SQL treats constant string literals as VARCHAR. Hence,
+		 *	coercing into VARCHAR before coercing it to the common type.
+		 */
 		if (sql_dialect == SQL_DIALECT_TSQL && !c->tsql_is_null && etype == UNKNOWNOID && IsA(e, Const))
 		{
 			Const	   *con = (Const *) e;
@@ -2338,6 +2342,10 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 			if (val != NULL)
 				i = strlen(val) - 1;
 
+			/*
+			 *	Additional handling for empty or white space string literals as
+			 *	T-SQL treats an empty string literal as 0 in certain datatypes
+			 */
 			for (; i >= 0; i--)
 			{
 				if (val[i] != ' ')
