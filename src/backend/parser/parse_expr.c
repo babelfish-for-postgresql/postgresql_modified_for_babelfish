@@ -2329,11 +2329,25 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 		Node	   *newe;
 		Oid		   etype = exprType(e);
 
-		if (sql_dialect == SQL_DIALECT_TSQL && !c->tsql_is_null && etype == UNKNOWNOID)
+		if (sql_dialect == SQL_DIALECT_TSQL && !c->tsql_is_null && etype == UNKNOWNOID && IsA(e, Const))
 		{
-			e = coerce_to_common_type(pstate, e,
-									 	VARCHAROID,
-									 	"COALESCE");
+			Const	   *con = (Const *) e;
+			char	   *val = DatumGetCString(con->constvalue);
+			int	   i = -1;
+
+			if (val != NULL)
+				i = strlen(val) - 1;
+
+			for (; i >= 0; i--)
+			{
+				if (val[i] != ' ')
+					break;
+			}
+
+			if (i != -1)
+				e = coerce_to_common_type(pstate, e,
+									 		VARCHAROID,
+									 		"COALESCE");
 		}
 
 		newe = coerce_to_common_type(pstate, e,
