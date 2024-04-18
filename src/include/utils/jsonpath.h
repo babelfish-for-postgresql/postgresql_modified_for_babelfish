@@ -286,10 +286,8 @@ extern Jsonb *tsql_openjson_with_get_subjsonb(PG_FUNCTION_ARGS);
 extern List *tsql_openjson_with_columnize(Jsonb *jb, char *col_info);
 
 /*
- * Evaluation of jsonpath
+ * Struct for details about external variables passed into jsonpath executor
  */
-
-/* External variable passed into jsonpath. */
 typedef struct JsonPathVariable
 {
 	char	   *name;
@@ -300,7 +298,7 @@ typedef struct JsonPathVariable
 } JsonPathVariable;
 
 
-/* SQL/JSON item */
+/* SQL/JSON query functions */
 extern bool JsonPathExists(Datum jb, JsonPath *path, bool *error, List *vars);
 extern Datum JsonPathQuery(Datum jb, JsonPath *jp, JsonWrapper wrapper,
 						   bool *empty, bool *error, List *vars,
@@ -309,6 +307,7 @@ extern JsonbValue *JsonPathValue(Datum jb, JsonPath *jp, bool *empty,
 								 bool *error, List *vars,
 								 const char *column_name);
 
+/* For JSON_TABLE() */
 extern PGDLLIMPORT const TableFuncRoutine JsonbTableRoutine;
 
 #endif
