@@ -100,6 +100,7 @@ static Node *make_nulltest_from_distinct(ParseState *pstate,
 static List *ExpandChecksumStar(ParseState *pstate, FuncCall *fn, int location);
 
 lookup_param_hook_type lookup_param_hook = NULL;
+handle_constant_literals_hook_type handle_constant_literals_hook = NULL;
 /*
  * transformExpr -
  *	  Analyze and transform expressions. Type checking and type casting is
@@ -2333,29 +2334,11 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 		 *	T-SQL treats constant string literals as VARCHAR. Hence,
 		 *	coercing into VARCHAR before coercing it to the common type.
 		 */
-		if (sql_dialect == SQL_DIALECT_TSQL && !c->tsql_is_null && etype == UNKNOWNOID && IsA(e, Const))
+		if (sql_dialect == SQL_DIALECT_TSQL && !c->tsql_is_null && 
+			etype == UNKNOWNOID && IsA(e, Const) &&
+			handle_constant_literals_hook)
 		{
-			Const	   *con = (Const *) e;
-			char	   *val = DatumGetCString(con->constvalue);
-			int	   i = -1;
-
-			if (val != NULL)
-				i = strlen(val) - 1;
-
-			/*
-			 *	Additional handling for empty or white space string literals as
-			 *	T-SQL treats an empty string literal as 0 in certain datatypes
-			 */
-			for (; i >= 0; i--)
-			{
-				if (val[i] != ' ')
-					break;
-			}
-
-			if (i != -1)
-				e = coerce_to_common_type(pstate, e,
-									 		VARCHAROID,
-									 		"COALESCE");
+			e = (*handle_constant_literals_hook)(pstate, e);
 		}
 
 		newe = coerce_to_common_type(pstate, e,
