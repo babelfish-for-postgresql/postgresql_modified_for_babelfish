@@ -70,6 +70,7 @@
 
 /* Hook for pltsql plugin */
 pltsql_identity_datatype_hook_type pltsql_identity_datatype_hook = NULL;
+pltsql_unique_constraint_nulls_ordering_hook_type pltsql_unique_constraint_nulls_ordering_hook = NULL;
 post_transform_column_definition_hook_type post_transform_column_definition_hook = NULL;
 post_transform_table_definition_hook_type post_transform_table_definition_hook = NULL;
 
@@ -2591,6 +2592,12 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 				IndexElem * i = (IndexElem *) lfirst(lc);
 				iparam->ordering = i->ordering;
 			}
+
+			if (sql_dialect == SQL_DIALECT_TSQL && pltsql_unique_constraint_nulls_ordering_hook)
+			{
+				iparam->nulls_ordering = (* pltsql_unique_constraint_nulls_ordering_hook) (constraint->contype, iparam->ordering);
+			}
+
 			/*
 			 * For a primary-key column, also create an item for ALTER TABLE
 			 * SET NOT NULL if we couldn't ensure it via is_not_null above.
