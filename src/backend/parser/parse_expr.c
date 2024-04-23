@@ -2334,9 +2334,7 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 		 *	T-SQL treats constant string literals as VARCHAR. Hence,
 		 *	coercing into VARCHAR before coercing it to the common type.
 		 */
-		if (sql_dialect == SQL_DIALECT_TSQL && !c->tsql_is_null && 
-			etype == UNKNOWNOID && IsA(e, Const) &&
-			handle_constant_literals_hook)
+		if (sql_dialect == SQL_DIALECT_TSQL && !c->tsql_is_null && handle_constant_literals_hook)
 		{
 			e = (*handle_constant_literals_hook)(pstate, e);
 		}
