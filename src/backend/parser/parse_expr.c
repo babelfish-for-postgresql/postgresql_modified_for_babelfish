@@ -2328,7 +2328,6 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 	{
 		Node	   *e = (Node *) lfirst(args);
 		Node	   *newe;
-		Oid		   etype = exprType(e);
 
 		/*
 		 *	T-SQL treats constant string literals as VARCHAR. Hence,
