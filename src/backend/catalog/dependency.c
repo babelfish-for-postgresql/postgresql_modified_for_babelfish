@@ -1392,7 +1392,7 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 	DeleteInitPrivs(object);
 
 	// Delete from ENR - noop if not found from ENR
-	ENRDropEntry(object->objectId);
+	ENRDropEntry(object->objectId, currentQueryEnv);
 
 	/*
 	 * CommandCounterIncrement here to ensure that preceding changes are all
