@@ -22,7 +22,10 @@ struct AttrMap;					/* avoid including attmap.h here */
 /* IDENTITY datatype hook */
 typedef void (*pltsql_identity_datatype_hook_type) (ParseState *pstate,
 													ColumnDef *column);
-extern PGDLLEXPORT pltsql_identity_datatype_hook_type pltsql_identity_datatype_hook;
+typedef SortByNulls (*pltsql_unique_constraint_nulls_ordering_hook_type) (ConstrType constraint_type,
+																		  SortByDir ordering);
+extern PGDLLIMPORT pltsql_identity_datatype_hook_type pltsql_identity_datatype_hook;
+extern PGDLLIMPORT pltsql_unique_constraint_nulls_ordering_hook_type pltsql_unique_constraint_nulls_ordering_hook;
 typedef void (*post_transform_column_definition_hook_type) (ParseState *pstate, RangeVar* relation, ColumnDef *column, List **alist);
 typedef void (*post_transform_table_definition_hook_type) (ParseState *pstate, RangeVar* relation, char *relname, List **alist);
 extern PGDLLEXPORT post_transform_column_definition_hook_type post_transform_column_definition_hook;
