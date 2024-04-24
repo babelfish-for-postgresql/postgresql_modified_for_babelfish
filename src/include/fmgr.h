@@ -94,7 +94,7 @@ typedef struct FunctionCallInfoBaseData
 	short		nargs;			/* # arguments actually passed */
 	List	   *pivot_parsetree; /* bbf_pivot function required rewritted parsetrees */
 	List	   *pivot_extrainfo; /* bbf_pivot function required aggregation function and source sql string */
-#define FIELDNO_FUNCTIONCALLINFODATA_ARGS 6
+#define FIELDNO_FUNCTIONCALLINFODATA_ARGS 8
 	NullableDatum args[FLEXIBLE_ARRAY_MEMBER];
 } FunctionCallInfoBaseData;
 
