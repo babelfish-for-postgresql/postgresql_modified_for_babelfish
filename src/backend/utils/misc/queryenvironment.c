@@ -52,6 +52,7 @@
 struct QueryEnvironment
 {
 	List	   *namedRelList;
+	List	   *dropped_namedRelList;
 	struct QueryEnvironment *parentEnv;
 	MemoryContext	memctx;
 };
@@ -80,6 +81,7 @@ create_queryEnv2(MemoryContext cxt, bool top_level)
 	if (top_level) {
 		queryEnv = topLevelQueryEnv;
 		queryEnv->namedRelList = NIL;
+		queryEnv->dropped_namedRelList = NIL;
 		queryEnv->parentEnv = NULL;
 		queryEnv->memctx = cxt;
 	} else {
@@ -122,7 +124,7 @@ get_visible_ENR_metadata(QueryEnvironment *queryEnv, const char *refname)
 		return NULL;
 
 	enr = get_ENR(queryEnv, refname, false);
-	if (enr && !enr->md.pending_drop)
+	if (enr)
 		return &(enr->md);
 
 	return NULL;
@@ -140,7 +142,7 @@ register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 	Assert(enr != NULL);
 	Assert(get_ENR(queryEnv, enr->md.name, false) == NULL);
 
-	if (enr->md.name[0] == '@')
+	if (enr->md.name[0] != '#')
 		enr->md.is_table_variable = true;
 
 	queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);
@@ -174,8 +176,7 @@ List *get_namedRelList()
 		foreach(lc, qe->namedRelList)
 		{
 			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
-			if (!enr->md.pending_drop)
-				relList = lappend(relList, enr);
+			relList = lappend(relList, enr);
 		}
 		qe = qe->parentEnv;
 	}
@@ -225,7 +226,7 @@ get_ENR(QueryEnvironment *queryEnv, const char *name, bool search)
 		{
 			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-			if (strcmp(enr->md.name, name) == 0 && !enr->md.pending_drop)
+			if (strcmp(enr->md.name, name) == 0)
 				return enr;
 		}
 		if (!search)
@@ -251,7 +252,7 @@ get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType ty
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		if (enr->md.reliddesc == id && enr->md.enrtype == type && !enr->md.pending_drop)
+		if (enr->md.reliddesc == id && enr->md.enrtype == type)
 			return enr;
 	}
 
@@ -650,13 +651,13 @@ find_enr(Form_pg_depend entry)
 					foreach(type_lc, tmp_enr->md.cattups[ENR_CATTUP_TYPE])
 					{
 						Form_pg_type tup = ((Form_pg_type)GETSTRUCT((HeapTuple)lfirst(type_lc)));
-						if (tup->oid == entry->objid && !tmp_enr->md.pending_drop)
+						if (tup->oid == entry->objid)
 							return tmp_enr;
 					}
 					foreach(type_lc, tmp_enr->md.cattups[ENR_CATTUP_ARRAYTYPE])
 					{
 						Form_pg_type tup = ((Form_pg_type)GETSTRUCT((HeapTuple)lfirst(type_lc)));
-						if (tup->oid == entry->objid && !tmp_enr->md.pending_drop)
+						if (tup->oid == entry->objid)
 							return tmp_enr;
 					}
 				}
@@ -1000,7 +1001,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 			switch (op) {
 				case ENR_OP_ADD:
 					newtup = heap_copytuple(tup);
-					if (enr->md.is_committed && !enr->md.pending_drop && !enr->md.is_table_variable)
+					if (enr->md.is_committed && !enr->md.is_table_variable)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, newtup);
 					*list_ptr = list_insert_nth(*list_ptr, insert_at, newtup);
 					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL);
@@ -1016,13 +1017,13 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					* which is much better than crashing.
 					*/
 					oldtup = lfirst(lc);
-					if (enr->md.is_committed && !enr->md.pending_drop && !enr->md.is_table_variable)
+					if (enr->md.is_committed && !enr->md.is_table_variable)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, oldtup);
 					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup);
 					lfirst(lc) = heap_copytuple(tup);
 					break;
 				case ENR_OP_DROP:
-					if (enr->md.is_committed && !enr->md.pending_drop && !enr->md.is_table_variable)
+					if (enr->md.is_committed && !enr->md.is_table_variable)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, tup);
 					CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
 					tmp = lfirst(lc);
@@ -1089,7 +1090,10 @@ void ENRDropEntry(Oid id, QueryEnvironment *queryEnv)
 	/* If we want to drop a committed ENR, then we should mark it as such and drop it on COMMIT */
 	if (enr->md.is_committed)
 	{
-		enr->md.pending_drop = true;
+		oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
+		queryEnv->namedRelList = list_delete(queryEnv->namedRelList, enr);
+		queryEnv->dropped_namedRelList = lappend(queryEnv->dropped_namedRelList, enr);
+		MemoryContextSwitchTo(oldcxt);
 		return;
 	}
 
@@ -1296,17 +1300,22 @@ ENRCommitChanges(QueryEnvironment *queryEnv)
 
 		ENRDeleteUncommittedTupleData(enr);
 
-		if (enr->md.pending_drop)
-		{	
-			pfree(enr->md.name);
-			pfree(enr);
-			queryEnv->namedRelList = foreach_delete_current(queryEnv->namedRelList, lc);
-		}
-		else
-		{
-			enr->md.is_committed = true;
-		}
+		enr->md.is_committed = true;
 	}
+
+	lc = NULL;
+
+	foreach(lc, queryEnv->dropped_namedRelList)
+	{
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+
+		pfree(enr->md.name);
+		pfree(enr);
+	}
+
+	list_free(queryEnv->dropped_namedRelList);
+	queryEnv->dropped_namedRelList = NIL;
+
 	MemoryContextSwitchTo(oldcxt);
 }
 
@@ -1326,6 +1335,19 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 
 	oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
 
+	/* Add back any ENRs that must be restored. */
+	foreach (lc, queryEnv->dropped_namedRelList)
+	{
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+		
+		/* Sanity check - We only should be adding committed ENRs back here. */
+		Assert(enr->md.is_committed);
+
+		queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);		
+	}
+	list_free(queryEnv->dropped_namedRelList);
+	queryEnv->dropped_namedRelList = NIL;
+
 	/*
 	 * Loop through the registered ENRs to process each.
 	 */
@@ -1338,10 +1360,10 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 			continue;
 
 		if (!enr->md.is_committed)
+		{
 			enrs_to_drop = lappend(enrs_to_drop, enr);
-
-		if (enr->md.pending_drop)
-			enr->md.pending_drop = false;
+			continue;
+		}
 
 		/* ROLLBACK block. */
 		enr->md.in_rollback = true;
@@ -1383,7 +1405,6 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 	}
 
 	/* Finally, clean up any ENRs that must be deleted. */
-
 	foreach(lc, enrs_to_drop)
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
@@ -1473,7 +1494,7 @@ extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
 				htup = list_nth(*list_ptr, 0);
 				*list_ptr = list_delete_ptr(*list_ptr, htup);
 
-				if (enr->md.is_committed || enr->md.pending_drop)
+				if (enr->md.is_committed)
 						ENRAddUncommittedTupleData(enr, catalog_oid, ENR_OP_DROP, htup);
 
 				CacheInvalidateHeapTuple(catalog_relation, htup, NULL);

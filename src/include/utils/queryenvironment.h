@@ -91,8 +91,6 @@ typedef struct EphemeralNamedRelationMetadataData
 	bool		is_committed;
 	/* If this ENR is currently being rolled back, don't track changes to it. */
 	bool		in_rollback;
-	/* Track whether this ENR has been dropped in the current transaction. */
-	bool		pending_drop;
 	/* List of uncommitted tuples. They must be processed on ROLLBACK, or cleared on commit. */
 	List		*uncommitted_cattups[ENR_CATTUP_END];
 } EphemeralNamedRelationMetadataData;
