@@ -87,6 +87,8 @@ typedef struct EphemeralNamedRelationMetadataData
 
 	/* We must ignore transaction semantics for table variables. */
 	bool		is_table_variable;
+	/* is index */
+	bool		is_index;
 	/* We don't need to track uncommitted ENRs as they would be dropped entirely on ROLLBACK. */
 	bool		is_committed;
 	/* If this ENR is currently being rolled back, don't track changes to it. */

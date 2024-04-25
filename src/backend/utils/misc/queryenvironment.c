@@ -742,7 +742,12 @@ ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOpera
 	if (op == ENR_OP_UPDATE && *list_ptr != NIL)
 		return;
 
-	*list_ptr = lappend(*list_ptr, uncommitted_tup);
+	/*
+	 * lcons here takes the length of the list, so it is less efficient than lappend. 
+	 * However, we want the uncommitted_tup order to behave more like a stack to 
+	 * process ROLLBACK in the right order of operations. 
+	 */
+	*list_ptr = lcons(uncommitted_tup, *list_ptr);
 }
 
 /*
@@ -775,7 +780,7 @@ ENRDeleteUncommittedTupleData(EphemeralNamedRelation enr)
  * Return true if the asked operation is done.
  * Return false if the asked operation is not possible.
  */
-static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOperationType op)
+static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOperationType op, bool skip_cache_inval)
 {
 	EphemeralNamedRelation	enr = NULL;
 	HeapTuple				oldtup, newtup;
@@ -1025,7 +1030,8 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				case ENR_OP_DROP:
 					if (enr->md.is_committed && !enr->md.is_table_variable)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, tup);
-					CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
+					if (!skip_cache_inval)
+						CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
 					tmp = lfirst(lc);
 					*list_ptr = list_delete_ptr(*list_ptr, tmp);
 					heap_freetuple(tmp);
@@ -1047,7 +1053,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
  */
 bool ENRaddTuple(Relation rel, HeapTuple tup)
 {
-	return _ENR_tuple_operation(rel, tup, ENR_OP_ADD);
+	return _ENR_tuple_operation(rel, tup, ENR_OP_ADD, false);
 }
 
 /*
@@ -1062,7 +1068,7 @@ bool ENRdropTuple(Relation rel, HeapTuple tup)
 	 */
 	if (ENRTupleIsDropped(rel, tup))
 		return true;
-	return _ENR_tuple_operation(rel, tup, ENR_OP_DROP);
+	return _ENR_tuple_operation(rel, tup, ENR_OP_DROP, false);
 }
 
 /*
@@ -1070,7 +1076,7 @@ bool ENRdropTuple(Relation rel, HeapTuple tup)
  */
 bool ENRupdateTuple(Relation rel, HeapTuple tup)
 {
-	return _ENR_tuple_operation(rel, tup, ENR_OP_UPDATE);
+	return _ENR_tuple_operation(rel, tup, ENR_OP_UPDATE, false);
 }
 
 /*
@@ -1376,9 +1382,23 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 			foreach(lc2, uncommitted_cattups)
 			{
 				ENRUncommittedTuple uncommitted_tup = (ENRUncommittedTuple) lfirst(lc2);
+				bool skip_cache_inval = false;
 
 				if (!OidIsValid(uncommitted_tup->catalog_oid) || !HeapTupleIsValid(uncommitted_tup->tup))
-					elog(ERROR, "ROLLBACK failed! Invalid temp table entries were found.");				
+					elog(ERROR, "ROLLBACK failed! Invalid temp table entries were found.");	
+
+				if (uncommitted_tup->catalog_oid == IndexRelationId && uncommitted_tup->optype == ENR_OP_ADD)
+				{
+					/*
+					* We skip invalidating IndexRelationId on drop (ie committed table, index created in transaction) 
+					* because it will be taken care of when the index itself is dropped - otherwise we risk
+					* throwing an error because the entry is already wiped away.
+					*/
+					Form_pg_index idx_form = (Form_pg_index) GETSTRUCT(uncommitted_tup->tup);
+					EphemeralNamedRelation tmp_enr = get_ENR_withoid(queryEnv, idx_form->indrelid, ENR_TSQL_TEMP);
+					if (tmp_enr && tmp_enr->md.is_committed)
+						skip_cache_inval = true;
+				}
 
 				rel = relation_open(uncommitted_tup->catalog_oid, AccessExclusiveLock);
 
@@ -1386,13 +1406,13 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 				{
 					/* Peform the opposite operation as the saved optype. */
 					case ENR_OP_ADD:
-						_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_DROP);
+						_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_DROP, skip_cache_inval);
 						break;
 					case ENR_OP_UPDATE:
 						ENRupdateTuple(rel, uncommitted_tup->tup);
 						break;
 					case ENR_OP_DROP:
-						ENRaddTuple(rel, uncommitted_tup->tup);
+						_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_ADD, skip_cache_inval);
 						break;
 				}
 				relation_close(rel, AccessExclusiveLock);
