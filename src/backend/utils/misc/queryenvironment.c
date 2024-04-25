@@ -42,6 +42,7 @@
 #include "catalog/pg_index_d.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
 #include "utils/inval.h"
+#include "utils/guc.h"
 #include "utils/syscache.h"
 #include "utils/queryenvironment.h"
 #include "utils/rel.h"
@@ -164,7 +165,6 @@ unregister_ENR(QueryEnvironment *queryEnv, const char *name)
 
 /*
  * Return the list of ENRs registered in the current query environment.
- * Skip over dropped ENRs in the current environment.
  */
 List *get_namedRelList()
 {
@@ -172,12 +172,7 @@ List *get_namedRelList()
 	QueryEnvironment *qe = currentQueryEnv;
 	while (qe)
 	{
-		ListCell *lc;
-		foreach(lc, qe->namedRelList)
-		{
-			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
-			relList = lappend(relList, enr);
-		}
+		relList = list_concat(relList, qe->namedRelList);
 		qe = qe->parentEnv;
 	}
 	return relList;
@@ -1006,7 +1001,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 			switch (op) {
 				case ENR_OP_ADD:
 					newtup = heap_copytuple(tup);
-					if (enr->md.is_committed && !enr->md.is_table_variable)
+					if (enr->md.is_committed && !enr->md.is_table_variable && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, newtup);
 					*list_ptr = list_insert_nth(*list_ptr, insert_at, newtup);
 					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL);
@@ -1022,13 +1017,13 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					* which is much better than crashing.
 					*/
 					oldtup = lfirst(lc);
-					if (enr->md.is_committed && !enr->md.is_table_variable)
+					if (enr->md.is_committed && !enr->md.is_table_variable && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, oldtup);
 					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup);
 					lfirst(lc) = heap_copytuple(tup);
 					break;
 				case ENR_OP_DROP:
-					if (enr->md.is_committed && !enr->md.is_table_variable)
+					if (enr->md.is_committed && !enr->md.is_table_variable && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, tup);
 					if (!skip_cache_inval)
 						CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
@@ -1066,7 +1061,7 @@ bool ENRdropTuple(Relation rel, HeapTuple tup)
 	/*
 	 * If we've already dropped it in this transaction but haven't committed, pretend the drop is done. 
 	 */
-	if (ENRTupleIsDropped(rel, tup))
+	if (temp_table_xact_support && ENRTupleIsDropped(rel, tup))
 		return true;
 	return _ENR_tuple_operation(rel, tup, ENR_OP_DROP, false);
 }
@@ -1094,7 +1089,7 @@ void ENRDropEntry(Oid id, QueryEnvironment *queryEnv)
 		return;
 
 	/* If we want to drop a committed ENR, then we should mark it as such and drop it on COMMIT */
-	if (enr->md.is_committed)
+	if (temp_table_xact_support && enr->md.is_committed)
 	{
 		oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
 		queryEnv->namedRelList = list_delete(queryEnv->namedRelList, enr);
@@ -1514,7 +1509,7 @@ extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
 				htup = list_nth(*list_ptr, 0);
 				*list_ptr = list_delete_ptr(*list_ptr, htup);
 
-				if (enr->md.is_committed)
+				if (temp_table_xact_support && enr->md.is_committed)
 						ENRAddUncommittedTupleData(enr, catalog_oid, ENR_OP_DROP, htup);
 
 				CacheInvalidateHeapTuple(catalog_relation, htup, NULL);
