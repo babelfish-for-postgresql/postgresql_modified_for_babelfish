@@ -135,4 +135,7 @@ typedef Oid (*select_common_type_hook_type) (ParseState *pstate, List *exprs, co
 extern PGDLLEXPORT select_common_type_hook_type select_common_type_hook;
 typedef int32 (*select_common_typmod_hook_type) (ParseState *pstate, List *exprs, Oid common_type);
 
+typedef Node *(*handle_constant_literals_hook_type) (ParseState *pstate, Node *e);
+extern PGDLLEXPORT handle_constant_literals_hook_type handle_constant_literals_hook;
+
 #endif							/* PARSE_COERCE_H */
