@@ -5126,7 +5126,8 @@ select_best_admin(Oid member, Oid role)
 		return InvalidOid;
 
 	if (sql_dialect == SQL_DIALECT_TSQL &&
-		get_bbf_admin_oid_hook  && member == (*get_bbf_admin_oid_hook)())
+		get_bbf_admin_oid_hook  && member == (*get_bbf_admin_oid_hook)() &&
+		GetUserId() == (*get_bbf_admin_oid_hook)())
 	{
 		return member;
 	}
