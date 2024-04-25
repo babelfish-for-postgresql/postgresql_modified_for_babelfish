@@ -92,9 +92,7 @@ typedef struct FunctionCallInfoBaseData
 #define FIELDNO_FUNCTIONCALLINFODATA_ISNULL 4
 	bool		isnull;			/* function must set true if result is NULL */
 	short		nargs;			/* # arguments actually passed */
-	List	   *pivot_parsetree; /* bbf_pivot function required rewritted parsetrees */
-	List	   *pivot_extrainfo; /* bbf_pivot function required aggregation function and source sql string */
-#define FIELDNO_FUNCTIONCALLINFODATA_ARGS 8
+#define FIELDNO_FUNCTIONCALLINFODATA_ARGS 6
 	NullableDatum args[FLEXIBLE_ARRAY_MEMBER];
 } FunctionCallInfoBaseData;
 
@@ -158,8 +156,6 @@ extern void fmgr_symbol(Oid functionId, char **mod, char **fn);
 		(Fcinfo).fncollation = (Collation); \
 		(Fcinfo).isnull = false; \
 		(Fcinfo).nargs = (Nargs); \
-		(Fcinfo).pivot_parsetree = NIL; \
-		(Fcinfo).pivot_extrainfo = NIL; \
 	} while (0)
 
 /*

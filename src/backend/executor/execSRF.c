@@ -204,10 +204,12 @@ ExecMakeTableFunctionResult(SetExprState *setexpr,
 		InitFunctionCallInfoData(*fcinfo, NULL, 0, InvalidOid, NULL, NULL);
 	}
 
-	if (sql_dialect == SQL_DIALECT_TSQL && IsA(setexpr->expr, FuncExpr))
+	/* if current FuncExpr is a bbf_pivot function, we set the fcinfo context to pivot data */
+	if (sql_dialect == SQL_DIALECT_TSQL && IsA(setexpr->expr, FuncExpr) 
+			&& ((FuncExpr*) setexpr->expr)->pivot_parsetree != NIL
+			&& ((FuncExpr*) setexpr->expr)->pivot_extrainfo != NIL)
 	{
-		fcinfo->pivot_parsetree = ((FuncExpr*) setexpr->expr)->pivot_parsetree;
-		fcinfo->pivot_extrainfo = ((FuncExpr*) setexpr->expr)->pivot_extrainfo;
+		fcinfo->context = (Node *) list_make2(((FuncExpr*) setexpr->expr)->pivot_parsetree, ((FuncExpr*) setexpr->expr)->pivot_extrainfo);
 	}
 		
 	/*
