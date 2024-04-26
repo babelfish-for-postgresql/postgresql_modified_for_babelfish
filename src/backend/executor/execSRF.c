@@ -206,10 +206,17 @@ ExecMakeTableFunctionResult(SetExprState *setexpr,
 
 	/* if current FuncExpr is a bbf_pivot function, we set the fcinfo context to pivot data */
 	if (sql_dialect == SQL_DIALECT_TSQL && IsA(setexpr->expr, FuncExpr) 
-			&& ((FuncExpr*) setexpr->expr)->pivot_parsetree != NIL
-			&& ((FuncExpr*) setexpr->expr)->pivot_extrainfo != NIL)
+			&& ((FuncExpr*) setexpr->expr)->context != NULL
+			&& (IsA(((FuncExpr*) setexpr->expr)->context, List)))
 	{
-		fcinfo->context = (Node *) list_make2(((FuncExpr*) setexpr->expr)->pivot_parsetree, ((FuncExpr*) setexpr->expr)->pivot_extrainfo);
+		Node *node;	
+		node = list_nth((List *)((FuncExpr*) setexpr->expr)->context, 0);
+		if (IsA(node, List) 
+				&& IsA(list_nth((List *)node, 0), String) 
+				&& strcmp(((String *)list_nth((List *)node, 0))->sval, "bbf_pivot_func") == 0)
+		{
+			fcinfo->context = ((FuncExpr*) setexpr->expr)->context;
+		}
 	}
 		
 	/*

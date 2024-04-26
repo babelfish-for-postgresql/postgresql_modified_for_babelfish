@@ -695,10 +695,8 @@ typedef struct FuncExpr
 	List	   *args;
 	/* token location, or -1 if unknown */
 	int			location;
-	/* bbf_pivot function required rewritted parsetrees */
-	List 	   *pivot_parsetree pg_node_attr(query_jumble_ignore, read_write_ignore, read_as(NULL));
-	/* bbf_pivot function required aggregation function name and source sql string */
-	List 	   *pivot_extrainfo pg_node_attr(query_jumble_ignore, read_write_ignore, read_as(NULL));
+	/* pass necessary info through planner and executor */
+	Node 	   *context pg_node_attr(query_jumble_ignore, read_write_ignore, read_as(NULL));
 } FuncExpr;
 
 /*
