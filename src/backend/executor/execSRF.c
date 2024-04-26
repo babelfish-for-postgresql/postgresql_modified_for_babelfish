@@ -34,6 +34,8 @@
 #include "utils/memutils.h"
 #include "utils/typcache.h"
 
+/* Hook to set TSQL pivot data to fcinfo */
+pass_pivot_data_to_fcinfo_hook_type pass_pivot_data_to_fcinfo_hook = NULL;
 
 /* static function decls */
 static void init_sexpr(Oid foid, Oid input_collation, Expr *node,
@@ -203,20 +205,10 @@ ExecMakeTableFunctionResult(SetExprState *setexpr,
 		/* Treat setexpr as a generic expression */
 		InitFunctionCallInfoData(*fcinfo, NULL, 0, InvalidOid, NULL, NULL);
 	}
-
-	/* if current FuncExpr is a bbf_pivot function, we set the fcinfo context to pivot data */
-	if (sql_dialect == SQL_DIALECT_TSQL && IsA(setexpr->expr, FuncExpr) 
-			&& ((FuncExpr*) setexpr->expr)->context != NULL
-			&& (IsA(((FuncExpr*) setexpr->expr)->context, List)))
+	
+	if (sql_dialect == SQL_DIALECT_TSQL && pass_pivot_data_to_fcinfo_hook)
 	{
-		Node *node;	
-		node = list_nth((List *)((FuncExpr*) setexpr->expr)->context, 0);
-		if (IsA(node, List) 
-				&& IsA(list_nth((List *)node, 0), String) 
-				&& strcmp(((String *)list_nth((List *)node, 0))->sval, "bbf_pivot_func") == 0)
-		{
-			fcinfo->context = ((FuncExpr*) setexpr->expr)->context;
-		}
+		(pass_pivot_data_to_fcinfo_hook)(fcinfo, setexpr->expr);
 	}
 		
 	/*
