@@ -1077,35 +1077,36 @@ bool ENRupdateTuple(Relation rel, HeapTuple tup)
 /*
  * Drop an ENR entry and delete it from the registered list.
  */
-void ENRDropEntry(Oid id, QueryEnvironment *queryEnv)
+void ENRDropEntry(Oid id)
 {
 	EphemeralNamedRelation	enr;
 	MemoryContext oldcxt;
 
-	if (sql_dialect != SQL_DIALECT_TSQL || !queryEnv)
+	if (sql_dialect != SQL_DIALECT_TSQL || !currentQueryEnv)
 		return;
 
-	if ((enr = get_ENR_withoid(queryEnv, id, ENR_TSQL_TEMP)) == NULL)
+	if ((enr = get_ENR_withoid(currentQueryEnv, id, ENR_TSQL_TEMP)) == NULL)
 		return;
 
-	/* If we want to drop a committed ENR, then we should mark it as such and drop it on COMMIT */
+	oldcxt = MemoryContextSwitchTo(currentQueryEnv->memctx);
+	currentQueryEnv->namedRelList = list_delete(currentQueryEnv->namedRelList, enr);
+
+	/* If we are dropping a committed ENR, wait until COMMIT to free it. */
 	if (temp_table_xact_support && enr->md.is_committed)
 	{
-		oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
-		queryEnv->namedRelList = list_delete(queryEnv->namedRelList, enr);
-		queryEnv->dropped_namedRelList = lappend(queryEnv->dropped_namedRelList, enr);
-		MemoryContextSwitchTo(oldcxt);
-		return;
+		currentQueryEnv->dropped_namedRelList = lappend(currentQueryEnv->dropped_namedRelList, enr);
 	}
-
-	oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
-	queryEnv->namedRelList = list_delete(queryEnv->namedRelList, enr);
-	pfree(enr->md.name);
-	pfree(enr);
+	else
+	{
+		pfree(enr->md.name);
+		pfree(enr);
+	}
 	MemoryContextSwitchTo(oldcxt);
 }
 
 /*
+ * ENRTupleIsDropped
+ *
  * Given a tuple and relation, return true if the tuple was dropped in the current transaction. 
  * In other words, search through the list of uncommitted tuples for a match, and return if true.
  */
@@ -1279,7 +1280,10 @@ ENRTupleIsDropped(Relation rel, HeapTuple tup)
 }
 
 /*
- * On COMMIT, clean uncommitted tuple data.
+ * ENRCommitChanges
+ *
+ * 1. Free uncommitted tuple data from each ENR, then mark it as committed.
+ * 2. Finish freeing ENRs that were dropped in this transaction.
  */
 void
 ENRCommitChanges(QueryEnvironment *queryEnv)
@@ -1287,7 +1291,7 @@ ENRCommitChanges(QueryEnvironment *queryEnv)
 	ListCell 	*lc = NULL;
 	MemoryContext oldcxt;
 
-	if (!queryEnv || queryEnv->namedRelList == NIL)
+	if (!queryEnv)
 		return;
 
 	oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
@@ -1321,8 +1325,14 @@ ENRCommitChanges(QueryEnvironment *queryEnv)
 }
 
 /*
- * On ROLLBACK, restore all stored uncommitted tuple data to ENR.
+ * ENRRollbackChanges
+ * 
  * NB: This will also be called when an error occurs for transaction rollback. 
+ * 1. Move any ENRs that were dropped back into the main ENR list.
+ * 2. Iterate through the ENR list and for each ENR, go through uncommitted tuples
+ *    and perform the opposite operation to restore it.
+ * 3. Finally, clean up the uncommitted tuple list and perform all the necessary deletions
+ *    last to avoid potential for any dependency issues.
  */
 void
 ENRRollbackChanges(QueryEnvironment *queryEnv)
