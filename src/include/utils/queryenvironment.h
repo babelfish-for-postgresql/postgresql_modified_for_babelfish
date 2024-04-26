@@ -135,7 +135,7 @@ extern bool ENRdropTuple(Relation rel, HeapTuple tup);
 extern bool ENRupdateTuple(Relation rel, HeapTuple tup);
 extern bool ENRgetSystableScan(Relation rel, Oid indexoid, int nkeys, ScanKey key, List **tuplist, int *tuplist_i, int *tuplist_flags);
 extern PGDLLEXPORT void ENRDropTempTables(QueryEnvironment *queryEnv);
-extern void ENRDropEntry(Oid id, QueryEnvironment *queryEnv);
+extern void ENRDropEntry(Oid id);
 extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid);
 extern bool has_existing_enr_relations(void);
 
