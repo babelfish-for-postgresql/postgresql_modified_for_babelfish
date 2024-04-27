@@ -695,6 +695,8 @@ typedef struct FuncExpr
 	List	   *args;
 	/* token location, or -1 if unknown */
 	int			location;
+	/* pass necessary info through planner and executor */
+	Node 	   *context pg_node_attr(query_jumble_ignore, read_write_ignore, read_as(NULL));
 } FuncExpr;
 
 /*
