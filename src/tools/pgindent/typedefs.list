@@ -1313,14 +1313,12 @@ JsonManifestParseIncrementalState
 JsonManifestParseState
 JsonManifestSemanticState
 JsonManifestWALRangeField
-JsonNonTerminal
 JsonObjectAgg
 JsonObjectConstructor
 JsonOutput
 JsonParseExpr
 JsonParseContext
 JsonParseErrorType
-JsonParserSem
 JsonParserStack
 JsonPath
 JsonPathBool
