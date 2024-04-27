@@ -390,6 +390,7 @@ typedef struct FuncCall
 	bool		func_variadic;	/* last argument was labeled VARIADIC */
 	CoercionForm funcformat;	/* how to display this node */
 	int			location;		/* token location, or -1 if unknown */
+	Node 	   *context;		/* pass necessary info through planner and executor */
 } FuncCall;
 
 /*

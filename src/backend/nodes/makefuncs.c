@@ -531,6 +531,7 @@ makeFuncExpr(Oid funcid, Oid rettype, List *args,
 	funcexpr->inputcollid = inputcollid;
 	funcexpr->args = args;
 	funcexpr->location = -1;
+	funcexpr->context = NULL;
 
 	return funcexpr;
 }
@@ -597,6 +598,7 @@ makeFuncCall(List *name, List *args, CoercionForm funcformat, int location)
 	n->func_variadic = false;
 	n->funcformat = funcformat;
 	n->location = location;
+	n->context = NULL;
 	return n;
 }
 

@@ -24,6 +24,7 @@
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
+#include "parser/parser.h"
 #include "parser/parse_coerce.h"
 #include "pgstat.h"
 #include "utils/acl.h"
@@ -32,6 +33,8 @@
 #include "utils/memutils.h"
 #include "utils/typcache.h"
 
+/* Hook to set TSQL pivot data to fcinfo */
+pass_pivot_data_to_fcinfo_hook_type pass_pivot_data_to_fcinfo_hook = NULL;
 
 /* static function decls */
 static void init_sexpr(Oid foid, Oid input_collation, Expr *node,
@@ -201,7 +204,12 @@ ExecMakeTableFunctionResult(SetExprState *setexpr,
 		/* Treat setexpr as a generic expression */
 		InitFunctionCallInfoData(*fcinfo, NULL, 0, InvalidOid, NULL, NULL);
 	}
-
+	
+	if (sql_dialect == SQL_DIALECT_TSQL && pass_pivot_data_to_fcinfo_hook)
+	{
+		(pass_pivot_data_to_fcinfo_hook)(fcinfo, setexpr->expr);
+	}
+		
 	/*
 	 * Switch to short-lived context for calling the function or expression.
 	 */

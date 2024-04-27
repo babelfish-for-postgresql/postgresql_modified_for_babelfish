@@ -88,7 +88,7 @@ pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook = NULL;
 /* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
 pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook = NULL;
 
-/* Hooks for transform TSQL pivot clause in select stmt */
+/* Hook to transform TSQL pivot clause in select stmt */
 transform_pivot_clause_hook_type transform_pivot_clause_hook = NULL;
 
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
