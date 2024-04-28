@@ -347,12 +347,8 @@ btadjustmembers(Oid opfamilyoid,
 		{
 			/* Cross-type, so always a soft family dependency */
 			op->ref_is_hard = false;
-			if (!((op->lefttype == 23 && op->righttype == 1700) ||
-				 (op->lefttype == 1700 && op->righttype == 23)))
-			{
-				op->ref_is_family = true;
-				op->refobjid = opfamilyoid;
-			}
+			op->ref_is_family = true;
+			op->refobjid = opfamilyoid;
 		}
 		else
 		{

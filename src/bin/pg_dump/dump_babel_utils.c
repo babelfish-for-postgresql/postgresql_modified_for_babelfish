@@ -1574,3 +1574,91 @@ fixCursorForBbfTableData(Archive *fout,
 	*nfields_new = fixCursorForBbfSqlvariantTableData(fout, tbinfo, buf, *nfields,
 													  sqlvar_metadata_pos);
 }
+
+/*
+ * babelfishDumpOpclassHelper - This particular helper function would be helpful
+ * to dump Babelfish operator class created on the top of built-in data types of
+ * the Postgres. For example, Operator class sys.int_numeric for the type int4.
+ * This is needed because of some bug in postgres due to which Operarors and
+ * Support functions are not being dumped correctly for user defined operator
+ * class defined for built-in datatypes.
+ */
+void
+babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffer *buff, bool *needComma)
+{
+	PQExpBuffer	query;
+	PGresult	*res;
+	int			i_opfnamespace;
+	int			i_opfname;
+	char		*opfnamespace;
+	char		*opfname;
+	const char	*str;
+	const char 	*opclass = fmtQualifiedDumpable(opcinfo);
+
+
+	/* Firstly check that Operator class is part of Babelfish */
+	if (strcasecmp(opclass, "\"sys\".\"int_numeric\"") != 0 &&
+		strcasecmp(opclass, "\"sys\".\"numeric_int\"") != 0)
+		return;
+
+	query = createPQExpBuffer();
+
+	/* Get the details of Operator family */
+	appendPQExpBuffer(query, "SELECT opfnamespace::regnamespace, "
+					  "opfname "
+					  "FROM pg_opclass c JOIN  pg_opfamily f ON c.opcfamily = f.oid "
+					  "WHERE c.oid = '%u'::pg_catalog.oid",
+					  opcinfo->dobj.catId.oid);
+
+	res = ExecuteSqlQueryForSingleRow(fout, query->data);
+
+	i_opfnamespace = PQfnumber(res, "opfnamespace");
+	i_opfname = PQfnumber(res, "opfname");
+
+	opfnamespace = PQgetvalue(res, 0, i_opfnamespace);
+	opfname = PQgetvalue(res, 0, i_opfname);
+
+	/* Final checks that Operator class is part of built-in operator family. */
+	if (opfnamespace == NULL || opfname == NULL)
+	{
+		PQclear(res);
+		return;
+	}
+
+	if (strcasecmp(opfnamespace, "\"pg_catalog\"") != 0 ||
+		strcasecmp(opfname, "integer_ops") != 0)
+	{
+		PQclear(res);
+		return;
+	}
+
+	PQclear(res);
+	destroyPQExpBuffer(query);
+
+	if (strcasecmp(opcinfo->dobj.name, "int_numeric") == 0)
+	{
+		str = "OPERATOR 1 \"sys\".< (int, numeric) ,\n	"
+			  "OPERATOR 2 \"sys\".<= (int, numeric) ,\n	"
+			  "OPERATOR 3 \"sys\".= (int, numeric) ,\n	"
+			  "OPERATOR 4 \"sys\".>= (int, numeric) ,\n	"
+			  "OPERATOR 5 \"sys\".> (int, numeric) ,\n	"
+			  "FUNCTION 1 \"sys\".\"int4_numeric_cmp\"(int, numeric) ";
+	}
+
+	if (strcasecmp(opcinfo->dobj.name, "numeric_int") == 0)
+	{
+		str = "OPERATOR 1 \"sys\".< (numeric, int) ,\n	"
+			  "OPERATOR 2 \"sys\".<= (numeric, int) ,\n	"
+			  "OPERATOR 3 \"sys\".= (numeric, int) ,\n	"
+			  "OPERATOR 4 \"sys\".>= (numeric, int) ,\n	"
+			  "OPERATOR 5 \"sys\".> (numeric, int) ,\n	"
+			  "FUNCTION 1 \"sys\".\"numeric_int4_cmp\"(numeric, int) ";
+	}
+
+	appendPQExpBufferStr(*buff, str);
+	/* 
+	 * set needComma to true so that original pg_dump does not dump unnecessary option
+	 * Check when STORAGE option will be dumped in dumpOpclass(...).  
+	 */
+	*needComma = true;
+}

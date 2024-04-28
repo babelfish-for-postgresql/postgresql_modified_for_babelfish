@@ -53,5 +53,6 @@ extern void castSqlvariantToBasetype(PGresult *res,
                                     int field,
                                     int sqlvariant_pos);
 extern void dumpBabelRestoreChecks(Archive *fout);
+extern void babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffer *buff, bool *needComma);
 
 #endif
