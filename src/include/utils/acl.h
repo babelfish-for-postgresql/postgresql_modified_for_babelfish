@@ -281,4 +281,7 @@ extern PGDLLEXPORT tsql_has_linked_srv_permissions_hook_type tsql_has_linked_srv
 typedef Oid (*bbf_get_sysadmin_oid_hook_type) (void);
 extern PGDLLEXPORT bbf_get_sysadmin_oid_hook_type bbf_get_sysadmin_oid_hook;
 
+typedef Oid (*get_bbf_admin_oid_hook_type) (void);
+extern PGDLLEXPORT get_bbf_admin_oid_hook_type get_bbf_admin_oid_hook;
+
 #endif							/* ACL_H */
