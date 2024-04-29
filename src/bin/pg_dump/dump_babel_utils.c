@@ -1598,7 +1598,11 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 
 	/* Firstly check that Operator class is part of Babelfish */
 	if (strcasecmp(opclass, "\"sys\".\"int_numeric\"") != 0 &&
-		strcasecmp(opclass, "\"sys\".\"numeric_int\"") != 0)
+		strcasecmp(opclass, "\"sys\".\"numeric_int\"") != 0 &&
+		strcasecmp(opclass, "\"sys\".\"int2_numeric\"") != 0 &&
+		strcasecmp(opclass, "\"sys\".\"numeric_int2\"") != 0 &&
+		strcasecmp(opclass, "\"sys\".\"int8_numeric\"") != 0 &&
+		strcasecmp(opclass, "\"sys\".\"numeric_int8\"") != 0)
 		return;
 
 	query = createPQExpBuffer();
@@ -1637,22 +1641,62 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 
 	if (strcasecmp(opclass, "\"sys\".\"int_numeric\"") == 0)
 	{
-		str = "OPERATOR 1 \"sys\".< (int, numeric) ,\n	"
-			  "OPERATOR 2 \"sys\".<= (int, numeric) ,\n	"
-			  "OPERATOR 3 \"sys\".= (int, numeric) ,\n	"
-			  "OPERATOR 4 \"sys\".>= (int, numeric) ,\n	"
-			  "OPERATOR 5 \"sys\".> (int, numeric) ,\n	"
-			  "FUNCTION 1 \"sys\".\"int4_numeric_cmp\"(int, numeric) ";
+		str = "OPERATOR 1 \"sys\".< (int4, numeric) ,\n	"
+			  "OPERATOR 2 \"sys\".<= (int4, numeric) ,\n	"
+			  "OPERATOR 3 \"sys\".= (int4, numeric) ,\n	"
+			  "OPERATOR 4 \"sys\".>= (int4, numeric) ,\n	"
+			  "OPERATOR 5 \"sys\".> (int4, numeric) ,\n	"
+			  "FUNCTION 1 \"sys\".\"int4_numeric_cmp\"(int4, numeric) ";
 	}
 
 	if (strcasecmp(opclass, "\"sys\".\"numeric_int\"") == 0)
 	{
-		str = "OPERATOR 1 \"sys\".< (numeric, int) ,\n	"
-			  "OPERATOR 2 \"sys\".<= (numeric, int) ,\n	"
-			  "OPERATOR 3 \"sys\".= (numeric, int) ,\n	"
-			  "OPERATOR 4 \"sys\".>= (numeric, int) ,\n	"
-			  "OPERATOR 5 \"sys\".> (numeric, int) ,\n	"
-			  "FUNCTION 1 \"sys\".\"numeric_int4_cmp\"(numeric, int) ";
+		str = "OPERATOR 1 \"sys\".< (numeric, int4) ,\n	"
+			  "OPERATOR 2 \"sys\".<= (numeric, int4) ,\n	"
+			  "OPERATOR 3 \"sys\".= (numeric, int4) ,\n	"
+			  "OPERATOR 4 \"sys\".>= (numeric, int4) ,\n	"
+			  "OPERATOR 5 \"sys\".> (numeric, int4) ,\n	"
+			  "FUNCTION 1 \"sys\".\"numeric_int4_cmp\"(numeric, int4) ";
+	}
+
+	if (strcasecmp(opclass, "\"sys\".\"int2_numeric\"") == 0)
+	{
+		str = "OPERATOR 1 \"sys\".< (int2, numeric) ,\n	"
+			  "OPERATOR 2 \"sys\".<= (int2, numeric) ,\n	"
+			  "OPERATOR 3 \"sys\".= (int2, numeric) ,\n	"
+			  "OPERATOR 4 \"sys\".>= (int2, numeric) ,\n	"
+			  "OPERATOR 5 \"sys\".> (int2, numeric) ,\n	"
+			  "FUNCTION 1 \"sys\".\"int2_numeric_cmp\"(int2, numeric) ";
+	}
+
+	if (strcasecmp(opclass, "\"sys\".\"numeric_int2\"") == 0)
+	{
+		str = "OPERATOR 1 \"sys\".< (numeric, int2) ,\n	"
+			  "OPERATOR 2 \"sys\".<= (numeric, int2) ,\n	"
+			  "OPERATOR 3 \"sys\".= (numeric, int2) ,\n	"
+			  "OPERATOR 4 \"sys\".>= (numeric, int2) ,\n	"
+			  "OPERATOR 5 \"sys\".> (numeric, int2) ,\n	"
+			  "FUNCTION 1 \"sys\".\"numeric_int2_cmp\"(numeric, int2) ";
+	}
+
+	if (strcasecmp(opclass, "\"sys\".\"int8_numeric\"") == 0)
+	{
+		str = "OPERATOR 1 \"sys\".< (int8, numeric) ,\n	"
+			  "OPERATOR 2 \"sys\".<= (int8, numeric) ,\n	"
+			  "OPERATOR 3 \"sys\".= (int8, numeric) ,\n	"
+			  "OPERATOR 4 \"sys\".>= (int8, numeric) ,\n	"
+			  "OPERATOR 5 \"sys\".> (int8, numeric) ,\n	"
+			  "FUNCTION 1 \"sys\".\"int8_numeric_cmp\"(int8, numeric) ";
+	}
+
+	if (strcasecmp(opclass, "\"sys\".\"numeric_int8\"") == 0)
+	{
+		str = "OPERATOR 1 \"sys\".< (numeric, int8) ,\n	"
+			  "OPERATOR 2 \"sys\".<= (numeric, int8) ,\n	"
+			  "OPERATOR 3 \"sys\".= (numeric, int8) ,\n	"
+			  "OPERATOR 4 \"sys\".>= (numeric, int8) ,\n	"
+			  "OPERATOR 5 \"sys\".> (numeric, int8) ,\n	"
+			  "FUNCTION 1 \"sys\".\"numeric_int8_cmp\"(numeric, int8) ";
 	}
 
 	appendPQExpBufferStr(*buff, str);
