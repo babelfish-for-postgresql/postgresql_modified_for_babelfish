@@ -20,13 +20,13 @@
 %global macrosdir %(d=%{_rpmconfigdir}/macros.d; [ -d $d ] || d=%{_sysconfdir}/rpm; echo $d)
 
 %define _trivial .0
-%define _buildid .2
+%define _buildid .1
 
 %undefine _missing_build_ids_terminate_build
 
 Name: BabelfishDump
 Summary: Postgresql dump utilities modified for Babelfish
-Version: 16.1
+Version: 16.2
 Release: 1%{?dist}%{?_trivial}%{?_buildid}
 License: PostgreSQL
 Url: https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish
@@ -143,6 +143,15 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
+* Tue Apr 02 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.2-1
+- Do not dump babelfish_domain_mapping catalog table for database-level dump
+
+* Fri Mar 22 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.2-1
+- Support Babelfish schema-only and data-only dump/restore
+
+* Tue Mar 05 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.2-1
+- Correctly dump the data of babelfish_extended_properties
+
 * Tue Jan 16 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.1-2
 - Updated BabelfishDump RPM version to 16.1
 
