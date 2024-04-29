@@ -1635,7 +1635,7 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 	PQclear(res);
 	destroyPQExpBuffer(query);
 
-	if (strcasecmp(opcinfo->dobj.name, "int_numeric") == 0)
+	if (strcasecmp(opclass, "\"sys\".\"int_numeric\"") == 0)
 	{
 		str = "OPERATOR 1 \"sys\".< (int, numeric) ,\n	"
 			  "OPERATOR 2 \"sys\".<= (int, numeric) ,\n	"
@@ -1645,7 +1645,7 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 			  "FUNCTION 1 \"sys\".\"int4_numeric_cmp\"(int, numeric) ";
 	}
 
-	if (strcasecmp(opcinfo->dobj.name, "numeric_int") == 0)
+	if (strcasecmp(opclass, "\"sys\".\"numeric_int\"") == 0)
 	{
 		str = "OPERATOR 1 \"sys\".< (numeric, int) ,\n	"
 			  "OPERATOR 2 \"sys\".<= (numeric, int) ,\n	"
@@ -1656,7 +1656,7 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 	}
 
 	appendPQExpBufferStr(*buff, str);
-	/* 
+	/*
 	 * set needComma to true so that original pg_dump does not dump unnecessary option
 	 * Check when STORAGE option will be dumped in dumpOpclass(...).  
 	 */
