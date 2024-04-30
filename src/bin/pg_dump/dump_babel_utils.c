@@ -1574,3 +1574,177 @@ fixCursorForBbfTableData(Archive *fout,
 	*nfields_new = fixCursorForBbfSqlvariantTableData(fout, tbinfo, buf, *nfields,
 													  sqlvar_metadata_pos);
 }
+
+/*
+ * babelfishDumpOpclassHelper - This particular helper function would be helpful
+ * to dump Babelfish operator class created on the top of built-in data types of
+ * the Postgres. For example, Operator class sys.int_numeric for the type int4.
+ * This is needed because of some bug in postgres due to which Operarors and
+ * Support functions are not being dumped correctly for user defined operator
+ * class defined for built-in datatypes.
+ */
+void
+babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffer buff, bool *needComma)
+{
+	PQExpBuffer	query;
+	PGresult	*res;
+	int			i_opfnamespace;
+	int			i_opfname;
+	char		*opfnamespace;
+	char		*opfname;
+	const char	*str;
+	const char 	*opclass = fmtQualifiedDumpable(opcinfo);
+
+
+	/* Firstly check that Operator class is part of Babelfish */
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int_numeric\"" : "sys.int_numeric") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int\"" : "sys.numeric_int") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric\"" : "sys.int2_numeric") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2\"" : "sys.numeric_int2") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric\"" : "sys.int8_numeric") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8\"" : "sys.numeric_int8") != 0)
+		return;
+
+	query = createPQExpBuffer();
+
+	/* Get the details of Operator family */
+	appendPQExpBuffer(query, "SELECT opfnamespace::regnamespace, "
+					  "opfname "
+					  "FROM pg_opclass c JOIN  pg_opfamily f ON c.opcfamily = f.oid "
+					  "WHERE c.oid = '%u'::pg_catalog.oid",
+					  opcinfo->dobj.catId.oid);
+
+	res = ExecuteSqlQueryForSingleRow(fout, query->data);
+
+	i_opfnamespace = PQfnumber(res, "opfnamespace");
+	i_opfname = PQfnumber(res, "opfname");
+
+	opfnamespace = PQgetvalue(res, 0, i_opfnamespace);
+	opfname = PQgetvalue(res, 0, i_opfname);
+
+	destroyPQExpBuffer(query);
+	/* Final checks that Operator class is part of built-in operator family. */
+	if (opfnamespace == NULL || opfname == NULL)
+	{
+		PQclear(res);
+		return;
+	}
+
+	if (strcasecmp(opfnamespace, "\"pg_catalog\"") != 0 ||
+		strcasecmp(opfname, "integer_ops") != 0)
+	{
+		PQclear(res);
+		return;
+	}
+
+	PQclear(res);
+
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int_numeric\"" : "sys.int_numeric") == 0)
+	{
+		str = quote_all_identifiers ?
+				"OPERATOR 1 \"sys\".< (int4, numeric) ,\n	"
+				"OPERATOR 2 \"sys\".<= (int4, numeric) ,\n	"
+				"OPERATOR 3 \"sys\".= (int4, numeric) ,\n	"
+				"OPERATOR 4 \"sys\".>= (int4, numeric) ,\n	"
+				"OPERATOR 5 \"sys\".> (int4, numeric) ,\n	"
+				"FUNCTION 1 \"sys\".\"int4_numeric_cmp\"(int4, numeric) " :
+				"OPERATOR 1 sys.< (int4, numeric) ,\n	"
+				"OPERATOR 2 sys.<= (int4, numeric) ,\n	"
+				"OPERATOR 3 sys.= (int4, numeric) ,\n	"
+				"OPERATOR 4 sys.>= (int4, numeric) ,\n	"
+				"OPERATOR 5 sys.> (int4, numeric) ,\n	"
+				"FUNCTION 1 sys.int4_numeric_cmp(int4, numeric) ";
+	}
+
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int\"" : "sys.numeric_int") == 0)
+	{
+		str = quote_all_identifiers ?
+				"OPERATOR 1 \"sys\".< (numeric, int4) ,\n	"
+				"OPERATOR 2 \"sys\".<= (numeric, int4) ,\n	"
+				"OPERATOR 3 \"sys\".= (numeric, int4) ,\n	"
+				"OPERATOR 4 \"sys\".>= (numeric, int4) ,\n	"
+				"OPERATOR 5 \"sys\".> (numeric, int4) ,\n	"
+				"FUNCTION 1 \"sys\".\"numeric_int4_cmp\"(numeric, int4) " :
+				"OPERATOR 1 sys.< (numeric, int4) ,\n	"
+				"OPERATOR 2 sys.<= (numeric, int4) ,\n	"
+				"OPERATOR 3 sys.= (numeric, int4) ,\n	"
+				"OPERATOR 4 sys.>= (numeric, int4) ,\n	"
+				"OPERATOR 5 sys.> (numeric, int4) ,\n	"
+				"FUNCTION 1 sys.numeric_int4_cmp(numeric, int4) ";
+	}
+
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric\"" : "sys.int2_numeric") == 0)
+	{
+		str = quote_all_identifiers ?
+			"OPERATOR 1 \"sys\".< (int2, numeric) ,\n	"
+			"OPERATOR 2 \"sys\".<= (int2, numeric) ,\n	"
+			"OPERATOR 3 \"sys\".= (int2, numeric) ,\n	"
+			"OPERATOR 4 \"sys\".>= (int2, numeric) ,\n	"
+			"OPERATOR 5 \"sys\".> (int2, numeric) ,\n	"
+			"FUNCTION 1 \"sys\".\"int2_numeric_cmp\"(int2, numeric) " :
+			"OPERATOR 1 sys.< (int2, numeric) ,\n	"
+			"OPERATOR 2 sys.<= (int2, numeric) ,\n	"
+			"OPERATOR 3 sys.= (int2, numeric) ,\n	"
+			"OPERATOR 4 sys.>= (int2, numeric) ,\n	"
+			"OPERATOR 5 sys.> (int2, numeric) ,\n	"
+			"FUNCTION 1 sys.int2_numeric_cmp(int2, numeric) ";
+	}
+
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2\"" : "sys.numeric_int2") == 0)
+	{
+		str = quote_all_identifiers ?
+				"OPERATOR 1 \"sys\".< (numeric, int2) ,\n	"
+				"OPERATOR 2 \"sys\".<= (numeric, int2) ,\n	"
+				"OPERATOR 3 \"sys\".= (numeric, int2) ,\n	"
+				"OPERATOR 4 \"sys\".>= (numeric, int2) ,\n	"
+				"OPERATOR 5 \"sys\".> (numeric, int2) ,\n	"
+				"FUNCTION 1 \"sys\".\"numeric_int2_cmp\"(numeric, int2) " :
+				"OPERATOR 1 sys.< (numeric, int2) ,\n	"
+				"OPERATOR 2 sys.<= (numeric, int2) ,\n	"
+				"OPERATOR 3 sys.= (numeric, int2) ,\n	"
+				"OPERATOR 4 sys.>= (numeric, int2) ,\n	"
+				"OPERATOR 5 sys.> (numeric, int2) ,\n	"
+				"FUNCTION 1 sys.numeric_int2_cmp(numeric, int2)	";
+	}
+
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric\"" : "sys.int8_numeric") == 0)
+	{
+		str = quote_all_identifiers ?
+				"OPERATOR 1 \"sys\".< (int8, numeric) ,\n	"
+				"OPERATOR 2 \"sys\".<= (int8, numeric) ,\n	"
+				"OPERATOR 3 \"sys\".= (int8, numeric) ,\n	"
+				"OPERATOR 4 \"sys\".>= (int8, numeric) ,\n	"
+				"OPERATOR 5 \"sys\".> (int8, numeric) ,\n	"
+				"FUNCTION 1 \"sys\".\"int8_numeric_cmp\"(int8, numeric) " :
+				"OPERATOR 1 sys.< (int8, numeric) ,\n	"
+				"OPERATOR 2 sys.<= (int8, numeric) ,\n	"
+				"OPERATOR 3 sys.= (int8, numeric) ,\n	"
+				"OPERATOR 4 sys.>= (int8, numeric) ,\n	"
+				"OPERATOR 5 sys.> (int8, numeric) ,\n	"
+				"FUNCTION 1 sys.int8_numeric_cmp(int8, numeric) ";
+	}
+
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8\"" : "sys.numeric_int8") == 0)
+	{
+		str = quote_all_identifiers ?
+				"OPERATOR 1 \"sys\".< (numeric, int8) ,\n	"
+				"OPERATOR 2 \"sys\".<= (numeric, int8) ,\n	"
+				"OPERATOR 3 \"sys\".= (numeric, int8) ,\n	"
+				"OPERATOR 4 \"sys\".>= (numeric, int8) ,\n	"
+				"OPERATOR 5 \"sys\".> (numeric, int8) ,\n	"
+				"FUNCTION 1 \"sys\".\"numeric_int8_cmp\"(numeric, int8) " :
+				"OPERATOR 1 sys.< (numeric, int8) ,\n	"
+				"OPERATOR 2 sys.<= (numeric, int8) ,\n	"
+				"OPERATOR 3 sys.= (numeric, int8) ,\n	"
+				"OPERATOR 4 sys.>= (numeric, int8) ,\n	"
+				"OPERATOR 5 sys.> (numeric, int8) ,\n	"
+				"FUNCTION 1 sys.numeric_int8_cmp(numeric, int8) ";
+	}
+
+	appendPQExpBufferStr(buff, str);
+	/*
+	 * set needComma to true so that original pg_dump does not dump unnecessary option
+	 * Check when STORAGE option will be dumped in dumpOpclass(...).  
+	 */
+	*needComma = true;
+}
