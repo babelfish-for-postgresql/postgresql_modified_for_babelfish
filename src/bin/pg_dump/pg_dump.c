@@ -13194,7 +13194,7 @@ dumpOpclass(Archive *fout, const OpclassInfo *opcinfo)
 	PQclear(res);
 
 	if(isBabelfishDatabase(fout))
-		babelfishDumpOpclassHelper(fout, opcinfo, &q, &needComma);
+		babelfishDumpOpclassHelper(fout, opcinfo, q, &needComma);
 
 	/*
 	 * If needComma is still false it means we haven't added anything after
