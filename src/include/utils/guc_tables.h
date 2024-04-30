@@ -287,8 +287,6 @@ extern struct config_generic **get_explain_guc_options(int *num);
 extern void guc_set_string_field(struct config_string *conf, char **field, char *newval);
 extern void guc_set_extra_field(struct config_generic *gconf, void **field, void *newval);
 extern void guc_set_stack_value(struct config_generic *gconf, config_var_value *val);
-extern char *pltsql_guc_strdup(const char *val);
-extern void pltsql_free_search_path(char * oldval);
 
 typedef        void (*guc_push_old_value_hook_type) (struct config_generic *gconf, GucAction action);
 
