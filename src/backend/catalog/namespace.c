@@ -4450,6 +4450,7 @@ check_search_path(char **newval, void **extra, GucSource source)
 	char	   *rawname;
 	List	   *namelist;
 
+	/* quick exit for babelfish when setting search path in fmgr_security_definer */
 	if (sql_dialect == SQL_DIALECT_TSQL && set_local_schema_for_func_hook
 		&& pltsql_check_search_path == false)
 	{

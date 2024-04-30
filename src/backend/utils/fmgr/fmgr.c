@@ -46,6 +46,7 @@ PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook = NULL;
 PGDLLIMPORT get_func_language_oids_hook_type get_func_language_oids_hook = NULL;
 PGDLLIMPORT pgstat_function_wrapper_hook_type pgstat_function_wrapper_hook = NULL;
 set_local_schema_for_func_hook_type set_local_schema_for_func_hook = NULL;
+bool pltsql_check_search_path = true;
 
 /*
  * Hashtable for fast lookup of external C functions
