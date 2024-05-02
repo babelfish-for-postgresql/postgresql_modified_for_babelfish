@@ -376,6 +376,10 @@ IsTransactionState(void)
 {
 	TransactionState s = CurrentTransactionState;
 
+	/* During ENR Rollback, we may need to call relation_open during TRANS_ABORT. */
+	if (temp_table_xact_support && ENRInRollback() && s->state == TRANS_ABORT)
+		return true;
+
 	/*
 	 * TRANS_DEFAULT and TRANS_ABORT are obviously unsafe states.  However, we
 	 * also reject the startup/shutdown states TRANS_START, TRANS_COMMIT,
@@ -627,7 +631,10 @@ AssignTransactionId(TransactionState s)
 
 	/* Assert that caller didn't screw up */
 	Assert(!FullTransactionIdIsValid(s->fullTransactionId));
-	Assert(s->state == TRANS_INPROGRESS);
+
+	/* In ENR Rollback, we may need to call relation_open during TRANS_ABORT. */
+	if (temp_table_xact_support && !ENRInRollback() && s->state != TRANS_ABORT)
+		Assert(s->state == TRANS_INPROGRESS);
 
 	if (AbortCurTransaction)
 	{

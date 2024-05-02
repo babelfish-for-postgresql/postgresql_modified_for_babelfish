@@ -62,6 +62,8 @@ typedef struct ENRUncommittedTupleData
 	ENRTupleOperationType		optype;
 	/* A copy of the tuple itself */
 	HeapTuple 					tup;
+	/* Track if this was created in a specific subtransactionid so that it can be rolled back on savepoints. */
+	SubTransactionId subid;
 } ENRUncommittedTupleData;
 
 typedef ENRUncommittedTupleData *ENRUncommittedTuple;
@@ -91,6 +93,9 @@ typedef struct EphemeralNamedRelationMetadataData
 	bool		is_committed;
 	/* If this ENR is currently being rolled back, don't track changes to it. */
 	bool		in_rollback;
+	/* Track if this was created/dropped in a specific subtransactionid so that it can be rolled back on savepoints. */
+	SubTransactionId created_subid;
+	SubTransactionId dropped_subid;
 	/* List of uncommitted tuples. They must be processed on ROLLBACK, or cleared on commit. */
 	List		*uncommitted_cattups[ENR_CATTUP_END];
 } EphemeralNamedRelationMetadataData;
@@ -142,5 +147,7 @@ extern bool has_existing_enr_relations(void);
 extern bool ENRTupleIsDropped(Relation rel, HeapTuple tup);
 extern void ENRCommitChanges(QueryEnvironment *queryEnv);
 extern void ENRRollbackChanges(QueryEnvironment *queryEnv);
+extern void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEnv);
+extern bool ENRInRollback(void);
 
 #endif							/* QUERYENVIRONMENT_H */
