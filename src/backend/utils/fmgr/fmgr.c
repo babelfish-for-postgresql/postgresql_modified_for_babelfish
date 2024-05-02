@@ -802,16 +802,6 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 						GUC_ACTION_SAVE);
 	}
 
-	if (fcache->prosearchpath)
-	{
-		pltsql_save_nestlevel = NewGUCNestLevel();
-		pltsql_check_search_path = false;
-		(void) set_config_option("search_path", fcache->prosearchpath,
-								  PGC_USERSET, PGC_S_SESSION,
-								  GUC_ACTION_SAVE, true, 0, false);
-		pltsql_check_search_path = true;
-	}
-
 	if (set_sql_dialect && IsTransactionState())
 	{
 		if ((fcache->prolang == pltsql_lang_oid) || (fcache->prolang == pltsql_validator_oid))
@@ -880,6 +870,16 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 			pfree(cacheTupleProcname);
 		}
 
+		if (fcache->prosearchpath)
+		{
+			pltsql_save_nestlevel = NewGUCNestLevel();
+			pltsql_check_search_path = false;
+			(void) set_config_option("search_path", fcache->prosearchpath,
+									PGC_USERSET, PGC_S_SESSION,
+									GUC_ACTION_SAVE, true, 0, false);
+			pltsql_check_search_path = true;
+		}
+
 		result = FunctionCallInvoke(fcinfo);
 
 		/*
@@ -918,6 +918,9 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 			sql_dialect = sql_dialect_value_old;
 			assign_sql_dialect(sql_dialect_value_old, newextra);
 		}
+
+		if (fcache->prosearchpath)
+			pltsql_check_search_path = true;
 		
 		PG_RE_THROW();
 	}
