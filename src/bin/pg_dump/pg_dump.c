@@ -13034,6 +13034,9 @@ dumpOpclass(Archive *fout, const OpclassInfo *opcinfo)
 
 	PQclear(res);
 
+	if(isBabelfishDatabase(fout))
+		babelfishDumpOpclassHelper(fout, opcinfo, q, &needComma);
+
 	/*
 	 * If needComma is still false it means we haven't added anything after
 	 * the AS keyword.  To avoid printing broken SQL, append a dummy STORAGE
