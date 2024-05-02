@@ -948,8 +948,6 @@ exprIsNullConstant(Node *arg)
 static void
 bbf_rewrite_function_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 {
-	Var       *col_expr;
-	FuncCall  *new_call;
 	FuncExpr  *func_expr = (FuncExpr *) (*rexpr);
 	char      *func_name = get_func_name(func_expr->funcid);
 
@@ -974,32 +972,7 @@ bbf_rewrite_function_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 			}
 		}
 	}
-
-	if ((IsA(*lexpr, Var) && IsA(*rexpr, FuncExpr)))
-	{
-		col_expr = (Var*) *lexpr;
-		func_expr = (FuncExpr*) *rexpr;
-	}
-	else if (IsA(*lexpr, FuncExpr) && IsA(*rexpr, Var))
-	{
-		col_expr = (Var*) *rexpr;
-		func_expr = (FuncExpr*) *lexpr;
-	}
-	else
-		return;
-
-	func_name = get_func_name(func_expr->funcid);
-	if (strcmp(func_name, "babelfish_get_last_identity_numeric") != 0 &&
-			strcmp(func_name, "scope_identity") != 0)
-		return;
-	if (col_expr->vartype != INT2OID && col_expr->vartype != INT4OID && col_expr->vartype != INT8OID)
-		return;
-
-	new_call = makeFuncCall(list_make1(makeString("babelfish_get_last_identity")), NULL, COERCE_EXPLICIT_CALL, -1);
-	if (IsA(*rexpr, FuncExpr))
-		*rexpr = transformFuncCall(pstate, new_call);
-	else
-		*lexpr = transformFuncCall(pstate, new_call);
+	return;
 }
 
 static Node *
