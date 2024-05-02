@@ -68,6 +68,8 @@ create_queryEnv(void)
 	return (QueryEnvironment *) palloc0(sizeof(QueryEnvironment));
 }
 
+static bool in_enr_rollback = false;
+
 /*
  * Same as create_queryEnv but takes 2 additional arguments for the caller to
  * indicate the desired memory context to use, and if this is the top level
@@ -145,6 +147,9 @@ register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 
 	if (enr->md.name[0] != '#')
 		enr->md.is_table_variable = true;
+
+	if (!enr->md.is_table_variable && GetCurrentSubTransactionId() != InvalidSubTransactionId)
+		enr->md.created_subid = GetCurrentSubTransactionId();
 
 	queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);
 }
@@ -669,6 +674,12 @@ find_enr(Form_pg_depend entry)
 	return NULL;
 }
 
+bool 
+ENRInRollback()
+{
+	return in_enr_rollback;
+}
+
 /*
  * Store uncommitted tuple metadata in ENR.
  */
@@ -678,13 +689,14 @@ ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOpera
 	ENRUncommittedTuple uncommitted_tup;
 	List **list_ptr = NULL;
 	
-	if (enr->md.in_rollback)
+	if (in_enr_rollback)
 		return;
 	
 	uncommitted_tup = (ENRUncommittedTuple) palloc0(sizeof(ENRUncommittedTupleData));
 	uncommitted_tup->catalog_oid = catoid;
 	uncommitted_tup->optype = op;
 	uncommitted_tup->tup = heap_copytuple(tup);
+	uncommitted_tup->subid = GetCurrentSubTransactionId();
 
 	switch (catoid)
 	{
@@ -752,7 +764,7 @@ ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOpera
  * and on ROLLBACK, once the changes have been rolled back. 
  */
 static void
-ENRDeleteUncommittedTupleData(EphemeralNamedRelation enr)
+ENRDeleteUncommittedTupleData(SubTransactionId subid, EphemeralNamedRelation enr)
 {
 	for (int i = 0; i < ENR_CATTUP_END; i++)
 	{
@@ -761,11 +773,20 @@ ENRDeleteUncommittedTupleData(EphemeralNamedRelation enr)
 		foreach(lc, enr->md.uncommitted_cattups[i])
 		{
 			ENRUncommittedTuple uncommitted_tup = (ENRUncommittedTuple) lfirst(lc);
+
+			if (subid != InvalidSubTransactionId && uncommitted_tup->subid < subid)
+				continue;
+
 			heap_freetuple(uncommitted_tup->tup);
 			pfree(uncommitted_tup);
+			if (uncommitted_tup->subid >= subid)
+				enr->md.uncommitted_cattups[i] = foreach_delete_current(enr->md.uncommitted_cattups[i], lc);
 		}
-		list_free(enr->md.uncommitted_cattups[i]);
-		enr->md.uncommitted_cattups[i] = NIL;
+		if (subid == InvalidSubTransactionId)
+		{
+			list_free(enr->md.uncommitted_cattups[i]);
+			enr->md.uncommitted_cattups[i] = NIL;
+		}
 	}
 }
 
@@ -1001,7 +1022,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 			switch (op) {
 				case ENR_OP_ADD:
 					newtup = heap_copytuple(tup);
-					if (enr->md.is_committed && !enr->md.is_table_variable && temp_table_xact_support)
+					if (!enr->md.is_table_variable && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, newtup);
 					*list_ptr = list_insert_nth(*list_ptr, insert_at, newtup);
 					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL);
@@ -1017,13 +1038,13 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					* which is much better than crashing.
 					*/
 					oldtup = lfirst(lc);
-					if (enr->md.is_committed && !enr->md.is_table_variable && temp_table_xact_support)
+					if (!enr->md.is_table_variable && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, oldtup);
 					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup);
 					lfirst(lc) = heap_copytuple(tup);
 					break;
 				case ENR_OP_DROP:
-					if (enr->md.is_committed && !enr->md.is_table_variable && temp_table_xact_support)
+					if (!enr->md.is_table_variable && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, tup);
 					if (!skip_cache_inval)
 						CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
@@ -1092,8 +1113,9 @@ void ENRDropEntry(Oid id)
 	currentQueryEnv->namedRelList = list_delete(currentQueryEnv->namedRelList, enr);
 
 	/* If we are dropping a committed ENR, wait until COMMIT to free it. */
-	if (temp_table_xact_support && enr->md.is_committed)
+	if (temp_table_xact_support && !enr->md.is_table_variable)
 	{
+		enr->md.dropped_subid = GetCurrentSubTransactionId();
 		currentQueryEnv->dropped_namedRelList = lappend(currentQueryEnv->dropped_namedRelList, enr);
 	}
 	else
@@ -1303,8 +1325,7 @@ ENRCommitChanges(QueryEnvironment *queryEnv)
 		if (enr->md.enrtype != ENR_TSQL_TEMP || enr->md.is_table_variable)
 			continue;
 
-		ENRDeleteUncommittedTupleData(enr);
-
+		ENRDeleteUncommittedTupleData(InvalidSubTransactionId, enr);
 		enr->md.is_committed = true;
 	}
 
@@ -1350,11 +1371,11 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 	foreach (lc, queryEnv->dropped_namedRelList)
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
-		
-		/* Sanity check - We only should be adding committed ENRs back here. */
-		Assert(enr->md.is_committed);
 
-		queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);		
+		Assert(enr->md.enrtype == ENR_TSQL_TEMP);
+		Assert(!enr->md.is_table_variable);
+
+		queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);	
 	}
 	list_free(queryEnv->dropped_namedRelList);
 	queryEnv->dropped_namedRelList = NIL;
@@ -1377,8 +1398,8 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 		}
 
 		/* ROLLBACK block. */
-		enr->md.in_rollback = true;
-		
+		in_enr_rollback = true;
+
 		for (int i = 0; i < ENR_CATTUP_END; i++)
 		{
 			List *uncommitted_cattups = enr->md.uncommitted_cattups[i];
@@ -1390,7 +1411,7 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 				bool skip_cache_inval = false;
 
 				if (!OidIsValid(uncommitted_tup->catalog_oid) || !HeapTupleIsValid(uncommitted_tup->tup))
-					elog(ERROR, "ROLLBACK failed! Invalid temp table entries were found.");	
+					elog(ERROR, "ROLLBACK failed! Invalid temp table entries were found.");
 
 				if (uncommitted_tup->catalog_oid == IndexRelationId && uncommitted_tup->optype == ENR_OP_ADD)
 				{
@@ -1424,9 +1445,124 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 			}
 		}
 
-		enr->md.in_rollback = false;
+		in_enr_rollback = false;
 
-		ENRDeleteUncommittedTupleData(enr);
+		ENRDeleteUncommittedTupleData(InvalidSubTransactionId, enr);
+	}
+
+	/* Finally, clean up any ENRs that must be deleted. */
+	foreach(lc, enrs_to_drop)
+	{
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+		queryEnv->namedRelList = list_delete(queryEnv->namedRelList, enr);
+		pfree(enr->md.name);
+		pfree(enr);
+	}
+	MemoryContextSwitchTo(oldcxt);
+}
+
+/* This is used when rolling back a subtransaction. */
+/* It is similar to ENRRollback */
+void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEnv)
+{
+	ListCell 	*lc;
+	List *enrs_to_drop = NIL;
+	MemoryContext oldcxt;
+
+	if (!queryEnv)
+		return;
+
+	oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
+
+	/* Add back any ENRs that must be restored. */
+	foreach (lc, queryEnv->dropped_namedRelList)
+	{
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+
+		Assert(enr->md.enrtype == ENR_TSQL_TEMP);
+		Assert(!enr->md.is_table_variable);
+
+		/* If this was dropped in the current subtransaction, then we must restore it. */
+		if (enr->md.dropped_subid != InvalidSubTransactionId && enr->md.dropped_subid >= subid) // 4
+		{
+			queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);		
+			queryEnv->dropped_namedRelList = foreach_delete_current(queryEnv->dropped_namedRelList, lc);
+			enr->md.dropped_subid = InvalidSubTransactionId;
+		}
+	}
+
+	/*
+	 * Loop through the registered ENRs to process each.
+	 */
+	foreach(lc, queryEnv->namedRelList)
+	{
+		Relation rel;
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+
+		if (enr->md.enrtype != ENR_TSQL_TEMP || enr->md.is_table_variable)
+			continue;
+
+		if (!enr->md.is_committed && enr->md.created_subid >= subid)
+		{
+			enrs_to_drop = lappend(enrs_to_drop, enr);
+			continue;
+		}
+
+		/* ROLLBACK block. */
+		in_enr_rollback = true;
+		for (int i = 0; i < ENR_CATTUP_END; i++)
+		{
+			List *uncommitted_cattups = enr->md.uncommitted_cattups[i];
+			ListCell *lc2;
+
+			foreach(lc2, uncommitted_cattups)
+			{
+				ENRUncommittedTuple uncommitted_tup = (ENRUncommittedTuple) lfirst(lc2);
+				bool skip_cache_inval = false;
+
+				if (!OidIsValid(uncommitted_tup->catalog_oid) || !HeapTupleIsValid(uncommitted_tup->tup))
+					elog(ERROR, "ROLLBACK failed! Invalid temp table entries were found.");	
+
+				if (uncommitted_tup->subid < subid)
+					continue;
+
+				if (uncommitted_tup->catalog_oid == IndexRelationId && uncommitted_tup->optype == ENR_OP_ADD)
+				{
+					/*
+					* We skip invalidating IndexRelationId on drop (ie committed table, index created in transaction) 
+					* because it will be taken care of when the index itself is dropped - otherwise we risk
+					* throwing an error because the entry is already wiped away.
+					*/
+					
+					Form_pg_index idx_form = (Form_pg_index) GETSTRUCT(uncommitted_tup->tup);
+					EphemeralNamedRelation tmp_enr = get_ENR_withoid(queryEnv, idx_form->indrelid, ENR_TSQL_TEMP);
+					if (tmp_enr)
+					{
+						skip_cache_inval = true;
+					}
+				}
+
+				rel = relation_open(uncommitted_tup->catalog_oid, AccessExclusiveLock);
+
+				switch(uncommitted_tup->optype)
+				{
+					/* Peform the opposite operation as the saved optype. */
+					case ENR_OP_ADD:
+						_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_DROP, skip_cache_inval);
+						break;
+					case ENR_OP_UPDATE:
+						ENRupdateTuple(rel, uncommitted_tup->tup);
+						break;
+					case ENR_OP_DROP:
+						_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_ADD, skip_cache_inval);
+						break;
+				}
+				relation_close(rel, AccessExclusiveLock);
+			}
+		}
+		in_enr_rollback = false;
+
+		ENRDeleteUncommittedTupleData(subid, enr);
 	}
 
 	/* Finally, clean up any ENRs that must be deleted. */
@@ -1519,8 +1655,8 @@ extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
 				htup = list_nth(*list_ptr, 0);
 				*list_ptr = list_delete_ptr(*list_ptr, htup);
 
-				if (temp_table_xact_support && enr->md.is_committed)
-						ENRAddUncommittedTupleData(enr, catalog_oid, ENR_OP_DROP, htup);
+				if (temp_table_xact_support)
+					ENRAddUncommittedTupleData(enr, catalog_oid, ENR_OP_DROP, htup);
 
 				CacheInvalidateHeapTuple(catalog_relation, htup, NULL);
 				heap_freetuple(htup); // heap_copytuple was called during ADD
