@@ -3121,6 +3121,7 @@ WindowDef
 WindowFunc
 WindowFuncExprState
 WindowFuncLists
+WindowFuncRunCondition
 WindowObject
 WindowObjectData
 WindowStatePerAgg
