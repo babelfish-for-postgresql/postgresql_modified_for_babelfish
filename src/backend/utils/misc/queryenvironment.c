@@ -146,9 +146,9 @@ register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 	Assert(get_ENR(queryEnv, enr->md.name, false) == NULL);
 
 	if (enr->md.name[0] != '#')
-		enr->md.is_table_variable = true;
+		enr->md.is_not_bbf_temp_table = true;
 
-	if (!enr->md.is_table_variable && GetCurrentSubTransactionId() != InvalidSubTransactionId)
+	if (!enr->md.is_not_bbf_temp_table && GetCurrentSubTransactionId() != InvalidSubTransactionId)
 		enr->md.created_subid = GetCurrentSubTransactionId();
 
 	queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);
@@ -744,12 +744,6 @@ ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOpera
 	}
 
 	/*
-	 * Extra UPDATEs can be skipped because we don't care about intermediate updates - only the initial state.
-	 */
-	if (op == ENR_OP_UPDATE && *list_ptr != NIL)
-		return;
-
-	/*
 	 * lcons here takes the length of the list, so it is less efficient than lappend. 
 	 * However, we want the uncommitted_tup order to behave more like a stack to 
 	 * process ROLLBACK in the right order of operations. 
@@ -1022,7 +1016,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 			switch (op) {
 				case ENR_OP_ADD:
 					newtup = heap_copytuple(tup);
-					if (!enr->md.is_table_variable && temp_table_xact_support)
+					if (!enr->md.is_not_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, newtup);
 					*list_ptr = list_insert_nth(*list_ptr, insert_at, newtup);
 					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL);
@@ -1038,13 +1032,13 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					* which is much better than crashing.
 					*/
 					oldtup = lfirst(lc);
-					if (!enr->md.is_table_variable && temp_table_xact_support)
+					if (!enr->md.is_not_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, oldtup);
 					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup);
 					lfirst(lc) = heap_copytuple(tup);
 					break;
 				case ENR_OP_DROP:
-					if (!enr->md.is_table_variable && temp_table_xact_support)
+					if (!enr->md.is_not_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, tup);
 					if (!skip_cache_inval)
 						CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
@@ -1113,7 +1107,7 @@ void ENRDropEntry(Oid id)
 	currentQueryEnv->namedRelList = list_delete(currentQueryEnv->namedRelList, enr);
 
 	/* If we are dropping a committed ENR, wait until COMMIT to free it. */
-	if (temp_table_xact_support && !enr->md.is_table_variable)
+	if (temp_table_xact_support && !enr->md.is_not_bbf_temp_table)
 	{
 		enr->md.dropped_subid = GetCurrentSubTransactionId();
 		currentQueryEnv->dropped_namedRelList = lappend(currentQueryEnv->dropped_namedRelList, enr);
@@ -1322,7 +1316,7 @@ ENRCommitChanges(QueryEnvironment *queryEnv)
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		if (enr->md.enrtype != ENR_TSQL_TEMP || enr->md.is_table_variable)
+		if (enr->md.enrtype != ENR_TSQL_TEMP || enr->md.is_not_bbf_temp_table)
 			continue;
 
 		ENRDeleteUncommittedTupleData(InvalidSubTransactionId, enr);
@@ -1373,7 +1367,7 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
 		Assert(enr->md.enrtype == ENR_TSQL_TEMP);
-		Assert(!enr->md.is_table_variable);
+		Assert(!enr->md.is_not_bbf_temp_table);
 
 		queryEnv->namedRelList = lappend(queryEnv->namedRelList, enr);	
 	}
@@ -1388,7 +1382,7 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 		Relation rel;
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		if (enr->md.enrtype != ENR_TSQL_TEMP || enr->md.is_table_variable)
+		if (enr->md.enrtype != ENR_TSQL_TEMP || enr->md.is_not_bbf_temp_table)
 			continue;
 
 		if (!enr->md.is_committed)
@@ -1480,7 +1474,7 @@ void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEn
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
 		Assert(enr->md.enrtype == ENR_TSQL_TEMP);
-		Assert(!enr->md.is_table_variable);
+		Assert(!enr->md.is_not_bbf_temp_table);
 
 		/* If this was dropped in the current subtransaction, then we must restore it. */
 		if (enr->md.dropped_subid != InvalidSubTransactionId && enr->md.dropped_subid >= subid) // 4
@@ -1499,7 +1493,7 @@ void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEn
 		Relation rel;
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		if (enr->md.enrtype != ENR_TSQL_TEMP || enr->md.is_table_variable)
+		if (enr->md.enrtype != ENR_TSQL_TEMP || enr->md.is_not_bbf_temp_table)
 			continue;
 
 		if (!enr->md.is_committed && enr->md.created_subid >= subid)

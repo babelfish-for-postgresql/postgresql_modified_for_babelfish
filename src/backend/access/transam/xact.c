@@ -376,10 +376,6 @@ IsTransactionState(void)
 {
 	TransactionState s = CurrentTransactionState;
 
-	/* During ENR Rollback, we may need to call relation_open during TRANS_ABORT. */
-	if (temp_table_xact_support && ENRInRollback() && s->state == TRANS_ABORT)
-		return true;
-
 	/*
 	 * TRANS_DEFAULT and TRANS_ABORT are obviously unsafe states.  However, we
 	 * also reject the startup/shutdown states TRANS_START, TRANS_COMMIT,
@@ -632,9 +628,7 @@ AssignTransactionId(TransactionState s)
 	/* Assert that caller didn't screw up */
 	Assert(!FullTransactionIdIsValid(s->fullTransactionId));
 
-	/* In ENR Rollback, we may need to call relation_open during TRANS_ABORT. */
-	if (temp_table_xact_support && !ENRInRollback() && s->state != TRANS_ABORT)
-		Assert(s->state == TRANS_INPROGRESS);
+	Assert(s->state == TRANS_INPROGRESS);
 
 	if (AbortCurTransaction)
 	{
@@ -2254,6 +2248,9 @@ CommitTransaction(void)
 	/* Commit updates to the relation map --- do this as late as possible */
 	AtEOXact_RelationMap(true, is_parallel_worker);
 
+	if (temp_table_xact_support)
+		ENRCommitChanges(currentQueryEnv);
+
 	/*
 	 * set the current transaction state information appropriately during
 	 * commit processing
@@ -2761,6 +2758,9 @@ AbortTransaction(void)
 		elog(WARNING, "AbortTransaction while in %s state",
 			 TransStateAsString(s->state));
 	Assert(s->parent == NULL);
+
+	if (temp_table_xact_support)
+		ENRRollbackChanges(currentQueryEnv);
 
 	/*
 	 * set the current transaction state information appropriately during the
@@ -5111,6 +5111,9 @@ AbortSubTransaction(void)
 	if (s->state != TRANS_INPROGRESS)
 		elog(WARNING, "AbortSubTransaction while in %s state",
 			 TransStateAsString(s->state));
+
+	if (temp_table_xact_support)
+		ENRRollbackSubtransaction(s->subTransactionId, currentQueryEnv);
 
 	s->state = TRANS_ABORT;
 
