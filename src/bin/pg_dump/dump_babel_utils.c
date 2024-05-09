@@ -1592,7 +1592,7 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 	int			i_opfname;
 	char		*opfnamespace;
 	char		*opfname;
-	const char	*str;
+	const char	*str = NULL;
 	const char 	*opclass = fmtQualifiedDumpable(opcinfo);
 
 
@@ -1741,7 +1741,9 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"FUNCTION 1 sys.numeric_int8_cmp(numeric, int8) ";
 	}
 
-	appendPQExpBufferStr(buff, str);
+	if(str != NULL)
+		appendPQExpBufferStr(buff, str);
+
 	/*
 	 * set needComma to true so that original pg_dump does not dump unnecessary option
 	 * Check when STORAGE option will be dumped in dumpOpclass(...).  
