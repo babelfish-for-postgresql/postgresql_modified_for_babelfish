@@ -4592,7 +4592,10 @@ PostgresMain(const char *dbname, const char *username)
 			ReportChangedGUCOptions();
 
 			if (MyProcPort && MyProcPort->protocol_config->fn_send_ready_for_query)
+			{
+				Assert(MyProcPort != NULL);
 				MyProcPort->protocol_config->fn_send_ready_for_query(whereToSendOutput);
+			}
 			else
 				ReadyForQuery(whereToSendOutput);
 			send_ready_for_query = false;
