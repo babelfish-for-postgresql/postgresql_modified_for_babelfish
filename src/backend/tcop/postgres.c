@@ -492,7 +492,10 @@ ReadCommand(StringInfo inBuf)
 	int			result;
 
 	if (whereToSendOutput == DestRemote)
+	{
+		Assert(MyProcPort != NULL);
 		result = MyProcPort->protocol_config->fn_read_command(inBuf);
+	}
 	else
 		result = InteractiveBackend(inBuf);
 	return result;
@@ -4592,10 +4595,7 @@ PostgresMain(const char *dbname, const char *username)
 			ReportChangedGUCOptions();
 
 			if (MyProcPort && MyProcPort->protocol_config->fn_send_ready_for_query)
-			{
-				Assert(MyProcPort != NULL);
 				MyProcPort->protocol_config->fn_send_ready_for_query(whereToSendOutput);
-			}
 			else
 				ReadyForQuery(whereToSendOutput);
 			send_ready_for_query = false;
