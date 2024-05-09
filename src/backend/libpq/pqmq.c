@@ -306,7 +306,7 @@ pq_parse_errornotice(StringInfo msg, ErrorData *edata)
 				edata->funcname = pstrdup(value);
 				break;
 			case PG_DIAG_MESSAGE_ID:
-				if (MyProcPort->is_tds_conn)
+				if (MyProcPort && MyProcPort->is_tds_conn)
 				{
 					edata->message_id = (const char *) pstrdup(value);
 				}
