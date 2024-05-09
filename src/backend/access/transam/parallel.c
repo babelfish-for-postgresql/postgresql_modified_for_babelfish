@@ -301,7 +301,7 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		shm_toc_estimate_keys(&pcxt->estimator, 1);
 
 		/* Estimate how much we'll need for the babelfish fixed parallel state */
-		if (MyProcPort->is_tds_conn && bbf_InitializeParallelDSM_hook)
+		if (MyProcPort && MyProcPort->is_tds_conn && bbf_InitializeParallelDSM_hook)
 			(*bbf_InitializeParallelDSM_hook) (pcxt, true);
 	}
 
@@ -347,7 +347,7 @@ InitializeParallelDSM(ParallelContext *pcxt)
 	fps->xact_ts = GetCurrentTransactionStartTimestamp();
 	fps->stmt_ts = GetCurrentStatementStartTimestamp();
 	fps->serializable_xact_handle = ShareSerializableXact();
-	fps->babelfish_context = MyProcPort->is_tds_conn;
+	fps->babelfish_context = MyProcPort ? MyProcPort->is_tds_conn : false;
 	SpinLockInit(&fps->mutex);
 	fps->last_xlog_end = 0;
 	shm_toc_insert(pcxt->toc, PARALLEL_KEY_FIXED, fps);
@@ -486,7 +486,7 @@ InitializeParallelDSM(ParallelContext *pcxt)
 		shm_toc_insert(pcxt->toc, PARALLEL_KEY_ENTRYPOINT, entrypointstate);
 
 		/* Initialize babelfish fixed-size state in shared memory. */
-		if (MyProcPort->is_tds_conn && bbf_InitializeParallelDSM_hook)
+		if (MyProcPort && MyProcPort->is_tds_conn && bbf_InitializeParallelDSM_hook)
 			(*bbf_InitializeParallelDSM_hook) (pcxt, false);
 	}
 

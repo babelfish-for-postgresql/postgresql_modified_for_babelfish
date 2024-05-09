@@ -492,7 +492,10 @@ ReadCommand(StringInfo inBuf)
 	int			result;
 
 	if (whereToSendOutput == DestRemote)
+	{
+		Assert(MyProcPort != NULL);
 		result = MyProcPort->protocol_config->fn_read_command(inBuf);
+	}
 	else
 		result = InteractiveBackend(inBuf);
 	return result;
