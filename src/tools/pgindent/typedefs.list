@@ -1220,6 +1220,7 @@ InitializeDSMForeignScan_function
 InitializeWorkerForeignScan_function
 InjectionPointCacheEntry
 InjectionPointCondition
+InjectionPointConditionType
 InjectionPointEntry
 InjectionPointSharedState
 InlineCodeBlock
