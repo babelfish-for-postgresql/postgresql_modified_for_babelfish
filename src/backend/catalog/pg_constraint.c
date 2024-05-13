@@ -22,16 +22,19 @@
 #include "catalog/catalog.h"
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
+#include "catalog/namespace.h"
 #include "catalog/objectaccess.h"
 #include "catalog/pg_constraint.h"
 #include "catalog/pg_operator.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
 #include "commands/tablecmds.h"
+#include "parser/parser.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
+#include "utils/queryenvironment.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
@@ -96,6 +99,7 @@ CreateConstraintEntry(const char *constraintName,
 	ObjectAddress conobject;
 	ObjectAddresses *addrs_auto;
 	ObjectAddresses *addrs_normal;
+	bool		is_enr = false;
 
 	conDesc = table_open(ConstraintRelationId, RowExclusiveLock);
 
@@ -172,8 +176,17 @@ CreateConstraintEntry(const char *constraintName,
 		values[i] = (Datum) NULL;
 	}
 
-	conOid = GetNewOidWithIndex(conDesc, ConstraintOidIndexId,
-								Anum_pg_constraint_oid);
+	if (sql_dialect == SQL_DIALECT_TSQL && isTempNamespace(constraintNamespace))
+	{
+		is_enr = get_ENR_withoid(currentQueryEnv, relId, ENR_TSQL_TEMP);
+	}
+
+	if (is_enr && GetNewTempOidWithIndex_hook)
+		conOid = GetNewTempOidWithIndex_hook(conDesc, ConstraintOidIndexId,
+									Anum_pg_constraint_oid);
+	else
+		conOid = GetNewOidWithIndex(conDesc, ConstraintOidIndexId,
+									Anum_pg_constraint_oid);
 	values[Anum_pg_constraint_oid - 1] = ObjectIdGetDatum(conOid);
 	values[Anum_pg_constraint_conname - 1] = NameGetDatum(&cname);
 	values[Anum_pg_constraint_connamespace - 1] = ObjectIdGetDatum(constraintNamespace);
