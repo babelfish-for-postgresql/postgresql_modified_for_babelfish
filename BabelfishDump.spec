@@ -26,7 +26,7 @@
 
 Name: BabelfishDump
 Summary: Postgresql dump utilities modified for Babelfish
-Version: 16.2
+Version: 16.3
 Release: 1%{?dist}%{?_trivial}%{?_buildid}
 License: PostgreSQL
 Url: https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish
@@ -143,13 +143,13 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
-* Tue Apr 02 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.2-1
+* Tue Apr 02 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-1
 - Do not dump babelfish_domain_mapping catalog table for database-level dump
 
-* Fri Mar 22 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.2-1
+* Fri Mar 22 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-1
 - Support Babelfish schema-only and data-only dump/restore
 
-* Tue Mar 05 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.2-1
+* Tue Mar 05 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-1
 - Correctly dump the data of babelfish_extended_properties
 
 * Tue Jan 16 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.1-2
