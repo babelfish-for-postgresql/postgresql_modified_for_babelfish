@@ -3276,8 +3276,11 @@ eval_const_expressions_mutator(Node *node,
 				{
 					Node	   *e;
 
-					e = eval_const_expressions_mutator((Node *) lfirst(arg),
-													   context);
+					if (sql_dialect != SQL_DIALECT_TSQL || coalesceexpr->tsql_is_null)
+						e = eval_const_expressions_mutator((Node *) lfirst(arg),
+													   		context);
+					else
+						e = (Node *) lfirst(arg);
 
 					/*
 					 * We can remove null constants from the list. For a
