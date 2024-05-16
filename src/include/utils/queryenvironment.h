@@ -88,7 +88,7 @@ typedef struct EphemeralNamedRelationMetadataData
 	List		*cattups[ENR_CATTUP_END];
 
 	/* We must ignore transaction semantics for table variables. */
-	bool		is_not_bbf_temp_table;
+	bool		is_bbf_temp_table;
 	/* We don't need to track uncommitted ENRs as they would be dropped entirely on ROLLBACK. */
 	bool		is_committed;
 	/* If this ENR is currently being rolled back, don't track changes to it. */
