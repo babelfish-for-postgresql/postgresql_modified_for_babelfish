@@ -3465,7 +3465,7 @@ _selectOutputSchema(ArchiveHandle *AH, const char *schemaName)
 
 		if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
 			warn_or_exit_horribly(AH,
-								  "could not set search_path to \"%s\": %s",
+								  "could not set \"search_path\" to \"%s\": %s",
 								  schemaName, PQerrorMessage(AH->connection));
 
 		PQclear(res);
@@ -3526,7 +3526,7 @@ _selectTablespace(ArchiveHandle *AH, const char *tablespace)
 
 		if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
 			warn_or_exit_horribly(AH,
-								  "could not set default_tablespace to %s: %s",
+								  "could not set \"default_tablespace\" to %s: %s",
 								  fmtId(want), PQerrorMessage(AH->connection));
 
 		PQclear(res);
@@ -3575,7 +3575,7 @@ _selectTableAccessMethod(ArchiveHandle *AH, const char *tableam)
 
 		if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
 			warn_or_exit_horribly(AH,
-								  "could not set default_table_access_method: %s",
+								  "could not set \"default_table_access_method\": %s",
 								  PQerrorMessage(AH->connection));
 
 		PQclear(res);

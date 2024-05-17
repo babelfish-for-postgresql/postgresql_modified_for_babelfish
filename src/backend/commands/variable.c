@@ -741,7 +741,7 @@ check_client_encoding(char **newval, void **extra, GucSource source)
 		else
 		{
 			/* Provide a useful complaint */
-			GUC_check_errdetail("Cannot change client_encoding now.");
+			GUC_check_errdetail("Cannot change \"client_encoding\" now.");
 		}
 		return false;
 	}
@@ -802,7 +802,7 @@ assign_client_encoding(const char *newval, void *extra)
 		 */
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_TRANSACTION_STATE),
-				 errmsg("cannot change client_encoding during a parallel operation")));
+				 errmsg("cannot change \"client_encoding\" during a parallel operation")));
 	}
 
 	/* We do not expect an error if PrepareClientEncoding succeeded */
@@ -1226,7 +1226,7 @@ check_effective_io_concurrency(int *newval, void **extra, GucSource source)
 #ifndef USE_PREFETCH
 	if (*newval != 0)
 	{
-		GUC_check_errdetail("effective_io_concurrency must be set to 0 on platforms that lack posix_fadvise().");
+		GUC_check_errdetail("\"effective_io_concurrency\" must be set to 0 on platforms that lack posix_fadvise().");
 		return false;
 	}
 #endif							/* USE_PREFETCH */
@@ -1239,7 +1239,7 @@ check_maintenance_io_concurrency(int *newval, void **extra, GucSource source)
 #ifndef USE_PREFETCH
 	if (*newval != 0)
 	{
-		GUC_check_errdetail("maintenance_io_concurrency must be set to 0 on platforms that lack posix_fadvise().");
+		GUC_check_errdetail("\"maintenance_io_concurrency\" must be set to 0 on platforms that lack posix_fadvise().");
 		return false;
 	}
 #endif							/* USE_PREFETCH */
