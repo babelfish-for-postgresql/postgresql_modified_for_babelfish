@@ -1232,6 +1232,7 @@ InitSampleScan_function
 InitializeDSMForeignScan_function
 InitializeWorkerForeignScan_function
 InjectionPointCacheEntry
+InjectionPointCallback
 InjectionPointCondition
 InjectionPointConditionType
 InjectionPointEntry
