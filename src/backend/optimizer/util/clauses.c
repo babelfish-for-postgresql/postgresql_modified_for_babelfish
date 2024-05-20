@@ -3276,7 +3276,7 @@ eval_const_expressions_mutator(Node *node,
 				{
 					Node	   *e;
 
-					if (sql_dialect != SQL_DIALECT_TSQL || coalesceexpr->tsql_is_null)
+					if (sql_dialect != SQL_DIALECT_TSQL || !coalesceexpr->tsql_is_coalesce)
 						e = eval_const_expressions_mutator((Node *) lfirst(arg),
 													   		context);
 					else
@@ -3317,6 +3317,7 @@ eval_const_expressions_mutator(Node *node,
 				newcoalesce->args = newargs;
 				newcoalesce->location = coalesceexpr->location;
 				newcoalesce->tsql_is_null = coalesceexpr->tsql_is_null;
+				newcoalesce->tsql_is_coalesce = coalesceexpr->tsql_is_coalesce;
 				return (Node *) newcoalesce;
 			}
 		case T_SQLValueFunction:
