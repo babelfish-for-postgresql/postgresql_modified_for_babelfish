@@ -1440,7 +1440,7 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 	qry->commandType = CMD_SELECT;
 
 	/* process the WITH clause independently of all else */
-	if (stmt->withClause && !stmt->isPivot)
+	if (stmt->withClause && ( sql_dialect == SQL_DIALECT_PG || transform_pivot_clause_hook == NULL || !stmt->isPivot))
 	{
 		qry->hasRecursive = stmt->withClause->recursive;
 		qry->cteList = transformWithClause(pstate, stmt->withClause);
