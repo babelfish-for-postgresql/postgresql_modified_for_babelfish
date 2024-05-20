@@ -1423,7 +1423,6 @@ typedef struct CoalesceExpr
 	int			location;
 	/* whether the calling function is T-SQL ISNULL() */
 	bool			tsql_is_null;
-	bool			tsql_is_coalesce;
 } CoalesceExpr;
 
 /*

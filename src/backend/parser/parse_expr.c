@@ -2290,7 +2290,7 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 
 	if (sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook && c->tsql_is_null)
 		newc->coalescetype = select_common_type(pstate, newargs, "ISNULL", NULL);
-	else if(sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook && c->tsql_is_coalesce)
+	else if(sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook)
 		newc->coalescetype = select_common_type(pstate, newargs, "TSQL_COALESCE", NULL);
 	else
 		newc->coalescetype = select_common_type(pstate, newargs, "COALESCE", NULL);
@@ -2306,7 +2306,7 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 		 *	T-SQL treats constant string literals as VARCHAR. Hence,
 		 *	coercing into VARCHAR before coercing it to the common type.
 		 */
-		if (sql_dialect == SQL_DIALECT_TSQL && c->tsql_is_coalesce && handle_constant_literals_hook)
+		if (sql_dialect == SQL_DIALECT_TSQL && !c->tsql_is_null && handle_constant_literals_hook)
 		{
 			e = (*handle_constant_literals_hook)(pstate, e);
 		}
@@ -2344,7 +2344,6 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 	newc->args = newcoercedargs;
 	newc->location = c->location;
 	newc->tsql_is_null = c->tsql_is_null;
-	newc->tsql_is_coalesce = c->tsql_is_coalesce;
 	return (Node *) newc;
 }
 
