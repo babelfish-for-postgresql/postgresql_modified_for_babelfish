@@ -82,6 +82,14 @@ sed -i "s/pg_dump (PostgreSQL)/bbf_dump (pg_dump compatible with Babelfish for P
 sed -i "s/bbf_dump (PostgreSQL)/bbf_dump (pg_dump compatible with Babelfish for PostgreSQL)/g" src/bin/pg_dump/pg_dumpall.c
 sed -i "s/bbf_dumpall (PostgreSQL)/bbf_dumpall (pg_dumpall compatible with Babelfish for PostgreSQL)/g" src/bin/pg_dump/pg_dumpall.c
 
+# Update bug report and package links
+sed -i 's|PACKAGE_BUGREPORT|"https://github.com/babelfish-for-postgresql/babelfish_extensions/issues"|g' src/bin/pg_dump/pg_dump.c
+sed -i 's|PACKAGE_BUGREPORT|"https://github.com/babelfish-for-postgresql/babelfish_extensions/issues"|g' src/bin/pg_dump/pg_dumpall.c
+sed -i 's|PACKAGE_NAME|"Babelfish"|g' src/bin/pg_dump/pg_dump.c
+sed -i 's|PACKAGE_NAME|"Babelfish"|g' src/bin/pg_dump/pg_dumpall.c
+sed -i 's|PACKAGE_URL|"https://github.com/babelfish-for-postgresql/babelfish-for-postgresql/wiki"|g' src/bin/pg_dump/pg_dump.c
+sed -i 's|PACKAGE_URL|"https://github.com/babelfish-for-postgresql/babelfish-for-postgresql/wiki"|g' src/bin/pg_dump/pg_dumpall.c
+
 %build
 # Building BabelfishDump
 
@@ -143,6 +151,9 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
+* Mon May 20 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-1
+- Update bug report and documentation links for BabelfishDump
+
 * Tue Apr 02 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-1
 - Do not dump babelfish_domain_mapping catalog table for database-level dump
 
