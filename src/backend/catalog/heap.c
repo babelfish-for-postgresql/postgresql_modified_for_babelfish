@@ -1196,7 +1196,7 @@ heap_create_with_catalog(const char *relname,
 		if (relname && strlen(relname) > 0)
 			is_enr = (relname[0] == '@') || (relname[0] == '#' && !CheckTempTableHasDependencies(tupdesc));
 
-		if (is_enr && GetNewTempOidWithIndex_hook)
+		if (is_enr && GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0)
 			use_temp_oid_buffer = true;
 	}
 
