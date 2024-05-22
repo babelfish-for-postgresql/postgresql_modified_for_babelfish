@@ -94,6 +94,11 @@ int			temp_oid_buffer_start;
 int			temp_oid_buffer_size;
 
 /*
+ * Control tsql temp table xact support for ROLLBACK.  
+ */
+bool		temp_table_xact_support;
+
+/*
  * Unit conversion tables.
  *
  * There are two tables, one for memory units, and another for time units.
