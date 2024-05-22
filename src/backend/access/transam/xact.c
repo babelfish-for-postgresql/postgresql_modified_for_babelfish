@@ -2247,6 +2247,9 @@ CommitTransaction(void)
 	/* Commit updates to the relation map --- do this as late as possible */
 	AtEOXact_RelationMap(true, is_parallel_worker);
 
+	if (temp_table_xact_support)
+		ENRCommitChanges(currentQueryEnv);
+
 	/*
 	 * set the current transaction state information appropriately during
 	 * commit processing
@@ -2754,6 +2757,9 @@ AbortTransaction(void)
 		elog(WARNING, "AbortTransaction while in %s state",
 			 TransStateAsString(s->state));
 	Assert(s->parent == NULL);
+
+	if (temp_table_xact_support)
+		ENRRollbackChanges(currentQueryEnv);
 
 	/*
 	 * set the current transaction state information appropriately during the
@@ -5104,6 +5110,9 @@ AbortSubTransaction(void)
 	if (s->state != TRANS_INPROGRESS)
 		elog(WARNING, "AbortSubTransaction while in %s state",
 			 TransStateAsString(s->state));
+
+	if (temp_table_xact_support)
+		ENRRollbackSubtransaction(s->subTransactionId, currentQueryEnv);
 
 	s->state = TRANS_ABORT;
 

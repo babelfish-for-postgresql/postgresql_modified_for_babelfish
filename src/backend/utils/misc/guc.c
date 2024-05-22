@@ -897,6 +897,11 @@ StaticAssertDecl(lengthof(config_type_names) == (PGC_ENUM + 1),
 				 "array length mismatch");
 
 /*
+ * Control tsql temp table xact support for ROLLBACK.  
+ */
+bool		temp_table_xact_support;
+
+/*
  * Unit conversion tables.
  *
  * There are two tables, one for memory units, and another for time units.
