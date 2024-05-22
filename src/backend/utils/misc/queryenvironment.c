@@ -1099,20 +1099,7 @@ void ENRDropEntry(Oid id)
 	/* If we are dropping a committed ENR, wait until COMMIT to free it. */
 	if (temp_table_xact_support && enr->md.is_bbf_temp_table)
 	{
-		ListCell *lc;
 		enr->md.dropped_subid = GetCurrentSubTransactionId();
-		foreach(lc, currentQueryEnv->dropped_namedRelList)
-		{
-			EphemeralNamedRelation tmp_enr = (EphemeralNamedRelation) (lc);
-
-			if (strcmp(enr->md.name, tmp_enr->md.name) == 0 && tmp_enr->md.dropped_subid == enr->md.dropped_subid)
-			{
-				currentQueryEnv->dropped_namedRelList = foreach_delete_current(currentQueryEnv->dropped_namedRelList, lc);
-				pfree(tmp_enr->md.name);
-				pfree(tmp_enr);
-				break;
-			}
-		}
 		currentQueryEnv->dropped_namedRelList = lappend(currentQueryEnv->dropped_namedRelList, enr);
 	}
 	else
