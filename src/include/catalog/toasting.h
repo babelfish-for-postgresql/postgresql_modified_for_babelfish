@@ -26,5 +26,6 @@ extern void AlterTableCreateToastTable(Oid relOid, Datum reloptions,
 									   LOCKMODE lockmode);
 extern void BootstrapToastTable(char *relName,
 								Oid toastOid, Oid toastIndexOid);
+extern void NewTsqlTempTableCreateToastTable(Oid relOid, Datum reloptions);
 
 #endif							/* TOASTING_H */

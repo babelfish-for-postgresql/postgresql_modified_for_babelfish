@@ -27,6 +27,7 @@
 #include "pgstat.h"
 #include "storage/lmgr.h"
 #include "utils/inval.h"
+#include "utils/queryenvironment.h"
 #include "utils/syscache.h"
 
 
@@ -63,11 +64,12 @@ relation_open(Oid relationId, LOCKMODE lockmode)
 
 	/*
 	 * If we didn't get the lock ourselves, assert that caller holds one,
-	 * except in bootstrap mode where no locks are used.
+	 * except in bootstrap mode where no locks are used, or for a Babelfish temp table.
 	 */
 	Assert(lockmode != NoLock ||
 		   IsBootstrapProcessingMode() ||
-		   CheckRelationLockedByMe(r, AccessShareLock, true));
+		   CheckRelationLockedByMe(r, AccessShareLock, true) ||
+		   RelationIsBBFTempTable(r));
 
 	/* Make note that we've accessed a temporary relation */
 	if (RelationUsesLocalBuffers(r))

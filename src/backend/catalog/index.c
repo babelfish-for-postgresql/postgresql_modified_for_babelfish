@@ -2185,7 +2185,8 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 	 * more efficient.
 	 */
 	Assert(get_rel_persistence(indexId) != RELPERSISTENCE_TEMP ||
-		   (!concurrent && !concurrent_lock_mode));
+		   (!concurrent && !concurrent_lock_mode) ||
+		   (sql_dialect == SQL_DIALECT_TSQL && concurrent_lock_mode));
 
 	/*
 	 * To drop an index safely, we must grab exclusive lock on its parent

@@ -1886,6 +1886,8 @@ heap_drop_with_catalog(Oid relid)
 	HeapTuple	tuple;
 	Oid			parentOid = InvalidOid,
 				defaultPartOid = InvalidOid;
+	bool		isBBFTempTable = relid >= ((Oid) (temp_oid_buffer_start) - INT_MIN) &&
+								 relid < ((Oid) (temp_oid_buffer_start) - INT_MIN) + temp_oid_buffer_size;
 
 	/*
 	 * To drop a partition safely, we must grab exclusive lock on its parent,
@@ -1924,7 +1926,7 @@ heap_drop_with_catalog(Oid relid)
 	/*
 	 * Open and lock the relation.
 	 */
-	rel = relation_open(relid, AccessExclusiveLock);
+	rel = relation_open(relid, isBBFTempTable ? AccessShareLock : AccessExclusiveLock);
 
 	if (drop_relation_refcnt_hook)
 		drop_relation_refcnt_hook(rel);

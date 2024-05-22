@@ -693,6 +693,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	const char *accessMethod = NULL;
 	Oid			accessMethodId = InvalidOid;
 	ObjectAddress tsql_tabletype_address;
+	bool		isBBFTempTable;
 
 	/*
 	 * Truncate relname to appropriate length (probably a waste of time, as
@@ -1019,7 +1020,11 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 * the new rel anyway until we commit), but it keeps the lock manager from
 	 * complaining about deadlock risks.
 	 */
-	rel = relation_open(relationId, AccessExclusiveLock);
+	isBBFTempTable = (sql_dialect == SQL_DIALECT_TSQL && 
+					  stmt->relation->relpersistence == RELPERSISTENCE_TEMP && 
+					  relname[0] == '#' &&
+					  get_ENR_withoid(currentQueryEnv, relationId, ENR_TSQL_TEMP));
+	rel = relation_open(relationId, isBBFTempTable ? NoLock : AccessExclusiveLock);
 
 	/*
 	 * Now add any newly specified column default and generation expressions
@@ -1457,6 +1462,7 @@ RemoveRelations(DropStmt *drop)
 		Oid			relOid;
 		ObjectAddress obj;
 		struct DropRelationCallbackState state;
+		LOCKMODE	lm = (sql_dialect == SQL_DIALECT_TSQL && rel->relname[0] == '#') ? AccessShareLock : lockmode;
 
 		/*
 		 * These next few steps are a great deal like relation_openrv, but we
@@ -1472,13 +1478,12 @@ RemoveRelations(DropStmt *drop)
 
 		/* Look up the appropriate relation using namespace search. */
 		state.expected_relkind = relkind;
-		state.heap_lockmode = drop->concurrent ?
-			ShareUpdateExclusiveLock : AccessExclusiveLock;
+		state.heap_lockmode = lm;
 		/* We must initialize these fields to show that no locks are held: */
 		state.heapOid = InvalidOid;
 		state.partParentOid = InvalidOid;
 
-		relOid = RangeVarGetRelidExtended(rel, lockmode, RVR_MISSING_OK,
+		relOid = RangeVarGetRelidExtended(rel, lm, RVR_MISSING_OK,
 										  RangeVarCallbackForDropRelation,
 										  (void *) &state);
 
@@ -1499,6 +1504,15 @@ RemoveRelations(DropStmt *drop)
 			Assert(list_length(drop->objects) == 1 &&
 				   drop->removeType == OBJECT_INDEX);
 			flags |= PERFORM_DELETION_CONCURRENTLY;
+		}
+
+		/*
+		 * Babelfish temp tables are completely session-local, so they are safe to drop concurrently
+		 */
+		if ((sql_dialect == SQL_DIALECT_TSQL && rel->relname[0] == '#') && 
+			state.actual_relpersistence == RELPERSISTENCE_TEMP)
+		{
+			flags |= (PERFORM_DELETION_CONCURRENT_LOCK);
 		}
 
 		/*

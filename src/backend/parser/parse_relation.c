@@ -1608,7 +1608,8 @@ addRangeTableEntryForRelation(ParseState *pstate,
 	Assert(lockmode == AccessShareLock ||
 		   lockmode == RowShareLock ||
 		   lockmode == RowExclusiveLock);
-	Assert(CheckRelationLockedByMe(rel, lockmode, true));
+	Assert(CheckRelationLockedByMe(rel, lockmode, true) ||
+		   RelationIsBBFTempTable(rel));
 
 	rte->rtekind = RTE_RELATION;
 	rte->alias = alias;

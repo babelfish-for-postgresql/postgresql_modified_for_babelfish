@@ -1562,13 +1562,15 @@ AcquireDeletionLock(const ObjectAddress *object, int flags)
 {
 	if (object->classId == RelationRelationId)
 	{
+		if (flags & PERFORM_DELETION_CONCURRENT_LOCK)
+			LockRelationOid(object->objectId, AccessShareLock);
 		/*
 		 * In DROP INDEX CONCURRENTLY, take only ShareUpdateExclusiveLock on
 		 * the index for the moment.  index_drop() will promote the lock once
 		 * it's safe to do so.  In all other cases we need full exclusive
 		 * lock.
 		 */
-		if (flags & PERFORM_DELETION_CONCURRENTLY)
+		else if (flags & PERFORM_DELETION_CONCURRENTLY)
 			LockRelationOid(object->objectId, ShareUpdateExclusiveLock);
 		else
 			LockRelationOid(object->objectId, AccessExclusiveLock);
