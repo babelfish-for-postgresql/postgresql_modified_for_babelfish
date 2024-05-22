@@ -68,8 +68,6 @@ create_queryEnv(void)
 	return (QueryEnvironment *) palloc0(sizeof(QueryEnvironment));
 }
 
-static bool in_enr_rollback = false;
-
 /*
  * Same as create_queryEnv but takes 2 additional arguments for the caller to
  * indicate the desired memory context to use, and if this is the top level
@@ -674,17 +672,11 @@ find_enr(Form_pg_depend entry)
 	return NULL;
 }
 
-bool 
-ENRInRollback()
-{
-	return in_enr_rollback;
-}
-
 /*
  * Store uncommitted tuple metadata in ENR.
  */
 static void
-ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOperationType op, HeapTuple tup)
+ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOperationType op, HeapTuple tup, bool in_enr_rollback)
 {
 	ENRUncommittedTuple uncommitted_tup;
 	List **list_ptr = NULL;
@@ -790,7 +782,7 @@ ENRDeleteUncommittedTupleData(SubTransactionId subid, EphemeralNamedRelation enr
  * Return true if the asked operation is done.
  * Return false if the asked operation is not possible.
  */
-static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOperationType op, bool skip_cache_inval)
+static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOperationType op, bool skip_cache_inval, bool in_enr_rollback)
 {
 	EphemeralNamedRelation	enr = NULL;
 	HeapTuple				oldtup, newtup;
@@ -1017,7 +1009,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				case ENR_OP_ADD:
 					newtup = heap_copytuple(tup);
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
-						ENRAddUncommittedTupleData(enr, catalog_oid, op, newtup);
+						ENRAddUncommittedTupleData(enr, catalog_oid, op, newtup, in_enr_rollback);
 					*list_ptr = list_insert_nth(*list_ptr, insert_at, newtup);
 					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL);
 					break;
@@ -1033,13 +1025,13 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					*/
 					oldtup = lfirst(lc);
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
-						ENRAddUncommittedTupleData(enr, catalog_oid, op, oldtup);
+						ENRAddUncommittedTupleData(enr, catalog_oid, op, oldtup, in_enr_rollback);
 					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup);
 					lfirst(lc) = heap_copytuple(tup);
 					break;
 				case ENR_OP_DROP:
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
-						ENRAddUncommittedTupleData(enr, catalog_oid, op, tup);
+						ENRAddUncommittedTupleData(enr, catalog_oid, op, tup, in_enr_rollback);
 					if (!skip_cache_inval)
 						CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
 					tmp = lfirst(lc);
@@ -1063,7 +1055,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
  */
 bool ENRaddTuple(Relation rel, HeapTuple tup)
 {
-	return _ENR_tuple_operation(rel, tup, ENR_OP_ADD, false);
+	return _ENR_tuple_operation(rel, tup, ENR_OP_ADD, false, false);
 }
 
 /*
@@ -1076,7 +1068,7 @@ bool ENRdropTuple(Relation rel, HeapTuple tup)
 	/*
 	 * If we've already dropped it in this transaction but haven't committed, pretend the drop is done. 
 	 */
-	return _ENR_tuple_operation(rel, tup, ENR_OP_DROP, false);
+	return _ENR_tuple_operation(rel, tup, ENR_OP_DROP, false, false);
 }
 
 /*
@@ -1084,7 +1076,7 @@ bool ENRdropTuple(Relation rel, HeapTuple tup)
  */
 bool ENRupdateTuple(Relation rel, HeapTuple tup)
 {
-	return _ENR_tuple_operation(rel, tup, ENR_OP_UPDATE, false);
+	return _ENR_tuple_operation(rel, tup, ENR_OP_UPDATE, false, false);
 }
 
 /*
@@ -1113,7 +1105,7 @@ void ENRDropEntry(Oid id)
 		{
 			EphemeralNamedRelation tmp_enr = (EphemeralNamedRelation) (lc);
 
-			if (strcmp(enr->md.name, tmp_enr->md.name) == 0)
+			if (strcmp(enr->md.name, tmp_enr->md.name) == 0 && tmp_enr->md.dropped_subid == enr->md.dropped_subid)
 			{
 				currentQueryEnv->dropped_namedRelList = foreach_delete_current(currentQueryEnv->dropped_namedRelList, lc);
 				pfree(tmp_enr->md.name);
@@ -1206,22 +1198,22 @@ ENRRollbackUncommittedTuple(QueryEnvironment *queryEnv, ENRUncommittedTuple unco
 		}
 	}
 
-	rel = relation_open(uncommitted_tup->catalog_oid, AccessExclusiveLock);
+	rel = relation_open(uncommitted_tup->catalog_oid, RowExclusiveLock);
 
 	switch(uncommitted_tup->optype)
 	{
 		/* Peform the opposite operation as the saved optype. */
 		case ENR_OP_ADD:
-			_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_DROP, skip_cache_inval);
+			_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_DROP, skip_cache_inval, true);
 			break;
 		case ENR_OP_UPDATE:
-			ENRupdateTuple(rel, uncommitted_tup->tup);
+			_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_UPDATE, skip_cache_inval, true);
 			break;
 		case ENR_OP_DROP:
-			_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_ADD, skip_cache_inval);
+			_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_ADD, skip_cache_inval, true);
 			break;
 	}
-	relation_close(rel, AccessExclusiveLock);
+	relation_close(rel, RowExclusiveLock);
 }
 
 /*
@@ -1275,9 +1267,6 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 			continue;
 		}
 
-		/* ROLLBACK block. */
-		in_enr_rollback = true;
-
 		for (int i = 0; i < ENR_CATTUP_END; i++)
 		{
 			List *uncommitted_cattups = enr->md.uncommitted_cattups[i];
@@ -1290,8 +1279,6 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 				ENRRollbackUncommittedTuple(queryEnv, uncommitted_tup);
 			}
 		}
-
-		in_enr_rollback = false;
 
 		ENRDeleteUncommittedTupleData(InvalidSubTransactionId, enr);
 	}
@@ -1353,8 +1340,6 @@ void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEn
 			continue;
 		}
 
-		/* ROLLBACK block. */
-		in_enr_rollback = true;
 		for (int i = 0; i < ENR_CATTUP_END; i++)
 		{
 			List *uncommitted_cattups = enr->md.uncommitted_cattups[i];
@@ -1370,7 +1355,6 @@ void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEn
 				ENRRollbackUncommittedTuple(queryEnv, uncommitted_tup);
 			}
 		}
-		in_enr_rollback = false;
 
 		ENRDeleteUncommittedTupleData(subid, enr);
 	}
@@ -1466,7 +1450,7 @@ extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
 				*list_ptr = list_delete_ptr(*list_ptr, htup);
 
 				if (temp_table_xact_support)
-					ENRAddUncommittedTupleData(enr, catalog_oid, ENR_OP_DROP, htup);
+					ENRAddUncommittedTupleData(enr, catalog_oid, ENR_OP_DROP, htup, false);
 
 				CacheInvalidateHeapTuple(catalog_relation, htup, NULL);
 				heap_freetuple(htup); // heap_copytuple was called during ADD

@@ -148,6 +148,5 @@ extern bool ENRTupleIsDropped(Relation rel, HeapTuple tup);
 extern void ENRCommitChanges(QueryEnvironment *queryEnv);
 extern void ENRRollbackChanges(QueryEnvironment *queryEnv);
 extern void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEnv);
-extern bool ENRInRollback(void);
 
 #endif							/* QUERYENVIRONMENT_H */
