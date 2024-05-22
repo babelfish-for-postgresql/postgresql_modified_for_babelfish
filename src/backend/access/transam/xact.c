@@ -627,7 +627,6 @@ AssignTransactionId(TransactionState s)
 
 	/* Assert that caller didn't screw up */
 	Assert(!FullTransactionIdIsValid(s->fullTransactionId));
-
 	Assert(s->state == TRANS_INPROGRESS);
 
 	if (AbortCurTransaction)
