@@ -146,6 +146,8 @@ register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 
 	if (enr->md.name[0] == '#')
 		enr->md.is_bbf_temp_table = true;
+	else
+		enr->md.is_bbf_temp_table = false;
 
 	if (enr->md.is_bbf_temp_table && GetCurrentSubTransactionId() != InvalidSubTransactionId)
 		enr->md.created_subid = GetCurrentSubTransactionId();
