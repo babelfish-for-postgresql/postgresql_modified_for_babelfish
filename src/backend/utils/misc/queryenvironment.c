@@ -758,6 +758,9 @@ ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOpera
 		case SequenceRelationId:
 			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_SEQUENCE];
 			break;
+		case AttrDefaultRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_ATTR_DEF_REL];
+			break;
 		default:
 			/* Shouldn't reach here */
 			elog(ERROR, "Did not find matching ENR catalog entry for catoid %d", catoid);
