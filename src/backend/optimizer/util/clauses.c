@@ -3281,13 +3281,9 @@ eval_const_expressions_mutator(Node *node,
 					 * are evaluated at runtime. Hence, skipping eval_const_expressions_mutator()
 					 * at this step.
 					 */
-					if (sql_dialect == SQL_DIALECT_TSQL && !coalesceexpr->tsql_is_null)
-					{
+					if (sql_dialect == SQL_DIALECT_TSQL && !coalesceexpr->tsql_is_null 
+						&& lfirst(arg) != NULL && ((Node *) lfirst(arg))->type == T_CoerceViaIO)
 						e = (Node *) lfirst(arg);
-						if (e->type != T_CoerceViaIO)
-							e = eval_const_expressions_mutator((Node *) lfirst(arg),
-													   			context);
-					}
 					else
 						e = eval_const_expressions_mutator((Node *) lfirst(arg),
 													   		context);
