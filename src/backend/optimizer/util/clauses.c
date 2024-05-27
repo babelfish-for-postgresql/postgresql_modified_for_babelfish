@@ -3278,7 +3278,7 @@ eval_const_expressions_mutator(Node *node,
 
 					/*
 					 * T-SQL Coalesce is handled differently, constant expressions
-					 * are evaluated at the runtime. Hence, skipping eval_const_expressions_mutator()
+					 * are evaluated at runtime. Hence, skipping eval_const_expressions_mutator()
 					 * at this step.
 					 */
 					if (sql_dialect == SQL_DIALECT_TSQL && !coalesceexpr->tsql_is_null)
