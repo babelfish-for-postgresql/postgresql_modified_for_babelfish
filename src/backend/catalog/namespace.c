@@ -371,8 +371,11 @@ RangeVarGetRelidExtended(const RangeVar *relation, LOCKMODE lockmode,
 		 * this relation earlier in the processing of this same statement, so
 		 * it wouldn't be appropriate to AcceptInvalidationMessages() here, as
 		 * that might pull the rug out from under them.
+		 * 
+		 * Also skip locking/invalidation for ENR temp tables, since they are completely
+		 * session-local and don't need to know about inval message from other sessions.
 		 */
-		if (lockmode == NoLock)
+		if (lockmode == NoLock || get_ENR_withoid(currentQueryEnv, relId, ENR_TSQL_TEMP))
 			break;
 
 		/*
