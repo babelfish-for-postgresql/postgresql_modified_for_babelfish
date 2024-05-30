@@ -40,6 +40,7 @@
 #include "optimizer/plancat.h"
 #include "optimizer/planmain.h"
 #include "parser/analyze.h"
+#include "parser/parser.h"
 #include "parser/parse_agg.h"
 #include "parser/parse_coerce.h"
 #include "parser/parse_func.h"
@@ -3134,8 +3135,17 @@ eval_const_expressions_mutator(Node *node,
 				{
 					Node	   *e;
 
-					e = eval_const_expressions_mutator((Node *) lfirst(arg),
-													   context);
+					/*
+					 * T-SQL Coalesce is handled differently, constant expressions
+					 * are evaluated at runtime. Hence, skipping eval_const_expressions_mutator()
+					 * at this step.
+					 */
+					if (sql_dialect == SQL_DIALECT_TSQL && !coalesceexpr->tsql_is_null 
+						&& lfirst(arg) != NULL && ((Node *) lfirst(arg))->type == T_CoerceViaIO)
+						e = (Node *) lfirst(arg);
+					else
+						e = eval_const_expressions_mutator((Node *) lfirst(arg),
+													   		context);
 
 					/*
 					 * We can remove null constants from the list. For a
