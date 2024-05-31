@@ -1391,8 +1391,8 @@ static bool
 hasSqlvariantColumn(TableInfo *tbinfo)
 {
 	for (int i = 0; i < tbinfo->numatts; i++)
-		if (pg_strcasecmp(tbinfo->atttypnames[i],
-				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
+		if (strstr(tbinfo->atttypnames[i],
+				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant"))
 					return true;
 	return false;
 }
