@@ -194,22 +194,20 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 			return false;
 	}
 
+
+	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(rel))
+		pg_toast_prefix = "@pg_toast";
 	/*
 	 * Create the toast table and its index
 	 */
-	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTempTable(rel))
+	else if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTempTable(rel))
 		pg_toast_prefix = "#pg_toast";
-	else
-	{
-		/*
-		* If requested check lockmode is sufficient. This is a cross check in
-		* case of errors or conflicting decisions in earlier code.
-		*/
-		if (check && lockmode != AccessExclusiveLock)
-			elog(ERROR, "AccessExclusiveLock required to add toast table.");
-		if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(rel))
-			pg_toast_prefix = "@pg_toast";
-	}
+	/*
+	* If requested check lockmode is sufficient. This is a cross check in
+	* case of errors or conflicting decisions in earlier code.
+	*/
+	else if (check && lockmode != AccessExclusiveLock)
+		elog(ERROR, "AccessExclusiveLock required to add toast table.");
 
 	snprintf(toast_relname, sizeof(toast_relname),
 			 "%s_%u", pg_toast_prefix, relOid);
