@@ -1458,7 +1458,7 @@ RemoveRelations(DropStmt *drop)
 		Oid			relOid;
 		ObjectAddress obj;
 		struct DropRelationCallbackState state;
-		LOCKMODE	lm = (sql_dialect == SQL_DIALECT_TSQL && rel->relname[0] == '#') ? AccessShareLock : lockmode;
+		LOCKMODE	lm = (sql_dialect == SQL_DIALECT_TSQL && rel->relname[0] == '#') ? NoLock : lockmode;
 
 		/*
 		 * These next few steps are a great deal like relation_openrv, but we

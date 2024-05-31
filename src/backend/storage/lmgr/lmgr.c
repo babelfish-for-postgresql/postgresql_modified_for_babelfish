@@ -27,6 +27,7 @@
 #include "storage/procarray.h"
 #include "storage/sinvaladt.h"
 #include "utils/inval.h"
+#include "utils/queryenvironment.h"
 
 
 /*
@@ -111,6 +112,9 @@ LockRelationOid(Oid relid, LOCKMODE lockmode)
 	LOCKTAG		tag;
 	LOCALLOCK  *locallock;
 	LockAcquireResult res;
+
+	if (get_ENR_withoid(currentQueryEnv, relid, ENR_TSQL_TEMP) && lockmode == NoLock)
+		return;
 
 	SetLocktagRelationOid(&tag, relid);
 
@@ -247,6 +251,9 @@ LockRelation(Relation relation, LOCKMODE lockmode)
 	LOCKTAG		tag;
 	LOCALLOCK  *locallock;
 	LockAcquireResult res;
+
+	if (RelationisBBFTempTable(relation) && lockmode == NoLock)
+		return;
 
 	SET_LOCKTAG_RELATION(tag,
 						 relation->rd_lockInfo.lockRelId.dbId,

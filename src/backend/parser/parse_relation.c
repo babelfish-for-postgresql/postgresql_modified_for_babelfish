@@ -1602,14 +1602,15 @@ addRangeTableEntryForRelation(ParseState *pstate,
 	RangeTblEntry *rte = makeNode(RangeTblEntry);
 	RTEPermissionInfo *perminfo;
 	char	   *refname = alias ? alias->aliasname : RelationGetRelationName(rel);
+	bool		is_enr = RelationIsBBFTempTable(rel);
 
 	Assert(pstate != NULL);
 
 	Assert(lockmode == AccessShareLock ||
 		   lockmode == RowShareLock ||
-		   lockmode == RowExclusiveLock);
-	Assert(CheckRelationLockedByMe(rel, lockmode, true) ||
-		   RelationIsBBFTempTable(rel));
+		   lockmode == RowExclusiveLock ||
+		   (lockmode == NoLock && is_enr));
+	Assert(CheckRelationLockedByMe(rel, lockmode, true) || is_enr);
 
 	rte->rtekind = RTE_RELATION;
 	rte->alias = alias;

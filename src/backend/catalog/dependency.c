@@ -1569,8 +1569,13 @@ AcquireDeletionLock(const ObjectAddress *object, int flags)
 {
 	if (object->classId == RelationRelationId)
 	{
-		if (flags & PERFORM_DELETION_CONCURRENT_LOCK)
-			LockRelationOid(object->objectId, AccessShareLock);
+		/*
+		 * ENR tables don't need locks since they are completely session-local.
+		 */
+		if (flags & PERFORM_DELETION_CONCURRENT_LOCK && 
+			get_ENR_withoid(currentQueryEnv, object->objectId, ENR_TSQL_TEMP))
+			LockRelationOid(object->objectId, NoLock);
+
 		/*
 		 * In DROP INDEX CONCURRENTLY, take only ShareUpdateExclusiveLock on
 		 * the index for the moment.  index_drop() will promote the lock once

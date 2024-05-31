@@ -80,7 +80,7 @@ NewRelationCreateToastTable(Oid relOid, Datum reloptions)
 void
 NewTsqlTempTableCreateToastTable(Oid relOid, Datum reloptions)
 {
-	CheckAndCreateToastTable(relOid, reloptions, AccessShareLock, false, InvalidOid);
+	CheckAndCreateToastTable(relOid, reloptions, NoLock, false, InvalidOid);
 }
 
 static void

@@ -1926,9 +1926,9 @@ heap_drop_with_catalog(Oid relid)
 	ReleaseSysCache(tuple);
 
 	/*
-	 * Open and lock the relation.
+	 * Open and lock the relation. Skip locks for ENR tables since they are session-local.
 	 */
-	rel = relation_open(relid, is_enr ? AccessShareLock : AccessExclusiveLock);
+	rel = relation_open(relid, is_enr ? NoLock : AccessExclusiveLock);
 
 	if (drop_relation_refcnt_hook)
 		drop_relation_refcnt_hook(rel);
