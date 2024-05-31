@@ -1602,7 +1602,7 @@ addRangeTableEntryForRelation(ParseState *pstate,
 	RangeTblEntry *rte = makeNode(RangeTblEntry);
 	RTEPermissionInfo *perminfo;
 	char	   *refname = alias ? alias->aliasname : RelationGetRelationName(rel);
-	bool		is_enr = RelationIsBBFTempTable(rel);
+	bool		is_enr = RelationIsENRTable(rel);
 
 	Assert(pstate != NULL);
 

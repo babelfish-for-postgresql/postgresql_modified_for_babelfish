@@ -69,7 +69,7 @@ relation_open(Oid relationId, LOCKMODE lockmode)
 	Assert(lockmode != NoLock ||
 		   IsBootstrapProcessingMode() ||
 		   CheckRelationLockedByMe(r, AccessShareLock, true) ||
-		   RelationIsBBFTempTable(r));
+		   RelationIsENRTable(r));
 
 	/* Make note that we've accessed a temporary relation */
 	if (RelationUsesLocalBuffers(r))

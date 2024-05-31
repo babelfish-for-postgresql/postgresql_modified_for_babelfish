@@ -252,7 +252,7 @@ LockRelation(Relation relation, LOCKMODE lockmode)
 	LOCALLOCK  *locallock;
 	LockAcquireResult res;
 
-	if (RelationisBBFTempTable(relation) && lockmode == NoLock)
+	if (RelationIsENRTable(relation) && lockmode == NoLock)
 		return;
 
 	SET_LOCKTAG_RELATION(tag,

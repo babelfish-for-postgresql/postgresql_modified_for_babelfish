@@ -194,14 +194,15 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 			return false;
 	}
 
-
-	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(rel))
-		pg_toast_prefix = "@pg_toast";
-	/*
-	 * Create the toast table and its index
-	 */
-	else if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTempTable(rel))
-		pg_toast_prefix = "#pg_toast";
+	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsENRTable(rel))
+	{
+		if (rel->rd_rel->relname.data && rel->rd_rel->relname.data[0] == '@')
+			pg_toast_prefix = "@pg_toast";
+		else if (rel->rd_rel->relname.data && rel->rd_rel->relname.data[0] == '#')
+			pg_toast_prefix = "#pg_toast";
+		else
+			elog(ERROR, "unrecognized ENR table %s", rel->rd_rel->relname.data);
+	}
 	/*
 	* If requested check lockmode is sufficient. This is a cross check in
 	* case of errors or conflicting decisions in earlier code.

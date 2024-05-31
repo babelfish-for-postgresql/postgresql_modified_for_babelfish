@@ -715,13 +715,9 @@ extern void RelationDecrementReferenceCount(Relation rel);
 	 strlen((relation)->rd_rel->relname.data) >= 1 && \
 	 (relation)->rd_rel->relname.data[0] == '@')
 
-#define RelationIsBBFTempTable(relation) \
+#define RelationIsENRTable(relation) \
 	((relation)->rd_islocaltemp && \
 	 (relation)->rd_rel->relpersistence == RELPERSISTENCE_TEMP && \
-	 ((relation)->rd_rel->relkind == RELKIND_RELATION || (relation)->rd_rel->relkind == RELKIND_SEQUENCE) && \
-	 (relation)->rd_rel->relname.data && \
-	 strlen((relation)->rd_rel->relname.data) >= 1 && \
-	 ((relation)->rd_rel->relname.data[0] == '#' || (relation)->rd_rel->relname.data[0] == '@') && \
 	 get_ENR_withoid(currentQueryEnv, (relation)->rd_id, ENR_TSQL_TEMP))
 
 #endif							/* REL_H */
