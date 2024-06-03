@@ -33,6 +33,7 @@
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
+#include "utils/guc.h"
 #include "utils/lsyscache.h"
 #include "utils/queryenvironment.h"
 #include "utils/rel.h"
@@ -181,7 +182,7 @@ CreateConstraintEntry(const char *constraintName,
 		is_enr = get_ENR_withoid(currentQueryEnv, relId, ENR_TSQL_TEMP);
 	}
 
-	if (is_enr && GetNewTempOidWithIndex_hook)
+	if (is_enr && GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0)
 		conOid = GetNewTempOidWithIndex_hook(conDesc, ConstraintOidIndexId,
 									Anum_pg_constraint_oid);
 	else
