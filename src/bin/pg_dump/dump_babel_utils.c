@@ -1483,19 +1483,19 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 			quote_all_identifiers ? "\"sys\".\"sql_variant\"[]" : "sys.sql_variant[]") == 0) /* array of sql_variant */
 		{
 			/*
-			 * We need additional handling for array of sql_variant because each values in the
-			 * array will have different basetype and bytelength. Here instead of adding a normal
-			 * column for basetype and bytelength as extra columns, we will add array of it which
-			 * will be constructed by invoking sys.sql_variant_property and sys.datalength function
-			 * on each values of the array.
+			 * We need additional handling for an array of sql_variant because each value in the
+			 * array will have a different base type and byte length. Here, instead of adding normal
+			 * columns for base type and byte length as extra columns, we will add arrays of them which
+			 * will be constructed by invoking the sys.sql_variant_property and sys.datalength functions
+			 * on each value of the array.
 			 */
 			appendPQExpBufferStr(buf, ", (SELECT array_agg(sys.SQL_VARIANT_PROPERTY(t1, 'BaseType')) FROM unnest(");
-			if (is_catalog_table) /* qualify the column names with table alias if it is a Babelfish catalog table */
+			if (is_catalog_table) /* qualify the column names with table alias if it is a babelfish catalog table */
 				appendPQExpBufferStr(buf, "a.");
 			appendPQExpBuffer(buf, "%s) AS t1)", fmtId(tbinfo->attnames[i]));
 
 			appendPQExpBufferStr(buf, ", (SELECT array_agg(sys.datalength(t2)) FROM unnest(");
-			if (is_catalog_table) /* qualify the column names with table alias if it is a Babelfish catalog table */
+			if (is_catalog_table) /* qualify the column names with table alias if it is a babelfish catalog table */
 				appendPQExpBufferStr(buf, "a.");
 			appendPQExpBuffer(buf, "%s) AS t2)", fmtId(tbinfo->attnames[i]));
 			appendPQExpBuffer(buf, ", 1"); /* to indicate if it is array or not */
@@ -1518,7 +1518,7 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 static void
 castSqlvariantToBasetypeHelper(Archive *fout, char *value, char *type, int datalength)
 {
-	PQExpBuffer q; = createPQExpBuffer();
+	PQExpBuffer q;
 	int precision;
 	int scale;
 	int i;
