@@ -1459,12 +1459,9 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 		 * the select cursor query so that they do not interfere with
 		 * expected dump behaviour.
 		 */
-		if (strstr(tbinfo->atttypnames[i],
-			quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant"))
+		if (pg_strcasecmp(tbinfo->atttypnames[i],
+			quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
 		{
-			/* to handle the array of sql_variant */
-			bool is_array_type = (strstr(tbinfo->atttypnames[i], "[]") != NULL);
-
 			/*
 			 * We need to qualify the column names with table alias 'a' if it is a
 			 * Babelfish catalog table to match the convention of fixCursorForBbfCatalogTableData
@@ -1473,14 +1470,35 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 			appendPQExpBufferStr(buf, ", sys.SQL_VARIANT_PROPERTY(");
 			if (is_catalog_table)
 				appendPQExpBufferStr(buf, "a.");
-			/* in case of array of sql_variant, find the basetype using the first element of the array */
-			appendPQExpBuffer(buf, "%s%s, 'BaseType')", fmtId(tbinfo->attnames[i]), is_array_type ? "[1]" : "");
+			appendPQExpBuffer(buf, "%s, 'BaseType')", fmtId(tbinfo->attnames[i]));
 			appendPQExpBufferStr(buf, ", sys.datalength(");
 			if (is_catalog_table)
 				appendPQExpBufferStr(buf, "a.");
-			/* in case of array of sql_variant, find the datalength using the first element of the array */
-			appendPQExpBuffer(buf, "%s%s)", fmtId(tbinfo->attnames[i]), is_array_type ? "[1]" : "");
-			appendPQExpBuffer(buf, ", %d", is_array_type); /* extra column to indicate if it is array or not */
+			appendPQExpBuffer(buf, "%s)", fmtId(tbinfo->attnames[i]));
+			appendPQExpBuffer(buf, ", 0"); /* to indicate if it is array or not */
+			(*sqlvar_metadata_pos)[orig_nfields] = nfields;
+			nfields = nfields + 3;
+		}
+		else if (pg_strcasecmp(tbinfo->atttypnames[i],
+			quote_all_identifiers ? "\"sys\".\"sql_variant\"[]" : "sys.sql_variant[]") == 0) /* array of sql_variant */
+		{
+			/*
+			 * We need additional handling for array of sql_variant because each values in the
+			 * array will have different basetype and bytelength. Here instead of adding a normal
+			 * column for basetype and bytelength as extra columns, we will add array of it which
+			 * will be constructed by invoking sys.sql_variant_property and sys.datalength function
+			 * on each values of the array.
+			 */
+			appendPQExpBufferStr(buf, ", (SELECT array_agg(sys.SQL_VARIANT_PROPERTY(t1, 'BaseType')) FROM unnest(");
+			if (is_catalog_table) /* qualify the column names with table alias if it is a Babelfish catalog table */
+				appendPQExpBufferStr(buf, "a.");
+			appendPQExpBuffer(buf, "%s) AS t1)", fmtId(tbinfo->attnames[i]));
+
+			appendPQExpBufferStr(buf, ", (SELECT array_agg(sys.datalength(t2)) FROM unnest(");
+			if (is_catalog_table) /* qualify the column names with table alias if it is a Babelfish catalog table */
+				appendPQExpBufferStr(buf, "a.");
+			appendPQExpBuffer(buf, "%s) AS t2)", fmtId(tbinfo->attnames[i]));
+			appendPQExpBuffer(buf, ", 1"); /* to indicate if it is array or not */
 			(*sqlvar_metadata_pos)[orig_nfields] = nfields;
 			nfields = nfields + 3;
 		}
@@ -1492,31 +1510,21 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 }
 
 /*
- * castSqlvariantToBasetype:
- * Modify INSERT query in dump file by adding a CAST expression for a sql_variant
- * column data entry in order to preserve the metadata of data type otherwise
- * lost during restore.
+ * castSqlvariantToBasetypeHelper:
+ * This is helper function which modifies the sql_variant data in the dump file by adding
+ * explicit cast to its basetype in order to preserve the metadata of data type by using the
+ * provided information of type abd datalength. 
  */
-void
-castSqlvariantToBasetype(PGresult *res,
-						Archive *fout,
-						int row, /* row number */
-						int field, /* column number */
-						int sqlvariant_pos) /* position of columns with metadata of sql_variant column at field */
+static void
+castSqlvariantToBasetypeHelper(Archive *fout, char *value, char *type, int datalength)
 {
-	PQExpBuffer q;
-	char* value = PQgetvalue(res, row, field);
-	char* type = PQgetvalue(res, row, sqlvariant_pos);
-	int datalength = atoi(PQgetvalue(res, row, sqlvariant_pos + 1));
-	bool is_array_type = atoi(PQgetvalue(res, row, sqlvariant_pos + 2));
+	PQExpBuffer q; = createPQExpBuffer();
 	int precision;
 	int scale;
 	int i;
 
 	q = createPQExpBuffer();
-	appendStringLiteralAH(q,
-				PQgetvalue(res, row, field),
-								fout);
+	appendStringLiteralAH(q, value, fout);
 	archprintf(fout, "CAST(%s AS ", q->data);
 	/* data types defined in sys schema should be handled separately */
 	if (!pg_strcasecmp(type, "datetime") || !pg_strcasecmp(type, "datetimeoffset")
@@ -1579,13 +1587,59 @@ castSqlvariantToBasetype(PGresult *res,
 	}
 	else
 		archprintf(fout, "%s",type);
-	
-	/* in case of array type, base type will be type[] */
-	if (is_array_type)
-		archprintf(fout, "[]");
-
 	archputs(")", fout);
 	destroyPQExpBuffer(q);
+}
+
+/*
+ * castSqlvariantToBasetype:
+ * Modify INSERT query in dump file by adding a CAST expression for a sql_variant
+ * column data entry in order to preserve the metadata of data type otherwise
+ * lost during restore.
+ */
+void
+castSqlvariantToBasetype(PGresult *res,
+						Archive *fout,
+						int row, /* row number */
+						int field, /* column number */
+						int sqlvariant_pos) /* position of columns with metadata of sql_variant column at field */
+{
+	char* value = PQgetvalue(res, row, field);
+	char* type = PQgetvalue(res, row, sqlvariant_pos);
+	char* datalength = PQgetvalue(res, row, sqlvariant_pos + 1);
+	bool is_array = atoi(PQgetvalue(res, row, sqlvariant_pos + 2));
+
+	if (!is_array)
+	{
+		castSqlvariantToBasetypeHelper(fout, value, type, atoi(datalength));
+	}
+	else /* array of sql_variant */
+	{
+		char **value_items = NULL;
+		char **datalength_items = NULL;
+		char **type_items = NULL;
+		int nitems = 0;
+		
+		/* deconstruct the array into individual items */
+		parsePGArray(value, &value_items, &nitems);
+		parsePGArray(type, &type_items, &nitems);
+		parsePGArray(datalength, &datalength_items, &nitems);
+
+		/* dump array constructor */
+		archputs("array[", fout);
+		for (int i = 0; i < nitems; i++)
+		{
+			/* dump each values after adding explicit cast to basetype */
+			castSqlvariantToBasetypeHelper(fout, value_items[i], type_items[i], atoi(datalength_items[i]));
+			if (i != nitems - 1)
+				archputs(", ", fout);
+		}
+		archputs("]", fout);
+
+		free(value_items);
+		free(datalength_items);
+		free(type_items);
+	}
 }
 
 /*
