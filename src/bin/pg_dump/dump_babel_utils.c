@@ -1032,7 +1032,8 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	partition_scheme_table = findTableByOid(atooid(PQgetvalue(res, 4, 0)));
 	schema_perms_table = findTableByOid(atooid(PQgetvalue(res, 5, 0)));
 	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 6, 0)));
-	Assert(sysdb_table != NULL && namespace_ext_table != NULL && extprop_table != NULL && schema_perms_table != NULL);
+	Assert(sysdb_table != NULL && namespace_ext_table != NULL && extprop_table != NULL && schema_perms_table != NULL 
+			&& partition_depend_table != NULL && partition_function_table != NULL && partition_scheme_table != NULL);
 	refdobj = (DumpableObject *) sysdb_table->dataObj;
 	/*
 	 * Make babelfish_schema_permissions, babelfish_namespace_ext, babelfish_extended_properties,
@@ -1452,15 +1453,18 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 			continue;
 
 		/*
-			* To find the basetype and bytelength of string data types we
-			* invoke sys.sql_variant_property and sys.datalength function on
-			* the sqlvariant column. These extra columns are added at the end of
-			* the select cursor query so that they do not interfere with
-			* expected dump behaviour.
-		*/
-		if (pg_strcasecmp(tbinfo->atttypnames[i],
-			quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
+		 * To find the basetype and bytelength of string data types we
+		 * invoke sys.sql_variant_property and sys.datalength function on
+		 * the sqlvariant column. These extra columns are added at the end of
+		 * the select cursor query so that they do not interfere with
+		 * expected dump behaviour.
+		 */
+		if (strstr(tbinfo->atttypnames[i],
+			quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant"))
 		{
+			/* to handle the array of sql_variant */
+			bool is_array_type = (strstr(tbinfo->atttypnames[i], "[]") != NULL);
+
 			/*
 			 * We need to qualify the column names with table alias 'a' if it is a
 			 * Babelfish catalog table to match the convention of fixCursorForBbfCatalogTableData
@@ -1469,13 +1473,16 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 			appendPQExpBufferStr(buf, ", sys.SQL_VARIANT_PROPERTY(");
 			if (is_catalog_table)
 				appendPQExpBufferStr(buf, "a.");
-			appendPQExpBuffer(buf, "%s, 'BaseType')", fmtId(tbinfo->attnames[i]));
+			/* in case of array of sql_variant, find the basetype using the first element of the array */
+			appendPQExpBuffer(buf, "%s%s, 'BaseType')", fmtId(tbinfo->attnames[i]), is_array_type ? "[1]" : "");
 			appendPQExpBufferStr(buf, ", sys.datalength(");
 			if (is_catalog_table)
 				appendPQExpBufferStr(buf, "a.");
-			appendPQExpBuffer(buf, "%s)", fmtId(tbinfo->attnames[i]));
+			/* in case of array of sql_variant, find the datalength using the first element of the array */
+			appendPQExpBuffer(buf, "%s%s)", fmtId(tbinfo->attnames[i]), is_array_type ? "[1]" : "");
+			appendPQExpBuffer(buf, ", %d", is_array_type); /* extra column to indicate if it is array or not */
 			(*sqlvar_metadata_pos)[orig_nfields] = nfields;
-			nfields = nfields + 2;
+			nfields = nfields + 3;
 		}
 		orig_nfields++;
 	}
@@ -1501,6 +1508,7 @@ castSqlvariantToBasetype(PGresult *res,
 	char* value = PQgetvalue(res, row, field);
 	char* type = PQgetvalue(res, row, sqlvariant_pos);
 	int datalength = atoi(PQgetvalue(res, row, sqlvariant_pos + 1));
+	bool is_array_type = atoi(PQgetvalue(res, row, sqlvariant_pos + 2));
 	int precision;
 	int scale;
 	int i;
@@ -1571,6 +1579,11 @@ castSqlvariantToBasetype(PGresult *res,
 	}
 	else
 		archprintf(fout, "%s",type);
+	
+	/* in case of array type, base type will be type[] */
+	if (is_array_type)
+		archprintf(fout, "[]");
+
 	archputs(")", fout);
 	destroyPQExpBuffer(q);
 }
