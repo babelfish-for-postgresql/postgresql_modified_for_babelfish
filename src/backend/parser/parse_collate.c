@@ -836,10 +836,19 @@ merge_collation_state(Oid collation,
 					 */
 					if (context->collation == CLUSTER_COLLATION_OID())
 					{
-						/* Override previous parent state */
-						context->collation = collation;
-						context->strength = strength;
-						context->location = location;
+						if (sql_dialect == SQL_DIALECT_TSQL)
+						{
+							context->strength = COLLATE_CONFLICT;
+							context->collation2 = collation;
+							context->location2 = location;
+						}
+						else
+						{	
+							/* Override previous parent state */
+							context->collation = collation;
+							context->strength = strength;
+							context->location = location;
+						}
 					}
 					else if (collation != CLUSTER_COLLATION_OID())
 					{
