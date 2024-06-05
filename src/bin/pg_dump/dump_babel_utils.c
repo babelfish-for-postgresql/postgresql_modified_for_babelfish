@@ -1207,6 +1207,8 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 	bool	is_builtin_db = false;
 	bool	is_bbf_usr_ext_tab = false;
 	bool	is_bbf_sysdatabases_tab = false;
+	bool	is_bbf_partition_function_tab = false;
+	bool	is_bbf_partition_scheme_tab = false;
 	bool	has_sqlv_col = hasSqlvariantColumn(tbinfo);
 
 	/* Return if the table is not a Babelfish configuration table. */
@@ -1219,11 +1221,20 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 				pg_strcasecmp(bbf_db_name, "msdb") == 0)
 				? true : false;
 
-	/* Remember if it is babelfish_authid_user_ext and babelfish_sysdatabases catalog table. */
+	/* 
+	 * Remember if it is babelfish_authid_user_ext, babelfish_sysdatabases,
+	 * babelfish_partition_function and babelfish_partition_scheme catalog table
+	 * because these catalog tables contain generated IDs which should not be dumped
+	 * for logical database.
+	 */
 	if (strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 		is_bbf_usr_ext_tab = true;
 	if (strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0)
 		is_bbf_sysdatabases_tab = true;
+	if (strcmp(tbinfo->dobj.name, "babelfish_partition_function") == 0)
+		is_bbf_partition_function_tab = true;
+	if (strcmp(tbinfo->dobj.name, "babelfish_partition_scheme") == 0)
+		is_bbf_partition_scheme_tab = true;
 
 	resetPQExpBuffer(buf);
 	appendPQExpBufferStr(buf, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
@@ -1241,7 +1252,11 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 		 * dbids are fixed for builtin databases.
 		 */
 		if (bbf_db_name != NULL && !is_builtin_db && strcmp(tbinfo->attnames[i], "dbid") == 0)
+		{
+			/* also mark this column as dropped */
+			tbinfo->attisdropped[i] = true;
 			continue;
+		}
 		/*
 		 * We need to skip owner column of babelfish_sysdatabases table as it might be
 		 * referencing Babelfish initialize user which we do not include in dump. We will
@@ -1249,6 +1264,26 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 		 */
 		else if (is_bbf_sysdatabases_tab && strcmp(tbinfo->attnames[i], "owner") == 0)
 			continue;
+		/*
+		 * Skip function_id column of babelfish_partition_function catalog
+		 * for logical database dump, we will generate new function_id during restore.
+		 */
+		else if (bbf_db_name != NULL && is_bbf_partition_function_tab
+						&& (strcmp(tbinfo->attnames[i], "function_id") == 0))
+		{
+			/* also mark this column as dropped */
+			tbinfo->attisdropped[i] = true;
+			continue;
+		}
+		/*
+		 * Skip scheme_id column of babelfish_partition_scheme catalog
+		 * for logical database dump, we will generate new scheme_id during restore.
+		 */
+		else if (bbf_db_name != NULL && is_bbf_partition_scheme_tab
+						&& (strcmp(tbinfo->attnames[i], "scheme_id") == 0))
+		{
+			continue;
+		}
 		if (*nfields > 0)
 			appendPQExpBufferStr(buf, ", ");
 		/*
