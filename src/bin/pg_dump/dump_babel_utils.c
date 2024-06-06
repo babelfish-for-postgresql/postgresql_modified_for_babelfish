@@ -1279,11 +1279,9 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 		 * Skip scheme_id column of babelfish_partition_scheme catalog
 		 * for logical database dump, we will generate new scheme_id during restore.
 		 */
-		else if (bbf_db_name != NULL && is_bbf_partition_scheme_tab
-						&& (strcmp(tbinfo->attnames[i], "scheme_id") == 0))
-		{
+		else if (bbf_db_name != NULL && is_bbf_partition_scheme_tab && (strcmp(tbinfo->attnames[i], "scheme_id") == 0))
 			continue;
-		}
+
 		if (*nfields > 0)
 			appendPQExpBufferStr(buf, ", ");
 		/*
@@ -1323,6 +1321,7 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 	bool		needComma = false;
 	bool		is_bbf_usr_ext_tab = false;
 	bool		is_bbf_sysdatabases_tab = false;
+	bool		is_bbf_partition_scheme_tab = false;
 
 	/*
 	 * Return if not a Babelfish database, or if the table is not a Babelfish
@@ -1337,11 +1336,18 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 				pg_strcasecmp(bbf_db_name, "msdb") == 0)
 				? true : false;
 
-	/* Remember if it is babelfish_authid_user_ext and babelfish_sysdatabases catalog table. */
+	/* 
+	 * Remember if it is babelfish_authid_user_ext, babelfish_sysdatabases
+	 * and babelfish_partition_scheme catalog table
+	 * because these catalog tables contain generated IDs which should not be dumped
+	 * for logical database.
+	 */
 	if (strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 		is_bbf_usr_ext_tab = true;
 	if (strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0)
 		is_bbf_sysdatabases_tab = true;
+	if (strcmp(tbinfo->dobj.name, "babelfish_partition_scheme") == 0)
+		is_bbf_partition_scheme_tab = true;
 
 	q = createPQExpBuffer();
 	for (i = 0; i < tbinfo->numatts; i++)
@@ -1364,6 +1370,13 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 		 */
 		else if (is_bbf_sysdatabases_tab && strcmp(tbinfo->attnames[i], "owner") == 0)
 			continue;
+		/*
+		 * Skip scheme_id column of babelfish_partition_scheme catalog
+		 * for logical database dump, we will generate new scheme_id during restore.
+		 */
+		else if (bbf_db_name != NULL && is_bbf_partition_scheme_tab && (strcmp(tbinfo->attnames[i], "scheme_id") == 0))
+			continue;
+
 		if (needComma)
 			appendPQExpBufferStr(q, ", ");
 
