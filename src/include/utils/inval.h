@@ -36,7 +36,8 @@ extern void CommandEndInvalidationMessages(void);
 
 extern void CacheInvalidateHeapTuple(Relation relation,
 									 HeapTuple tuple,
-									 HeapTuple newtuple);
+									 HeapTuple newtuple,
+									 bool isEnr);
 
 extern void CacheInvalidateCatalog(Oid catalogId);
 
