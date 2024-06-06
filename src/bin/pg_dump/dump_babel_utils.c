@@ -1254,14 +1254,14 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 		if (is_bbf_sysdatabases_tab && strcmp(tbinfo->attnames[i], "owner") == 0)
 			continue;
 		/*
-		* 1. Skip dbid column for logical database dump, we will generate new 
-		*    database id during restore. We will still dump dbid for builtin 
-		*    databases since we don't need to regenerate it during restore as 
-		*    dbids are fixed for builtin databases.
-		* 2. Skip function_id and scheme_id column of babelfish_partition_function
-		*    and babelfish_partition_scheme catalog respectively for logical database dump,
-		*    we will generate new function_id and scheme_id during restore.
-		*/
+		 * 1. Skip dbid column for logical database dump, we will generate new 
+		 *    database id during restore. We will still dump dbid for builtin 
+		 *    databases since we don't need to regenerate it during restore as 
+		 *    dbids are fixed for builtin databases.
+		 * 2. Skip function_id and scheme_id column of babelfish_partition_function
+		 *    and babelfish_partition_scheme catalog respectively for logical database dump,
+		 *    we will generate new function_id and scheme_id during restore.
+		 */
 		else if (bbf_db_name != NULL)
 		{
 			if ((!is_builtin_db && strcmp(tbinfo->attnames[i], "dbid") == 0) || 
