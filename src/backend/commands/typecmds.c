@@ -2920,7 +2920,7 @@ AlterDomainDropConstraint(List *names, const char *constrName,
 	 * dependent plans get rebuilt.  Since this command doesn't change the
 	 * domain's pg_type row, that won't happen automatically; do it manually.
 	 */
-	CacheInvalidateHeapTuple(rel, tup, NULL);
+	CacheInvalidateHeapTuple(rel, tup, NULL, false);
 
 	ObjectAddressSet(address, TypeRelationId, domainoid);
 
@@ -3036,7 +3036,7 @@ AlterDomainAddConstraint(List *names, Node *newConstraint,
 	 * dependent plans get rebuilt.  Since this command doesn't change the
 	 * domain's pg_type row, that won't happen automatically; do it manually.
 	 */
-	CacheInvalidateHeapTuple(typrel, tup, NULL);
+	CacheInvalidateHeapTuple(typrel, tup, NULL, false);
 
 	ObjectAddressSet(address, TypeRelationId, domainoid);
 
