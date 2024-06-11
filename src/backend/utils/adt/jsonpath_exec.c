@@ -526,13 +526,27 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 			asjson;
 	col_path = NULL; col_type = NULL; strict = false; as = false; asjson = false;
 	token = strtok(col_info, " ");
+
+	if (strcmp(token, "strict") == 0)
+	{
+		strict = true;
+		if(strlen(token) == 6)
+			token = strtok(NULL, " ");
+		else
+			token = token + 5;
+	}
+	else if (strcmp(token, "lax") == 0)
+	{
+		strict = false;
+		if(strlen(token) == 3)
+			token = strtok(NULL, " ");
+		else
+			token = token + 2;
+	}
+
 	while (token != NULL)
 	{
-		if (strncmp(token, "strict", 6) == 0)
-			strict = true;
-		else if (strncmp(token, "lax", 3) == 0)
-			strict = false;
-		else if (col_path == NULL)
+		if (col_path == NULL)
 			col_path = token;
 		else if (col_type == NULL)
 			col_type = token;
@@ -543,7 +557,7 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 		token = strtok(NULL, " ");
 	}
 
-	if (strlen(col_type) >= 3) /* Get column size restriction, if it exists */
+	if (col_type && strlen(col_type) >= 3) /* Get column size restriction, if it exists */
 	{
 		token = strtok(col_type, "(");
 		if (token)
@@ -577,6 +591,14 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 
 	/* get tuple set using executeJsonPath */
 	jp = DatumGetJsonPathP(DirectFunctionCall1(jsonpath_in, CStringGetDatum(col_path)));
+
+	/*
+	 * In case where there is no space between 'strict/lax' and the column path
+	 * jsonpath_in will automatically set the header to strict. We need to change
+	 * the header to prevent unintended 'strict' calls to openjson
+	 */
+	if(!strict)
+		jp->header = JSONPATH_LAX + 1;
 
 	(void) executeJsonPath(jp, vars, jb, false, &found, false);
 
@@ -871,12 +893,13 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					{
 						found->list = list_make2(found->singleton, NULL);
 						found->singleton = NULL;
+						res = jperOk;
 					}
-					else if (!found->list)
-						found->list = list_make1(NULL); /* Since JsonValueList uses a NULL singleton as shortcut, need to manually insert null value into list */
-					else
+					else if (found->list)
+					{
 						found->list = lappend(found->list, NULL);
-					res = jperOk;
+						res = jperOk;
+					}
 				}
 			}
 			else if (unwrap && JsonbType(jb) == jbvArray)
