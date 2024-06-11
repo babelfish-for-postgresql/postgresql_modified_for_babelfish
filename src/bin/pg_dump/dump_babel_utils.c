@@ -983,10 +983,21 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade || fout->dopt->dataOnly)
 		return;
 
+	/* Get the OID of sys.babelfish_sysdatabases catalog */
+	res = ExecuteSqlQueryForSingleRow(fout, "SELECT oid FROM pg_class "
+									  "WHERE relname = 'babelfish_sysdatabases' "
+									  "AND relnamespace = 'sys'::regnamespace;");
+	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 0, 0)));
+
+	if (!sysdb_table || !sysdb_table->dataObj)
+		return;
+
+	PQclear(res);
 	query = createPQExpBuffer();
+	refdobj = (DumpableObject *) sysdb_table->dataObj;
+
 	/*
-	 * Get OIDs for following desired catalog tables:
-	 * sys.babelfish_sysdatabases
+	 * Now get the OIDs for following desired catalog tables:
 	 * sys.babelfish_namespace_ext
 	 * babelfish_extended_properties
 	 * babelfish_schema_permissions
@@ -994,32 +1005,12 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	appendPQExpBufferStr(query,
 						 "SELECT oid "
 						 "FROM pg_class "
-						 "WHERE relname in ('babelfish_sysdatabases', "
-						 "'babelfish_schema_permissions', 'babelfish_namespace_ext', "
+						 "WHERE relname in ('babelfish_schema_permissions', "
+						 "'babelfish_namespace_ext', "
 						 "'babelfish_extended_properties') "
 						 "AND relnamespace = 'sys'::regnamespace "
 						 "ORDER BY relname;");
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
-
-	/*
-	 * babelfish_sysdatabases, babelfish_namespace_ext and babelfish_extended_properties
-	 * catalogs are old enough that there must be atleast 3 rows returned.
-	 */
-	Assert(PQntuples(res) >= 3);
-
-	/* First iterate through all the rows to find out the OID of babelfish_sysdatabases table */
-	for (i = 0; i < PQntuples(res); i++)
-	{
-		TableInfo *tab = findTableByOid(atooid(PQgetvalue(res, i, 0)));
-
-		if (pg_strcasecmp(tab->dobj.name, "babelfish_sysdatabases") == 0)
-		{
-			sysdb_table = tab;
-			refdobj = (DumpableObject *) sysdb_table->dataObj;
-			break;
-		}
-	}
-	Assert(sysdb_table != NULL);
 
 	/*
 	 * Iterate through each row and find the corresponding catalog table by OID,
@@ -1031,8 +1022,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	{
 		TableInfo *tab = findTableByOid(atooid(PQgetvalue(res, i, 0)));
 
-		Assert(tab != NULL);
-		if (tab->dobj.catId.oid != sysdb_table->dobj.catId.oid)
+		if(tab && tab->dataObj)
 		{
 			DumpableObject *dobj = (DumpableObject *) tab->dataObj;
 			addObjectDependency(dobj, refdobj->dumpId);
