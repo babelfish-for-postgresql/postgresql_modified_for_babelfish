@@ -527,21 +527,21 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 	col_path = NULL; col_type = NULL; strict = false; as = false; asjson = false;
 	token = strtok(col_info, " ");
 
-	if (strcmp(token, "strict") == 0)
+	if (strncmp(token, "strict", 6) == 0)
 	{
 		strict = true;
 		if(strlen(token) == 6)
 			token = strtok(NULL, " ");
 		else
-			token = token + 5;
+			token = token + 6;
 	}
-	else if (strcmp(token, "lax") == 0)
+	else if (strncmp(token, "lax", 3) == 0)
 	{
 		strict = false;
 		if(strlen(token) == 3)
 			token = strtok(NULL, " ");
 		else
-			token = token + 2;
+			token = token + 3;
 	}
 
 	while (token != NULL)
