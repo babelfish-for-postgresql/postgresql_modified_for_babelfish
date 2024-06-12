@@ -83,7 +83,10 @@ extern ProtocolExtensionConfig default_protocol_config;
 extern PGDLLIMPORT struct ClientSocket *MyClientSocket;
 
 /* prototypes for functions in launch_backend.c */
-extern pid_t postmaster_child_launch(BackendType child_type, char *startup_data, size_t startup_data_len, struct ClientSocket *sock);
+extern pid_t postmaster_child_launch(BackendType child_type,
+									 char *startup_data,
+									 size_t startup_data_len,
+									 struct ClientSocket *client_sock);
 const char *PostmasterChildName(BackendType child_type);
 #ifdef EXEC_BACKEND
 extern void SubPostmasterMain(int argc, char *argv[]) pg_attribute_noreturn();
