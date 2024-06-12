@@ -486,8 +486,17 @@ tsql_openjson_with_get_subjsonb(PG_FUNCTION_ARGS)
 	vars = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum("{}"));
 	(void) executeJsonPath(jp, vars, jb, false, &found, false);
 
-	if (JsonValueListLength(&found) >= 1)
-		sub_jb = JsonbValueToJsonb(JsonValueListHead(&found));
+	if (JsonValueListLength(&found) >= 1) {
+		JsonbValue *jv = JsonValueListHead(&found);
+		/*
+		 * List may contain NULL values
+		 * Need to check before passing to JsonbValueToJsonb
+		 */
+		if(jv)
+			sub_jb = JsonbValueToJsonb(jv);
+		else
+			sub_jb = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum("null"));
+	}
 	else
 		sub_jb = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum("null"));
 
@@ -598,7 +607,7 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 	 * the header to prevent unintended 'strict' calls to openjson
 	 */
 	if(!strict)
-		jp->header = JSONPATH_LAX + 1;
+		jp->header |= JSONPATH_LAX;
 
 	(void) executeJsonPath(jp, vars, jb, false, &found, false);
 
@@ -893,13 +902,12 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					{
 						found->list = list_make2(found->singleton, NULL);
 						found->singleton = NULL;
-						res = jperOk;
 					}
 					else if (found->list)
-					{
 						found->list = lappend(found->list, NULL);
-						res = jperOk;
-					}
+					else
+						found->list = list_make1(NULL); /* Since JsonValueList uses a NULL singleton as shortcut, need to manually insert null value into list */
+					res = jperOk;
 				}
 			}
 			else if (unwrap && JsonbType(jb) == jbvArray)
