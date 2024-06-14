@@ -101,6 +101,7 @@ create_queryEnv2(MemoryContext cxt, bool top_level)
 void remove_queryEnv() {
 	MemoryContext			oldcxt;
 	QueryEnvironment		*tmp;
+	ListCell *lc;
 
 	/* We should never "free" top level query env as it's in stack memory. */
 	if (!currentQueryEnv || currentQueryEnv == topLevelQueryEnv)
@@ -108,6 +109,45 @@ void remove_queryEnv() {
 
 	tmp = currentQueryEnv->parentEnv;
 	oldcxt = MemoryContextSwitchTo(currentQueryEnv->memctx);
+
+	/* Clean up structures in currentQueryEnv */
+	foreach(lc, currentQueryEnv->dropped_namedRelList)
+	{
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+
+		for (int i = 0; i < ENR_CATTUP_END; i++)
+		{
+			List *uncommitted_cattups = enr->md.uncommitted_cattups[i];
+			ListCell *lc2;
+
+			foreach(lc2, uncommitted_cattups)
+			{
+				ENRUncommittedTuple uncommitted_tup = (ENRUncommittedTuple) lfirst(lc2);
+
+				heap_freetuple(uncommitted_tup->tup);
+			}
+		}
+
+		for (int i = 0; i < ENR_CATTUP_END; i++)
+		{
+			List *cattups = enr->md.cattups[i];
+			ListCell *lc2;
+
+			foreach(lc2, cattups)
+			{
+				HeapTuple tup = (HeapTuple) lfirst(lc2);
+
+				heap_freetuple(tup);
+			}
+		}
+
+		pfree(enr->md.name);
+		pfree(enr);
+	}
+
+	list_free(currentQueryEnv->dropped_namedRelList);
+	currentQueryEnv->dropped_namedRelList = NIL;
+
 	pfree(currentQueryEnv);
 	MemoryContextSwitchTo(oldcxt);
 
