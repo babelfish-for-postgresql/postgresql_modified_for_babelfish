@@ -36,6 +36,7 @@ static char *escaped_bbf_db_name = NULL;
 static int bbf_db_id = 0;
 static SimpleOidList catalog_table_include_oids = {NULL, NULL};
 static char *babel_init_user = NULL;
+static Oid pltsql_langid = InvalidOid;
 
 static char *getMinOid(Archive *fout);
 static void addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo);
@@ -88,21 +89,19 @@ getMinOid(Archive *fout)
 	return oid;
 }
 
-static char *
-getLanguageName(Archive *fout, Oid langid)
+static bool
+isPltsqlLanguageOid(Archive *fout, Oid langid)
 {
-	PQExpBuffer query;
-	PGresult   *res;
-	char	   *lanname;
+	if (!OidIsValid(pltsql_langid))
+	{
+		PGresult   *res;
 
-	query = createPQExpBuffer();
-	appendPQExpBuffer(query, "SELECT lanname FROM pg_language WHERE oid = %u", langid);
-	res = ExecuteSqlQueryForSingleRow(fout, query->data);
-	lanname = pg_strdup(PQgetvalue(res, 0, 0));
-	destroyPQExpBuffer(query);
-	PQclear(res);
+		res = ExecuteSqlQueryForSingleRow(fout, "SELECT oid FROM pg_language WHERE lanname = 'pltsql'");
+		pltsql_langid = atoi(PQgetvalue(res, 0, 0));
+		PQclear(res);
+	}
 
-	return lanname;
+	return OidIsValid(langid) && (pltsql_langid == langid);
 }
 
 /*
@@ -361,6 +360,10 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 				{
 					case RELKIND_VIEW:
 					{
+						/* Return early if the view is already marked not to be dumped */
+						if (tbinfo->dobj.dump == DUMP_COMPONENT_NONE)
+							return;
+
 						/*
 						 * There is special case with sysdatabases view,
 						 * we will not dump this view only when it's in default
@@ -412,7 +415,8 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 			{
 				NamespaceInfo *nsinfo = (NamespaceInfo *) dobj;
 
-				if (fout->dopt->binary_upgrade)
+				/* Return early if it is binary upgrade or the schema is already marked not to be dumped */
+				if (fout->dopt->binary_upgrade || nsinfo->dobj.dump == DUMP_COMPONENT_NONE)
 					return;
 
 				/*
@@ -439,7 +443,8 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 			{
 				ExtensionInfo *extinfo = (ExtensionInfo *) dobj;
 
-				if (fout->dopt->binary_upgrade)
+				/* Return early if it is binary upgrade or the extension is already marked not to be dumped */
+				if (fout->dopt->binary_upgrade || extinfo->dobj.dump == DUMP_COMPONENT_NONE)
 					return;
 
 				if (strncmp(extinfo->dobj.name, "babelfishpg", 11) == 0)
@@ -449,7 +454,9 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 		case DO_FUNC:
 			{
 				FuncInfo *finfo = (FuncInfo *) dobj;
-				if (fout->dopt->binary_upgrade)
+
+				/* Return early if it is binary upgrade or the function is already marked not to be dumped */
+				if (fout->dopt->binary_upgrade || finfo->dobj.dump == DUMP_COMPONENT_NONE)
 					return;
 
 				/* Just skip if it's a system function/procedure */
@@ -518,7 +525,6 @@ fixTsqlTableTypeDependency(Archive *fout, DumpableObject *dobj, DumpableObject *
 	FuncInfo  *funcInfo;
 	TypeInfo  *typeInfo;
 	TableInfo *tytable;
-	char	  *lanname;
 
 	if (!isBabelfishDatabase(fout))
 		return;
@@ -540,17 +546,11 @@ fixTsqlTableTypeDependency(Archive *fout, DumpableObject *dobj, DumpableObject *
 	else
 		return;
 
-	lanname = getLanguageName(fout, funcInfo->lang);
-
 	/* skip auto-generated array types and non-pltsql functions */
 	if (typeInfo->isArray ||
 		!OidIsValid(typeInfo->typrelid) ||
-		strcmp(lanname, "pltsql") != 0)
-	{
-		free(lanname);
+		!isPltsqlLanguageOid(fout, funcInfo->lang))
 		return;
-	}
-	free(lanname);
 
 	tytable = findTableByOid(typeInfo->typrelid);
 
@@ -624,30 +624,17 @@ fixOprRegProc(Archive *fout,
 bool
 isTsqlTableType(Archive *fout, const TableInfo *tbinfo)
 {
-	Oid			pg_type_oid;
+	Oid			pg_type_oid = tbinfo->reltype;
 	PQExpBuffer query;
 	PGresult	*res;
 	int			ntups;
 
-	if(!isBabelfishDatabase(fout) || tbinfo->relkind != RELKIND_RELATION)
+	if(!isBabelfishDatabase(fout) ||
+		tbinfo->relkind != RELKIND_RELATION ||
+		!OidIsValid(pg_type_oid))
 		return false;
 
 	query = createPQExpBuffer();
-
-	/* get oid of table's row type */
-	appendPQExpBuffer(query,
-					  "SELECT reltype "
-					  "FROM pg_catalog.pg_class "
-					  "WHERE relkind = '%c' "
-					  "AND oid = '%u'::pg_catalog.oid;",
-					  RELKIND_RELATION, tbinfo->dobj.catId.oid);
-
-	res = ExecuteSqlQueryForSingleRow(fout, query->data);
-	pg_type_oid = atooid(PQgetvalue(res, 0, PQfnumber(res, "reltype")));
-
-	PQclear(res);
-	resetPQExpBuffer(query);
-
 	/* Check if there is a dependency entry in pg_depend from table to it's row type */
 	appendPQExpBuffer(query,
 					  "SELECT classid "
@@ -680,30 +667,24 @@ isTsqlTableType(Archive *fout, const TableInfo *tbinfo)
  *                          (TABLE) but return type is not composite
  *                          type.
  */
-int
+static int
 getTsqlTvfType(Archive *fout, const FuncInfo *finfo, char prokind, bool proretset)
 {
 	TypeInfo *rettype;
-	char	 *lanname;
 
 	if (!isBabelfishDatabase(fout) || prokind == PROKIND_PROCEDURE || !proretset)
 		return PLTSQL_TVFTYPE_NONE;
 
 	rettype = findTypeByOid(finfo->prorettype);
-	lanname = getLanguageName(fout, finfo->lang);
 
-	if (rettype && lanname &&
-		strcmp(lanname, "pltsql") == 0)
+	if (rettype && isPltsqlLanguageOid(fout, finfo->lang))
 	{
-		free(lanname);
-
 		if (rettype->typtype == TYPTYPE_COMPOSITE)
 			return PLTSQL_TVFTYPE_MSTVF;
 		else
 			return PLTSQL_TVFTYPE_ITVF;
 	}
 
-	free(lanname);
 	return PLTSQL_TVFTYPE_NONE;
 }
 
@@ -993,47 +974,60 @@ prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_
 void
 setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 {
+	int        		i;
 	PQExpBuffer		query;
 	PGresult		*res;
-	TableInfo		*extprop_table;
-	TableInfo		*sysdb_table;
-	TableInfo		*namespace_ext_table;
-	TableInfo		*schema_perms_table;
-	DumpableObject		*dobj;
-	DumpableObject		*refdobj;
+	TableInfo		*sysdb_table = NULL;
+	DumpableObject		*refdobj = NULL;
 
 	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade || fout->dopt->dataOnly)
 		return;
 
+	/* Get the OID of sys.babelfish_sysdatabases catalog */
+	res = ExecuteSqlQueryForSingleRow(fout, "SELECT oid FROM pg_class "
+									  "WHERE relname = 'babelfish_sysdatabases' "
+									  "AND relnamespace = 'sys'::regnamespace;");
+	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 0, 0)));
+
+	if (!sysdb_table || !sysdb_table->dataObj)
+		return;
+
+	PQclear(res);
 	query = createPQExpBuffer();
-	/* get oids of sys.babelfish_sysdatabases, sys.babelfish_namespace_ext, babelfish_extended_properties, babelfish_schema_permissions tables */
+	refdobj = (DumpableObject *) sysdb_table->dataObj;
+
+	/*
+	 * Now get the OIDs for following desired catalog tables:
+	 * sys.babelfish_namespace_ext
+	 * babelfish_extended_properties
+	 * babelfish_schema_permissions
+	 */
 	appendPQExpBufferStr(query,
 						 "SELECT oid "
 						 "FROM pg_class "
-						 "WHERE relname in ('babelfish_sysdatabases', "
-						 "'babelfish_schema_permissions', 'babelfish_namespace_ext', 'babelfish_extended_properties') "
+						 "WHERE relname in ('babelfish_schema_permissions', "
+						 "'babelfish_namespace_ext', "
+						 "'babelfish_extended_properties') "
 						 "AND relnamespace = 'sys'::regnamespace "
 						 "ORDER BY relname;");
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
-	Assert(PQntuples(res) == 4);
-	extprop_table = findTableByOid(atooid(PQgetvalue(res, 0, 0)));
-	namespace_ext_table = findTableByOid(atooid(PQgetvalue(res, 1, 0)));
-	schema_perms_table = findTableByOid(atooid(PQgetvalue(res, 2, 0)));
-	sysdb_table = findTableByOid(atooid(PQgetvalue(res, 3, 0)));
-	Assert(sysdb_table != NULL && namespace_ext_table != NULL && extprop_table != NULL && schema_perms_table != NULL);
-	refdobj = (DumpableObject *) sysdb_table->dataObj;
 	/*
-	 * Make babelfish_schema_permissions, babelfish_namespace_ext and babelfish_extended_properties tables dependent upon
-	 * babelfish_sysdatabases table so that we dump babelfish_sysdatabases table's data before both of them.
-	 * This is needed to generate and handle new "dbid" during logical database restore.
+	 * Iterate through each row and find the corresponding catalog table by OID,
+	 * then make each of those catalog tables dependent upon babelfish_sysdatabases
+	 * so that we dump babelfish_sysdatabases table's data before them. This is needed
+	 * to generate and handle new "dbid" during logical database restore.
 	 */
-	dobj = (DumpableObject *) namespace_ext_table->dataObj;
-	addObjectDependency(dobj, refdobj->dumpId);
-	dobj = (DumpableObject *) extprop_table->dataObj;
-	addObjectDependency(dobj, refdobj->dumpId);
-	dobj = (DumpableObject *) schema_perms_table->dataObj;
-	addObjectDependency(dobj, refdobj->dumpId);
+	for (i = 0; i < PQntuples(res); i++)
+	{
+		TableInfo *tab = findTableByOid(atooid(PQgetvalue(res, i, 0)));
+
+		if(tab && tab->dataObj)
+		{
+			DumpableObject *dobj = (DumpableObject *) tab->dataObj;
+			addObjectDependency(dobj, refdobj->dumpId);
+		}
+	}
 
 	PQclear(res);
 	destroyPQExpBuffer(query);
