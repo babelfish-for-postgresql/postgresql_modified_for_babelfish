@@ -1856,6 +1856,9 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 				JsonbValue	jbv;
 				char	   *tmp = NULL;
 
+				if (unwrap && JsonbType(jb) == jbvArray)
+					return executeItemUnwrapTargetArray(cxt, jsp, jb, found, false);
+
 				switch (JsonbType(jb))
 				{
 					case jbvString:
