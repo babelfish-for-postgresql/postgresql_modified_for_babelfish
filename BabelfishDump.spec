@@ -20,7 +20,7 @@
 %global macrosdir %(d=%{_rpmconfigdir}/macros.d; [ -d $d ] || d=%{_sysconfdir}/rpm; echo $d)
 
 %define _trivial .0
-%define _buildid .1
+%define _buildid .2
 
 %undefine _missing_build_ids_terminate_build
 
@@ -151,6 +151,9 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
+* Mon Jun 17 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-2
+- Improve catalog handling in bbf_dump
+
 * Mon May 20 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-1
 - Update bug report and documentation links for BabelfishDump
 
