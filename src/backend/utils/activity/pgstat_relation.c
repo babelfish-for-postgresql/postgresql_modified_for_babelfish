@@ -26,6 +26,7 @@
 #include "utils/rel.h"
 #include "utils/timestamp.h"
 #include "catalog/catalog.h"
+#include "utils/guc.h"
 
 #include "parser/parser.h"
 #include "utils/queryenvironment.h"
@@ -173,7 +174,7 @@ void
 pgstat_create_relation(Relation rel)
 {
 	/* Skip pg_stat */
-	if (sql_dialect == SQL_DIALECT_TSQL && rel->rd_rel->relpersistence == RELPERSISTENCE_TEMP)
+	if (sql_dialect == SQL_DIALECT_TSQL && rel->rd_rel->relpersistence == RELPERSISTENCE_TEMP && temp_oid_buffer_size > 0)
 		return;
 	pgstat_create_transactional(PGSTAT_KIND_RELATION,
 								rel->rd_rel->relisshared ? InvalidOid : MyDatabaseId,
@@ -189,7 +190,7 @@ pgstat_drop_relation(Relation rel)
 	int			nest_level = GetCurrentTransactionNestLevel();
 	PgStat_TableStatus *pgstat_info;
 
-	if (sql_dialect == SQL_DIALECT_TSQL && rel->rd_rel->relpersistence == RELPERSISTENCE_TEMP)
+	if (sql_dialect == SQL_DIALECT_TSQL && rel->rd_rel->relpersistence == RELPERSISTENCE_TEMP && temp_oid_buffer_size > 0)
 		return;
 	pgstat_drop_transactional(PGSTAT_KIND_RELATION,
 							  rel->rd_rel->relisshared ? InvalidOid : MyDatabaseId,
