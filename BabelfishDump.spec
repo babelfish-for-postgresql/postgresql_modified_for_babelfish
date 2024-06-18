@@ -20,14 +20,14 @@
 %global macrosdir %(d=%{_rpmconfigdir}/macros.d; [ -d $d ] || d=%{_sysconfdir}/rpm; echo $d)
 
 %define _trivial .0
-%define _buildid .2
+%define _buildid .1
 
 %undefine _missing_build_ids_terminate_build
 
 Name: BabelfishDump
 Summary: Postgresql dump utilities modified for Babelfish
 Version: 16.3
-Release: 1%{?dist}%{?_trivial}%{?_buildid}
+Release: 2%{?dist}%{?_trivial}%{?_buildid}
 License: PostgreSQL
 Url: https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish
 
