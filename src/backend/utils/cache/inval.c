@@ -907,16 +907,16 @@ xactGetCommittedInvalidationMessages(SharedInvalidationMessage **msgs,
 	/* Must be at top of stack */
 	Assert(transInvalInfo->my_level == 1 && transInvalInfo->parent == NULL);
 
+	/* If we are localOnlyInval, we can skip writing to WAL */
+	if (transInvalInfo->localOnlyInval)
+		return 0;
+
 	/*
 	 * Relcache init file invalidation requires processing both before and
 	 * after we send the SI messages.  However, we need not do anything unless
 	 * we committed.
 	 */
 	*RelcacheInitFileInval = transInvalInfo->RelcacheInitFileInval;
-
-	/* If we are localOnlyInval, we can skip writing to WAL */
-	if (transInvalInfo->localOnlyInval)
-		return 0;
 
 	/*
 	 * Collect all the pending messages into a single contiguous array of
