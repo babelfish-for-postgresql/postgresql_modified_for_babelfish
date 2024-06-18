@@ -27,7 +27,7 @@
 Name: BabelfishDump
 Summary: Postgresql dump utilities modified for Babelfish
 Version: 16.3
-Release: 1%{?dist}%{?_trivial}%{?_buildid}
+Release: 2%{?dist}%{?_trivial}%{?_buildid}
 License: PostgreSQL
 Url: https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish
 
@@ -151,6 +151,9 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
+* Mon Jun 17 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-2
+- Improve catalog handling in bbf_dump
+
 * Mon May 20 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-1
 - Update bug report and documentation links for BabelfishDump
 
