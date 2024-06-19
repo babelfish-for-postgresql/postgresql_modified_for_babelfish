@@ -53,5 +53,8 @@ extern void castSqlvariantToBasetype(PGresult *res,
                                     int sqlvariant_pos);
 extern void dumpBabelRestoreChecks(Archive *fout);
 extern void babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffer buff, bool *needComma);
+extern bool bbfShouldDumpIndex(Archive *fout, const IndxInfo *indxinfo, bool *is_constraint);
+extern void dumpBabelfishConstrIndex(Archive *fout, const IndxInfo *indxinfo,
+                                     PQExpBuffer q, PQExpBuffer delq);
 
 #endif
