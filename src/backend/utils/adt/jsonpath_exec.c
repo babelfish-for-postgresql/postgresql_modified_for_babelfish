@@ -3244,7 +3244,8 @@ GetJsonPathVar(void *cxt, char *varName, int varNameLen,
 	{
 		JsonPathVariable *curvar = lfirst(lc);
 
-		if (!strncmp(curvar->name, varName, varNameLen))
+		if (curvar->namelen == varNameLen &&
+			strncmp(curvar->name, varName, varNameLen) == 0)
 		{
 			var = curvar;
 			break;
@@ -4368,6 +4369,7 @@ JsonTableInitOpaque(TableFuncScanState *state, int natts)
 			JsonPathVariable *var = palloc(sizeof(*var));
 
 			var->name = pstrdup(name->sval);
+			var->namelen = strlen(var->name);
 			var->typid = exprType((Node *) state->expr);
 			var->typmod = exprTypmod((Node *) state->expr);
 

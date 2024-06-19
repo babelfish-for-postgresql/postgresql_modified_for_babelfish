@@ -291,6 +291,7 @@ extern List *tsql_openjson_with_columnize(Jsonb *jb, char *col_info);
 typedef struct JsonPathVariable
 {
 	char	   *name;
+	int			namelen;		/* strlen(name) as cache for GetJsonPathVar() */
 	Oid			typid;
 	int32		typmod;
 	Datum		value;
