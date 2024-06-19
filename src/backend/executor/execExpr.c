@@ -4283,6 +4283,7 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 		JsonPathVariable *var = palloc(sizeof(*var));
 
 		var->name = argname->sval;
+		var->namelen = strlen(var->name);
 		var->typid = exprType((Node *) argexpr);
 		var->typmod = exprTypmod((Node *) argexpr);
 
