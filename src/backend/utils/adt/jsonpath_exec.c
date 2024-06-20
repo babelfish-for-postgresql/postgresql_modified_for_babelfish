@@ -536,7 +536,7 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 	col_path = NULL; col_type = NULL; strict = false; as = false; asjson = false;
 	token = strtok(col_info, " ");
 
-	if (strncmp(token, "strict", 6) == 0)
+	if (strncasecmp(token, "strict", 6) == 0)
 	{
 		strict = true;
 		if(strlen(token) == 6)
@@ -544,7 +544,7 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 		else
 			token = token + 6;
 	}
-	else if (strncmp(token, "lax", 3) == 0)
+	else if (strncasecmp(token, "lax", 3) == 0)
 	{
 		strict = false;
 		if(strlen(token) == 3)
@@ -559,14 +559,15 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 			col_path = token;
 		else if (col_type == NULL)
 			col_type = token;
-		else if (strncmp(token, "AS", 2) == 0)
+		else if (strncasecmp(token, "AS", 2) == 0)
 			as = true;
-		else if (as && strncmp(token, "JSON", 4) == 0)
+		else if (as && strncasecmp(token, "JSON", 4) == 0)
 			asjson = true;
 		token = strtok(NULL, " ");
 	}
 
-	if (col_type && strlen(col_type) >= 3) /* Get column size restriction, if it exists */
+	/* Get column size restriction, if it exists */
+	if (col_type && strlen(col_type) >= 3)
 	{
 		token = strtok(col_type, "(");
 		if (token)
@@ -905,8 +906,10 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					}
 					else if (found->list)
 						found->list = lappend(found->list, NULL);
-					else
-						found->list = list_make1(NULL); /* Since JsonValueList uses a NULL singleton as shortcut, need to manually insert null value into list */
+					else {
+						/* Since JsonValueList uses a NULL singleton as shortcut, need to manually insert null value into list */
+						found->list = list_make1(NULL);
+					}
 					res = jperOk;
 				}
 			}
