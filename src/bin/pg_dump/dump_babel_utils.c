@@ -999,14 +999,20 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	/*
 	 * Now get the OIDs for following desired catalog tables:
 	 * sys.babelfish_namespace_ext
-	 * babelfish_extended_properties
-	 * babelfish_schema_permissions
+	 * sys.babelfish_extended_properties
+	 * sys.babelfish_schema_permissions
+	 * sys.babelfish_partition_function
+	 * sys.babelfish_partition_scheme
+	 * sys.babelfish_partition_depend
 	 */
 	appendPQExpBufferStr(query,
 						 "SELECT oid "
 						 "FROM pg_class "
 						 "WHERE relname in ('babelfish_schema_permissions', "
 						 "'babelfish_namespace_ext', "
+						 "'babelfish_partition_function', "
+						 "'babelfish_partition_scheme', "
+						 "'babelfish_partition_depend', "
 						 "'babelfish_extended_properties') "
 						 "AND relnamespace = 'sys'::regnamespace "
 						 "ORDER BY relname;");
@@ -1064,7 +1070,10 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 	}
 	else if (strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
 			 strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
-			 strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0)
+			 strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_partition_function") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_partition_scheme") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_partition_depend") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.dbid = %d",
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	else if (strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0)
@@ -1140,7 +1149,10 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 			strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0)
+			strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0 ||
+			strcmp(tbinfo->dobj.name, "babelfish_partition_function") == 0 ||
+			strcmp(tbinfo->dobj.name, "babelfish_partition_scheme") == 0 ||
+			strcmp(tbinfo->dobj.name, "babelfish_partition_depend") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
 						  fmtQualifiedDumpable(tbinfo));
 	else
@@ -1176,6 +1188,8 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 	bool	is_builtin_db = false;
 	bool	is_bbf_usr_ext_tab = false;
 	bool	is_bbf_sysdatabases_tab = false;
+	bool	is_bbf_partition_function_tab = false;
+	bool	is_bbf_partition_scheme_tab = false;
 	bool	has_sqlv_col = hasSqlvariantColumn(tbinfo);
 
 	/* Return if the table is not a Babelfish configuration table. */
@@ -1188,11 +1202,20 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 				pg_strcasecmp(bbf_db_name, "msdb") == 0)
 				? true : false;
 
-	/* Remember if it is babelfish_authid_user_ext and babelfish_sysdatabases catalog table. */
+	/* 
+	 * Remember if it is babelfish_authid_user_ext, babelfish_sysdatabases,
+	 * babelfish_partition_function and babelfish_partition_scheme catalog table
+	 * because these catalog tables contain generated IDs which should not be dumped
+	 * for logical database.
+	 */
 	if (strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 		is_bbf_usr_ext_tab = true;
 	if (strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0)
 		is_bbf_sysdatabases_tab = true;
+	if (strcmp(tbinfo->dobj.name, "babelfish_partition_function") == 0)
+		is_bbf_partition_function_tab = true;
+	if (strcmp(tbinfo->dobj.name, "babelfish_partition_scheme") == 0)
+		is_bbf_partition_scheme_tab = true;
 
 	resetPQExpBuffer(buf);
 	appendPQExpBufferStr(buf, "DECLARE _pg_dump_cursor CURSOR FOR SELECT ");
@@ -1203,21 +1226,35 @@ fixCursorForBbfCatalogTableData(Archive *fout, TableInfo *tbinfo, PQExpBuffer bu
 			continue;
 		if (tbinfo->attgenerated[i] && (fout->dopt->column_inserts || has_sqlv_col))
 			continue;
-		/*
-		 * Skip dbid column for logical database dump, we will generate new 
-		 * database id during restore. We will still dump dbid for builtin 
-		 * databases since we don't need to regenerate it during restore as 
-		 * dbids are fixed for builtin databases.
-		 */
-		if (bbf_db_name != NULL && !is_builtin_db && strcmp(tbinfo->attnames[i], "dbid") == 0)
-			continue;
+
 		/*
 		 * We need to skip owner column of babelfish_sysdatabases table as it might be
 		 * referencing Babelfish initialize user which we do not include in dump. We will
 		 * populate this column during restore with the initialize user of target database.
 		 */
-		else if (is_bbf_sysdatabases_tab && strcmp(tbinfo->attnames[i], "owner") == 0)
+		if (is_bbf_sysdatabases_tab && strcmp(tbinfo->attnames[i], "owner") == 0)
 			continue;
+		/*
+		 * 1. Skip dbid column for logical database dump, we will generate new 
+		 *    database id during restore. We will still dump dbid for builtin 
+		 *    databases since we don't need to regenerate it during restore as 
+		 *    dbids are fixed for builtin databases.
+		 * 2. Skip function_id and scheme_id column of babelfish_partition_function
+		 *    and babelfish_partition_scheme catalog respectively for logical database dump,
+		 *    we will generate new function_id and scheme_id during restore.
+		 */
+		else if (bbf_db_name != NULL)
+		{
+			if ((!is_builtin_db && strcmp(tbinfo->attnames[i], "dbid") == 0) || 
+					(is_bbf_partition_function_tab && (strcmp(tbinfo->attnames[i], "function_id") == 0)) ||
+					(is_bbf_partition_scheme_tab && (strcmp(tbinfo->attnames[i], "scheme_id") == 0)))
+			{
+				/* also mark this column as dropped */
+				tbinfo->attisdropped[i] = true;
+				continue;
+			}
+		}
+
 		if (*nfields > 0)
 			appendPQExpBufferStr(buf, ", ");
 		/*
@@ -1257,6 +1294,7 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 	bool		needComma = false;
 	bool		is_bbf_usr_ext_tab = false;
 	bool		is_bbf_sysdatabases_tab = false;
+	bool		is_bbf_partition_scheme_tab = false;
 
 	/*
 	 * Return if not a Babelfish database, or if the table is not a Babelfish
@@ -1271,11 +1309,18 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 				pg_strcasecmp(bbf_db_name, "msdb") == 0)
 				? true : false;
 
-	/* Remember if it is babelfish_authid_user_ext and babelfish_sysdatabases catalog table. */
+	/* 
+	 * Remember if it is babelfish_authid_user_ext, babelfish_sysdatabases
+	 * and babelfish_partition_scheme catalog table
+	 * because these catalog tables contain generated IDs which should not be dumped
+	 * for logical database.
+	 */
 	if (strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 		is_bbf_usr_ext_tab = true;
 	if (strcmp(tbinfo->dobj.name, "babelfish_sysdatabases") == 0)
 		is_bbf_sysdatabases_tab = true;
+	if (strcmp(tbinfo->dobj.name, "babelfish_partition_scheme") == 0)
+		is_bbf_partition_scheme_tab = true;
 
 	q = createPQExpBuffer();
 	for (i = 0; i < tbinfo->numatts; i++)
@@ -1298,6 +1343,13 @@ fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFro
 		 */
 		else if (is_bbf_sysdatabases_tab && strcmp(tbinfo->attnames[i], "owner") == 0)
 			continue;
+		/*
+		 * Skip scheme_id column of babelfish_partition_scheme catalog
+		 * for logical database dump, we will generate new scheme_id during restore.
+		 */
+		else if (bbf_db_name != NULL && is_bbf_partition_scheme_tab && (strcmp(tbinfo->attnames[i], "scheme_id") == 0))
+			continue;
+
 		if (needComma)
 			appendPQExpBufferStr(q, ", ");
 
@@ -1361,8 +1413,8 @@ static bool
 hasSqlvariantColumn(TableInfo *tbinfo)
 {
 	for (int i = 0; i < tbinfo->numatts; i++)
-		if (pg_strcasecmp(tbinfo->atttypnames[i],
-				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
+		if (strstr(tbinfo->atttypnames[i],
+				quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant"))
 					return true;
 	return false;
 }
@@ -1402,6 +1454,7 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 	int orig_nfields = 0;
 	PQExpBuffer buf = createPQExpBuffer();
 	bool is_catalog_table = isBabelfishConfigTable(fout, tbinfo);
+	int attlen;
 
 	if (!hasSqlvariantColumn(tbinfo))
 		return nfields;
@@ -1413,23 +1466,30 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 			continue;
 		if (tbinfo->attgenerated[i])
 			continue;
-
+		attlen = strlen(tbinfo->atttypnames[i]);
 		/* Skip TSQL ROWVERSION/TIMESTAMP column, it should be re-generated during restore. */
 		if (pg_strcasecmp(tbinfo->atttypnames[i],
 				quote_all_identifiers ? "\"sys\".\"rowversion\"" : "sys.rowversion") == 0 ||
 			pg_strcasecmp(tbinfo->atttypnames[i],
 				quote_all_identifiers ? "\"sys\".\"timestamp\"" : "sys.timestamp") == 0)
+		if ((quote_all_identifiers ?
+				(attlen == 18) && (pg_strcasecmp(tbinfo->atttypnames[i], "\"sys\".\"rowversion\"") == 0)
+				: (attlen == 14) && (pg_strcasecmp(tbinfo->atttypnames[i], "sys.rowversion") == 0)) ||
+			(quote_all_identifiers ?
+				(attlen == 17) && (pg_strcasecmp(tbinfo->atttypnames[i], "\"sys\".\"timestamp\"") == 0)
+				: (attlen == 13) && (pg_strcasecmp(tbinfo->atttypnames[i], "sys.timestamp") == 0)))
 			continue;
 
 		/*
-			* To find the basetype and bytelength of string data types we
-			* invoke sys.sql_variant_property and sys.datalength function on
-			* the sqlvariant column. These extra columns are added at the end of
-			* the select cursor query so that they do not interfere with
-			* expected dump behaviour.
-		*/
-		if (pg_strcasecmp(tbinfo->atttypnames[i],
-			quote_all_identifiers ? "\"sys\".\"sql_variant\"" : "sys.sql_variant") == 0)
+		 * To find the basetype and bytelength of string data types we
+		 * invoke sys.sql_variant_property and sys.datalength function on
+		 * the sqlvariant column. These extra columns are added at the end of
+		 * the select cursor query so that they do not interfere with
+		 * expected dump behaviour.
+		 */
+		if (quote_all_identifiers ? 
+				(attlen == 19) && (pg_strcasecmp(tbinfo->atttypnames[i], "\"sys\".\"sql_variant\"") == 0)
+				: (attlen == 15) && (pg_strcasecmp(tbinfo->atttypnames[i], "sys.sql_variant") == 0))
 		{
 			/*
 			 * We need to qualify the column names with table alias 'a' if it is a
@@ -1444,8 +1504,34 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 			if (is_catalog_table)
 				appendPQExpBufferStr(buf, "a.");
 			appendPQExpBuffer(buf, "%s)", fmtId(tbinfo->attnames[i]));
+			appendPQExpBuffer(buf, ", 0"); /* to indicate if it is array or not */
 			(*sqlvar_metadata_pos)[orig_nfields] = nfields;
-			nfields = nfields + 2;
+			nfields = nfields + 3;
+		}
+		/* array of sql_variant */
+		else if (quote_all_identifiers ?
+				(attlen == 21) && (pg_strcasecmp(tbinfo->atttypnames[i], "\"sys\".\"sql_variant\"[]") == 0)
+				: (attlen == 17) && (pg_strcasecmp(tbinfo->atttypnames[i], "sys.sql_variant[]") == 0))
+		{
+			/*
+			 * We need additional handling for an array of sql_variant because each value in the
+			 * array will have a different base type and byte length. Here, instead of adding normal
+			 * columns for base type and byte length as extra columns, we will add arrays of them which
+			 * will be constructed by invoking the sys.sql_variant_property and sys.datalength functions
+			 * on each value of the array.
+			 */
+			appendPQExpBufferStr(buf, ", (SELECT array_agg(sys.SQL_VARIANT_PROPERTY(t1, 'BaseType')) FROM unnest(");
+			if (is_catalog_table) /* qualify the column names with table alias if it is a babelfish catalog table */
+				appendPQExpBufferStr(buf, "a.");
+			appendPQExpBuffer(buf, "%s) AS t1)", fmtId(tbinfo->attnames[i]));
+
+			appendPQExpBufferStr(buf, ", (SELECT array_agg(sys.datalength(t2)) FROM unnest(");
+			if (is_catalog_table) /* qualify the column names with table alias if it is a babelfish catalog table */
+				appendPQExpBufferStr(buf, "a.");
+			appendPQExpBuffer(buf, "%s) AS t2)", fmtId(tbinfo->attnames[i]));
+			appendPQExpBuffer(buf, ", 1"); /* to indicate if it is array or not */
+			(*sqlvar_metadata_pos)[orig_nfields] = nfields;
+			nfields = nfields + 3;
 		}
 		orig_nfields++;
 	}
@@ -1455,30 +1541,21 @@ fixCursorForBbfSqlvariantTableData( Archive *fout,
 }
 
 /*
- * castSqlvariantToBasetype:
- * Modify INSERT query in dump file by adding a CAST expression for a sql_variant
- * column data entry in order to preserve the metadata of data type otherwise
- * lost during restore.
+ * castSqlvariantToBasetypeHelper:
+ * Helper function to modify the sql_variant data in the dump file by adding
+ * explicit cast to its basetype in order to preserve the metadata of data type by using the
+ * provided information of type and datalength.
  */
-void
-castSqlvariantToBasetype(PGresult *res,
-						Archive *fout,
-						int row, /* row number */
-						int field, /* column number */
-						int sqlvariant_pos) /* position of columns with metadata of sql_variant column at field */
+static void
+castSqlvariantToBasetypeHelper(Archive *fout, char *value, char *type, int datalength)
 {
 	PQExpBuffer q;
-	char* value = PQgetvalue(res, row, field);
-	char* type = PQgetvalue(res, row, sqlvariant_pos);
-	int datalength = atoi(PQgetvalue(res, row, sqlvariant_pos + 1));
 	int precision;
 	int scale;
 	int i;
 
 	q = createPQExpBuffer();
-	appendStringLiteralAH(q,
-				PQgetvalue(res, row, field),
-								fout);
+	appendStringLiteralAH(q, value, fout);
 	archprintf(fout, "CAST(%s AS ", q->data);
 	/* data types defined in sys schema should be handled separately */
 	if (!pg_strcasecmp(type, "datetime") || !pg_strcasecmp(type, "datetimeoffset")
@@ -1543,6 +1620,58 @@ castSqlvariantToBasetype(PGresult *res,
 		archprintf(fout, "%s",type);
 	archputs(")", fout);
 	destroyPQExpBuffer(q);
+}
+
+/*
+ * castSqlvariantToBasetype:
+ * Modify INSERT query in dump file by adding a CAST expression for a sql_variant
+ * column data entry in order to preserve the metadata of data type otherwise
+ * lost during restore.
+ */
+void
+castSqlvariantToBasetype(PGresult *res,
+						Archive *fout,
+						int row, /* row number */
+						int field, /* column number */
+						int sqlvariant_pos) /* position of columns with metadata of sql_variant column at field */
+{
+	char* value = PQgetvalue(res, row, field);
+	char* type = PQgetvalue(res, row, sqlvariant_pos);
+	char* datalength = PQgetvalue(res, row, sqlvariant_pos + 1);
+	bool is_array = atoi(PQgetvalue(res, row, sqlvariant_pos + 2));
+
+	if (!is_array)
+	{
+		castSqlvariantToBasetypeHelper(fout, value, type, atoi(datalength));
+	}
+	else /* array of sql_variant */
+	{
+		char **value_items = NULL;
+		char **datalength_items = NULL;
+		char **type_items = NULL;
+		int nitems = 0;
+		int i;
+		
+		/* deconstruct the array into individual items */
+		parsePGArray(value, &value_items, &nitems);
+		parsePGArray(type, &type_items, &nitems);
+		parsePGArray(datalength, &datalength_items, &nitems);
+
+		/* dump array constructor */
+		archputs("array[", fout);
+		for (i = 0; i < nitems; i++)
+		{
+			/* dump each values after adding explicit cast to basetype */
+			castSqlvariantToBasetypeHelper(fout, value_items[i], type_items[i], atoi(datalength_items[i]));
+			if (i != nitems - 1)
+				archputs(", ", fout);
+		}
+		archputs("]", fout);
+
+		free(value_items);
+		free(datalength_items);
+		free(type_items);
+	}
 }
 
 /*
