@@ -88,7 +88,7 @@ pre_transform_setop_tree_hook_type pre_transform_setop_tree_hook = NULL;
 /* Hook to reset a query's targetlist after modification in pre_transfrom_sort_clause */
 pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook = NULL;
 
-/* Hooks for transform TSQL pivot clause in select stmt */
+/* Hook to transform TSQL pivot clause in select stmt */
 transform_pivot_clause_hook_type transform_pivot_clause_hook = NULL;
 
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
@@ -1160,17 +1160,28 @@ transformInsertRow(ParseState *pstate, List *exprlist,
 
 		if (strip_indirection)
 		{
+			/*
+			 * We need to remove top-level FieldStores and SubscriptingRefs,
+			 * as well as any CoerceToDomain appearing above one of those ---
+			 * but not a CoerceToDomain that isn't above one of those.
+			 */
 			while (expr)
 			{
-				if (IsA(expr, FieldStore))
+				Expr	   *subexpr = expr;
+
+				while (IsA(subexpr, CoerceToDomain))
 				{
-					FieldStore *fstore = (FieldStore *) expr;
+					subexpr = ((CoerceToDomain *) subexpr)->arg;
+				}
+				if (IsA(subexpr, FieldStore))
+				{
+					FieldStore *fstore = (FieldStore *) subexpr;
 
 					expr = (Expr *) linitial(fstore->newvals);
 				}
-				else if (IsA(expr, SubscriptingRef))
+				else if (IsA(subexpr, SubscriptingRef))
 				{
-					SubscriptingRef *sbsref = (SubscriptingRef *) expr;
+					SubscriptingRef *sbsref = (SubscriptingRef *) subexpr;
 
 					if (sbsref->refassgnexpr == NULL)
 						break;
@@ -1422,7 +1433,7 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 	qry->commandType = CMD_SELECT;
 
 	/* process the WITH clause independently of all else */
-	if (stmt->withClause)
+	if (stmt->withClause && ( sql_dialect == SQL_DIALECT_PG || transform_pivot_clause_hook == NULL || !stmt->isPivot))
 	{
 		qry->hasRecursive = stmt->withClause->recursive;
 		qry->cteList = transformWithClause(pstate, stmt->withClause);

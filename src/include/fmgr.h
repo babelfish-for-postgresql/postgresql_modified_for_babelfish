@@ -785,6 +785,7 @@ extern PGDLLIMPORT fmgr_hook_type fmgr_hook;
 extern PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook;
 extern PGDLLIMPORT get_func_language_oids_hook_type get_func_language_oids_hook;
 extern PGDLLEXPORT set_local_schema_for_func_hook_type set_local_schema_for_func_hook;
+extern bool pltsql_check_search_path;
 
 #define FmgrHookIsNeeded(fn_oid)							\
 	(!needs_fmgr_hook ? false : (*needs_fmgr_hook)(fn_oid))

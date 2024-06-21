@@ -1628,6 +1628,7 @@ _copyFuncExpr(const FuncExpr *from)
 	COPY_SCALAR_FIELD(inputcollid);
 	COPY_NODE_FIELD(args);
 	COPY_LOCATION_FIELD(location);
+	COPY_NODE_FIELD(context);
 
 	return newnode;
 }
@@ -2827,6 +2828,7 @@ _copyFuncCall(const FuncCall *from)
 	COPY_SCALAR_FIELD(func_variadic);
 	COPY_SCALAR_FIELD(funcformat);
 	COPY_LOCATION_FIELD(location);
+	COPY_NODE_FIELD(context);
 
 	return newnode;
 }

@@ -88,6 +88,7 @@ static Node *make_nulltest_from_distinct(ParseState *pstate,
 static List *ExpandChecksumStar(ParseState *pstate, FuncCall *fn, int location);
 
 lookup_param_hook_type lookup_param_hook = NULL;
+handle_constant_literals_hook_type handle_constant_literals_hook = NULL;
 /*
  * transformExpr -
  *	  Analyze and transform expressions. Type checking and type casting is
@@ -921,8 +922,6 @@ exprIsNullConstant(Node *arg)
 static void
 bbf_rewrite_function_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 {
-	Var       *col_expr;
-	FuncCall  *new_call;
 	FuncExpr  *func_expr = (FuncExpr *) (*rexpr);
 	char      *func_name = get_func_name(func_expr->funcid);
 
@@ -947,32 +946,7 @@ bbf_rewrite_function_call(ParseState *pstate, Node **lexpr, Node **rexpr)
 			}
 		}
 	}
-
-	if ((IsA(*lexpr, Var) && IsA(*rexpr, FuncExpr)))
-	{
-		col_expr = (Var*) *lexpr;
-		func_expr = (FuncExpr*) *rexpr;
-	}
-	else if (IsA(*lexpr, FuncExpr) && IsA(*rexpr, Var))
-	{
-		col_expr = (Var*) *rexpr;
-		func_expr = (FuncExpr*) *lexpr;
-	}
-	else
-		return;
-
-	func_name = get_func_name(func_expr->funcid);
-	if (strcmp(func_name, "babelfish_get_last_identity_numeric") != 0 &&
-			strcmp(func_name, "scope_identity") != 0)
-		return;
-	if (col_expr->vartype != INT2OID && col_expr->vartype != INT4OID && col_expr->vartype != INT8OID)
-		return;
-
-	new_call = makeFuncCall(list_make1(makeString("babelfish_get_last_identity")), NULL, COERCE_EXPLICIT_CALL, -1);
-	if (IsA(*rexpr, FuncExpr))
-		*rexpr = transformFuncCall(pstate, new_call);
-	else
-		*lexpr = transformFuncCall(pstate, new_call);
+	return;
 }
 
 static Node *
@@ -2290,6 +2264,8 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 
 	if (sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook && c->tsql_is_null)
 		newc->coalescetype = select_common_type(pstate, newargs, "ISNULL", NULL);
+	else if(sql_dialect == SQL_DIALECT_TSQL && select_common_type_hook)
+		newc->coalescetype = select_common_type(pstate, newargs, "TSQL_COALESCE", NULL);
 	else
 		newc->coalescetype = select_common_type(pstate, newargs, "COALESCE", NULL);
 	/* coalescecollid will be set by parse_collate.c */
@@ -2299,6 +2275,15 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 	{
 		Node	   *e = (Node *) lfirst(args);
 		Node	   *newe;
+
+		/*
+		 *	T-SQL treats constant string literals as VARCHAR. Hence,
+		 *	coercing into VARCHAR before coercing it to the common type.
+		 */
+		if (sql_dialect == SQL_DIALECT_TSQL && !c->tsql_is_null && handle_constant_literals_hook)
+		{
+			e = (*handle_constant_literals_hook)(pstate, e);
+		}
 
 		newe = coerce_to_common_type(pstate, e,
 									 newc->coalescetype,

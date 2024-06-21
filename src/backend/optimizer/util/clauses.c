@@ -2353,6 +2353,10 @@ static Node *
 eval_const_expressions_mutator(Node *node,
 							   eval_const_expressions_context *context)
 {
+
+	/* since this function recurses, it could be driven to stack overflow */
+	check_stack_depth();
+
 	if (node == NULL)
 		return NULL;
 	switch (nodeTag(node))
@@ -2525,6 +2529,7 @@ eval_const_expressions_mutator(Node *node,
 				newexpr->inputcollid = expr->inputcollid;
 				newexpr->args = args;
 				newexpr->location = expr->location;
+				newexpr->context = expr->context;
 				return (Node *) newexpr;
 			}
 		case T_OpExpr:
@@ -3182,8 +3187,17 @@ eval_const_expressions_mutator(Node *node,
 				{
 					Node	   *e;
 
-					e = eval_const_expressions_mutator((Node *) lfirst(arg),
-													   context);
+					/*
+					 * T-SQL Coalesce is handled differently, constant expressions
+					 * are evaluated at runtime. Hence, skipping eval_const_expressions_mutator()
+					 * at this step.
+					 */
+					if (sql_dialect == SQL_DIALECT_TSQL && !coalesceexpr->tsql_is_null 
+						&& lfirst(arg) != NULL && ((Node *) lfirst(arg))->type == T_CoerceViaIO)
+						e = (Node *) lfirst(arg);
+					else
+						e = eval_const_expressions_mutator((Node *) lfirst(arg),
+													   		context);
 
 					/*
 					 * We can remove null constants from the list. For a
@@ -4397,12 +4411,11 @@ evaluate_function(Oid funcid, Oid result_type, int32 result_typmod,
 	 * Can't simplify if it returns RECORD.  The immediate problem is that it
 	 * will be needing an expected tupdesc which we can't supply here.
 	 *
-	 * In the case where it has OUT parameters, it could get by without an
-	 * expected tupdesc, but we still have issues: get_expr_result_type()
-	 * doesn't know how to extract type info from a RECORD constant, and in
-	 * the case of a NULL function result there doesn't seem to be any clean
-	 * way to fix that.  In view of the likelihood of there being still other
-	 * gotchas, seems best to leave the function call unreduced.
+	 * In the case where it has OUT parameters, we could build an expected
+	 * tupdesc from those, but there may be other gotchas lurking.  In
+	 * particular, if the function were to return NULL, we would produce a
+	 * null constant with no remaining indication of which concrete record
+	 * type it is.  For now, seems best to leave the function call unreduced.
 	 */
 	if (funcform->prorettype == RECORDOID)
 		return NULL;
@@ -4465,6 +4478,7 @@ evaluate_function(Oid funcid, Oid result_type, int32 result_typmod,
 	newexpr->inputcollid = input_collid;
 	newexpr->args = args;
 	newexpr->location = -1;
+	newexpr->context = NULL;
 
 	return evaluate_expr((Expr *) newexpr, result_type, result_typmod,
 						 result_collid);
@@ -4577,6 +4591,7 @@ inline_function(Oid funcid, Oid result_type, Oid result_collid,
 	fexpr->inputcollid = input_collid;
 	fexpr->args = args;
 	fexpr->location = -1;
+	fexpr->context = NULL;
 
 	/* Fetch the function body */
 	tmp = SysCacheGetAttr(PROCOID,
@@ -4696,9 +4711,10 @@ inline_function(Oid funcid, Oid result_type, Oid result_collid,
 	 * needed; that's probably not important, but let's be careful.
 	 */
 	querytree_list = list_make1(querytree);
-	if (check_sql_fn_retval(list_make1(querytree_list),
-							result_type, rettupdesc,
-							false, NULL))
+	if (check_sql_fn_retval_ext(list_make1(querytree_list),
+								result_type, rettupdesc,
+								funcform->prokind,
+								false, NULL))
 		goto fail;				/* reject whole-tuple-result cases */
 
 	/*
@@ -5212,16 +5228,20 @@ inline_set_returning_function(PlannerInfo *root, RangeTblEntry *rte)
 	}
 
 	/*
-	 * Also resolve the actual function result tupdesc, if composite.  If the
-	 * function is just declared to return RECORD, dig the info out of the AS
-	 * clause.
+	 * Also resolve the actual function result tupdesc, if composite.  If we
+	 * have a coldeflist, believe that; otherwise use get_expr_result_type.
+	 * (This logic should match ExecInitFunctionScan.)
 	 */
-	functypclass = get_expr_result_type((Node *) fexpr, NULL, &rettupdesc);
-	if (functypclass == TYPEFUNC_RECORD)
+	if (rtfunc->funccolnames != NIL)
+	{
+		functypclass = TYPEFUNC_RECORD;
 		rettupdesc = BuildDescFromLists(rtfunc->funccolnames,
 										rtfunc->funccoltypes,
 										rtfunc->funccoltypmods,
 										rtfunc->funccolcollations);
+	}
+	else
+		functypclass = get_expr_result_type((Node *) fexpr, NULL, &rettupdesc);
 
 	/*
 	 * The single command must be a plain SELECT.
@@ -5243,9 +5263,10 @@ inline_set_returning_function(PlannerInfo *root, RangeTblEntry *rte)
 	 * shows it's returning a whole tuple result; otherwise what it's
 	 * returning is a single composite column which is not what we need.
 	 */
-	if (!check_sql_fn_retval(list_make1(querytree_list),
-							 fexpr->funcresulttype, rettupdesc,
-							 true, NULL) &&
+	if (!check_sql_fn_retval_ext(list_make1(querytree_list),
+								 fexpr->funcresulttype, rettupdesc,
+								 funcform->prokind,
+								 true, NULL) &&
 		(functypclass == TYPEFUNC_COMPOSITE ||
 		 functypclass == TYPEFUNC_COMPOSITE_DOMAIN ||
 		 functypclass == TYPEFUNC_RECORD))

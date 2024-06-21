@@ -306,6 +306,7 @@ _equalFuncExpr(const FuncExpr *a, const FuncExpr *b)
 	COMPARE_SCALAR_FIELD(inputcollid);
 	COMPARE_NODE_FIELD(args);
 	COMPARE_LOCATION_FIELD(location);
+	COMPARE_NODE_FIELD(context);
 
 	return true;
 }
@@ -2489,6 +2490,7 @@ _equalFuncCall(const FuncCall *a, const FuncCall *b)
 	COMPARE_SCALAR_FIELD(func_variadic);
 	COMPARE_COERCIONFORM_FIELD(funcformat);
 	COMPARE_LOCATION_FIELD(location);
+	COMPARE_NODE_FIELD(context);
 
 	return true;
 }
