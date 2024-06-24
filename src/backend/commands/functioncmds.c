@@ -806,6 +806,14 @@ compute_function_attributes(ParseState *pstate,
 			 */
 			continue;
 		}
+		else if (strcmp(defel->defname, "recompile") == 0)
+		{
+			/*
+			 * RECOMPILE is an option in tsql dialect, this is recorded
+			 * in the catalogs. Here we just skip it without throwing error.
+			 */
+			continue;
+		}
 		else if (compute_common_attribute(pstate,
 										  is_procedure,
 										  defel,

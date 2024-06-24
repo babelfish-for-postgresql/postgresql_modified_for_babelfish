@@ -98,10 +98,38 @@ create_queryEnv2(MemoryContext cxt, bool top_level)
 	return queryEnv;
 }
 
+/* Loop through structures in the ENR and make sure to free anything that needs to be freed. */
+static void free_ENR(EphemeralNamedRelation enr)
+{
+	for (int i = 0; i < ENR_CATTUP_END; i++)
+	{
+		List *uncommitted_cattups = enr->md.uncommitted_cattups[i];
+		List *cattups = enr->md.cattups[i];
+		ListCell *lc2, *lc3;
+
+		foreach(lc2, uncommitted_cattups)
+		{
+			ENRUncommittedTuple uncommitted_tup = (ENRUncommittedTuple) lfirst(lc2);
+
+			heap_freetuple(uncommitted_tup->tup);
+		}
+
+		foreach(lc3, cattups)
+		{
+			HeapTuple tup = (HeapTuple) lfirst(lc3);
+
+			heap_freetuple(tup);
+		}
+	}
+
+	pfree(enr->md.name);
+}
+
 /* Remove the current query environment and make its parent current. */
 void remove_queryEnv() {
 	MemoryContext			oldcxt;
 	QueryEnvironment		*tmp;
+	ListCell *lc;
 
 	/* We should never "free" top level query env as it's in stack memory. */
 	if (!currentQueryEnv || currentQueryEnv == topLevelQueryEnv)
@@ -109,6 +137,18 @@ void remove_queryEnv() {
 
 	tmp = currentQueryEnv->parentEnv;
 	oldcxt = MemoryContextSwitchTo(currentQueryEnv->memctx);
+
+	/* Clean up structures in currentQueryEnv */
+	foreach(lc, currentQueryEnv->dropped_namedRelList)
+	{
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+		free_ENR(enr);
+		pfree(enr);
+	}
+
+	list_free(currentQueryEnv->dropped_namedRelList);
+	currentQueryEnv->dropped_namedRelList = NIL;
+
 	pfree(currentQueryEnv);
 	MemoryContextSwitchTo(oldcxt);
 
@@ -1144,7 +1184,7 @@ void ENRDropEntry(Oid id)
 	}
 	else
 	{
-		pfree(enr->md.name);
+		free_ENR(enr);
 		pfree(enr);
 	}
 	MemoryContextSwitchTo(oldcxt);
@@ -1184,7 +1224,7 @@ ENRCommitChanges(QueryEnvironment *queryEnv)
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		pfree(enr->md.name);
+		free_ENR(enr);
 		pfree(enr);
 	}
 
@@ -1315,7 +1355,7 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 		queryEnv->namedRelList = list_delete(queryEnv->namedRelList, enr);
-		pfree(enr->md.name);
+		free_ENR(enr);
 		pfree(enr);
 	}
 	MemoryContextSwitchTo(oldcxt);
