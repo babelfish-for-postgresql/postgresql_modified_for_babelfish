@@ -53,7 +53,7 @@ relation_open(Oid relationId, LOCKMODE lockmode)
 
 	/* Get the lock before trying to open the relcache entry */
 	if (lockmode != NoLock)
-		LockRelationOid(relationId, lockmode);
+		LockRelationOid(relationId, get_ENR_withoid(currentQueryEnv, relationId, ENR_TSQL_TEMP) ? AccessShareLock : lockmode);
 
 	/* The relcache does all the real work... */
 	r = RelationIdGetRelation(relationId);

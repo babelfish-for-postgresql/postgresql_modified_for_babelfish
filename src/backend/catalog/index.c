@@ -1016,7 +1016,7 @@ index_create(Relation heapRelation,
 	 * until we commit, this prevents deadlock-risk complaints from lock
 	 * manager in cases such as CLUSTER.
 	 */
-	LockRelation(indexRelation, AccessExclusiveLock);
+	LockRelation(indexRelation, is_enr ? AccessShareLock : AccessExclusiveLock);
 
 	/*
 	 * Fill in fields of the index's pg_class entry that are not set correctly

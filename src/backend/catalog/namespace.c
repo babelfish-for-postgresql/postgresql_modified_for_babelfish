@@ -402,7 +402,7 @@ RangeVarGetRelidExtended(const RangeVar *relation, LOCKMODE lockmode,
 		if (!OidIsValid(relId))
 			AcceptInvalidationMessages();
 		else if (!(flags & (RVR_NOWAIT | RVR_SKIP_LOCKED)))
-			LockRelationOid(relId, lockmode);
+			LockRelationOid(relId, get_ENR_withoid(currentQueryEnv, relId, ENR_TSQL_TEMP) ? AccessShareLock : lockmode);
 		else if (!ConditionalLockRelationOid(relId, lockmode))
 		{
 			int			elevel = (flags & RVR_SKIP_LOCKED) ? DEBUG1 : ERROR;
