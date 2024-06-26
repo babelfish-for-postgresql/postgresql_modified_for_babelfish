@@ -1081,8 +1081,8 @@ func_select_candidate(int nargs,
 	 * If we resolve all the unknwon types but still too many candidates,
 	 * let's try to choose the best candidate by T-SQL precedence rule.
 	 */
-	if (nunknowns == 0 && 
-		(sql_dialect == SQL_DIALECT_TSQL ||
+	if (nunknowns == 0 &&
+	    (sql_dialect == SQL_DIALECT_TSQL ||
 	    (dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 	    func_select_candidate_hook != NULL)
 	{
