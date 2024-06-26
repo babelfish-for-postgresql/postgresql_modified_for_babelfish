@@ -1608,7 +1608,7 @@ addRangeTableEntryForRelation(ParseState *pstate,
 	Assert(lockmode == AccessShareLock ||
 		   lockmode == RowShareLock ||
 		   lockmode == RowExclusiveLock);
-	Assert(CheckRelationLockedByMe(rel, lockmode, true));
+	Assert(CheckRelationLockedByMe(rel, get_ENR_withoid(currentQueryEnv, rel->rd_id, ENR_TSQL_TEMP) ? AccessShareLock : lockmode, true));
 
 	rte->rtekind = RTE_RELATION;
 	rte->alias = alias;
