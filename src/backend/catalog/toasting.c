@@ -192,7 +192,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	 * If requested check lockmode is sufficient. This is a cross check in
 	 * case of errors or conflicting decisions in earlier code.
 	 */
-	if (check && lockmode != AccessExclusiveLock)
+	if (check && lockmode != AccessExclusiveLock && !get_ENR_withoid(currentQueryEnv, rel->rd_id, ENR_TSQL_TEMP))
 		elog(ERROR, "AccessExclusiveLock required to add toast table.");
 
 	/*
