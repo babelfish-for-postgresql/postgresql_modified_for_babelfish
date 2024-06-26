@@ -189,7 +189,7 @@ index_close(Relation relation, LOCKMODE lockmode)
 	RelationClose(relation);
 
 	if (lockmode != NoLock)
-		UnlockRelationId(&relid, lockmode);
+		UnlockRelationId(&relid, get_ENR_withoid(currentQueryEnv, RelationGetRelid(relation), ENR_TSQL_TEMP) ? AccessShareLock : lockmode);
 }
 
 /* ----------------
