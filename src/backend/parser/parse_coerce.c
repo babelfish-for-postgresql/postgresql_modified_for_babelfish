@@ -336,6 +336,7 @@ coerce_type(ParseState *pstate, Node *node,
 												  ccontext, cformat, location);
 			if (result)
 			{
+				cancel_parser_errposition_callback(&pcbstate);
 				ReleaseSysCache(baseType);
 				return result;
 			}
