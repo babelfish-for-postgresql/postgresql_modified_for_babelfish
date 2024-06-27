@@ -1091,7 +1091,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, newtup, in_enr_rollback);
 					*list_ptr = list_insert_nth(*list_ptr, insert_at, newtup);
-					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL);
+					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL, true);
 					break;
 				case ENR_OP_UPDATE:
 					/*
@@ -1106,14 +1106,14 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					oldtup = lfirst(lc);
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, oldtup, in_enr_rollback);
-					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup);
+					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup, true);
 					lfirst(lc) = heap_copytuple(tup);
 					break;
 				case ENR_OP_DROP:
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, tup, in_enr_rollback);
 					if (!skip_cache_inval)
-						CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
+						CacheInvalidateHeapTuple(catalog_rel, tup, NULL, true);
 					tmp = lfirst(lc);
 					*list_ptr = list_delete_ptr(*list_ptr, tmp);
 					heap_freetuple(tmp);
@@ -1519,7 +1519,7 @@ extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
 				if (temp_table_xact_support)
 					ENRAddUncommittedTupleData(enr, catalog_oid, ENR_OP_DROP, htup, false);
 
-				CacheInvalidateHeapTuple(catalog_relation, htup, NULL);
+				CacheInvalidateHeapTuple(catalog_relation, htup, NULL, true);
 				heap_freetuple(htup); // heap_copytuple was called during ADD
 			}
 
