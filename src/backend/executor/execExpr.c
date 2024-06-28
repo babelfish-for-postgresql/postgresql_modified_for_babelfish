@@ -94,7 +94,7 @@ static void ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 							 Datum *resv, bool *resnull,
 							 ExprEvalStep *scratch);
 static void ExecInitJsonCoercion(ExprState *state, JsonReturning *returning,
-								 ErrorSaveContext *escontext,
+								 ErrorSaveContext *escontext, bool omit_quotes,
 								 Datum *resv, bool *resnull);
 
 
@@ -4318,13 +4318,15 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 	ExprEvalPushStep(state, scratch);
 
 	/*
-	 * Jump to coerce the NULL using coercion_expr if present.  Coercing NULL
-	 * is only interesting when the RETURNING type is a domain whose
-	 * constraints must be checked.  jsexpr->coercion_expr containing a
-	 * CoerceToDomain node must have been set in that case.
+	 * Jump to coerce the NULL using json_populate_type() if needed.  Coercing
+	 * NULL is only interesting when the RETURNING type is a domain whose
+	 * constraints must be checked.  jsexpr->use_json_coercion must have been
+	 * set in that case.
 	 */
-	if (jsexpr->coercion_expr)
+	if (get_typtype(jsexpr->returning->typid) == TYPTYPE_DOMAIN &&
+		DomainHasConstraints(jsexpr->returning->typid))
 	{
+		Assert(jsexpr->use_json_coercion);
 		scratch->opcode = EEOP_JUMP;
 		scratch->d.jump.jumpdone = state->steps_len + 1;
 		ExprEvalPushStep(state, scratch);
@@ -4342,33 +4344,12 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 	 * NULL returned on NULL input as described above.
 	 */
 	jsestate->jump_eval_coercion = -1;
-	if (jsexpr->coercion_expr)
-	{
-		Datum	   *save_innermost_caseval;
-		bool	   *save_innermost_casenull;
-		ErrorSaveContext *save_escontext;
-
-		jsestate->jump_eval_coercion = state->steps_len;
-
-		save_innermost_caseval = state->innermost_caseval;
-		save_innermost_casenull = state->innermost_casenull;
-		save_escontext = state->escontext;
-
-		state->innermost_caseval = resv;
-		state->innermost_casenull = resnull;
-		state->escontext = escontext;
-
-		ExecInitExprRec((Expr *) jsexpr->coercion_expr, state, resv, resnull);
-
-		state->innermost_caseval = save_innermost_caseval;
-		state->innermost_casenull = save_innermost_casenull;
-		state->escontext = save_escontext;
-	}
-	else if (jsexpr->use_json_coercion)
+	if (jsexpr->use_json_coercion)
 	{
 		jsestate->jump_eval_coercion = state->steps_len;
 
-		ExecInitJsonCoercion(state, jsexpr->returning, escontext, resv, resnull);
+		ExecInitJsonCoercion(state, jsexpr->returning, escontext,
+							 jsexpr->omit_quotes, resv, resnull);
 	}
 	else if (jsexpr->use_io_coercion)
 	{
@@ -4440,8 +4421,8 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 
 		/* Step to coerce the ON ERROR expression if needed */
 		if (jsexpr->on_error->coerce)
-			ExecInitJsonCoercion(state, jsexpr->returning, escontext, resv,
-								 resnull);
+			ExecInitJsonCoercion(state, jsexpr->returning, escontext,
+								 jsexpr->omit_quotes, resv, resnull);
 
 		/* JUMP to end to skip the ON EMPTY steps added below. */
 		jumps_to_end = lappend_int(jumps_to_end, state->steps_len);
@@ -4473,8 +4454,8 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 
 		/* Step to coerce the ON EMPTY expression if needed */
 		if (jsexpr->on_empty->coerce)
-			ExecInitJsonCoercion(state, jsexpr->returning, escontext, resv,
-								 resnull);
+			ExecInitJsonCoercion(state, jsexpr->returning, escontext,
+								 jsexpr->omit_quotes, resv, resnull);
 	}
 
 	foreach(lc, jumps_to_end)
@@ -4493,7 +4474,7 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
  */
 static void
 ExecInitJsonCoercion(ExprState *state, JsonReturning *returning,
-					 ErrorSaveContext *escontext,
+					 ErrorSaveContext *escontext, bool omit_quotes,
 					 Datum *resv, bool *resnull)
 {
 	ExprEvalStep scratch = {0};
@@ -4506,5 +4487,6 @@ ExecInitJsonCoercion(ExprState *state, JsonReturning *returning,
 	scratch.d.jsonexpr_coercion.targettypmod = returning->typmod;
 	scratch.d.jsonexpr_coercion.json_populate_type_cache = NULL;
 	scratch.d.jsonexpr_coercion.escontext = escontext;
+	scratch.d.jsonexpr_coercion.omit_quotes = omit_quotes;
 	ExprEvalPushStep(state, &scratch);
 }
