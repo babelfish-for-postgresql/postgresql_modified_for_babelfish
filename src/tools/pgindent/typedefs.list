@@ -3100,9 +3100,9 @@ WaitEvent
 WaitEventActivity
 WaitEventBufferPin
 WaitEventClient
-WaitEventExtensionCounterData
-WaitEventExtensionEntryById
-WaitEventExtensionEntryByName
+WaitEventCustomCounterData
+WaitEventCustomEntryByInfo
+WaitEventCustomEntryByName
 WaitEventIO
 WaitEventIPC
 WaitEventSet
