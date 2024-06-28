@@ -63,6 +63,7 @@
 #include "storage/procarray.h"
 #include "storage/standby.h"
 #include "utils/datum.h"
+#include "utils/injection_point.h"
 #include "utils/inval.h"
 #include "utils/queryenvironment.h"
 #include "utils/relcache.h"
@@ -6091,6 +6092,7 @@ heap_inplace_update(Relation relation, HeapTuple tuple)
 	if (ENRupdateTuple(relation, tuple))
 		return;
 
+	INJECTION_POINT("inplace-before-pin");
 	buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(&(tuple->t_self)));
 	LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 	page = (Page) BufferGetPage(buffer);
