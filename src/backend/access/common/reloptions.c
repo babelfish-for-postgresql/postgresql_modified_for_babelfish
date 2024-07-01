@@ -564,6 +564,8 @@ static void initialize_reloptions(void);
 static void parse_one_reloption(relopt_value *option, char *text_str,
 								int text_len, bool validate);
 
+pltsql_partitioned_table_reloptions_hook_type pltsql_partitioned_table_reloptions_hook = NULL;
+
 /*
  * Get the length of a string reloption (either default or the user-defined
  * value).  This is used for allocation purposes when building a set of
@@ -2001,10 +2003,16 @@ bytea *
 partitioned_table_reloptions(Datum reloptions, bool validate)
 {
 	if (validate && reloptions)
+	{
+		/* for babelfish partitioned table, allow usage of reloptions in TSQL dialect */
+		if (pltsql_partitioned_table_reloptions_hook && pltsql_partitioned_table_reloptions_hook(reloptions))
+			return NULL;
+
 		ereport(ERROR,
 				errcode(ERRCODE_WRONG_OBJECT_TYPE),
 				errmsg("cannot specify storage parameters for a partitioned table"),
 				errhint("Specify storage parameters for its leaf partitions instead."));
+	}
 	return NULL;
 }
 
