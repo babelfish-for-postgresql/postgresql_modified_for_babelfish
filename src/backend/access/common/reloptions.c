@@ -2004,7 +2004,7 @@ partitioned_table_reloptions(Datum reloptions, bool validate)
 {
 	if (validate && reloptions)
 	{
-		/* for babelfish partitioned table, allow usage of reloptions in TSQL dialect */
+		/* For babelfish partitioned table, allow usage of reloptions in TSQL dialect. */
 		if (pltsql_partitioned_table_reloptions_hook && pltsql_partitioned_table_reloptions_hook(reloptions))
 			return NULL;
 
