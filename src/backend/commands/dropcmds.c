@@ -46,6 +46,8 @@ static bool schema_does_not_exist_skipping(List *object,
 static bool type_in_list_does_not_exist_skipping(List *typenames,
 												 const char **msg, char **name);
 
+check_restricted_stored_procedure_hook_type check_restricted_stored_procedure_hook = NULL;
+
 
 /*
  * Drop one or more objects.
@@ -120,6 +122,12 @@ RemoveObjects(DropStmt *stmt)
 		 */
 		if (OidIsValid(namespaceId) && isTempNamespace(namespaceId))
 			MyXactFlags |= XACT_FLAGS_ACCESSEDTEMPNAMESPACE;
+
+		/* 
+		 * Restrict dropping of extended stored procedures
+		 */
+		if (stmt->removeType == OBJECT_PROCEDURE && check_restricted_stored_procedure_hook)
+			(*check_restricted_stored_procedure_hook)(address.objectId);
 
 		/* 
 		* Release any relcache reference count, but keep lock until commit. 

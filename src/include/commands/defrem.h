@@ -78,8 +78,10 @@ extern void interpret_function_parameter_list(ParseState *pstate,
 
 typedef bool (*check_lang_as_clause_hook_type)(const char *lang, List *as, char **prosrc_str_p, char **probin_str_p);
 typedef void (*write_stored_proc_probin_hook_type)(CreateFunctionStmt *stmt, Oid languageOid, char** probin_str_p);
+typedef void (*check_restricted_stored_procedure_hook_type)(Oid proc_id);
 extern PGDLLEXPORT check_lang_as_clause_hook_type check_lang_as_clause_hook;
 extern PGDLLEXPORT write_stored_proc_probin_hook_type write_stored_proc_probin_hook;
+extern PGDLLEXPORT check_restricted_stored_procedure_hook_type check_restricted_stored_procedure_hook;
 
 /* commands/operatorcmds.c */
 extern ObjectAddress DefineOperator(List *names, List *parameters);
