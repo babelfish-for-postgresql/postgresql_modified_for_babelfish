@@ -78,22 +78,10 @@ PREPARE q8 AS
 SELECT name, statement, parameter_types, result_types FROM pg_prepared_statements
     ORDER BY name;
 
-CREATE TABLE union_type (id int primary key, name varchar(20));
-
-PREPARE q9
-AS
-WITH temp1 AS (
-    SELECT * from union_type
-    UNION
-    SELECT
-        $1 AS id,
-        $2 AS name
-)
-SELECT * from temp1;
+-- max parameter number and one above
+PREPARE q9 AS SELECT $268435455, $268435456;
 
 -- test DEALLOCATE ALL;
 DEALLOCATE ALL;
 SELECT name, statement, parameter_types FROM pg_prepared_statements
     ORDER BY name;
-
-DROP table union_type;
