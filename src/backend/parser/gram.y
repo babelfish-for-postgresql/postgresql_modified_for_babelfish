@@ -16258,7 +16258,13 @@ substr_list:
 				}
 		;
 
-trim_list:	a_expr FROM expr_list					{ $$ = lappend($3, $1); }
+trim_list:	a_expr FROM expr_list
+				{
+					if (sql_dialect == SQL_DIALECT_TSQL)
+						$$ = lcons($1, $3);
+					else
+						$$ = lappend($3, $1);
+				}
 			| FROM expr_list						{ $$ = $2; }
 			| expr_list								{ $$ = $1; }
 		;
