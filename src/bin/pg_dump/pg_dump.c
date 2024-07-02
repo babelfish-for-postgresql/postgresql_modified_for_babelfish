@@ -4247,8 +4247,8 @@ dumpPolicy(Archive *fout, const PolicyInfo *polinfo)
  * getPublications
  *	  get information about publications
  */
-PublicationInfo *
-getPublications(Archive *fout, int *numPublications)
+void
+getPublications(Archive *fout)
 {
 	DumpOptions *dopt = fout->dopt;
 	PQExpBuffer query;
@@ -4268,10 +4268,7 @@ getPublications(Archive *fout, int *numPublications)
 				ntups;
 
 	if (dopt->no_publications || fout->remoteVersion < 100000)
-	{
-		*numPublications = 0;
-		return NULL;
-	}
+		return;
 
 	query = createPQExpBuffer();
 
@@ -4342,9 +4339,6 @@ getPublications(Archive *fout, int *numPublications)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	*numPublications = ntups;
-	return pubinfo;
 }
 
 /*
@@ -5621,13 +5615,10 @@ binary_upgrade_extension_member(PQExpBuffer upgrade_buffer,
 
 /*
  * getNamespaces:
- *	  read all namespaces in the system catalogs and return them in the
- * NamespaceInfo* structure
- *
- *	numNamespaces is set to the number of namespaces read in
+ *	  get information about all namespaces in the system catalogs
  */
-NamespaceInfo *
-getNamespaces(Archive *fout, int *numNamespaces)
+void
+getNamespaces(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -5735,10 +5726,6 @@ getNamespaces(Archive *fout, int *numNamespaces)
 
 	PQclear(res);
 	destroyPQExpBuffer(query);
-
-	*numNamespaces = ntups;
-
-	return nsinfo;
 }
 
 /*
@@ -5831,16 +5818,13 @@ getExtensions(Archive *fout, int *numExtensions)
 
 /*
  * getTypes:
- *	  read all types in the system catalogs and return them in the
- * TypeInfo* structure
- *
- *	numTypes is set to the number of types read in
+ *	  get information about all types in the system catalogs
  *
  * NB: this must run after getFuncs() because we assume we can do
  * findFuncByOid().
  */
-TypeInfo *
-getTypes(Archive *fout, int *numTypes)
+void
+getTypes(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -5993,24 +5977,17 @@ getTypes(Archive *fout, int *numTypes)
 		}
 	}
 
-	*numTypes = ntups;
-
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return tyinfo;
 }
 
 /*
  * getOperators:
- *	  read all operators in the system catalogs and return them in the
- * OprInfo* structure
- *
- *	numOprs is set to the number of operators read in
+ *	  get information about all operators in the system catalogs
  */
-OprInfo *
-getOperators(Archive *fout, int *numOprs)
+void
+getOperators(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -6040,7 +6017,6 @@ getOperators(Archive *fout, int *numOprs)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numOprs = ntups;
 
 	oprinfo = (OprInfo *) pg_malloc(ntups * sizeof(OprInfo));
 
@@ -6072,19 +6048,14 @@ getOperators(Archive *fout, int *numOprs)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return oprinfo;
 }
 
 /*
  * getCollations:
- *	  read all collations in the system catalogs and return them in the
- * CollInfo* structure
- *
- *	numCollations is set to the number of collations read in
+ *	  get information about all collations in the system catalogs
  */
-CollInfo *
-getCollations(Archive *fout, int *numCollations)
+void
+getCollations(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -6112,7 +6083,6 @@ getCollations(Archive *fout, int *numCollations)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numCollations = ntups;
 
 	collinfo = (CollInfo *) pg_malloc(ntups * sizeof(CollInfo));
 
@@ -6140,19 +6110,14 @@ getCollations(Archive *fout, int *numCollations)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return collinfo;
 }
 
 /*
  * getConversions:
- *	  read all conversions in the system catalogs and return them in the
- * ConvInfo* structure
- *
- *	numConversions is set to the number of conversions read in
+ *	  get information about all conversions in the system catalogs
  */
-ConvInfo *
-getConversions(Archive *fout, int *numConversions)
+void
+getConversions(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -6180,7 +6145,6 @@ getConversions(Archive *fout, int *numConversions)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numConversions = ntups;
 
 	convinfo = (ConvInfo *) pg_malloc(ntups * sizeof(ConvInfo));
 
@@ -6208,19 +6172,14 @@ getConversions(Archive *fout, int *numConversions)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return convinfo;
 }
 
 /*
  * getAccessMethods:
- *	  read all user-defined access methods in the system catalogs and return
- *	  them in the AccessMethodInfo* structure
- *
- *	numAccessMethods is set to the number of access methods read in
+ *	  get information about all user-defined access methods
  */
-AccessMethodInfo *
-getAccessMethods(Archive *fout, int *numAccessMethods)
+void
+getAccessMethods(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -6235,10 +6194,7 @@ getAccessMethods(Archive *fout, int *numAccessMethods)
 
 	/* Before 9.6, there are no user-defined access methods */
 	if (fout->remoteVersion < 90600)
-	{
-		*numAccessMethods = 0;
-		return NULL;
-	}
+		return;
 
 	query = createPQExpBuffer();
 
@@ -6250,7 +6206,6 @@ getAccessMethods(Archive *fout, int *numAccessMethods)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numAccessMethods = ntups;
 
 	aminfo = (AccessMethodInfo *) pg_malloc(ntups * sizeof(AccessMethodInfo));
 
@@ -6278,20 +6233,15 @@ getAccessMethods(Archive *fout, int *numAccessMethods)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return aminfo;
 }
 
 
 /*
  * getOpclasses:
- *	  read all opclasses in the system catalogs and return them in the
- * OpclassInfo* structure
- *
- *	numOpclasses is set to the number of opclasses read in
+ *	  get information about all opclasses in the system catalogs
  */
-OpclassInfo *
-getOpclasses(Archive *fout, int *numOpclasses)
+void
+getOpclasses(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -6317,7 +6267,6 @@ getOpclasses(Archive *fout, int *numOpclasses)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numOpclasses = ntups;
 
 	opcinfo = (OpclassInfo *) pg_malloc(ntups * sizeof(OpclassInfo));
 
@@ -6345,19 +6294,14 @@ getOpclasses(Archive *fout, int *numOpclasses)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return opcinfo;
 }
 
 /*
  * getOpfamilies:
- *	  read all opfamilies in the system catalogs and return them in the
- * OpfamilyInfo* structure
- *
- *	numOpfamilies is set to the number of opfamilies read in
+ *	  get information about all opfamilies in the system catalogs
  */
-OpfamilyInfo *
-getOpfamilies(Archive *fout, int *numOpfamilies)
+void
+getOpfamilies(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -6385,7 +6329,6 @@ getOpfamilies(Archive *fout, int *numOpfamilies)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numOpfamilies = ntups;
 
 	opfinfo = (OpfamilyInfo *) pg_malloc(ntups * sizeof(OpfamilyInfo));
 
@@ -6413,19 +6356,14 @@ getOpfamilies(Archive *fout, int *numOpfamilies)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return opfinfo;
 }
 
 /*
  * getAggregates:
- *	  read all the user-defined aggregates in the system catalogs and
- * return them in the AggInfo* structure
- *
- * numAggs is set to the number of aggregates read in
+ *	  get information about all user-defined aggregates in the system catalogs
  */
-AggInfo *
-getAggregates(Archive *fout, int *numAggs)
+void
+getAggregates(Archive *fout)
 {
 	DumpOptions *dopt = fout->dopt;
 	PGresult   *res;
@@ -6507,7 +6445,6 @@ getAggregates(Archive *fout, int *numAggs)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numAggs = ntups;
 
 	agginfo = (AggInfo *) pg_malloc(ntups * sizeof(AggInfo));
 
@@ -6560,19 +6497,14 @@ getAggregates(Archive *fout, int *numAggs)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return agginfo;
 }
 
 /*
  * getFuncs:
- *	  read all the user-defined functions in the system catalogs and
- * return them in the FuncInfo* structure
- *
- * numFuncs is set to the number of functions read in
+ *	  get information about all user-defined functions in the system catalogs
  */
-FuncInfo *
-getFuncs(Archive *fout, int *numFuncs)
+void
+getFuncs(Archive *fout)
 {
 	DumpOptions *dopt = fout->dopt;
 	PGresult   *res;
@@ -6705,8 +6637,6 @@ getFuncs(Archive *fout, int *numFuncs)
 
 	ntups = PQntuples(res);
 
-	*numFuncs = ntups;
-
 	finfo = (FuncInfo *) pg_malloc0(ntups * sizeof(FuncInfo));
 
 	i_tableoid = PQfnumber(res, "tableoid");
@@ -6760,8 +6690,6 @@ getFuncs(Archive *fout, int *numFuncs)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return finfo;
 }
 
 /*
@@ -8066,11 +7994,9 @@ getDomainConstraints(Archive *fout, TypeInfo *tyinfo)
 /*
  * getRules
  *	  get basic information about every rule in the system
- *
- * numRules is set to the number of rules read in
  */
-RuleInfo *
-getRules(Archive *fout, int *numRules)
+void
+getRules(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -8095,8 +8021,6 @@ getRules(Archive *fout, int *numRules)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-
-	*numRules = ntups;
 
 	ruleinfo = (RuleInfo *) pg_malloc(ntups * sizeof(RuleInfo));
 
@@ -8159,8 +8083,6 @@ getRules(Archive *fout, int *numRules)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return ruleinfo;
 }
 
 /*
@@ -8366,8 +8288,8 @@ getTriggers(Archive *fout, TableInfo tblinfo[], int numTables)
  * getEventTriggers
  *	  get information about event triggers
  */
-EventTriggerInfo *
-getEventTriggers(Archive *fout, int *numEventTriggers)
+void
+getEventTriggers(Archive *fout)
 {
 	int			i;
 	PQExpBuffer query;
@@ -8385,10 +8307,7 @@ getEventTriggers(Archive *fout, int *numEventTriggers)
 
 	/* Before 9.3, there are no event triggers */
 	if (fout->remoteVersion < 90300)
-	{
-		*numEventTriggers = 0;
-		return NULL;
-	}
+		return;
 
 	query = createPQExpBuffer();
 
@@ -8405,8 +8324,6 @@ getEventTriggers(Archive *fout, int *numEventTriggers)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-
-	*numEventTriggers = ntups;
 
 	evtinfo = (EventTriggerInfo *) pg_malloc(ntups * sizeof(EventTriggerInfo));
 
@@ -8440,21 +8357,17 @@ getEventTriggers(Archive *fout, int *numEventTriggers)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return evtinfo;
 }
 
 /*
  * getProcLangs
  *	  get basic information about every procedural language in the system
  *
- * numProcLangs is set to the number of langs read in
- *
  * NB: this must run after getFuncs() because we assume we can do
  * findFuncByOid().
  */
-ProcLangInfo *
-getProcLangs(Archive *fout, int *numProcLangs)
+void
+getProcLangs(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -8485,8 +8398,6 @@ getProcLangs(Archive *fout, int *numProcLangs)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-
-	*numProcLangs = ntups;
 
 	planginfo = (ProcLangInfo *) pg_malloc(ntups * sizeof(ProcLangInfo));
 
@@ -8530,21 +8441,17 @@ getProcLangs(Archive *fout, int *numProcLangs)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return planginfo;
 }
 
 /*
  * getCasts
  *	  get basic information about most casts in the system
  *
- * numCasts is set to the number of casts read in
- *
  * Skip casts from a range to its multirange, since we'll create those
  * automatically.
  */
-CastInfo *
-getCasts(Archive *fout, int *numCasts)
+void
+getCasts(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -8583,8 +8490,6 @@ getCasts(Archive *fout, int *numCasts)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-
-	*numCasts = ntups;
 
 	castinfo = (CastInfo *) pg_malloc(ntups * sizeof(CastInfo));
 
@@ -8633,8 +8538,6 @@ getCasts(Archive *fout, int *numCasts)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return castinfo;
 }
 
 static char *
@@ -8657,11 +8560,9 @@ get_language_name(Archive *fout, Oid langid)
 /*
  * getTransforms
  *	  get basic information about every transform in the system
- *
- * numTransforms is set to the number of transforms read in
  */
-TransformInfo *
-getTransforms(Archive *fout, int *numTransforms)
+void
+getTransforms(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -8677,10 +8578,7 @@ getTransforms(Archive *fout, int *numTransforms)
 
 	/* Transforms didn't exist pre-9.5 */
 	if (fout->remoteVersion < 90500)
-	{
-		*numTransforms = 0;
-		return NULL;
-	}
+		return;
 
 	query = createPQExpBuffer();
 
@@ -8692,8 +8590,6 @@ getTransforms(Archive *fout, int *numTransforms)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-
-	*numTransforms = ntups;
 
 	transforminfo = (TransformInfo *) pg_malloc(ntups * sizeof(TransformInfo));
 
@@ -8740,8 +8636,6 @@ getTransforms(Archive *fout, int *numTransforms)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return transforminfo;
 }
 
 /*
@@ -9324,13 +9218,10 @@ shouldPrintColumn(const DumpOptions *dopt, const TableInfo *tbinfo, int colno)
 
 /*
  * getTSParsers:
- *	  read all text search parsers in the system catalogs and return them
- *	  in the TSParserInfo* structure
- *
- *	numTSParsers is set to the number of parsers read in
+ *	  get information about all text search parsers in the system catalogs
  */
-TSParserInfo *
-getTSParsers(Archive *fout, int *numTSParsers)
+void
+getTSParsers(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -9362,7 +9253,6 @@ getTSParsers(Archive *fout, int *numTSParsers)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numTSParsers = ntups;
 
 	prsinfo = (TSParserInfo *) pg_malloc(ntups * sizeof(TSParserInfo));
 
@@ -9398,19 +9288,14 @@ getTSParsers(Archive *fout, int *numTSParsers)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return prsinfo;
 }
 
 /*
  * getTSDictionaries:
- *	  read all text search dictionaries in the system catalogs and return them
- *	  in the TSDictInfo* structure
- *
- *	numTSDicts is set to the number of dictionaries read in
+ *	  get information about all text search dictionaries in the system catalogs
  */
-TSDictInfo *
-getTSDictionaries(Archive *fout, int *numTSDicts)
+void
+getTSDictionaries(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -9435,7 +9320,6 @@ getTSDictionaries(Archive *fout, int *numTSDicts)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numTSDicts = ntups;
 
 	dictinfo = (TSDictInfo *) pg_malloc(ntups * sizeof(TSDictInfo));
 
@@ -9470,19 +9354,14 @@ getTSDictionaries(Archive *fout, int *numTSDicts)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return dictinfo;
 }
 
 /*
  * getTSTemplates:
- *	  read all text search templates in the system catalogs and return them
- *	  in the TSTemplateInfo* structure
- *
- *	numTSTemplates is set to the number of templates read in
+ *	  get information about all text search templates in the system catalogs
  */
-TSTemplateInfo *
-getTSTemplates(Archive *fout, int *numTSTemplates)
+void
+getTSTemplates(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -9505,7 +9384,6 @@ getTSTemplates(Archive *fout, int *numTSTemplates)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numTSTemplates = ntups;
 
 	tmplinfo = (TSTemplateInfo *) pg_malloc(ntups * sizeof(TSTemplateInfo));
 
@@ -9535,19 +9413,14 @@ getTSTemplates(Archive *fout, int *numTSTemplates)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return tmplinfo;
 }
 
 /*
  * getTSConfigurations:
- *	  read all text search configurations in the system catalogs and return
- *	  them in the TSConfigInfo* structure
- *
- *	numTSConfigs is set to the number of configurations read in
+ *	  get information about all text search configurations
  */
-TSConfigInfo *
-getTSConfigurations(Archive *fout, int *numTSConfigs)
+void
+getTSConfigurations(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -9570,7 +9443,6 @@ getTSConfigurations(Archive *fout, int *numTSConfigs)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numTSConfigs = ntups;
 
 	cfginfo = (TSConfigInfo *) pg_malloc(ntups * sizeof(TSConfigInfo));
 
@@ -9600,19 +9472,14 @@ getTSConfigurations(Archive *fout, int *numTSConfigs)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return cfginfo;
 }
 
 /*
  * getForeignDataWrappers:
- *	  read all foreign-data wrappers in the system catalogs and return
- *	  them in the FdwInfo* structure
- *
- *	numForeignDataWrappers is set to the number of fdws read in
+ *	  get information about all foreign-data wrappers in the system catalogs
  */
-FdwInfo *
-getForeignDataWrappers(Archive *fout, int *numForeignDataWrappers)
+void
+getForeignDataWrappers(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -9648,7 +9515,6 @@ getForeignDataWrappers(Archive *fout, int *numForeignDataWrappers)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numForeignDataWrappers = ntups;
 
 	fdwinfo = (FdwInfo *) pg_malloc(ntups * sizeof(FdwInfo));
 
@@ -9690,19 +9556,14 @@ getForeignDataWrappers(Archive *fout, int *numForeignDataWrappers)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return fdwinfo;
 }
 
 /*
  * getForeignServers:
- *	  read all foreign servers in the system catalogs and return
- *	  them in the ForeignServerInfo * structure
- *
- *	numForeignServers is set to the number of servers read in
+ *	  get information about all foreign servers in the system catalogs
  */
-ForeignServerInfo *
-getForeignServers(Archive *fout, int *numForeignServers)
+void
+getForeignServers(Archive *fout)
 {
 	PGresult   *res;
 	int			ntups;
@@ -9737,7 +9598,6 @@ getForeignServers(Archive *fout, int *numForeignServers)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numForeignServers = ntups;
 
 	srvinfo = (ForeignServerInfo *) pg_malloc(ntups * sizeof(ForeignServerInfo));
 
@@ -9784,19 +9644,14 @@ getForeignServers(Archive *fout, int *numForeignServers)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return srvinfo;
 }
 
 /*
  * getDefaultACLs:
- *	  read all default ACL information in the system catalogs and return
- *	  them in the DefaultACLInfo structure
- *
- *	numDefaultACLs is set to the number of ACLs read in
+ *	  get information about all default ACL information in the system catalogs
  */
-DefaultACLInfo *
-getDefaultACLs(Archive *fout, int *numDefaultACLs)
+void
+getDefaultACLs(Archive *fout)
 {
 	DumpOptions *dopt = fout->dopt;
 	DefaultACLInfo *daclinfo;
@@ -9841,7 +9696,6 @@ getDefaultACLs(Archive *fout, int *numDefaultACLs)
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 	ntups = PQntuples(res);
-	*numDefaultACLs = ntups;
 
 	daclinfo = (DefaultACLInfo *) pg_malloc(ntups * sizeof(DefaultACLInfo));
 
@@ -9886,8 +9740,6 @@ getDefaultACLs(Archive *fout, int *numDefaultACLs)
 	PQclear(res);
 
 	destroyPQExpBuffer(query);
-
-	return daclinfo;
 }
 
 /*
