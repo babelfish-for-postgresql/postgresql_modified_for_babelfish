@@ -224,33 +224,6 @@ dumpBabelGUCs(Archive *fout)
 }
 
 /*
- * serverSupportsConstraintUsingIndex:
- * Helper function to determine if remote server supports constraint
- * using index. It is supported on version 15.8 higher and 16.4 or higher.
- */
-static bool
-serverSupportsConstraintUsingIndex(Archive *fout)
-{
-	/*
-	 * This restriction is only applicable to plain dump/restore and does not
-	 * apply to MVU since in case of MVU, the pg_dump binary will have same version
-	 * as target server but it isn't necessarily true for dump/restore.
-	 */
-	if (!fout->dopt->binary_upgrade)
-	{
-		int remoteMajor = fout->remoteVersion / 100;
-
-		/* TODO: update the versions to 16.4 and 15.8 when merged from upstream */
-		if (remoteMajor < 1500 ||
-			(remoteMajor == 1500 && fout->remoteVersion < 150007) ||
-			(remoteMajor == 1600 && fout->remoteVersion < 160003))
-			return false;
-	}
-
-	return true;
-}
-
-/*
  * dumpBabelRestoreChecks:
  * Dumps Babelfish specific pre-checks which get executed at the
  * beginning of restore to validate if restore can be performed
@@ -489,24 +462,6 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 				/* Just skip if it's a system function/procedure */
 				if (is_ms_shipped(dobj, fout))
 					finfo->dobj.dump = DUMP_COMPONENT_NONE;
-			}
-			break;
-		case DO_CONSTRAINT:
-			{
-				ConstraintInfo *constrinfo = (ConstraintInfo *) dobj;
-
-				if (!serverSupportsConstraintUsingIndex(fout))
-					return;
-
-				/*
-				 * Do not dump UNIQUE/PRIMARY KEY constraint. We will dump the underlying
-				 * index and create the constraint using that index instead.
-				 * This is needed since in babelfish, a UNIQUE/PRIMARY KEY constraint can be
-				 * created with column and nulls ordering which is not possible using normal
-				 * ALTER TABLE ADD CONSTRAINT statement.
-				 */
-				if (constrinfo->contype == 'p' || constrinfo->contype == 'u')
-					constrinfo->dobj.dump = DUMP_COMPONENT_NONE;
 			}
 			break;
 		default:
@@ -1925,22 +1880,17 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
  * Returns true if we should dump the index, false otherwise.
  */
 bool
-bbfShouldDumpIndex(Archive *fout, const IndxInfo *indxinfo, bool *is_constraint)
+bbfShouldDumpIndex(Archive *fout, const IndxInfo *indxinfo)
 {
 	ConstraintInfo *constrinfo = NULL;
 
-	if (!isBabelfishDatabase(fout) ||
-		indxinfo->indexconstraint == 0 ||
-		!serverSupportsConstraintUsingIndex(fout))
+	if (!isBabelfishDatabase(fout) || ndxinfo->indexconstraint == 0)
 		return false;
 
 	constrinfo = (ConstraintInfo *) findObjectByDumpId(indxinfo->indexconstraint);
 
 	if (constrinfo->contype == 'p' || constrinfo->contype == 'u')
-	{
-		*is_constraint = false;
 		return true;
-	}
 
 	return false;
 }
@@ -1957,9 +1907,7 @@ dumpBabelfishConstrIndex(Archive *fout, const IndxInfo *indxinfo,
 	char        	*foreign;
 	ConstraintInfo	*constrinfo = NULL;
 
-	if (!isBabelfishDatabase(fout) ||
-		indxinfo->indexconstraint == 0 ||
-		!serverSupportsConstraintUsingIndex(fout))
+	if (!isBabelfishDatabase(fout) || indxinfo->indexconstraint == 0)
 		return;
 
 	constrinfo = (ConstraintInfo *) findObjectByDumpId(indxinfo->indexconstraint);
@@ -1985,6 +1933,6 @@ dumpBabelfishConstrIndex(Archive *fout, const IndxInfo *indxinfo,
 	resetPQExpBuffer(delq);
 	appendPQExpBuffer(delq, "ALTER %sTABLE ONLY %s ", foreign,
 					  fmtQualifiedDumpable(tbinfo));
-		appendPQExpBuffer(delq, "DROP CONSTRAINT %s;\n",
-						  fmtId(constrinfo->dobj.name));
+	appendPQExpBuffer(delq, "DROP CONSTRAINT %s;\n",
+					  fmtId(constrinfo->dobj.name));
 }
