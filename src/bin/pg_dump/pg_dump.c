@@ -327,7 +327,7 @@ static void binary_upgrade_set_type_oids_by_rel(Archive *fout,
 												const TableInfo *tbinfo);
 static void binary_upgrade_set_pg_class_oids(Archive *fout,
 											 PQExpBuffer upgrade_buffer,
-											 Oid pg_class_oid, bool is_index);
+											 Oid pg_class_oid);
 static void binary_upgrade_extension_member(PQExpBuffer upgrade_buffer,
 											const DumpableObject *dobj,
 											const char *objtype,
@@ -5459,8 +5459,7 @@ binary_upgrade_set_type_oids_by_rel(Archive *fout,
 
 static void
 binary_upgrade_set_pg_class_oids(Archive *fout,
-								 PQExpBuffer upgrade_buffer, Oid pg_class_oid,
-								 bool is_index)
+								 PQExpBuffer upgrade_buffer, Oid pg_class_oid)
 {
 	PQExpBuffer upgrade_query = createPQExpBuffer();
 	PGresult   *upgrade_res;
@@ -5509,7 +5508,8 @@ binary_upgrade_set_pg_class_oids(Archive *fout,
 	appendPQExpBufferStr(upgrade_buffer,
 						 "\n-- For binary upgrade, must preserve pg_class oids and relfilenodes\n");
 
-	if (!is_index)
+	if (relkind != RELKIND_INDEX &&
+		relkind != RELKIND_PARTITIONED_INDEX)
 	{
 		appendPQExpBuffer(upgrade_buffer,
 						  "SELECT pg_catalog.binary_upgrade_set_next_heap_pg_class_oid('%u'::pg_catalog.oid);\n",
@@ -11617,7 +11617,7 @@ dumpCompositeType(Archive *fout, const TypeInfo *tyinfo)
 		binary_upgrade_set_type_oids_by_type_oid(fout, q,
 												 tyinfo->dobj.catId.oid,
 												 false, false);
-		binary_upgrade_set_pg_class_oids(fout, q, tyinfo->typrelid, false);
+		binary_upgrade_set_pg_class_oids(fout, q, tyinfo->typrelid);
 	}
 
 	qtypname = pg_strdup(fmtId(tyinfo->dobj.name));
@@ -15763,7 +15763,7 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 
 		if (dopt->binary_upgrade)
 			binary_upgrade_set_pg_class_oids(fout, q,
-											 tbinfo->dobj.catId.oid, false);
+											 tbinfo->dobj.catId.oid);
 
 		appendPQExpBuffer(q, "CREATE VIEW %s", qualrelname);
 
@@ -15866,7 +15866,7 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 
 		if (dopt->binary_upgrade)
 			binary_upgrade_set_pg_class_oids(fout, q,
-											 tbinfo->dobj.catId.oid, false);
+											 tbinfo->dobj.catId.oid);
 
 		if (tsql_tabletype)
 			appendPQExpBufferStr(q,
@@ -16729,7 +16729,7 @@ dumpIndex(Archive *fout, const IndxInfo *indxinfo)
 
 		if (dopt->binary_upgrade)
 			binary_upgrade_set_pg_class_oids(fout, q,
-											 indxinfo->dobj.catId.oid, true);
+											 indxinfo->dobj.catId.oid);
 
 		/* Plain secondary index */
 		appendPQExpBuffer(q, "%s;\n", indxinfo->indexdef);
@@ -16986,7 +16986,7 @@ dumpConstraint(Archive *fout, const ConstraintInfo *coninfo)
 
 		if (dopt->binary_upgrade)
 			binary_upgrade_set_pg_class_oids(fout, q,
-											 indxinfo->dobj.catId.oid, true);
+											 indxinfo->dobj.catId.oid);
 
 		appendPQExpBuffer(q, "ALTER %sTABLE ONLY %s\n", foreign,
 						  fmtQualifiedDumpable(tbinfo));
@@ -17380,7 +17380,7 @@ dumpSequence(Archive *fout, const TableInfo *tbinfo)
 	if (dopt->binary_upgrade)
 	{
 		binary_upgrade_set_pg_class_oids(fout, query,
-										 tbinfo->dobj.catId.oid, false);
+										 tbinfo->dobj.catId.oid);
 
 		/*
 		 * In older PG versions a sequence will have a pg_type entry, but v14
