@@ -48,12 +48,20 @@ Relation
 relation_open(Oid relationId, LOCKMODE lockmode)
 {
 	Relation	r;
+	bool		is_enr = get_ENR_withoid(currentQueryEnv, relationId, ENR_TSQL_TEMP);
 
 	Assert(lockmode >= NoLock && lockmode < MAX_LOCKMODES);
 
 	/* Get the lock before trying to open the relcache entry */
 	if (lockmode != NoLock)
-		LockRelationOid(relationId, get_ENR_withoid(currentQueryEnv, relationId, ENR_TSQL_TEMP) ? AccessShareLock : lockmode);
+		LockRelationOid(relationId, is_enr ? AccessShareLock : lockmode);
+	
+	/*
+	 * Normally opening a relation with AccessExclusiveLock will automatically trigger for an XID
+	 * to be grabbed, so manually do it here if we overrode the lockmode due to ENR shenanigans.
+	 */
+	if (is_enr && lockmode == AccessExclusiveLock)
+		GetCurrentTransactionId();
 
 	/* The relcache does all the real work... */
 	r = RelationIdGetRelation(relationId);
