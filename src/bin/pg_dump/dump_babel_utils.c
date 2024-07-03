@@ -464,6 +464,21 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 					finfo->dobj.dump = DUMP_COMPONENT_NONE;
 			}
 			break;
+		case DO_CONSTRAINT:
+			{
+				ConstraintInfo *constrinfo = (ConstraintInfo *) dobj;
+
+				/*
+				 * Do not dump UNIQUE/PRIMARY KEY constraint. We will dump the underlying
+				 * index and create the constraint using that index instead.
+				 * This is needed since in babelfish, a UNIQUE/PRIMARY KEY constraint can be
+				 * created with column and nulls ordering which is not possible using normal
+				 * ALTER TABLE ADD CONSTRAINT statement.
+				 */
+				if (constrinfo->contype == 'p' || constrinfo->contype == 'u')
+					constrinfo->dobj.dump = DUMP_COMPONENT_NONE;
+			}
+			break;
 		default:
 			break;
 	}
