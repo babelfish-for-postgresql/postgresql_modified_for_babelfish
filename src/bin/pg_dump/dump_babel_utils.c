@@ -1884,7 +1884,7 @@ bbfShouldDumpIndex(Archive *fout, const IndxInfo *indxinfo)
 {
 	ConstraintInfo *constrinfo = NULL;
 
-	if (!isBabelfishDatabase(fout) || ndxinfo->indexconstraint == 0)
+	if (!isBabelfishDatabase(fout) || indxinfo->indexconstraint == 0)
 		return false;
 
 	constrinfo = (ConstraintInfo *) findObjectByDumpId(indxinfo->indexconstraint);
