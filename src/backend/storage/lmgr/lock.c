@@ -845,6 +845,19 @@ LockAcquireExtended(const LOCKTAG *locktag,
 						lockMethodTable->lockModeNames[lockmode]),
 				 errhint("Only RowExclusiveLock or less can be acquired on database objects during recovery.")));
 
+	if (lockmode > AccessShareLock && 
+		locktag->locktag_type == LOCKTAG_RELATION && 
+		get_ENR_withoid(currentQueryEnv, locktag->locktag_field2, ENR_TSQL_TEMP))
+	{
+		/*
+		 * Normally, opening a relation with AccessExclusiveLock will automatically trigger for an XID
+		 * to be grabbed. Since we are overriding it here, make sure to still grab an XID.
+		 */
+		if (lockmode == AccessExclusiveLock)
+			GetCurrentTransactionId();
+		lockmode = AccessShareLock;
+	}
+
 #ifdef LOCK_DEBUG
 	if (LOCK_DEBUG_ENABLED(locktag))
 		elog(LOG, "LockAcquire: lock [%u,%u] %s",
