@@ -42,6 +42,8 @@
 #include "utils/varlena.h"
 
 
+pltsql_strpos_non_determinstic_hook_type pltsql_strpos_non_determinstic_hook = NULL;
+
 /* GUC variable */
 int			bytea_output = BYTEA_OUTPUT_HEX;
 
@@ -1178,6 +1180,17 @@ text_position(text *t1, text *t2, Oid collid)
 	/* Empty needle always matches at position 1 */
 	if (VARSIZE_ANY_EXHDR(t2) < 1)
 		return 1;
+
+	if (pltsql_strpos_non_determinstic_hook)
+	{
+		int 	r;
+
+		check_collation_set(collid);
+
+		r = (*pltsql_strpos_non_determinstic_hook)(t1, t2, collid);
+		if (r >= 0)
+			return r;
+	}
 
 	/* Otherwise, can't match if haystack is shorter than needle */
 	if (VARSIZE_ANY_EXHDR(t1) < VARSIZE_ANY_EXHDR(t2))
