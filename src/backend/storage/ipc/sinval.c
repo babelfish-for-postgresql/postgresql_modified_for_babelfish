@@ -21,6 +21,7 @@
 #include "storage/proc.h"
 #include "storage/sinvaladt.h"
 #include "utils/inval.h"
+#include "utils/queryenvironment.h"
 
 
 uint64		SharedInvalidMessageCounter;
@@ -87,6 +88,14 @@ ReceiveSharedInvalidMessages(void (*invalFunction) (SharedInvalidationMessage *m
 		SharedInvalidationMessage msg = messages[nextmsg++];
 
 		SharedInvalidMessageCounter++;
+		if (msg.id == SHAREDINVALRELCACHE_ID)
+		{
+			if (msg.rc.dbId == MyDatabaseId || msg.rc.dbId == InvalidOid)
+			{
+				if (get_ENR_withoid(currentQueryEnv, msg.rc.relId, ENR_TSQL_TEMP))
+					continue;
+			}
+		}
 		invalFunction(&msg);
 	}
 
@@ -117,6 +126,14 @@ ReceiveSharedInvalidMessages(void (*invalFunction) (SharedInvalidationMessage *m
 			SharedInvalidationMessage msg = messages[nextmsg++];
 
 			SharedInvalidMessageCounter++;
+			if (msg.id == SHAREDINVALRELCACHE_ID)
+			{
+				if (msg.rc.dbId == MyDatabaseId || msg.rc.dbId == InvalidOid)
+				{
+					if (get_ENR_withoid(currentQueryEnv, msg.rc.relId, ENR_TSQL_TEMP))
+						continue;
+				}
+			}
 			invalFunction(&msg);
 		}
 
