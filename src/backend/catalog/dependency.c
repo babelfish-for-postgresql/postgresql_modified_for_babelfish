@@ -1578,7 +1578,7 @@ AcquireDeletionLock(const ObjectAddress *object, int flags)
 		if (flags & PERFORM_DELETION_CONCURRENTLY)
 			LockRelationOid(object->objectId, ShareUpdateExclusiveLock);
 		else
-			LockRelationOid(object->objectId, get_ENR_withoid(currentQueryEnv, object->objectId, ENR_TSQL_TEMP) ? AccessShareLock : AccessExclusiveLock);
+			LockRelationOid(object->objectId, AccessExclusiveLock);
 	}
 	else if (object->classId == AuthMemRelationId)
 		LockSharedObject(object->classId, object->objectId, 0,

@@ -1325,10 +1325,6 @@ ProcessUtilitySlow(ParseState *pstate,
 					 * permissions.
 					 */
 					lockmode = AlterTableGetLockLevel(atstmt->cmds);
-					// TODO: revisit this check to see if there is a better method
-					if (sql_dialect == SQL_DIALECT_TSQL && 
-						atstmt->relation->relname[0] && atstmt->relation->relname[0] == '#')
-						lockmode = AccessShareLock;
 					relid = AlterTableLookupRelation(atstmt, lockmode);
 
 					if (OidIsValid(relid))
