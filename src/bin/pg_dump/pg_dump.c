@@ -7160,6 +7160,8 @@ getIndexes(Archive *fout, TableInfo tblinfo[], int numTables)
 				constrinfo->separate = true;
 
 				indxinfo[j].indexconstraint = constrinfo->dobj.dumpId;
+
+				bbf_selectDumpableObject((DumpableObject *) constrinfo, fout);
 			}
 			else
 			{
@@ -16373,7 +16375,7 @@ dumpIndex(Archive *fout, const IndxInfo *indxinfo)
 	 * emitted comment has to be shown as depending on the constraint, not the
 	 * index, in such cases.
 	 */
-	if (!is_constraint)
+	if (!is_constraint || bbfShouldDumpIndex(fout, indxinfo))
 	{
 		char	   *indstatcols = indxinfo->indstatcols;
 		char	   *indstatvals = indxinfo->indstatvals;
@@ -16451,6 +16453,9 @@ dumpIndex(Archive *fout, const IndxInfo *indxinfo)
 		}
 
 		appendPQExpBuffer(delq, "DROP INDEX %s;\n", qqindxname);
+
+		is_constraint = false;
+		dumpBabelfishConstrIndex(fout, indxinfo, q, delq);
 
 		if (indxinfo->dobj.dump & DUMP_COMPONENT_DEFINITION)
 			ArchiveEntry(fout, indxinfo->dobj.catId, indxinfo->dobj.dumpId,

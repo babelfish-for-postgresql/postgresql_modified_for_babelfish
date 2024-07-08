@@ -464,6 +464,21 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 					finfo->dobj.dump = DUMP_COMPONENT_NONE;
 			}
 			break;
+		case DO_CONSTRAINT:
+			{
+				ConstraintInfo *constrinfo = (ConstraintInfo *) dobj;
+
+				/*
+				 * Do not dump UNIQUE/PRIMARY KEY constraint. We will dump the underlying
+				 * index and create the constraint using that index instead.
+				 * This is needed since in babelfish, a UNIQUE/PRIMARY KEY constraint can be
+				 * created with column and nulls ordering which is not possible using normal
+				 * ALTER TABLE ADD CONSTRAINT statement.
+				 */
+				if (constrinfo->contype == 'p' || constrinfo->contype == 'u')
+					constrinfo->dobj.dump = DUMP_COMPONENT_NONE;
+			}
+			break;
 		default:
 			break;
 	}
@@ -1743,4 +1758,67 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 	 * Check when STORAGE option will be dumped in dumpOpclass(...).  
 	 */
 	*needComma = true;
+}
+
+/*
+ * Dump the index if it is a UNIQUE/PRIMARY KEY constraint in Babelfish database.
+ * We will use this index later to create the constraint.
+ * Returns true if we should dump the index, false otherwise.
+ */
+bool
+bbfShouldDumpIndex(Archive *fout, const IndxInfo *indxinfo)
+{
+	ConstraintInfo *constrinfo = NULL;
+
+	if (!isBabelfishDatabase(fout) || indxinfo->indexconstraint == 0)
+		return false;
+
+	constrinfo = (ConstraintInfo *) findObjectByDumpId(indxinfo->indexconstraint);
+
+	if (constrinfo->contype == 'p' || constrinfo->contype == 'u')
+		return true;
+
+	return false;
+}
+
+/*
+ * dumpBabelfishConstrIndex
+ * Dump given UNIQUE/PRIMARY KEY constraint using given index.
+ */
+void
+dumpBabelfishConstrIndex(Archive *fout, const IndxInfo *indxinfo,
+                         PQExpBuffer q, PQExpBuffer delq)
+{
+	TableInfo   	*tbinfo;
+	char        	*foreign;
+	ConstraintInfo	*constrinfo = NULL;
+
+	if (!isBabelfishDatabase(fout) || indxinfo->indexconstraint == 0)
+		return;
+
+	constrinfo = (ConstraintInfo *) findObjectByDumpId(indxinfo->indexconstraint);
+	tbinfo = constrinfo->contable;
+	foreign = tbinfo &&
+		tbinfo->relkind == RELKIND_FOREIGN_TABLE ? "FOREIGN " : "";
+
+	appendPQExpBuffer(q, "ALTER %sTABLE ONLY %s\n", foreign,
+					  fmtQualifiedDumpable(tbinfo));
+	appendPQExpBufferStr(q,
+						 constrinfo->contype == 'p' ? "ADD PRIMARY KEY" : "ADD UNIQUE");
+	appendPQExpBuffer(q, " USING INDEX %s",
+					  fmtId(indxinfo->dobj.name));
+
+	if (constrinfo->condeferrable)
+	{
+		appendPQExpBufferStr(q, " DEFERRABLE");
+		if (constrinfo->condeferred)
+			appendPQExpBufferStr(q, " INITIALLY DEFERRED");
+	}
+	appendPQExpBufferStr(q, ";\n");
+
+	resetPQExpBuffer(delq);
+	appendPQExpBuffer(delq, "ALTER %sTABLE ONLY %s ", foreign,
+					  fmtQualifiedDumpable(tbinfo));
+	appendPQExpBuffer(delq, "DROP CONSTRAINT %s;\n",
+					  fmtId(constrinfo->dobj.name));
 }
