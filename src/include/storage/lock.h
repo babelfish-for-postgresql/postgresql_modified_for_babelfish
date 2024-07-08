@@ -183,7 +183,7 @@ typedef struct LOCKTAG
 #define SET_LOCKTAG_RELATION(locktag,dboid,reloid) \
 	((locktag).locktag_field1 = (dboid), \
 	 (locktag).locktag_field2 = (reloid), \
-	 (locktag).locktag_field3 = (get_ENR_withoid(currentQueryEnv, (reloid), ENR_TSQL_TEMP) ? MyProcPid : 0), \
+	 (locktag).locktag_field3 = 0, \
 	 (locktag).locktag_field4 = 0, \
 	 (locktag).locktag_type = LOCKTAG_RELATION, \
 	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
