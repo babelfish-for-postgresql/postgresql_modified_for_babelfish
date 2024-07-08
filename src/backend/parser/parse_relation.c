@@ -2522,6 +2522,7 @@ addRangeTableEntryForENR(ParseState *pstate,
 		case ENR_TSQL_TEMP:
 			rte->inh = rv->inh;
 			rte->rtekind = RTE_RELATION;
+			rte->relid = enrmd->reliddesc;
 			rte->rellockmode = isLockedRefname(pstate, refname) ? RowShareLock : AccessShareLock;
 			perminfo = addRTEPermissionInfo(&pstate->p_rteperminfos, rte);
 			perminfo->requiredPerms = ACL_SELECT;

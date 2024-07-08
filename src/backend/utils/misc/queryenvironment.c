@@ -38,6 +38,7 @@
 #include "catalog/pg_type.h"
 #include "catalog/pg_depend.h"
 #include "catalog/pg_sequence.h"
+#include "catalog/pg_attrdef.h"
 #include "catalog/pg_shdepend.h"
 #include "catalog/pg_index_d.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
@@ -97,10 +98,38 @@ create_queryEnv2(MemoryContext cxt, bool top_level)
 	return queryEnv;
 }
 
+/* Loop through structures in the ENR and make sure to free anything that needs to be freed. */
+static void free_ENR(EphemeralNamedRelation enr)
+{
+	for (int i = 0; i < ENR_CATTUP_END; i++)
+	{
+		List *uncommitted_cattups = enr->md.uncommitted_cattups[i];
+		List *cattups = enr->md.cattups[i];
+		ListCell *lc2, *lc3;
+
+		foreach(lc2, uncommitted_cattups)
+		{
+			ENRUncommittedTuple uncommitted_tup = (ENRUncommittedTuple) lfirst(lc2);
+
+			heap_freetuple(uncommitted_tup->tup);
+		}
+
+		foreach(lc3, cattups)
+		{
+			HeapTuple tup = (HeapTuple) lfirst(lc3);
+
+			heap_freetuple(tup);
+		}
+	}
+
+	pfree(enr->md.name);
+}
+
 /* Remove the current query environment and make its parent current. */
 void remove_queryEnv() {
 	MemoryContext			oldcxt;
 	QueryEnvironment		*tmp;
+	ListCell *lc;
 
 	/* We should never "free" top level query env as it's in stack memory. */
 	if (!currentQueryEnv || currentQueryEnv == topLevelQueryEnv)
@@ -108,6 +137,18 @@ void remove_queryEnv() {
 
 	tmp = currentQueryEnv->parentEnv;
 	oldcxt = MemoryContextSwitchTo(currentQueryEnv->memctx);
+
+	/* Clean up structures in currentQueryEnv */
+	foreach(lc, currentQueryEnv->dropped_namedRelList)
+	{
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+		free_ENR(enr);
+		pfree(enr);
+	}
+
+	list_free(currentQueryEnv->dropped_namedRelList);
+	currentQueryEnv->dropped_namedRelList = NIL;
+
 	pfree(currentQueryEnv);
 	MemoryContextSwitchTo(oldcxt);
 
@@ -333,7 +374,8 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 		reloid != DependRelationId &&
 		reloid != SharedDependRelationId &&
 		reloid != IndexRelationId &&
-		reloid != SequenceRelationId)
+		reloid != SequenceRelationId &&
+		reloid != AttrDefaultRelationId)
 		return false;
 
 	switch (nkeys) {
@@ -614,6 +656,30 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 					}
 				}
 			}
+			else if (reloid == AttrDefaultRelationId) {
+				ListCell *lc;
+				foreach(lc, enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]) {
+					Form_pg_attrdef tup = (Form_pg_attrdef) GETSTRUCT((HeapTuple) lfirst(lc));
+					if(indexId == AttrDefaultIndexId) {
+						/* Callers could pass in nkeys=1 or nkeys=2 */
+						if ((nkeys == 1 && tup->adrelid == (Oid)v1) ||
+							(nkeys == 2 && tup->adrelid == (Oid)v1 && tup->adnum == (Oid)v2))
+						{
+							*tuplist = list_insert_nth(*tuplist, index++, lfirst(lc));
+							*tuplist_flags |= SYSSCAN_ENR_NEEDFREE;
+							found = true;
+						}
+					}
+					else if(indexId == AttrDefaultOidIndexId &&
+							tup->oid == (Oid)v1)
+					{
+						*tuplist = list_insert_nth(*tuplist, index++, lfirst(lc));
+						*tuplist_flags |= SYSSCAN_ENR_NEEDFREE;
+						found = true;
+					}
+				}
+				*tuplist_i = 0;
+			}
 		}
 		queryEnv = queryEnv->parentEnv;
 	}
@@ -664,6 +730,7 @@ find_enr(Form_pg_depend entry)
 				break;
 
 			case ConstraintRelationId:
+			case AttrDefaultRelationId:
 				return get_ENR_withoid(queryEnv, entry->refobjid, ENR_TSQL_TEMP);
 
 			default:
@@ -730,6 +797,9 @@ ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOpera
 			break;
 		case SequenceRelationId:
 			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_SEQUENCE];
+			break;
+		case AttrDefaultRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_ATTR_DEF_REL];
 			break;
 		default:
 			/* Shouldn't reach here */
@@ -995,6 +1065,14 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					ret = true;
 				}
 				break;
+			case AttrDefaultRelationId:
+				rel_oid = ((Form_pg_attrdef) GETSTRUCT(tup))->adrelid;
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+					list_ptr = &enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL];
+					lc = list_head(enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]);
+					ret = true;
+				}
+				break;
 			default:
 				break;
 		}
@@ -1106,7 +1184,7 @@ void ENRDropEntry(Oid id)
 	}
 	else
 	{
-		pfree(enr->md.name);
+		free_ENR(enr);
 		pfree(enr);
 	}
 	MemoryContextSwitchTo(oldcxt);
@@ -1146,7 +1224,7 @@ ENRCommitChanges(QueryEnvironment *queryEnv)
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		pfree(enr->md.name);
+		free_ENR(enr);
 		pfree(enr);
 	}
 
@@ -1277,7 +1355,7 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 		queryEnv->namedRelList = list_delete(queryEnv->namedRelList, enr);
-		pfree(enr->md.name);
+		free_ENR(enr);
 		pfree(enr);
 	}
 	MemoryContextSwitchTo(oldcxt);
