@@ -61,6 +61,7 @@
 #include "rewrite/rewriteManip.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/lsyscache.h"
 #include "utils/partcache.h"
 #include "utils/rel.h"
@@ -2262,6 +2263,7 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 		Datum		indclassDatum;
 		bool		isnull;
 		int			i;
+		const char *bbf_dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
 		/* Grammar should not allow this with explicit column list */
 		Assert(constraint->keys == NIL);
@@ -2400,10 +2402,11 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 
 				defopclass = GetDefaultOpClass(attform->atttypid,
 											   index_rel->rd_rel->relam);
-				if (indclass->values[i] != defopclass ||
+				if ((indclass->values[i] != defopclass ||
 					attform->attcollation != index_rel->rd_indcollation[i] ||
 					attoptions != (Datum) 0 ||
-					index_rel->rd_indoption[i] != 0)
+					index_rel->rd_indoption[i] != 0) &&
+					(!bbf_dump_restore || strcmp(bbf_dump_restore, "on") != 0)) /* The dump/reload problem has been fixed for babelfish database */
 					ereport(ERROR,
 							(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 							 errmsg("index \"%s\" column number %d does not have default sorting behavior", index_name, i + 1),
