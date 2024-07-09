@@ -119,7 +119,10 @@ extern PGDLLEXPORT set_like_collation_hook_type set_like_collation_hook;
 typedef Oid (*get_like_collation_hook_type) (void);
 extern PGDLLEXPORT get_like_collation_hook_type get_like_collation_hook;
 
-typedef int (*pltsql_strpos_non_determinstic_hook_type) (text *t1, text *t2, Oid collid);
+typedef bool (*pltsql_strpos_non_determinstic_hook_type) (text *t1, text *t2, Oid collid, int *result);
 extern PGDLLIMPORT pltsql_strpos_non_determinstic_hook_type pltsql_strpos_non_determinstic_hook;
+
+typedef bool (*pltsql_replace_non_determinstic_hook_type) (text *t1, text *t2, text *t3, Oid collid, text **result);
+extern PGDLLIMPORT pltsql_replace_non_determinstic_hook_type pltsql_replace_non_determinstic_hook;
 
 #endif							/* PG_COLLATION_H */

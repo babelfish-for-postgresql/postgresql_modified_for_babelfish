@@ -43,6 +43,7 @@
 
 
 pltsql_strpos_non_determinstic_hook_type pltsql_strpos_non_determinstic_hook = NULL;
+pltsql_replace_non_determinstic_hook_type pltsql_replace_non_determinstic_hook = NULL;
 
 /* GUC variable */
 int			bytea_output = BYTEA_OUTPUT_HEX;
@@ -1181,15 +1182,9 @@ text_position(text *t1, text *t2, Oid collid)
 	if (VARSIZE_ANY_EXHDR(t2) < 1)
 		return 1;
 
-	if (pltsql_strpos_non_determinstic_hook)
+	if (pltsql_strpos_non_determinstic_hook && (*pltsql_strpos_non_determinstic_hook)(t1, t2, collid, &result))
 	{
-		int 	r;
-
-		check_collation_set(collid);
-
-		r = (*pltsql_strpos_non_determinstic_hook)(t1, t2, collid);
-		if (r >= 0)
-			return r;
+		return result;
 	}
 
 	/* Otherwise, can't match if haystack is shorter than needle */
@@ -4025,6 +4020,11 @@ replace_text(PG_FUNCTION_ARGS)
 	if (src_text_len < 1 || from_sub_text_len < 1)
 	{
 		PG_RETURN_TEXT_P(src_text);
+	}
+
+	if (pltsql_replace_non_determinstic_hook && (*pltsql_replace_non_determinstic_hook)(src_text, from_sub_text, to_sub_text, PG_GET_COLLATION(), &ret_text))
+	{
+		PG_RETURN_TEXT_P(ret_text);
 	}
 
 	text_position_setup(src_text, from_sub_text, PG_GET_COLLATION(), &state);
