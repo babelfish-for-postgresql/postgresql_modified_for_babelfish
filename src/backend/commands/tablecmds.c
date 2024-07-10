@@ -8868,6 +8868,7 @@ ATExecAddIndexConstraint(AlteredTableInfo *tab, Relation rel,
 	char		constraintType;
 	ObjectAddress address;
 	bits16		flags;
+	const char	*bbf_dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
 	Assert(IsA(stmt, IndexStmt));
 	Assert(OidIsValid(index_oid));
@@ -8877,7 +8878,8 @@ ATExecAddIndexConstraint(AlteredTableInfo *tab, Relation rel,
 	 * Doing this on partitioned tables is not a simple feature to implement,
 	 * so let's punt for now.
 	 */
-	if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+	if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE &&
+		(!bbf_dump_restore || strcmp(bbf_dump_restore, "on") != 0)) /* For Babelfish databases, allow the restore of index for partitioned table. */
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("ALTER TABLE / ADD CONSTRAINT USING INDEX is not supported on partitioned tables")));
