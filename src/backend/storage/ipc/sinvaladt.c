@@ -491,6 +491,12 @@ SIInsertDataEntries(const SharedInvalidationMessage *data, int n)
 		max = segP->maxMsgNum;
 		while (nthistime-- > 0)
 		{
+			if (data->id == SHAREDINVALRELCACHE_ID && data->rc.local_only)
+			{
+				data++;
+				continue;
+			}
+
 			segP->buffer[max % MAXNUMMESSAGES] = *data++;
 			max++;
 		}
