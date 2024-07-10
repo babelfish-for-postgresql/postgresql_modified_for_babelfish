@@ -1602,13 +1602,14 @@ addRangeTableEntryForRelation(ParseState *pstate,
 	RangeTblEntry *rte = makeNode(RangeTblEntry);
 	RTEPermissionInfo *perminfo;
 	char	   *refname = alias ? alias->aliasname : RelationGetRelationName(rel);
+	lockmode = get_ENR_withoid(currentQueryEnv, rel->rd_id, ENR_TSQL_TEMP) ? AccessShareLock : lockmode;
 
 	Assert(pstate != NULL);
 
 	Assert(lockmode == AccessShareLock ||
 		   lockmode == RowShareLock ||
 		   lockmode == RowExclusiveLock);
-	Assert(CheckRelationLockedByMe(rel, get_ENR_withoid(currentQueryEnv, rel->rd_id, ENR_TSQL_TEMP) ? AccessShareLock : lockmode, true));
+	Assert(CheckRelationLockedByMe(rel, lockmode, true));
 
 	rte->rtekind = RTE_RELATION;
 	rte->alias = alias;
