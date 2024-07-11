@@ -751,6 +751,7 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 				 */
 				if (strength == COLLATE_CONFLICT)
 					exprSetCollation(node, InvalidOid);
+
 				/*
 				 * If target datatype is sys."varchar" or sys."bpchar" and if we have already set the collation then 
 				 * we do not want to override the collation info.
@@ -764,16 +765,23 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 						 OidIsValid(((FuncExpr *) node)->funccollid) &&
 						 avoid_collation_override_hook &&
 						 avoid_collation_override_hook(((FuncExpr *) node)->funcid)))
-					exprSetCollation(node, collation);
+						 exprSetCollation(node, collation);
 
 				/*
 				 * Likewise save the input collation, which is the one that
 				 * any function called by this node should use.
 				 */
 				if (loccontext.strength == COLLATE_CONFLICT)
-					exprSetInputCollation(node, InvalidOid);
+				{
+					if (sql_dialect == SQL_DIALECT_TSQL)
+						exprSetInputCollation(node, CLUSTER_COLLATION_OID());
+					else
+						exprSetInputCollation(node, InvalidOid);
+				}
 				else
+				{
 					exprSetInputCollation(node, loccontext.collation);
+				}
 			}
 			break;
 	}
