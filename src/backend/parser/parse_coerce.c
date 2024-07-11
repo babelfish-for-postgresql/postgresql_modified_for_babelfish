@@ -325,12 +325,13 @@ coerce_type(ParseState *pstate, Node *node,
 			/*
 			 * T-SQL has different rules for string literal datatype coercions
 			 */
-			result = (*coerce_string_literal_hook) (&pcbstate, targetTypeId,
+			result = (*coerce_string_literal_hook) (targetTypeId,
 												  targetTypeMod, baseTypeMod,
 												  newcon, DatumGetCString(con->constvalue),
 												  ccontext, cformat, location);
 			if (result)
 			{
+				cancel_parser_errposition_callback(&pcbstate);
 				ReleaseSysCache(baseType);
 				return result;
 			}
