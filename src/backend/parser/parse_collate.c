@@ -751,7 +751,6 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 				 */
 				if (strength == COLLATE_CONFLICT)
 					exprSetCollation(node, InvalidOid);
-
 				/*
 				 * If target datatype is sys."varchar" or sys."bpchar" and if we have already set the collation then 
 				 * we do not want to override the collation info.
