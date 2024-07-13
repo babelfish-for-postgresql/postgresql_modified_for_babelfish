@@ -140,8 +140,6 @@ static void CreateDatabaseUsingFileCopy(Oid src_dboid, Oid dst_dboid,
 										Oid src_tsid, Oid dst_tsid);
 static void recovery_create_dbdir(char *path, bool only_tblspc);
 
-char *database_collation_name = NULL;
-
 /*
  * Create a new database using the WAL_LOG strategy.
  *

@@ -33,6 +33,5 @@ extern char *get_database_name(Oid dbid);
 extern bool have_createdb_privilege(void);
 
 extern void check_encoding_locale_matches(int encoding, const char *collate, const char *ctype);
-extern char* database_collation_name;
 
 #endif							/* DBCOMMANDS_H */
