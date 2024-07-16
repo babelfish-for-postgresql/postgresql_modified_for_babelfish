@@ -659,7 +659,7 @@ typeTypeCollation(Type typ)
 	Form_pg_type typtup;
 
 	typtup = (Form_pg_type) GETSTRUCT(typ);
-	if (sql_dialect == SQL_DIALECT_TSQL && OidIsValid(typtup->typcollation))
+	if (sql_dialect == SQL_DIALECT_TSQL && typtup->typcollation == DEFAULT_COLLATION_OID)
 		typtup->typcollation = CLUSTER_COLLATION_OID();
 	return typtup->typcollation;
 }
