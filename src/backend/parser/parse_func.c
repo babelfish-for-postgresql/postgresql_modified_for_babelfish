@@ -37,7 +37,6 @@
 #include "utils/syscache.h"
 
 func_select_candidate_hook_type func_select_candidate_hook = NULL;
-func_select_candidate_for_special_func_hook_type func_select_candidate_for_special_func_hook = NULL;
 make_fn_arguments_from_stored_proc_probin_hook_type make_fn_arguments_from_stored_proc_probin_hook = NULL;
 report_proc_not_found_error_hook_type report_proc_not_found_error_hook = NULL;
 /* Possible error codes from LookupFuncNameInternal */
@@ -1086,7 +1085,7 @@ func_select_candidate(int nargs,
 	    (dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 	    func_select_candidate_hook != NULL)
 	{
-		last_candidate = func_select_candidate_hook(nargs, input_typeids, candidates, false);
+		last_candidate = func_select_candidate_hook(NULL, nargs, input_typeids, candidates, false, false);
 		if (last_candidate)
 			return last_candidate; /* last_candiate->next should be already NULL */
 	}
@@ -1278,7 +1277,7 @@ func_select_candidate(int nargs,
 		(dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 		func_select_candidate_hook != NULL)
 	{
-		last_candidate = func_select_candidate_hook(nargs, input_typeids, candidates, true);
+		last_candidate = func_select_candidate_hook(NULL, nargs, input_typeids, candidates, true, false);
 		if (last_candidate)
 			return last_candidate; /* last_candiate->next should be already NULL */
 	}
@@ -1606,12 +1605,14 @@ func_get_detail(List *funcname,
 			{
 				if ((sql_dialect == SQL_DIALECT_TSQL ||
 					(dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
-					func_select_candidate_for_special_func_hook != NULL)
+					func_select_candidate_hook != NULL)
 				{
-					best_candidate = func_select_candidate_for_special_func_hook(funcname, 
-																		nargs, 
-																		argtypes, 
-																		current_candidates);
+					best_candidate = func_select_candidate_hook(funcname, 
+																	nargs, 
+																	argtypes, 
+																	current_candidates,
+																	false,
+																	true);
 				
 					if (best_candidate == NULL)
 						best_candidate = func_select_candidate(nargs,
