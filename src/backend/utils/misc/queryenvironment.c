@@ -446,7 +446,7 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 					if (indexId == DependDependerIndexId &&
 						tup->classid == (Oid)v1 &&
 						tup->objid == (Oid)v2 &&
-						(nkeys > 2 ? tup->objsubid == (int32)v3 : true))
+						(nkeys == 2 || tup->objsubid == (int32)v3))
 					{
 						*tuplist = list_insert_nth(*tuplist, index++, lfirst(lc));
 						*tuplist_flags |= SYSSCAN_ENR_NEEDFREE;
@@ -455,7 +455,7 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 					else if (indexId == DependReferenceIndexId &&
 						tup->refclassid == (Oid)v1 &&
 						tup->refobjid == (Oid)v2 &&
-						(nkeys > 2 ? tup->refobjsubid == (int32)v3 : true))
+						(nkeys == 2 || tup->refobjsubid == (int32)v3))
 					{
 						*tuplist = list_insert_nth(*tuplist, index++, lfirst(lc));
 						*tuplist_flags |= SYSSCAN_ENR_NEEDFREE;
