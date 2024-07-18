@@ -15552,9 +15552,9 @@ func_expr_common_subexpr:
 			| TRIM '(' trim_list ')'
 				{
 					$$ = (Node *) makeFuncCall(SystemFuncName("btrim"),
-												$3,
-												COERCE_SQL_SYNTAX,
-												@1);
+											   $3,
+											   COERCE_SQL_SYNTAX,
+											   @1);
 				}
 			| NULLIF '(' a_expr ',' a_expr ')'
 				{
@@ -16252,10 +16252,7 @@ substr_list:
 				}
 		;
 
-trim_list:	a_expr FROM expr_list
-				{
-					$$ = lappend($3, $1);
-				}
+trim_list:	a_expr FROM expr_list					{ $$ = lappend($3, $1); }
 			| FROM expr_list						{ $$ = $2; }
 			| expr_list								{ $$ = $1; }
 		;
