@@ -887,11 +887,6 @@ findDependentObjects(const ObjectAddress *object,
 		Form_pg_depend foundDep = (Form_pg_depend) GETSTRUCT(tup);
 		int			subflags;
 
-		if (foundDep->refclassid == object->classId &&
-			foundDep->refobjid == object->objectId &&
-			foundDep->refobjsubid != object->objectSubId)
-			continue;
-
 		otherObject.classId = foundDep->classid;
 		otherObject.objectId = foundDep->objid;
 		otherObject.objectSubId = foundDep->objsubid;
