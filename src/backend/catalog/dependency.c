@@ -887,6 +887,11 @@ findDependentObjects(const ObjectAddress *object,
 		Form_pg_depend foundDep = (Form_pg_depend) GETSTRUCT(tup);
 		int			subflags;
 
+		if (foundDep->refclassid == object->classId &&
+			foundDep->refobjid == object->objectId &&
+			foundDep->refobjsubid != object->objectSubId)
+			continue;
+
 		otherObject.classId = foundDep->classid;
 		otherObject.objectId = foundDep->objid;
 		otherObject.objectSubId = foundDep->objsubid;
@@ -1392,7 +1397,8 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 	DeleteInitPrivs(object);
 
 	// Delete from ENR - noop if not found from ENR
-	ENRDropEntry(object->objectId);
+	if (object->objectSubId == 0)
+		ENRDropEntry(object->objectId);
 
 	/*
 	 * CommandCounterIncrement here to ensure that preceding changes are all
