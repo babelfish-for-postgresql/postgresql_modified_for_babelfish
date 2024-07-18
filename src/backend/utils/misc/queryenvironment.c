@@ -435,9 +435,9 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 				* Search through the entire ENR relation list for everything
 				* that has a relation (non-recursive) to this object.
 				* If indexId is DependDependerIndexId, we try to mimic
-				* SELECT * FROM pg_depend WHERE classid=v1 AND objid=v2 AND objsubid = v3
+				* SELECT * FROM pg_depend WHERE classid=v1 AND objid=v2 (AND objsubid = v3 if applicable)
 				* Otherwise if it is DependReferenceIndexId we try to mimic
-				* SELECT * FROM pg_depend WHERE refclassid=v1 AND refobjid=v2 AND refobjsubid = v3
+				* SELECT * FROM pg_depend WHERE refclassid=v1 AND refobjid=v2 (AND refobjsubid = v3 if applicable)
 				* So we cannot return right away if there is a match.
 				*/
 				ListCell   *lc;
@@ -446,7 +446,7 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 					if (indexId == DependDependerIndexId &&
 						tup->classid == (Oid)v1 &&
 						tup->objid == (Oid)v2 &&
-						tup->objsubid == (int32) v3)
+						(nkeys > 2 ? tup->objsubid == (int32)v3 : true))
 					{
 						*tuplist = list_insert_nth(*tuplist, index++, lfirst(lc));
 						*tuplist_flags |= SYSSCAN_ENR_NEEDFREE;
@@ -455,7 +455,7 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 					else if (indexId == DependReferenceIndexId &&
 						tup->refclassid == (Oid)v1 &&
 						tup->refobjid == (Oid)v2 &&
-						tup->refobjsubid == (int32) v3)
+						(nkeys > 2 ? tup->refobjsubid == (int32)v3 : true))
 					{
 						*tuplist = list_insert_nth(*tuplist, index++, lfirst(lc));
 						*tuplist_flags |= SYSSCAN_ENR_NEEDFREE;
