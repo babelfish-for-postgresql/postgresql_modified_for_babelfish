@@ -2293,10 +2293,11 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 					 parser_errposition(cxt->pstate, constraint->location)));
 		/*
 		 * For Babelfish databases, allow the restore of index which is
-		 * marked as not used by queries for partitioned table.
+		 * marked as not valid for partitioned table.
 		 */
 		if (!index_form->indisvalid &&
-			(!bbf_dump_restore || strcmp(bbf_dump_restore, "on") != 0))
+			!(bbf_dump_restore && strcmp(bbf_dump_restore, "on") == 0 &&
+				RelationGetForm(heap_rel)->relkind == RELKIND_PARTITIONED_TABLE))
 			ereport(ERROR,
 					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 					 errmsg("index \"%s\" is not valid", index_name),
