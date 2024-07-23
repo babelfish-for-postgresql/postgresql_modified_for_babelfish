@@ -37,6 +37,10 @@ extern PGDLLIMPORT bool remove_temp_files_after_crash;
 extern PGDLLIMPORT bool send_abort_for_crash;
 extern PGDLLIMPORT bool send_abort_for_kill;
 
+#ifdef EXEC_BACKEND
+extern struct bkend *ShmemBackendArray;
+#endif
+
 /* Global variables in pqcomm.c */
 extern bool	IsNonLibpqClient;
 
