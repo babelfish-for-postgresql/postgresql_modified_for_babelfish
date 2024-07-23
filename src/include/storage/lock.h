@@ -179,16 +179,11 @@ typedef struct LOCKTAG
  * rather than accessing the fields directly.  Note multiple eval of target!
  */
 
-/*
- * For SET_LOCKTAG_RELATION, if it is an ENR temp table we also add MyProcPid into the locktag
- * in order to disambiguate locks from different backends in case we enter into the shared lock space.
- */
-
 /* ID info for a relation is DB OID + REL OID; DB OID = 0 if shared */
 #define SET_LOCKTAG_RELATION(locktag,dboid,reloid) \
 	((locktag).locktag_field1 = (dboid), \
 	 (locktag).locktag_field2 = (reloid), \
-	 (locktag).locktag_field3 = (get_ENR_withoid(currentQueryEnv, reloid, ENR_TSQL_TEMP) ? MyProcPid : 0), \
+	 (locktag).locktag_field3 = 0, \
 	 (locktag).locktag_field4 = 0, \
 	 (locktag).locktag_type = LOCKTAG_RELATION, \
 	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
