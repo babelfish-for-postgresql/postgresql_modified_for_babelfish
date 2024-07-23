@@ -26,6 +26,7 @@
 #include "storage/shmem.h"
 #include "storage/sinvaladt.h"
 #include "storage/spin.h"
+#include "utils/queryenvironment.h"
 
 /* hooks */
 pltsql_is_local_only_inval_msg_hook_type pltsql_is_local_only_inval_msg_hook = NULL;

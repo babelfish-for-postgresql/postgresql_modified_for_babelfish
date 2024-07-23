@@ -40,6 +40,7 @@
 #include "utils/rel.h"
 #include "utils/resowner_private.h"
 #include "utils/syscache.h"
+#include "utils/queryenvironment.h"
 
 
  /* #define CACHEDEBUG */	/* turns DEBUG elogs on */
@@ -2219,7 +2220,8 @@ void
 PrepareToInvalidateCacheTuple(Relation relation,
 							  HeapTuple tuple,
 							  HeapTuple newtuple,
-							  void (*function) (int, uint32, Oid))
+							  void (*function) (int, uint32, Oid), 
+							  bool is_enr)
 {
 	slist_iter	iter;
 	Oid			reloid;
@@ -2261,6 +2263,9 @@ PrepareToInvalidateCacheTuple(Relation relation,
 		dbid = ccp->cc_relisshared ? (Oid) 0 : MyDatabaseId;
 
 		(*function) (ccp->id, hashvalue, dbid);
+		/* If this is a temp table, store the hashvalue somewhere. That way we can remember to not add it to the SI queue at EOXact. */
+		if (is_enr)
+			SaveCatcacheMessage(ccp->id, hashvalue, dbid);
 
 		if (newtuple)
 		{
@@ -2269,7 +2274,11 @@ PrepareToInvalidateCacheTuple(Relation relation,
 			newhashvalue = CatalogCacheComputeTupleHashValue(ccp, ccp->cc_nkeys, newtuple);
 
 			if (newhashvalue != hashvalue)
+			{
 				(*function) (ccp->id, newhashvalue, dbid);
+				if (is_enr)
+					SaveCatcacheMessage(ccp->id, newhashvalue, dbid);
+			}
 		}
 	}
 }
