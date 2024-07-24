@@ -48,6 +48,7 @@ PGDLLIMPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook = NULL;
 PGDLLIMPORT get_func_language_oids_hook_type get_func_language_oids_hook = NULL;
 PGDLLIMPORT pgstat_function_wrapper_hook_type pgstat_function_wrapper_hook = NULL;
 set_local_schema_for_func_hook_type set_local_schema_for_func_hook = NULL;
+bool pltsql_check_search_path = true;
 
 /*
  * Hashtable for fast lookup of external C functions
@@ -696,7 +697,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	int			non_tsql_proc_count = 0;
 	void	   *newextra = NULL;
 	char 	   *cacheTupleProcname = NULL;
-	char	   *old_search_path = NULL;
+	int 	    pltsql_save_nestlevel;
 
 	if (get_func_language_oids_hook)
 		get_func_language_oids_hook(&pltsql_lang_oid, &pltsql_validator_oid);
@@ -788,13 +789,6 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 						GUC_ACTION_SAVE);
 	}
 
-	if (fcache->prosearchpath)
-	{
-		old_search_path = namespace_search_path;
-		namespace_search_path = fcache->prosearchpath;
-		assign_search_path(fcache->prosearchpath, newextra);
-	}
-
 	if (set_sql_dialect && IsTransactionState())
 	{
 		if ((fcache->prolang == pltsql_lang_oid) || (fcache->prolang == pltsql_validator_oid))
@@ -863,6 +857,16 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 			pfree(cacheTupleProcname);
 		}
 
+		if (fcache->prosearchpath)
+		{
+			pltsql_save_nestlevel = NewGUCNestLevel();
+			pltsql_check_search_path = false;
+			(void) set_config_option("search_path", fcache->prosearchpath,
+									PGC_USERSET, PGC_S_SESSION,
+									GUC_ACTION_SAVE, true, 0, false);
+			pltsql_check_search_path = true;
+		}
+
 		result = FunctionCallInvoke(fcinfo);
 
 		/*
@@ -901,25 +905,22 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 			sql_dialect = sql_dialect_value_old;
 			assign_sql_dialect(sql_dialect_value_old, newextra);
 		}
-		
-		if (old_search_path)
-		{
-			namespace_search_path = old_search_path;
-			assign_search_path(old_search_path, newextra);
-		}
 
+		if (fcache->prosearchpath)
+			pltsql_check_search_path = true;
+		
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
 
 	fcinfo->flinfo = save_flinfo;
 
-	if (old_search_path)
+	if (fcache->prosearchpath)
 	{
-		namespace_search_path = old_search_path;
-		assign_search_path(old_search_path, newextra);
+		AtEOXact_GUC(true, pltsql_save_nestlevel);
 	}
-
+	if (fcache->proconfig)
+		AtEOXact_GUC(true, save_nestlevel);
 	if (set_sql_dialect)
 	{
 		sql_dialect = sql_dialect_value_old;
@@ -928,8 +929,6 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		if (sql_dialect_value == pg_dialect)
 			non_tsql_proc_entry_hook(non_tsql_proc_count * -1, sys_func_count * -1);
 	}
-	else if (fcache->proconfig)
-		AtEOXact_GUC(true, save_nestlevel);
 	if (OidIsValid(fcache->userid))
 		SetUserIdAndSecContext(save_userid, save_sec_context);
 	if (fmgr_hook && !set_sql_dialect)

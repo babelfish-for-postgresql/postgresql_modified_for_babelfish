@@ -486,8 +486,17 @@ tsql_openjson_with_get_subjsonb(PG_FUNCTION_ARGS)
 	vars = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum("{}"));
 	(void) executeJsonPath(jp, vars, jb, false, &found, false);
 
-	if (JsonValueListLength(&found) >= 1)
-		sub_jb = JsonbValueToJsonb(JsonValueListHead(&found));
+	if (JsonValueListLength(&found) >= 1) {
+		JsonbValue *jv = JsonValueListHead(&found);
+		/*
+		 * List may contain NULL values
+		 * Need to check before passing to JsonbValueToJsonb
+		 */
+		if(jv)
+			sub_jb = JsonbValueToJsonb(jv);
+		else
+			sub_jb = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum("null"));
+	}
 	else
 		sub_jb = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum("null"));
 
@@ -526,24 +535,39 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 			asjson;
 	col_path = NULL; col_type = NULL; strict = false; as = false; asjson = false;
 	token = strtok(col_info, " ");
+
+	if (strncasecmp(token, "strict", 6) == 0)
+	{
+		strict = true;
+		if(strlen(token) == 6)
+			token = strtok(NULL, " ");
+		else
+			token = token + 6;
+	}
+	else if (strncasecmp(token, "lax", 3) == 0)
+	{
+		strict = false;
+		if(strlen(token) == 3)
+			token = strtok(NULL, " ");
+		else
+			token = token + 3;
+	}
+
 	while (token != NULL)
 	{
-		if (strncmp(token, "strict", 6) == 0)
-			strict = true;
-		else if (strncmp(token, "lax", 3) == 0)
-			strict = false;
-		else if (col_path == NULL)
+		if (col_path == NULL)
 			col_path = token;
 		else if (col_type == NULL)
 			col_type = token;
-		else if (strncmp(token, "AS", 2) == 0)
+		else if (strncasecmp(token, "AS", 2) == 0)
 			as = true;
-		else if (as && strncmp(token, "JSON", 4) == 0)
+		else if (as && strncasecmp(token, "JSON", 4) == 0)
 			asjson = true;
 		token = strtok(NULL, " ");
 	}
 
-	if (strlen(col_type) >= 3) /* Get column size restriction, if it exists */
+	/* Get column size restriction, if it exists */
+	if (col_type && strlen(col_type) >= 3)
 	{
 		token = strtok(col_type, "(");
 		if (token)
@@ -577,6 +601,14 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 
 	/* get tuple set using executeJsonPath */
 	jp = DatumGetJsonPathP(DirectFunctionCall1(jsonpath_in, CStringGetDatum(col_path)));
+
+	/*
+	 * In case where there is no space between 'strict/lax' and the column path
+	 * jsonpath_in will automatically set the header to strict. We need to change
+	 * the header to prevent unintended 'strict' calls to openjson
+	 */
+	if(!strict)
+		jp->header |= JSONPATH_LAX;
 
 	(void) executeJsonPath(jp, vars, jb, false, &found, false);
 
@@ -872,10 +904,12 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 						found->list = list_make2(found->singleton, NULL);
 						found->singleton = NULL;
 					}
-					else if (!found->list)
-						found->list = list_make1(NULL); /* Since JsonValueList uses a NULL singleton as shortcut, need to manually insert null value into list */
-					else
+					else if (found->list)
 						found->list = lappend(found->list, NULL);
+					else {
+						/* Since JsonValueList uses a NULL singleton as shortcut, need to manually insert null value into list */
+						found->list = list_make1(NULL);
+					}
 					res = jperOk;
 				}
 			}
@@ -1443,6 +1477,9 @@ executeBoolItem(JsonPathExecContext *cxt, JsonPathItem *jsp,
 	JsonPathItem rarg;
 	JsonPathBool res;
 	JsonPathBool res2;
+
+	/* since this function recurses, it could be driven to stack overflow */
+	check_stack_depth();
 
 	if (!canHaveNext && jspHasNext(jsp))
 		elog(ERROR, "boolean jsonpath item cannot have next item");

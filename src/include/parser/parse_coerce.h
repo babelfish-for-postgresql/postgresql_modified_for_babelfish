@@ -116,8 +116,7 @@ typedef bool (*determine_datatype_precedence_hook_type) (Oid typeId1, Oid typeId
 /*
  * T-SQL has different rules for string literal datatype coercions
  */
-typedef Node *(*coerce_string_literal_hook_type) (ParseCallbackState *pcbstate,
-												  Oid targetTypeId,
+typedef Node *(*coerce_string_literal_hook_type) (Oid targetTypeId,
 												  int32 targetTypeMod,
 												  int32 baseTypeMod,
 												  Const *newcon,
@@ -134,5 +133,8 @@ typedef void (*validate_implicit_conversion_from_string_literal_hook_type) (Cons
 typedef Oid (*select_common_type_hook_type) (ParseState *pstate, List *exprs, const char *context, Node **which_expr);
 extern PGDLLEXPORT select_common_type_hook_type select_common_type_hook;
 typedef int32 (*select_common_typmod_hook_type) (ParseState *pstate, List *exprs, Oid common_type);
+
+typedef Node *(*handle_constant_literals_hook_type) (ParseState *pstate, Node *e);
+extern PGDLLEXPORT handle_constant_literals_hook_type handle_constant_literals_hook;
 
 #endif							/* PARSE_COERCE_H */

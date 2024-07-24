@@ -61,6 +61,7 @@
 #include "rewrite/rewriteManip.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/lsyscache.h"
 #include "utils/partcache.h"
 #include "utils/rel.h"
@@ -70,6 +71,7 @@
 
 /* Hook for pltsql plugin */
 pltsql_identity_datatype_hook_type pltsql_identity_datatype_hook = NULL;
+pltsql_unique_constraint_nulls_ordering_hook_type pltsql_unique_constraint_nulls_ordering_hook = NULL;
 post_transform_column_definition_hook_type post_transform_column_definition_hook = NULL;
 post_transform_table_definition_hook_type post_transform_table_definition_hook = NULL;
 
@@ -465,7 +467,16 @@ generateSerialExtraStmts(CreateStmtContext *cxt, ColumnDef *column,
 	seqstmt = makeNode(CreateSeqStmt);
 	seqstmt->for_identity = for_identity;
 	seqstmt->sequence = makeRangeVar(snamespace, sname, -1);
-	seqstmt->sequence->relpersistence = cxt->relation->relpersistence;
+
+	/*
+	 * Copy the persistence of the table.  For CREATE TABLE, we get the
+	 * persistence from cxt->relation, which comes from the CreateStmt in
+	 * progress.  For ALTER TABLE, the parser won't set
+	 * cxt->relation->relpersistence, but we have cxt->rel as the existing
+	 * table, so we copy the persistence from there.
+	 */
+	seqstmt->sequence->relpersistence = cxt->rel ? cxt->rel->rd_rel->relpersistence : cxt->relation->relpersistence;
+
 	seqstmt->options = seqoptions;
 
 	/*
@@ -2236,6 +2247,7 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 		oidvector  *indclass;
 		Datum		indclassDatum;
 		int			i;
+		const char *bbf_dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
 		/* Grammar should not allow this with explicit column list */
 		Assert(constraint->keys == NIL);
@@ -2374,10 +2386,11 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 
 				defopclass = GetDefaultOpClass(attform->atttypid,
 											   index_rel->rd_rel->relam);
-				if (indclass->values[i] != defopclass ||
+				if ((indclass->values[i] != defopclass ||
 					attform->attcollation != index_rel->rd_indcollation[i] ||
 					attoptions != (Datum) 0 ||
-					index_rel->rd_indoption[i] != 0)
+					index_rel->rd_indoption[i] != 0) &&
+					(!bbf_dump_restore || strcmp(bbf_dump_restore, "on") != 0)) /* The dump/reload problem has been fixed for babelfish database */
 					ereport(ERROR,
 							(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 							 errmsg("index \"%s\" column number %d does not have default sorting behavior", index_name, i + 1),
@@ -2575,7 +2588,12 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 				IndexElem * i = (IndexElem *) lfirst(lc);
 				iparam->ordering = i->ordering;
 			}
-			
+
+			if (sql_dialect == SQL_DIALECT_TSQL && pltsql_unique_constraint_nulls_ordering_hook)
+			{
+				iparam->nulls_ordering = (* pltsql_unique_constraint_nulls_ordering_hook) (constraint->contype, iparam->ordering);
+			}
+
 			/*
 			 * For a primary-key column, also create an item for ALTER TABLE
 			 * SET NOT NULL if we couldn't ensure it via is_not_null above.

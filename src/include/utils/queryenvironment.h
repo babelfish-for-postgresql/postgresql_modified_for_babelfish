@@ -41,8 +41,33 @@ typedef enum ENRCatalogTupleType
 	ENR_CATTUP_SHDEPEND,
 	ENR_CATTUP_INDEX,
 	ENR_CATTUP_SEQUENCE,
-	ENR_CATTUP_END
+	ENR_CATTUP_ATTR_DEF_REL,
+	ENR_CATTUP_END,
 } ENRCatalogTupleType;
+
+typedef enum ENRTupleOperationType
+{
+	ENR_OP_ADD,
+	ENR_OP_UPDATE,
+	ENR_OP_DROP
+} ENRTupleOperationType;
+
+/*
+ * This struct stores all information needed to restore the tuple on ROLLBACK. 
+ */
+typedef struct ENRUncommittedTupleData
+{
+	/* Oid of catalog this this tuple belongs to */
+	Oid							catalog_oid;
+	/* Operation */
+	ENRTupleOperationType		optype;
+	/* A copy of the tuple itself */
+	HeapTuple 					tup;
+	/* Track if this was created in a specific subtransactionid so that it can be rolled back on savepoints. */
+	SubTransactionId subid;
+} ENRUncommittedTupleData;
+
+typedef ENRUncommittedTupleData *ENRUncommittedTuple;
 
 /*
  * Some ephemeral named relations must match some relation (e.g., trigger
@@ -62,6 +87,18 @@ typedef struct EphemeralNamedRelationMetadataData
 	EphemeralNameRelationType enrtype;	/* to identify type of relation */
 	double		enrtuples;		/* estimated number of tuples */
 	List		*cattups[ENR_CATTUP_END];
+
+	/* We must ignore transaction semantics for table variables. */
+	bool		is_bbf_temp_table;
+	/* We don't need to track uncommitted ENRs as they would be dropped entirely on ROLLBACK. */
+	bool		is_committed;
+	/* If this ENR is currently being rolled back, don't track changes to it. */
+	bool		in_rollback;
+	/* Track if this was created/dropped in a specific subtransactionid so that it can be rolled back on savepoints. */
+	SubTransactionId created_subid;
+	SubTransactionId dropped_subid;
+	/* List of uncommitted tuples. They must be processed on ROLLBACK, or cleared on commit. */
+	List		*uncommitted_cattups[ENR_CATTUP_END];
 } EphemeralNamedRelationMetadataData;
 
 typedef EphemeralNamedRelationMetadataData *EphemeralNamedRelationMetadata;
@@ -107,5 +144,10 @@ extern PGDLLEXPORT void ENRDropTempTables(QueryEnvironment *queryEnv);
 extern void ENRDropEntry(Oid id);
 extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid);
 extern bool has_existing_enr_relations(void);
+
+extern bool ENRTupleIsDropped(Relation rel, HeapTuple tup);
+extern void ENRCommitChanges(QueryEnvironment *queryEnv);
+extern void ENRRollbackChanges(QueryEnvironment *queryEnv);
+extern void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEnv);
 
 #endif							/* QUERYENVIRONMENT_H */

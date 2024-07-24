@@ -76,6 +76,7 @@
 #include "commands/trigger.h"
 #include "commands/typecmds.h"
 #include "funcapi.h"
+#include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteRemove.h"
@@ -523,6 +524,12 @@ findDependentObjects(const ObjectAddress *object,
 	 */
 	if (stack_address_present_add_flags(object, objflags, stack))
 		return;
+
+	/*
+	 * since this function recurses, it could be driven to stack overflow,
+	 * because of the deep dependency tree, not only due to dependency loops.
+	 */
+	check_stack_depth();
 
 	/*
 	 * It's also possible that the target object has already been completely
@@ -1384,8 +1391,14 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 	DeleteSecurityLabel(object);
 	DeleteInitPrivs(object);
 
-	// Delete from ENR - noop if not found from ENR
-	ENRDropEntry(object->objectId);
+	/*
+	 * If objectSubId != 0, then this is a column. There are no ENR entries
+	 * for individual columns, so skip ENRDropEntry in this case (or else we
+	 * will delete the entire table instead of just the column). Note that this
+	 * is a no-op if the objectId is not found from ENR.
+	 */
+	if (object->objectSubId == 0)
+		ENRDropEntry(object->objectId);
 
 	/*
 	 * CommandCounterIncrement here to ensure that preceding changes are all
@@ -2404,7 +2417,11 @@ process_function_rte_ref(RangeTblEntry *rte, AttrNumber attnum,
 		{
 			TupleDesc	tupdesc;
 
-			tupdesc = get_expr_result_tupdesc(rtfunc->funcexpr, true);
+			/* If it has a coldeflist, it certainly returns RECORD */
+			if (rtfunc->funccolnames != NIL)
+				tupdesc = NULL; /* no need to work hard */
+			else
+				tupdesc = get_expr_result_tupdesc(rtfunc->funcexpr, true);
 			if (tupdesc && tupdesc->tdtypeid != RECORDOID)
 			{
 				/*

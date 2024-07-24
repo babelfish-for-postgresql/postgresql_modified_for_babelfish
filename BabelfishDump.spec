@@ -20,14 +20,14 @@
 %global macrosdir %(d=%{_rpmconfigdir}/macros.d; [ -d $d ] || d=%{_sysconfdir}/rpm; echo $d)
 
 %define _trivial .0
-%define _buildid .2
+%define _buildid .1
 
 %undefine _missing_build_ids_terminate_build
 
 Name: BabelfishDump
 Summary: Postgresql dump utilities modified for Babelfish
-Version: 16.1
-Release: 1%{?dist}%{?_trivial}%{?_buildid}
+Version: 16.3
+Release: 2%{?dist}%{?_trivial}%{?_buildid}
 License: PostgreSQL
 Url: https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish
 
@@ -81,6 +81,14 @@ sed -i "s/pg_dump/bbf_dump/g" src/bin/pg_dump/pg_dumpall.c
 sed -i "s/pg_dump (PostgreSQL)/bbf_dump (pg_dump compatible with Babelfish for PostgreSQL)/g" src/bin/pg_dump/pg_dump.c
 sed -i "s/bbf_dump (PostgreSQL)/bbf_dump (pg_dump compatible with Babelfish for PostgreSQL)/g" src/bin/pg_dump/pg_dumpall.c
 sed -i "s/bbf_dumpall (PostgreSQL)/bbf_dumpall (pg_dumpall compatible with Babelfish for PostgreSQL)/g" src/bin/pg_dump/pg_dumpall.c
+
+# Update bug report and package links
+sed -i 's|PACKAGE_BUGREPORT|"https://github.com/babelfish-for-postgresql/babelfish_extensions/issues"|g' src/bin/pg_dump/pg_dump.c
+sed -i 's|PACKAGE_BUGREPORT|"https://github.com/babelfish-for-postgresql/babelfish_extensions/issues"|g' src/bin/pg_dump/pg_dumpall.c
+sed -i 's|PACKAGE_NAME|"Babelfish"|g' src/bin/pg_dump/pg_dump.c
+sed -i 's|PACKAGE_NAME|"Babelfish"|g' src/bin/pg_dump/pg_dumpall.c
+sed -i 's|PACKAGE_URL|"https://github.com/babelfish-for-postgresql/babelfish-for-postgresql/wiki"|g' src/bin/pg_dump/pg_dump.c
+sed -i 's|PACKAGE_URL|"https://github.com/babelfish-for-postgresql/babelfish-for-postgresql/wiki"|g' src/bin/pg_dump/pg_dumpall.c
 
 %build
 # Building BabelfishDump
@@ -143,6 +151,21 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
+* Mon Jun 17 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-2
+- Improve catalog handling in bbf_dump
+
+* Mon May 20 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-1
+- Update bug report and documentation links for BabelfishDump
+
+* Tue Apr 02 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-1
+- Do not dump babelfish_domain_mapping catalog table for database-level dump
+
+* Fri Mar 22 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-1
+- Support Babelfish schema-only and data-only dump/restore
+
+* Tue Mar 05 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-1
+- Correctly dump the data of babelfish_extended_properties
+
 * Tue Jan 16 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.1-2
 - Updated BabelfishDump RPM version to 16.1
 
