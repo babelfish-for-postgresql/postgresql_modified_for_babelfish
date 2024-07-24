@@ -19,6 +19,7 @@
 
 #include "access/transam.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "storage/backendid.h"
 #include "storage/ipc.h"
 #include "storage/proc.h"

@@ -276,6 +276,8 @@ bool SIMessageIsForTempTable(SharedInvalidationMessage *msg)
 	if (msg->id >= 0)
 	{
 		ListCell *lc;
+		if (!currentQueryEnv)
+			return false;
 		foreach(lc, currentQueryEnv->savedCatcacheMessages)
 		{
 			SharedInvalCatcacheMsg *saved_msg = (SharedInvalCatcacheMsg *) lfirst(lc);

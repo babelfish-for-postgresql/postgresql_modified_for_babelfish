@@ -116,6 +116,7 @@
 #include "catalog/catalog.h"
 #include "catalog/pg_constraint.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "storage/sinval.h"
 #include "storage/smgr.h"
 #include "utils/catcache.h"
@@ -403,6 +404,9 @@ AddCatcacheInvalidationMessage(InvalidationMsgsGroup *group,
 	msg.cc.id = (int8) id;
 	msg.cc.dbId = dbId;
 	msg.cc.hashValue = hashValue;
+
+	if (sql_dialect == SQL_DIALECT_TSQL)
+		msg.cc.local_only = SIMessageIsForTempTable(&msg);
 
 	/*
 	 * Define padding bytes in SharedInvalidationMessage structs to be
