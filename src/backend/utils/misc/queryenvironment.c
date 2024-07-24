@@ -288,6 +288,9 @@ get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType ty
 
 	if (queryEnv == NULL)
 		return NULL;
+	
+	if (type == ENR_TSQL_TEMP && sql_dialect != SQL_DIALECT_TSQL)
+		return NULL;
 
 	foreach(lc, queryEnv->namedRelList)
 	{

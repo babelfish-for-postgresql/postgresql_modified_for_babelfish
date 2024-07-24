@@ -183,6 +183,9 @@ index_close(Relation relation, LOCKMODE lockmode)
 {
 	LockRelId	relid = relation->rd_lockInfo.lockRelId;
 
+	if (get_ENR_withoid(currentQueryEnv, RelationGetRelid(relation), ENR_TSQL_TEMP))
+		lockmode = AccessShareLock;
+
 	Assert(lockmode >= NoLock && lockmode < MAX_LOCKMODES);
 
 	/* The relcache does the real work... */

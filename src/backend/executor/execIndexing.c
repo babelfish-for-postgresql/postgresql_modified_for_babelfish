@@ -243,7 +243,7 @@ ExecCloseIndices(ResultRelInfo *resultRelInfo)
 			continue;			/* shouldn't happen? */
 
 		/* Drop lock acquired by ExecOpenIndices */
-		index_close(indexDescs[i], get_ENR_withoid(currentQueryEnv, indexDescs[i]->rd_id, ENR_TSQL_TEMP) ? AccessShareLock : RowExclusiveLock);
+		index_close(indexDescs[i], RowExclusiveLock);
 	}
 
 	/*
