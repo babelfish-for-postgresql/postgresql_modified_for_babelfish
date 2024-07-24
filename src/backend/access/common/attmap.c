@@ -27,6 +27,7 @@
 #include "utils/builtins.h"
 
 called_from_tsql_insert_exec_hook_type called_from_tsql_insert_exec_hook = NULL;
+called_for_tsql_itvf_func_hook_type called_for_tsql_itvf_func_hook = NULL;
 
 static bool check_attrmap_match(TupleDesc indesc,
 								TupleDesc outdesc,
@@ -115,10 +116,11 @@ build_attrmap_by_position(TupleDesc indesc,
 			nincols++;
 
 			/* Found matching column, now check type */
-			/* skip check type if it's tsql insert exec */
+			/* skip check type if it's tsql insert exec or if it is for tsql inline table valued function */
 			if ((atttypid != att->atttypid ||
 				(atttypmod != att->atttypmod && atttypmod >= 0)) &&
-				!(called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook()))
+				!(called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook()) &&
+				!(called_for_tsql_itvf_func_hook && called_for_tsql_itvf_func_hook()))
 				ereport(ERROR,
 						(errcode(ERRCODE_DATATYPE_MISMATCH),
 						 errmsg_internal("%s", _(msg)),
@@ -313,9 +315,10 @@ check_attrmap_match(TupleDesc indesc,
 			return false;
 
 		/**
-		 * in tsql insert exec, we need a cast
+		 * in tsql insert exec or for tsql inline table valued function, we need a cast
 		 */
-		if (called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook()
+		if (((called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook()) 
+				|| (called_for_tsql_itvf_func_hook && called_for_tsql_itvf_func_hook()))
 		 	&& (inatt->atttypid != outatt->atttypid ||
 			inatt->atttypmod != outatt->atttypmod))
 			return false;
