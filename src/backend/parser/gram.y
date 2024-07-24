@@ -15626,16 +15626,10 @@ func_expr_common_subexpr:
 				}
 			| TRIM '(' trim_list ')'
 				{
-					if (sql_dialect == SQL_DIALECT_TSQL)
-						$$ = (Node *) makeFuncCall(list_make2(makeString("sys"), makeString("trim")),
-													$3,
-													COERCE_EXPLICIT_CALL,
-													@1);
-					else
-						$$ = (Node *) makeFuncCall(SystemFuncName("btrim"),
-													$3,
-													COERCE_SQL_SYNTAX,
-													@1);
+					$$ = (Node *) makeFuncCall(SystemFuncName("btrim"),
+											   $3,
+											   COERCE_SQL_SYNTAX,
+											   @1);
 				}
 			| NULLIF '(' a_expr ',' a_expr ')'
 				{
