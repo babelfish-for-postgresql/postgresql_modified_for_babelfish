@@ -57,6 +57,8 @@ struct QueryEnvironment
 {
 	List	   *namedRelList;
 	List	   *dropped_namedRelList;
+	bool 	   inView;				/* indicate if the current query is inside a view */
+	char	   *viewName;			/* if current query is inside a view, store the view name */
 	struct QueryEnvironment *parentEnv;
 	MemoryContext	memctx;
 };
@@ -86,12 +88,18 @@ create_queryEnv2(MemoryContext cxt, bool top_level)
 		queryEnv = topLevelQueryEnv;
 		queryEnv->namedRelList = NIL;
 		queryEnv->dropped_namedRelList = NIL;
+		queryEnv->viewName = NULL;
+		queryEnv->inView = false;
 		queryEnv->parentEnv = NULL;
 		queryEnv->memctx = cxt;
 	} else {
 		oldcxt = MemoryContextSwitchTo(cxt);
 		queryEnv = (QueryEnvironment *) palloc0(sizeof(QueryEnvironment));
 		queryEnv->parentEnv = currentQueryEnv;
+		queryEnv->namedRelList = NIL;
+		queryEnv->dropped_namedRelList = NIL;
+		queryEnv->inView = false;
+		queryEnv->viewName = NULL;
 		queryEnv->memctx = cxt;
 		MemoryContextSwitchTo(oldcxt);
 	}
@@ -150,6 +158,9 @@ void remove_queryEnv() {
 
 	list_free(currentQueryEnv->dropped_namedRelList);
 	currentQueryEnv->dropped_namedRelList = NIL;
+
+	if (currentQueryEnv->viewName != NULL)
+		pfree(currentQueryEnv->viewName);
 
 	pfree(currentQueryEnv);
 	MemoryContextSwitchTo(oldcxt);
@@ -1532,4 +1543,55 @@ extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
 
 		queryEnv = queryEnv->parentEnv;
 	}
+}
+
+/*
+ * Set the view name for the current query environment.
+ */
+void setQueryEnvViewName(QueryEnvironment *queryEnv, const char *viewName)
+{
+	MemoryContext oldcxt;
+
+	if (queryEnv == NULL || viewName == NULL)
+		return;
+
+	Assert(queryEnv->memctx);
+	oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
+
+	queryEnv->viewName = pstrdup(viewName);
+	
+	MemoryContextSwitchTo(oldcxt);
+}
+
+/*
+ *  Check if the query is inside a view
+ */
+bool checkQueryWithinView(QueryEnvironment *queryEnv)
+{
+	if (!queryEnv)
+		return false;
+
+	return queryEnv->inView;
+}
+
+/*
+ * Set QueryEnvironment inView flag
+ */
+void setQueryEnvInView(QueryEnvironment *queryEnv, bool inView)
+{
+	if (!queryEnv)
+		return;
+
+	queryEnv->inView = inView;
+}
+
+/*
+ *  Get the view name for the current query environment
+ */
+char *getQueryEnvViewName(QueryEnvironment *queryEnv)
+{
+	if (!queryEnv)
+		return NULL;
+
+	return queryEnv->viewName;
 }
