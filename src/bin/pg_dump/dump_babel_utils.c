@@ -1014,14 +1014,16 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	/*
 	 * Now get the OIDs for following desired catalog tables:
 	 * sys.babelfish_namespace_ext
-	 * babelfish_extended_properties
-	 * babelfish_schema_permissions
+	 * sys.babelfish_pivot_view
+	 * sys.babelfish_extended_properties
+	 * sys.babelfish_schema_permissions
 	 */
 	appendPQExpBufferStr(query,
 						 "SELECT oid "
 						 "FROM pg_class "
 						 "WHERE relname in ('babelfish_schema_permissions', "
 						 "'babelfish_namespace_ext', "
+						 "'babelfish_pivot_view', "
 						 "'babelfish_extended_properties') "
 						 "AND relnamespace = 'sys'::regnamespace "
 						 "ORDER BY relname;");
@@ -1078,6 +1080,7 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	}
 	else if (strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_pivot_view") == 0 ||
 			 strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
 			 strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a WHERE a.dbid = %d",
@@ -1153,6 +1156,7 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
+			strcmp(tbinfo->dobj.name, "babelfish_pivot_view") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0)

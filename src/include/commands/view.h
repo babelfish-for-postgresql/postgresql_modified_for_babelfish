@@ -26,5 +26,8 @@ typedef void (*store_view_definition_hook_type) (const char *queryString, Object
 extern PGDLLIMPORT store_view_definition_hook_type	store_view_definition_hook;
 
 typedef void (*inherit_view_constraints_from_table_hook_type) (ColumnDef  *col, Oid tableOid, AttrNumber colId);
-extern PGDLLIMPORT inherit_view_constraints_from_table_hook_type inherit_view_constraints_from_table_hook;
+extern PGDLLEXPORT inherit_view_constraints_from_table_hook_type inherit_view_constraints_from_table_hook;
+
+typedef Query *(*parse_analyze_babelfish_view_hook_type) (ViewStmt *stmt, RawStmt *rawstmt, const char *queryString);
+extern PGDLLEXPORT parse_analyze_babelfish_view_hook_type parse_analyze_babelfish_view_hook;
 #endif							/* VIEW_H */

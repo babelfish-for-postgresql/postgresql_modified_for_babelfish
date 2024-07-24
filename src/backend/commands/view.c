@@ -24,6 +24,7 @@
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/analyze.h"
+#include "parser/parser.h"
 #include "parser/parse_relation.h"
 #include "rewrite/rewriteDefine.h"
 #include "rewrite/rewriteHandler.h"
@@ -34,9 +35,10 @@
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
+#include "utils/queryenvironment.h"
 
 store_view_definition_hook_type store_view_definition_hook = NULL;
-
+parse_analyze_babelfish_view_hook_type parse_analyze_babelfish_view_hook = NULL;
 static void checkViewTupleDesc(TupleDesc newdesc, TupleDesc olddesc);
 
 inherit_view_constraints_from_table_hook_type inherit_view_constraints_from_table_hook = NULL;
@@ -460,7 +462,10 @@ DefineView(ViewStmt *stmt, const char *queryString,
 	rawstmt->stmt_location = stmt_location;
 	rawstmt->stmt_len = stmt_len;
 
-	viewParse = parse_analyze_fixedparams(rawstmt, queryString, NULL, 0, NULL);
+	if (sql_dialect == SQL_DIALECT_TSQL && parse_analyze_babelfish_view_hook)
+		viewParse = (*parse_analyze_babelfish_view_hook) (stmt, rawstmt, queryString);
+	else
+		viewParse = parse_analyze_fixedparams(rawstmt, queryString, NULL, 0, NULL);
 
 	/*
 	 * The grammar should ensure that the result is a single SELECT Query.

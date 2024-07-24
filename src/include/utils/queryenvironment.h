@@ -150,4 +150,10 @@ extern void ENRCommitChanges(QueryEnvironment *queryEnv);
 extern void ENRRollbackChanges(QueryEnvironment *queryEnv);
 extern void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEnv);
 
+extern void setQueryEnvViewName(QueryEnvironment *queryEnv, const char *viewName);
+extern char *getQueryEnvViewName(QueryEnvironment *queryEnv);
+extern bool checkQueryWithinView(QueryEnvironment *queryEnv);
+extern void setQueryEnvInView(QueryEnvironment *queryEnv, bool inView);
+
+
 #endif							/* QUERYENVIRONMENT_H */

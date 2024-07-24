@@ -2869,6 +2869,12 @@ _outSelectStmt(StringInfo str, const SelectStmt *node)
 	WRITE_BOOL_FIELD(all);
 	WRITE_NODE_FIELD(larg);
 	WRITE_NODE_FIELD(rarg);
+	WRITE_BOOL_FIELD(isPivot);
+	WRITE_NODE_FIELD(srcSql);
+	WRITE_NODE_FIELD(catSql);
+	WRITE_NODE_FIELD(value_col_strlist);
+	WRITE_NODE_FIELD(pivotCol);
+	WRITE_NODE_FIELD(aggFunc);
 }
 
 static void

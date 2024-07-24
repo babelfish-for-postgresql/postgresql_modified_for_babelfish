@@ -3353,6 +3353,12 @@ _copySelectStmt(const SelectStmt *from)
 	COPY_SCALAR_FIELD(all);
 	COPY_NODE_FIELD(larg);
 	COPY_NODE_FIELD(rarg);
+	COPY_SCALAR_FIELD(isPivot);
+	COPY_NODE_FIELD(srcSql);
+	COPY_NODE_FIELD(catSql);
+	COPY_NODE_FIELD(value_col_strlist);
+	COPY_NODE_FIELD(pivotCol);
+	COPY_NODE_FIELD(aggFunc);
 
 	return newnode;
 }
