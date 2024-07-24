@@ -604,7 +604,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		}
 
 		if (sql_dialect == SQL_DIALECT_TSQL && report_proc_not_found_error_hook)
-			report_proc_not_found_error_hook(funcname, argnames, nargs, pstate, location, proc_call);
+			report_proc_not_found_error_hook(funcname, argnames, actual_arg_types, nargs, pstate, location, proc_call);
 
 		/*
 		 * No function, and no column either.  Since we're dealing with
@@ -1085,7 +1085,7 @@ func_select_candidate(int nargs,
 	    (dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 	    func_select_candidate_hook != NULL)
 	{
-		last_candidate = func_select_candidate_hook(nargs, input_typeids, candidates, false);
+		last_candidate = func_select_candidate_hook(NULL, nargs, input_typeids, candidates, false, false);
 		if (last_candidate)
 			return last_candidate; /* last_candiate->next should be already NULL */
 	}
@@ -1277,7 +1277,7 @@ func_select_candidate(int nargs,
 		(dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 		func_select_candidate_hook != NULL)
 	{
-		last_candidate = func_select_candidate_hook(nargs, input_typeids, candidates, true);
+		last_candidate = func_select_candidate_hook(NULL, nargs, input_typeids, candidates, true, false);
 		if (last_candidate)
 			return last_candidate; /* last_candiate->next should be already NULL */
 	}
@@ -1453,6 +1453,7 @@ func_get_detail(List *funcname,
 {
 	FuncCandidateList raw_candidates;
 	FuncCandidateList best_candidate;
+	const char	*dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
 	/* initialize output arguments to silence compiler warnings */
 	*funcid = InvalidOid;
@@ -1602,7 +1603,24 @@ func_get_detail(List *funcname,
 			 */
 			else if (ncandidates > 1)
 			{
-				best_candidate = func_select_candidate(nargs,
+				if ((sql_dialect == SQL_DIALECT_TSQL ||
+					(dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
+					func_select_candidate_hook != NULL)
+				{
+					best_candidate = func_select_candidate_hook(funcname, 
+																	nargs, 
+																	argtypes, 
+																	current_candidates,
+																	false,
+																	true);
+				
+					if (best_candidate == NULL)
+						best_candidate = func_select_candidate(nargs,
+														argtypes,
+														current_candidates);
+				}
+				else
+					best_candidate = func_select_candidate(nargs,
 													   argtypes,
 													   current_candidates);
 
