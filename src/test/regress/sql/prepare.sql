@@ -78,7 +78,22 @@ PREPARE q8 AS
 SELECT name, statement, parameter_types, result_types FROM pg_prepared_statements
     ORDER BY name;
 
+CREATE TABLE MANFRED_22834 (id int primary key, name varchar(20));
+
+PREPARE q9
+AS
+WITH temp1 AS (
+    SELECT * from MANFRED_22834
+    UNION
+    SELECT
+        $1 AS id,
+        $2 AS name
+)
+SELECT * from temp1;
+
 -- test DEALLOCATE ALL;
 DEALLOCATE ALL;
 SELECT name, statement, parameter_types FROM pg_prepared_statements
     ORDER BY name;
+
+DROP table MANFRED_22834;
