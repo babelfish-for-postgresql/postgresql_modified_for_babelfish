@@ -604,7 +604,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		}
 
 		if (sql_dialect == SQL_DIALECT_TSQL && report_proc_not_found_error_hook)
-			report_proc_not_found_error_hook(funcname, argnames, actual_arg_types, nargs, pstate, location, proc_call);
+			report_proc_not_found_error_hook(funcname, argnames, nargs, pstate, location, proc_call);
 
 		/*
 		 * No function, and no column either.  Since we're dealing with
@@ -1077,7 +1077,8 @@ func_select_candidate(int nargs,
 	 * If we resolve all the unknwon types but still too many candidates,
 	 * let's try to choose the best candidate by T-SQL precedence rule.
 	 */
-	if ((sql_dialect == SQL_DIALECT_TSQL ||
+	if (nunknowns == 0 &&
+	    (sql_dialect == SQL_DIALECT_TSQL ||
 	    (dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 	    func_select_candidate_hook != NULL)
 	{
