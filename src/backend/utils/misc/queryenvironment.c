@@ -38,6 +38,7 @@
 #include "catalog/pg_type.h"
 #include "catalog/pg_depend.h"
 #include "catalog/pg_sequence.h"
+#include "catalog/pg_attrdef.h"
 #include "catalog/pg_shdepend.h"
 #include "catalog/pg_index_d.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
@@ -373,7 +374,8 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 		reloid != DependRelationId &&
 		reloid != SharedDependRelationId &&
 		reloid != IndexRelationId &&
-		reloid != SequenceRelationId)
+		reloid != SequenceRelationId &&
+		reloid != AttrDefaultRelationId)
 		return false;
 
 	switch (nkeys) {
@@ -654,6 +656,30 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 					}
 				}
 			}
+			else if (reloid == AttrDefaultRelationId) {
+				ListCell *lc;
+				foreach(lc, enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]) {
+					Form_pg_attrdef tup = (Form_pg_attrdef) GETSTRUCT((HeapTuple) lfirst(lc));
+					if(indexId == AttrDefaultIndexId) {
+						/* Callers could pass in nkeys=1 or nkeys=2 */
+						if ((nkeys == 1 && tup->adrelid == (Oid)v1) ||
+							(nkeys == 2 && tup->adrelid == (Oid)v1 && tup->adnum == (Oid)v2))
+						{
+							*tuplist = list_insert_nth(*tuplist, index++, lfirst(lc));
+							*tuplist_flags |= SYSSCAN_ENR_NEEDFREE;
+							found = true;
+						}
+					}
+					else if(indexId == AttrDefaultOidIndexId &&
+							tup->oid == (Oid)v1)
+					{
+						*tuplist = list_insert_nth(*tuplist, index++, lfirst(lc));
+						*tuplist_flags |= SYSSCAN_ENR_NEEDFREE;
+						found = true;
+					}
+				}
+				*tuplist_i = 0;
+			}
 		}
 		queryEnv = queryEnv->parentEnv;
 	}
@@ -704,6 +730,7 @@ find_enr(Form_pg_depend entry)
 				break;
 
 			case ConstraintRelationId:
+			case AttrDefaultRelationId:
 				return get_ENR_withoid(queryEnv, entry->refobjid, ENR_TSQL_TEMP);
 
 			default:
@@ -770,6 +797,9 @@ ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOpera
 			break;
 		case SequenceRelationId:
 			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_SEQUENCE];
+			break;
+		case AttrDefaultRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_ATTR_DEF_REL];
 			break;
 		default:
 			/* Shouldn't reach here */
@@ -1032,6 +1062,14 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_SEQUENCE];
 					lc = list_head(enr->md.cattups[ENR_CATTUP_SEQUENCE]);
+					ret = true;
+				}
+				break;
+			case AttrDefaultRelationId:
+				rel_oid = ((Form_pg_attrdef) GETSTRUCT(tup))->adrelid;
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+					list_ptr = &enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL];
+					lc = list_head(enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]);
 					ret = true;
 				}
 				break;
