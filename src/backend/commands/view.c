@@ -88,8 +88,9 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 				if (!OidIsValid(def->collOid))
 					ereport(ERROR,
 							(errcode(ERRCODE_INDETERMINATE_COLLATION),
-							 errmsg("could not determine which collation to use for view column \"%s\"",
-									def->colname),
+							 errmsg("could not determine which collation to use for view column %s %s \"%s\"",
+									relation->schemaname == NULL ? "NULL" : relation->schemaname,
+									relation->relname == NULL ? "NULL" : relation->relname, def->colname),
 							 errhint("Use the COLLATE clause to set the collation explicitly.")));
 			}
 			else
