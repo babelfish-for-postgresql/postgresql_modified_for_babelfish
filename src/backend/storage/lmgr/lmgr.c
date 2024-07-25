@@ -27,6 +27,7 @@
 #include "storage/procarray.h"
 #include "storage/sinvaladt.h"
 #include "utils/inval.h"
+#include "utils/queryenvironment.h"
 
 
 /*
