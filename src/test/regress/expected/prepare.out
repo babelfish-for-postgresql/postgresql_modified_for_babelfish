@@ -179,6 +179,17 @@ SELECT name, statement, parameter_types FROM pg_prepared_statements
       |     SELECT * FROM road WHERE thepath = $1;                       | 
 (5 rows)
 
+CREATE TABLE union_type (id int primary key, name varchar(20));
+PREPARE q9
+AS
+WITH temp1 AS (
+    SELECT * from union_type
+    UNION
+    SELECT
+        $1 AS id,
+        $2 AS name
+)
+SELECT * from temp1;
 -- test DEALLOCATE ALL;
 DEALLOCATE ALL;
 SELECT name, statement, parameter_types FROM pg_prepared_statements
@@ -187,3 +198,4 @@ SELECT name, statement, parameter_types FROM pg_prepared_statements
 ------+-----------+-----------------
 (0 rows)
 
+DROP table union_type;
