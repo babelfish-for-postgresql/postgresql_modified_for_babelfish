@@ -177,9 +177,10 @@ execute_attr_map_tuple(HeapTuple tuple, TupleConversionMap *map)
 		int			j = attrMap->attnums[i];
 
 		/**
-		 * if it's tsql insert exec, we'll consider value cast
+		 * if it's tsql insert exec or if it is for tsql inline table valued function, we'll consider value cast
 		 */
-		if (called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook())
+		if ((called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook())
+			|| (called_for_tsql_itvf_func_hook && called_for_tsql_itvf_func_hook()))
 		{
 			Oid        intypeid;
 			Oid        outtypeid;
