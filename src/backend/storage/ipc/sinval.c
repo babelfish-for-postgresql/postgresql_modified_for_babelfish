@@ -21,7 +21,6 @@
 #include "storage/proc.h"
 #include "storage/sinvaladt.h"
 #include "utils/inval.h"
-#include "utils/queryenvironment.h"
 
 
 uint64		SharedInvalidMessageCounter;
