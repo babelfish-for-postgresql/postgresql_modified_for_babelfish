@@ -855,7 +855,7 @@ LockAcquireExtended(const LOCKTAG *locktag,
 		 */
 		if (lockmode == AccessExclusiveLock)
 			GetCurrentTransactionId();
-		lockmode = AccessShareLock;
+		return LOCKACQUIRE_ALREADY_CLEAR;
 	}
 
 #ifdef LOCK_DEBUG

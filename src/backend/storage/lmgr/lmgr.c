@@ -332,6 +332,9 @@ CheckRelationLockedByMe(Relation relation, LOCKMODE lockmode, bool orstronger)
 {
 	LOCKTAG		tag;
 
+	if (get_ENR_withoid(currentQueryEnv, RelationGetRelid(relation), ENR_TSQL_TEMP))
+		return true;
+
 	SET_LOCKTAG_RELATION(tag,
 						 relation->rd_lockInfo.lockRelId.dbId,
 						 relation->rd_lockInfo.lockRelId.relId);
