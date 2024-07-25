@@ -652,6 +652,16 @@ typeTypeRelid(Type typ)
 	return typtup->typrelid;
 }
 
+static bool
+is_babelfish_builtin_type(Form_pg_type typtup)
+{
+	// handle text/ntext under t-sql dialect too
+	// return (sql_dialect == SQL_DIALECT_TSQL &&
+	// 		(pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0 ||
+	// 		 typtup->oid == TEXTOID));
+	return (sql_dialect == SQL_DIALECT_TSQL && pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0);
+}
+
 /* given type (as type struct), return its 'typcollation' attribute */
 Oid
 typeTypeCollation(Type typ)
@@ -659,8 +669,14 @@ typeTypeCollation(Type typ)
 	Form_pg_type typtup;
 
 	typtup = (Form_pg_type) GETSTRUCT(typ);
-	if (sql_dialect == SQL_DIALECT_TSQL && typtup->typcollation == DEFAULT_COLLATION_OID)
-		typtup->typcollation = CLUSTER_COLLATION_OID();
+	if (OidIsValid(typtup->typcollation) && is_babelfish_builtin_type(typtup))
+	{
+		/*
+		 * Always set CLUSTER_COLLATION_OID() for babelfish collatable types so that
+		 * we can set collation according to database or server level later.
+		 */
+		return CLUSTER_COLLATION_OID();
+	}
 	return typtup->typcollation;
 }
 

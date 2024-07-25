@@ -771,16 +771,9 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 				 * any function called by this node should use.
 				 */
 				if (loccontext.strength == COLLATE_CONFLICT)
-				{
-					if (sql_dialect == SQL_DIALECT_TSQL)
-						exprSetInputCollation(node, CLUSTER_COLLATION_OID());
-					else
-						exprSetInputCollation(node, InvalidOid);
-				}
+					exprSetInputCollation(node, InvalidOid);
 				else
-				{
 					exprSetInputCollation(node, loccontext.collation);
-				}
 			}
 			break;
 	}
