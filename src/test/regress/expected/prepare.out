@@ -184,6 +184,17 @@ SELECT name, statement, parameter_types, result_types FROM pg_prepared_statement
       |     UPDATE tenk1 SET stringu1 = $2 WHERE unique1 = $1;           |                                                    | 
 (6 rows)
 
+CREATE TABLE union_type (id int primary key, name varchar(20));
+PREPARE q9
+AS
+WITH temp1 AS (
+    SELECT * from union_type
+    UNION
+    SELECT
+        $1 AS id,
+        $2 AS name
+)
+SELECT * from temp1;
 -- test DEALLOCATE ALL;
 DEALLOCATE ALL;
 SELECT name, statement, parameter_types FROM pg_prepared_statements
@@ -192,3 +203,4 @@ SELECT name, statement, parameter_types FROM pg_prepared_statements
 ------+-----------+-----------------
 (0 rows)
 
+DROP table union_type;
