@@ -845,8 +845,7 @@ LockAcquireExtended(const LOCKTAG *locktag,
 						lockMethodTable->lockModeNames[lockmode]),
 				 errhint("Only RowExclusiveLock or less can be acquired on database objects during recovery.")));
 
-	if (lockmode > AccessShareLock && 
-		locktag->locktag_type == LOCKTAG_RELATION && 
+	if (locktag->locktag_type == LOCKTAG_RELATION && 
 		get_ENR_withoid(currentQueryEnv, locktag->locktag_field2, ENR_TSQL_TEMP))
 	{
 		/*
@@ -2013,6 +2012,10 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 	lockMethodTable = LockMethods[lockmethodid];
 	if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
 		elog(ERROR, "unrecognized lock mode: %d", lockmode);
+	
+	if (locktag->locktag_type == LOCKTAG_RELATION && 
+		get_ENR_withoid(currentQueryEnv, locktag->locktag_field2, ENR_TSQL_TEMP))
+		return true;
 
 #ifdef LOCK_DEBUG
 	if (LOCK_DEBUG_ENABLED(locktag))
