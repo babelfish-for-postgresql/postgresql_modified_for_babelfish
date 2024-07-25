@@ -1383,8 +1383,14 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 	DeleteSecurityLabel(object);
 	DeleteInitPrivs(object);
 
-	// Delete from ENR - noop if not found from ENR
-	ENRDropEntry(object->objectId);
+	/*
+	 * If objectSubId != 0, then this is a column. There are no ENR entries
+	 * for individual columns, so skip ENRDropEntry in this case (or else we
+	 * will delete the entire table instead of just the column). Note that this
+	 * is a no-op if the objectId is not found from ENR.
+	 */
+	if (object->objectSubId == 0)
+		ENRDropEntry(object->objectId);
 
 	/*
 	 * CommandCounterIncrement here to ensure that preceding changes are all
