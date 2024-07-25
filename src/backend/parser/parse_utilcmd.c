@@ -2291,8 +2291,13 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 					 errmsg("index \"%s\" does not belong to table \"%s\"",
 							index_name, RelationGetRelationName(heap_rel)),
 					 parser_errposition(cxt->pstate, constraint->location)));
-
-		if (!index_form->indisvalid)
+		/*
+		 * For Babelfish databases, allow the restore of index which is
+		 * marked as not valid for partitioned table.
+		 */
+		if (!index_form->indisvalid &&
+			!(bbf_dump_restore && strcmp(bbf_dump_restore, "on") == 0 &&
+				RelationGetForm(heap_rel)->relkind == RELKIND_PARTITIONED_TABLE))
 			ereport(ERROR,
 					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 					 errmsg("index \"%s\" is not valid", index_name),

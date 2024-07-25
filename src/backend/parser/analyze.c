@@ -2355,8 +2355,8 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
 			if (rcoltype != UNKNOWNOID)
 				rcolnode = coerce_to_common_type(pstate, rcolnode,
 												 rescoltype, context);
-			else if ((IsA(lcolnode, Const) ||
-					 IsA(lcolnode, Param)) && sql_dialect != SQL_DIALECT_TSQL)
+			else if ((IsA(rcolnode, Const) ||
+					 IsA(rcolnode, Param)) && sql_dialect != SQL_DIALECT_TSQL)
 			{
 				rcolnode = coerce_to_common_type(pstate, rcolnode,
 												 rescoltype, context);

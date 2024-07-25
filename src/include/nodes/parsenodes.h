@@ -882,6 +882,7 @@ typedef struct PartitionSpec
 	PartitionStrategy strategy;
 	List	   *partParams;		/* List of PartitionElems */
 	int			location;		/* token location, or -1 if unknown */
+	char		*tsql_partition_scheme;		/* tsql partition scheme name */
 } PartitionSpec;
 
 /*
