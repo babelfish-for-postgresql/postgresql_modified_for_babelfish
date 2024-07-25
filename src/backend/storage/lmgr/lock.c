@@ -855,6 +855,15 @@ LockAcquireExtended(const LOCKTAG *locktag,
 		 */
 		if (lockmode == AccessExclusiveLock)
 			GetCurrentTransactionId();
+		
+		/*
+		 * LOCKACQUIRE_ALREADY_CLEAR indicates that this lock is "cleared for use" - that is, the target of the
+		 * lock is completely up-to-date with all inval messages. Since this is a local-only ENR temp table,
+		 * there cannot be any other backends which have tried to invalidate this relation - so return as if
+		 * the lock has been cleared. This will prevent downstream consumers of this function from unnecessarily
+		 * trying to receive invalidation messages, or (worse) trying to manually clear the locallock, which
+		 * doesn't even exist.
+		 */
 		return LOCKACQUIRE_ALREADY_CLEAR;
 	}
 
