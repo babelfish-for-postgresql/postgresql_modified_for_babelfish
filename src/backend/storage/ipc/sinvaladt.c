@@ -27,6 +27,9 @@
 #include "storage/sinvaladt.h"
 #include "storage/spin.h"
 
+/* hooks */
+pltsql_is_local_only_inval_msg_hook_type pltsql_is_local_only_inval_msg_hook = NULL;
+
 /*
  * Conceptually, the shared cache invalidation messages are stored in an
  * infinite array, where maxMsgNum is the next array subscript to store a
@@ -491,7 +494,7 @@ SIInsertDataEntries(const SharedInvalidationMessage *data, int n)
 		max = segP->maxMsgNum;
 		while (nthistime-- > 0)
 		{
-			if (data->id == SHAREDINVALRELCACHE_ID && data->rc.local_only)
+			if (pltsql_is_local_only_inval_msg_hook && (*pltsql_is_local_only_inval_msg_hook)(data))
 			{
 				data++;
 				continue;

@@ -324,6 +324,9 @@ static HTAB *LockMethodLocalHash;
 /* TSQL-only handler for releasing application lock. */
 applock_release_func_handler_type applock_release_func_handler = NULL;
 
+/* TSQL-only check for ENR temp tables, which don't require locks */
+pltsql_is_enr_locktag_hook_type pltsql_is_enr_locktag_hook = NULL;
+
 /* private state for error cleanup */
 static LOCALLOCK *StrongLockInProgress;
 static LOCALLOCK *awaitedLock;
@@ -845,8 +848,7 @@ LockAcquireExtended(const LOCKTAG *locktag,
 						lockMethodTable->lockModeNames[lockmode]),
 				 errhint("Only RowExclusiveLock or less can be acquired on database objects during recovery.")));
 
-	if (locktag->locktag_type == LOCKTAG_RELATION && 
-		get_ENR_withoid(currentQueryEnv, locktag->locktag_field2, ENR_TSQL_TEMP))
+	if (pltsql_is_enr_locktag_hook && (*pltsql_is_enr_locktag_hook)(locktag))
 	{
 		/*
 		 * Normally, opening a relation with AccessExclusiveLock will automatically trigger for an XID
@@ -2013,8 +2015,7 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 	if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
 		elog(ERROR, "unrecognized lock mode: %d", lockmode);
 	
-	if (locktag->locktag_type == LOCKTAG_RELATION && 
-		get_ENR_withoid(currentQueryEnv, locktag->locktag_field2, ENR_TSQL_TEMP))
+	if (pltsql_is_enr_locktag_hook && (*pltsql_is_enr_locktag_hook)(locktag))
 		return true;
 
 #ifdef LOCK_DEBUG
