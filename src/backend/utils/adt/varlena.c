@@ -42,6 +42,9 @@
 #include "utils/varlena.h"
 
 
+pltsql_strpos_non_determinstic_hook_type pltsql_strpos_non_determinstic_hook = NULL;
+pltsql_replace_non_determinstic_hook_type pltsql_replace_non_determinstic_hook = NULL;
+
 /* GUC variable */
 int			bytea_output = BYTEA_OUTPUT_HEX;
 
@@ -1182,6 +1185,11 @@ text_position(text *t1, text *t2, Oid collid)
 	/* Otherwise, can't match if haystack is shorter than needle */
 	if (VARSIZE_ANY_EXHDR(t1) < VARSIZE_ANY_EXHDR(t2))
 		return 0;
+
+	if (pltsql_strpos_non_determinstic_hook && (*pltsql_strpos_non_determinstic_hook)(t1, t2, collid, &result))
+	{
+		return result;
+	}
 
 	text_position_setup(t1, t2, collid, &state);
 	if (!text_position_next(&state))
@@ -4012,6 +4020,11 @@ replace_text(PG_FUNCTION_ARGS)
 	if (src_text_len < 1 || from_sub_text_len < 1)
 	{
 		PG_RETURN_TEXT_P(src_text);
+	}
+
+	if (pltsql_replace_non_determinstic_hook && (*pltsql_replace_non_determinstic_hook)(src_text, from_sub_text, to_sub_text, PG_GET_COLLATION(), &ret_text))
+	{
+		PG_RETURN_TEXT_P(ret_text);
 	}
 
 	text_position_setup(src_text, from_sub_text, PG_GET_COLLATION(), &state);
