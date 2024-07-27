@@ -18,6 +18,8 @@
 
 /* functions in json.c */
 extern void escape_json(StringInfo buf, const char *str);
+extern void escape_json_with_len(StringInfo buf, const char *str, int len);
+extern void escape_json_text(StringInfo buf, const text *txt);
 extern char *JsonEncodeDateTime(char *buf, Datum value, Oid typid,
 								const int *tzp);
 extern void tsql_json_build_object(StringInfo result,Datum colname, Datum colval, Oid collation, bool is_null);
