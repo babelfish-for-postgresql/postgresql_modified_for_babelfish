@@ -682,7 +682,7 @@ InitPostgres(const char *in_dbname, Oid dboid,
 	 */
 	SharedInvalBackendInit(false);
 
-	ProcSignalInit();
+	ProcSignalInit(MyCancelKeyValid, MyCancelKey);
 
 	/*
 	 * Also set up timeout handlers needed for backend operation.  We need
