@@ -659,7 +659,9 @@ is_babelfish_builtin_type(Form_pg_type typtup)
 	// return (sql_dialect == SQL_DIALECT_TSQL &&
 	// 		(pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0 ||
 	// 		 typtup->oid == TEXTOID));
-	return (sql_dialect == SQL_DIALECT_TSQL && pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0);
+	return (sql_dialect == SQL_DIALECT_TSQL && 
+			(pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0 ||
+			 typtup->oid == TEXTOID));
 }
 
 /* given type (as type struct), return its 'typcollation' attribute */
