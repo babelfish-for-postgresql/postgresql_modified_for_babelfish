@@ -547,10 +547,6 @@ typedef enum
 typedef void (*applock_release_func_handler_type) (bool release_session);
 extern PGDLLEXPORT applock_release_func_handler_type applock_release_func_handler;
 
-/* TSQL-only check for ENR temp tables, which don't require locks */
-typedef bool (*pltsql_is_enr_locktag_hook_type) (const LOCKTAG *locktag);
-extern PGDLLIMPORT pltsql_is_enr_locktag_hook_type pltsql_is_enr_locktag_hook;
-
 /*
  * function prototypes
  */
