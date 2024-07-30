@@ -333,7 +333,7 @@ CheckRelationLockedByMe(Relation relation, LOCKMODE lockmode, bool orstronger)
 {
 	LOCKTAG		tag;
 
-	if (get_ENR_withoid(currentQueryEnv, RelationGetRelid(relation), ENR_TSQL_TEMP))
+	if (pltsql_get_tsql_enr_from_oid_hook && pltsql_get_tsql_enr_from_oid_hook(RelationGetRelid(relation)))
 		return true;
 
 	SET_LOCKTAG_RELATION(tag,

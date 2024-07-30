@@ -48,6 +48,8 @@
 #include "utils/queryenvironment.h"
 #include "utils/rel.h"
 
+pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook = NULL;
+
 /*
  * Private state of a query environment.
  */

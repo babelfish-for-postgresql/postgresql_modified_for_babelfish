@@ -324,9 +324,6 @@ static HTAB *LockMethodLocalHash;
 /* TSQL-only handler for releasing application lock. */
 applock_release_func_handler_type applock_release_func_handler = NULL;
 
-/* TSQL-only check for ENR temp tables, which don't require locks */
-pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook = NULL;
-
 /* private state for error cleanup */
 static LOCALLOCK *StrongLockInProgress;
 static LOCALLOCK *awaitedLock;
