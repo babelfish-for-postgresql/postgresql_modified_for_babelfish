@@ -288,7 +288,7 @@ get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType ty
 {
 	ListCell   *lc;
 
-	if (queryEnv == NULL)
+	if (queryEnv == NULL || !OidIsValid(id))
 		return NULL;
 
 	foreach(lc, queryEnv->namedRelList)
