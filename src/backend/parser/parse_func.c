@@ -1085,7 +1085,7 @@ func_select_candidate(int nargs,
 	    (dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 	    func_select_candidate_hook != NULL)
 	{
-		last_candidate = func_select_candidate_hook(NULL, NULL, nargs, input_typeids, candidates, false, false);
+		last_candidate = func_select_candidate_hook(NULL, NIL, nargs, input_typeids, candidates, false, false);
 		if (last_candidate)
 			return last_candidate; /* last_candiate->next should be already NULL */
 	}
@@ -1277,7 +1277,7 @@ func_select_candidate(int nargs,
 		(dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 		func_select_candidate_hook != NULL)
 	{
-		last_candidate = func_select_candidate_hook(NULL, NULL, nargs, input_typeids, candidates, true, false);
+		last_candidate = func_select_candidate_hook(NULL, NIL, nargs, input_typeids, candidates, true, false);
 		if (last_candidate)
 			return last_candidate; /* last_candiate->next should be already NULL */
 	}
