@@ -3038,9 +3038,11 @@ static bool
 is_babelfish_builtin_type(Form_pg_type typtup)
 {
 	// handle text/ntext under t-sql dialect too
+	// return (IsNormalProcessingMode() && sql_dialect == SQL_DIALECT_TSQL &&
+	// 		(pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0 ||
+	// 		 typtup->oid == TEXTOID));
 	return (IsNormalProcessingMode() && sql_dialect == SQL_DIALECT_TSQL &&
-			(pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0 ||
-			 typtup->oid == TEXTOID));
+			pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0);
 }
 /*
  * get_typcollation
