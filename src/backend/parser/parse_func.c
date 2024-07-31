@@ -604,7 +604,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		}
 
 		if (sql_dialect == SQL_DIALECT_TSQL && report_proc_not_found_error_hook)
-			report_proc_not_found_error_hook(funcname, argnames, actual_arg_types, nargs, pstate, location, proc_call);
+			report_proc_not_found_error_hook(funcname, fargs, argnames, actual_arg_types, nargs, pstate, location, proc_call);
 
 		/*
 		 * No function, and no column either.  Since we're dealing with
@@ -1085,7 +1085,7 @@ func_select_candidate(int nargs,
 	    (dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 	    func_select_candidate_hook != NULL)
 	{
-		last_candidate = func_select_candidate_hook(NULL, nargs, input_typeids, candidates, false, false);
+		last_candidate = func_select_candidate_hook(NULL, NIL, nargs, input_typeids, candidates, false, false);
 		if (last_candidate)
 			return last_candidate; /* last_candiate->next should be already NULL */
 	}
@@ -1277,7 +1277,7 @@ func_select_candidate(int nargs,
 		(dump_restore && strcmp(dump_restore, "on") == 0)) && /* execute hook if dialect is T-SQL or while restoring babelfish database */
 		func_select_candidate_hook != NULL)
 	{
-		last_candidate = func_select_candidate_hook(NULL, nargs, input_typeids, candidates, true, false);
+		last_candidate = func_select_candidate_hook(NULL, NIL, nargs, input_typeids, candidates, true, false);
 		if (last_candidate)
 			return last_candidate; /* last_candiate->next should be already NULL */
 	}
@@ -1608,6 +1608,7 @@ func_get_detail(List *funcname,
 					func_select_candidate_hook != NULL)
 				{
 					best_candidate = func_select_candidate_hook(funcname, 
+																	fargs, 
 																	nargs, 
 																	argtypes, 
 																	current_candidates,
