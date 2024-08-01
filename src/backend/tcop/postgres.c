@@ -627,8 +627,10 @@ pg_parse_query(const char *query_string)
 	if (log_parser_stats)
 		ShowUsage("PARSER STATISTICS");
 
-#ifdef COPY_PARSE_PLAN_TREES
+#ifdef DEBUG_NODE_TESTS_ENABLED
+
 	/* Optional debugging check: pass raw parsetrees through copyObject() */
+	if (Debug_copy_parse_plan_trees)
 	{
 		List	   *new_list = copyObject(raw_parsetree_list);
 
@@ -638,13 +640,12 @@ pg_parse_query(const char *query_string)
 		else
 			raw_parsetree_list = new_list;
 	}
-#endif
 
 	/*
 	 * Optional debugging check: pass raw parsetrees through
 	 * outfuncs/readfuncs
 	 */
-#ifdef WRITE_READ_PARSE_PLAN_TREES
+	if (Debug_write_read_parse_plan_trees)
 	{
 		char	   *str = nodeToStringWithLocations(raw_parsetree_list);
 		List	   *new_list = stringToNodeWithLocations(str);
@@ -656,7 +657,8 @@ pg_parse_query(const char *query_string)
 		else
 			raw_parsetree_list = new_list;
 	}
-#endif
+
+#endif							/* DEBUG_NODE_TESTS_ENABLED */
 
 	TRACE_POSTGRESQL_QUERY_PARSE_DONE(query_string);
 
@@ -831,8 +833,10 @@ pg_rewrite_query(Query *query)
 	if (log_parser_stats)
 		ShowUsage("REWRITER STATISTICS");
 
-#ifdef COPY_PARSE_PLAN_TREES
+#ifdef DEBUG_NODE_TESTS_ENABLED
+
 	/* Optional debugging check: pass querytree through copyObject() */
+	if (Debug_copy_parse_plan_trees)
 	{
 		List	   *new_list;
 
@@ -843,10 +847,9 @@ pg_rewrite_query(Query *query)
 		else
 			querytree_list = new_list;
 	}
-#endif
 
-#ifdef WRITE_READ_PARSE_PLAN_TREES
 	/* Optional debugging check: pass querytree through outfuncs/readfuncs */
+	if (Debug_write_read_parse_plan_trees)
 	{
 		List	   *new_list = NIL;
 		ListCell   *lc;
@@ -873,7 +876,8 @@ pg_rewrite_query(Query *query)
 		else
 			querytree_list = new_list;
 	}
-#endif
+
+#endif							/* DEBUG_NODE_TESTS_ENABLED */
 
 	if (Debug_print_rewritten)
 		elog_node_display(LOG, "rewritten parse tree", querytree_list,
@@ -911,8 +915,10 @@ pg_plan_query(Query *querytree, const char *query_string, int cursorOptions,
 	if (log_planner_stats)
 		ShowUsage("PLANNER STATISTICS");
 
-#ifdef COPY_PARSE_PLAN_TREES
+#ifdef DEBUG_NODE_TESTS_ENABLED
+
 	/* Optional debugging check: pass plan tree through copyObject() */
+	if (Debug_copy_parse_plan_trees)
 	{
 		PlannedStmt *new_plan = copyObject(plan);
 
@@ -928,10 +934,9 @@ pg_plan_query(Query *querytree, const char *query_string, int cursorOptions,
 #endif
 			plan = new_plan;
 	}
-#endif
 
-#ifdef WRITE_READ_PARSE_PLAN_TREES
 	/* Optional debugging check: pass plan tree through outfuncs/readfuncs */
+	if (Debug_write_read_parse_plan_trees)
 	{
 		char	   *str;
 		PlannedStmt *new_plan;
@@ -952,7 +957,8 @@ pg_plan_query(Query *querytree, const char *query_string, int cursorOptions,
 #endif
 			plan = new_plan;
 	}
-#endif
+
+#endif							/* DEBUG_NODE_TESTS_ENABLED */
 
 	/*
 	 * Print plan if debugging.
