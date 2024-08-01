@@ -3008,6 +3008,7 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 				ResultRelInfo *partrelinfo_new;
 				Relation	partrel_new;
 				bool		found;
+				EPQState	epqstate;
 
 				/* Get the matching local tuple from the partition. */
 				found = FindReplTupleInLocalRel(edata, partrel,
@@ -3041,6 +3042,9 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 					logicalrep_modify_slot_hook(partrel, estate, remoteslot_part);
 				MemoryContextSwitchTo(oldctx);
 
+				EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1, NIL);
+				ExecOpenIndices(partrelinfo, false);
+
 				/*
 				 * Does the updated tuple still satisfy the current
 				 * partition's constraint?
@@ -3056,18 +3060,11 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 					 * work already done above to find the local tuple in the
 					 * partition.
 					 */
-					EPQState	epqstate;
-
-					EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1, NIL);
-					ExecOpenIndices(partrelinfo, false);
-
 					EvalPlanQualSetSlot(&epqstate, remoteslot_part);
 					TargetPrivilegesCheck(partrelinfo->ri_RelationDesc,
 										  ACL_UPDATE);
 					ExecSimpleRelationUpdate(partrelinfo, estate, &epqstate,
 											 localslot, remoteslot_part);
-					ExecCloseIndices(partrelinfo);
-					EvalPlanQualEnd(&epqstate);
 				}
 				else
 				{
@@ -3111,9 +3108,9 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 											 RelationGetRelationName(partrel_new));
 
 					/* DELETE old tuple found in the old partition. */
-					apply_handle_delete_internal(edata, partrelinfo,
-												 localslot,
-												 part_entry->localindexoid);
+					EvalPlanQualSetSlot(&epqstate, localslot);
+					TargetPrivilegesCheck(partrelinfo->ri_RelationDesc, ACL_DELETE);
+					ExecSimpleRelationDelete(partrelinfo, estate, &epqstate, localslot);
 
 					/* INSERT new tuple into the new partition. */
 
@@ -3143,6 +3140,9 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 					apply_handle_insert_internal(edata, partrelinfo_new,
 												 remoteslot_part);
 				}
+
+				ExecCloseIndices(partrelinfo);
+				EvalPlanQualEnd(&epqstate);
 			}
 			break;
 
