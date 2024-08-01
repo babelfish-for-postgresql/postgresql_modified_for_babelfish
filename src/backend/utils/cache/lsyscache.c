@@ -3034,16 +3034,17 @@ get_typmodout(Oid typid)
 }
 #endif							/* NOT_USED */
 
-static bool
-is_babelfish_builtin_type(Form_pg_type typtup)
-{
-	// handle text/ntext under t-sql dialect too
-	// return (IsNormalProcessingMode() && sql_dialect == SQL_DIALECT_TSQL &&
-	// 		(pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0 ||
-	// 		 typtup->oid == TEXTOID));
-	return (IsNormalProcessingMode() && sql_dialect == SQL_DIALECT_TSQL &&
-			pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0);
-}
+// static bool
+// is_babelfish_builtin_type(Form_pg_type typtup)
+// {
+// 	// handle text/ntext under t-sql dialect too
+// 	// return (IsNormalProcessingMode() && sql_dialect == SQL_DIALECT_TSQL &&
+// 	// 		(pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0 ||
+// 	// 		 typtup->oid == TEXTOID));
+// 	// return (IsNormalProcessingMode() && sql_dialect == SQL_DIALECT_TSQL &&
+// 	// 		pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0);
+// 	return (IsNormalProcessingMode() && pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0);
+// }
 /*
  * get_typcollation
  *
@@ -3061,7 +3062,9 @@ get_typcollation(Oid typid)
 		Oid			result;
 
 		result = typtup->typcollation;
-		if (is_babelfish_builtin_type(typtup) && OidIsValid(typtup->typcollation))
+		// if (is_babelfish_builtin_type(typtup) && OidIsValid(typtup->typcollation))
+		if (IsNormalProcessingMode() && OidIsValid(typtup->typcollation)
+			&& is_babelfish_builtin_type_hook && (*is_babelfish_builtin_type_hook)(typtup->typnamespace))
 		{
 			/*
 			 * Always set CLUSTER_COLLATION_OID() for babelfish collatable types so that
