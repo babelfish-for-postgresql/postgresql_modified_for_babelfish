@@ -230,8 +230,7 @@ extern CachedPlan *GetCachedPlan(CachedPlanSource *plansource,
 extern void ReleaseCachedPlan(CachedPlan *plan, ResourceOwner owner);
 
 extern bool CachedPlanAllowsSimpleValidityCheck(CachedPlanSource *plansource,
-												CachedPlan *plan,
-												ResourceOwner owner);
+												CachedPlan *plan);
 extern bool CachedPlanIsSimplyValid(CachedPlanSource *plansource,
 									CachedPlan *plan,
 									ResourceOwner owner);
