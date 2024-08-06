@@ -32,6 +32,10 @@
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 
+#include "utils/syscache.h"
+#include "access/htup_details.h"
+#include "catalog/pg_collation.h"
+#include "parser/parser.h"
 
 typedef struct FixedParamState
 {
@@ -92,6 +96,21 @@ setup_parse_variable_parameters(ParseState *pstate,
 	pstate->p_coerce_param_hook = variable_coerce_param_hook;
 }
 
+static bool
+is_babelfish_builtin_type(Oid typid)
+{
+	bool res = false;
+	HeapTuple	tp;
+	tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
+	if (HeapTupleIsValid(tp))
+	{
+		Form_pg_type typtup = (Form_pg_type) GETSTRUCT(tp);
+		res = pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0;
+		ReleaseSysCache(tp);
+	}
+	return res;
+}
+
 /*
  * Transform a ParamRef using fixed parameter types.
  */
@@ -118,6 +137,10 @@ fixed_paramref_hook(ParseState *pstate, ParamRef *pref)
 	param->paramcollid = get_typcollation(param->paramtype);
 	param->location = pref->location;
 
+	if (sql_dialect == 0 && is_babelfish_builtin_type(param->paramtype))
+	{
+		param->paramcollid = CLUSTER_COLLATION_OID();
+	}
 	return (Node *) param;
 }
 
