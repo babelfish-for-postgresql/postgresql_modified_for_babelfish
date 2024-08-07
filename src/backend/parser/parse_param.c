@@ -55,6 +55,8 @@ typedef struct VarParamState
 	int		   *numParams;		/* number of array entries */
 } VarParamState;
 
+handle_param_collation_hook_type handle_param_collation_hook = NULL;
+
 static Node *fixed_paramref_hook(ParseState *pstate, ParamRef *pref);
 static Node *variable_paramref_hook(ParseState *pstate, ParamRef *pref);
 static Node *variable_coerce_param_hook(ParseState *pstate, Param *param,
@@ -96,20 +98,20 @@ setup_parse_variable_parameters(ParseState *pstate,
 	pstate->p_coerce_param_hook = variable_coerce_param_hook;
 }
 
-static bool
-is_babelfish_builtin_type(Oid typid)
-{
-	bool res = false;
-	HeapTuple	tp;
-	tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
-	if (HeapTupleIsValid(tp))
-	{
-		Form_pg_type typtup = (Form_pg_type) GETSTRUCT(tp);
-		res = pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0;
-		ReleaseSysCache(tp);
-	}
-	return res;
-}
+// static bool
+// is_babelfish_builtin_type(Oid typid)
+// {
+// 	bool res = false;
+// 	HeapTuple	tp;
+// 	tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
+// 	if (HeapTupleIsValid(tp))
+// 	{
+// 		Form_pg_type typtup = (Form_pg_type) GETSTRUCT(tp);
+// 		res = pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0;
+// 		ReleaseSysCache(tp);
+// 	}
+// 	return res;
+// }
 
 /*
  * Transform a ParamRef using fixed parameter types.
@@ -134,13 +136,16 @@ fixed_paramref_hook(ParseState *pstate, ParamRef *pref)
 	param->paramid = paramno;
 	param->paramtype = parstate->paramTypes[paramno - 1];
 	param->paramtypmod = -1;
-	param->paramcollid = get_typcollation(param->paramtype);
+	if (handle_param_collation_hook)
+	{
+		param->paramcollid = handle_param_collation_hook(param);
+	}
+	else
+	{
+		param->paramcollid = get_typcollation(param->paramtype);
+	}
 	param->location = pref->location;
 
-	if (sql_dialect == 0 && is_babelfish_builtin_type(param->paramtype))
-	{
-		param->paramcollid = CLUSTER_COLLATION_OID();
-	}
 	return (Node *) param;
 }
 
