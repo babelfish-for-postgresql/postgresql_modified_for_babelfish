@@ -32,7 +32,6 @@ static int32 typenameTypeMod(ParseState *pstate, const TypeName *typeName,
 
 check_or_set_default_typmod_hook_type check_or_set_default_typmod_hook = NULL;
 validate_var_datatype_scale_hook_type validate_var_datatype_scale_hook = NULL;
-is_babelfish_builtin_type_hook_type is_babelfish_builtin_type_hook = NULL;
 
 /*
  * LookupTypeName
@@ -653,15 +652,6 @@ typeTypeRelid(Type typ)
 	return typtup->typrelid;
 }
 
-// static bool
-// is_babelfish_builtin_type(Form_pg_type typtup)
-// {
-// 	// return (sql_dialect == SQL_DIALECT_TSQL && 
-// 	// 		(pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0 ||
-// 	// 		 typtup->oid == TEXTOID));
-// 	return (pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0);
-// }
-
 /* given type (as type struct), return its 'typcollation' attribute */
 Oid
 typeTypeCollation(Type typ)
@@ -670,8 +660,8 @@ typeTypeCollation(Type typ)
 
 	typtup = (Form_pg_type) GETSTRUCT(typ);
 	//if (OidIsValid(typtup->typcollation) && is_babelfish_builtin_type(typtup))
-	if (OidIsValid(typtup->typcollation)
-			&& is_babelfish_builtin_type_hook && (*is_babelfish_builtin_type_hook)(typtup->typnamespace))
+	if (OidIsValid(typtup->typcollation) &&
+		sql_dialect == SQL_DIALECT_TSQL && pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0)
 	{
 		/*
 		 * Always set CLUSTER_COLLATION_OID() for babelfish collatable types so that

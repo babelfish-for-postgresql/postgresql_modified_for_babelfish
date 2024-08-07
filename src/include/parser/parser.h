@@ -103,9 +103,6 @@ extern PGDLLEXPORT check_recursive_cte_hook_type check_recursive_cte_hook;
 typedef void (*fix_domain_typmods_hook_type) (TypeName *typname);
 extern PGDLLEXPORT fix_domain_typmods_hook_type fix_domain_typmods_hook;
 
-typedef bool (*is_babelfish_builtin_type_hook_type) (Oid typnamespace);
-extern PGDLLEXPORT is_babelfish_builtin_type_hook_type is_babelfish_builtin_type_hook;
-
 #define TSQLMaxTypmod -8000
 #define TSQLMaxNumPrecision 38
 #define TSQLHexConstTypmod -16
