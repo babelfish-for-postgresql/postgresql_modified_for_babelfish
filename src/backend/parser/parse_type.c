@@ -659,7 +659,6 @@ typeTypeCollation(Type typ)
 	Form_pg_type typtup;
 
 	typtup = (Form_pg_type) GETSTRUCT(typ);
-	//if (OidIsValid(typtup->typcollation) && is_babelfish_builtin_type(typtup))
 	if (OidIsValid(typtup->typcollation) &&
 		sql_dialect == SQL_DIALECT_TSQL && pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0)
 	{
