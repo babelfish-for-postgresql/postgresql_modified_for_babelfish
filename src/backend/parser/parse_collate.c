@@ -764,7 +764,7 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 						 OidIsValid(((FuncExpr *) node)->funccollid) &&
 						 avoid_collation_override_hook &&
 						 avoid_collation_override_hook(((FuncExpr *) node)->funcid)))
-						 exprSetCollation(node, collation);
+					exprSetCollation(node, collation);
 
 				/*
 				 * Likewise save the input collation, which is the one that
