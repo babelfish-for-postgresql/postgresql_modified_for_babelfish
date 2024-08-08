@@ -2220,8 +2220,7 @@ void
 PrepareToInvalidateCacheTuple(Relation relation,
 							  HeapTuple tuple,
 							  HeapTuple newtuple,
-							  void (*function) (int, uint32, Oid), 
-							  bool is_enr)
+							  void (*function) (int, uint32, Oid))
 {
 	slist_iter	iter;
 	Oid			reloid;
@@ -2263,9 +2262,6 @@ PrepareToInvalidateCacheTuple(Relation relation,
 		dbid = ccp->cc_relisshared ? (Oid) 0 : MyDatabaseId;
 
 		(*function) (ccp->id, hashvalue, dbid);
-		/* If this is a temp table, store the hashvalue somewhere. That way we can remember to not add it to the SI queue at EOXact. */
-		if (is_enr)
-			SaveCatcacheMessage(ccp->id, hashvalue, dbid);
 
 		if (newtuple)
 		{
@@ -2276,8 +2272,6 @@ PrepareToInvalidateCacheTuple(Relation relation,
 			if (newhashvalue != hashvalue)
 			{
 				(*function) (ccp->id, newhashvalue, dbid);
-				if (is_enr)
-					SaveCatcacheMessage(ccp->id, newhashvalue, dbid);
 			}
 		}
 	}

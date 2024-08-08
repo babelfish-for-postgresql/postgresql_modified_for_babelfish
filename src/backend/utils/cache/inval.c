@@ -405,9 +405,6 @@ AddCatcacheInvalidationMessage(InvalidationMsgsGroup *group,
 	msg.cc.dbId = dbId;
 	msg.cc.hashValue = hashValue;
 
-	if (sql_dialect == SQL_DIALECT_TSQL)
-		msg.cc.local_only = SIMessageIsForTempTable(&msg);
-
 	/*
 	 * Define padding bytes in SharedInvalidationMessage structs to be
 	 * defined. Otherwise the sinvaladt.c ringbuffer, which is accessed by
@@ -552,6 +549,24 @@ RegisterCatcacheInvalidation(int cacheId,
 							 uint32 hashValue,
 							 Oid dbId)
 {
+	AddCatcacheInvalidationMessage(&transInvalInfo->CurrentCmdInvalidMsgs,
+								   cacheId, hashValue, dbId);
+}
+
+/*
+ * RegisterENRCatcacheInvalidation
+ *
+ * Register an invalidation event for an ENR catcache tuple entry. 
+ * 
+ * We save the hashvalue so that it can be crosschecked and excluded from 
+ * the SI queue later.
+ */
+static void
+RegisterENRCatcacheInvalidation(int cacheId,
+							 uint32 hashValue,
+							 Oid dbId)
+{
+	SaveCatcacheMessage(cacheId, hashvalue, dbId);
 	AddCatcacheInvalidationMessage(&transInvalInfo->CurrentCmdInvalidMsgs,
 								   cacheId, hashValue, dbId);
 }
@@ -954,6 +969,15 @@ xactGetCommittedInvalidationMessages(SharedInvalidationMessage **msgs,
 								 nmsgs += n));
 	Assert(nmsgs == nummsgs);
 
+	/*
+	 * If there are any SI messages that are for temp tables, remove them now so we don't see them in xlog.
+	 *
+	 * Realistically, this is only going to be needed on RO nodes, and it should always end up with 0 messages.
+	 * We can add an assert here later.
+	 */
+	if (temp_oid_buffer_size > 0 && pltsql_remove_inval_messages_from_xlog_hook)
+		nmsgs -= (*pltsql_is_local_only_inval_msg_hook) (msgs, nmsgs);
+
 	return nmsgs;
 }
 
@@ -1255,7 +1279,7 @@ CacheInvalidateHeapTuple(Relation relation,
 	}
 	else
 		PrepareToInvalidateCacheTuple(relation, tuple, newtuple,
-									  RegisterCatcacheInvalidation, false);
+									  RegisterCatcacheInvalidation);
 
 	/*
 	 * Now, is this tuple one of the primary definers of a relcache entry? See
@@ -1376,7 +1400,7 @@ CacheInvalidateENRHeapTuple(Relation relation,
 	}
 	else
 		PrepareToInvalidateCacheTuple(relation, tuple, newtuple,
-									  RegisterCatcacheInvalidation, true);
+									  RegisterENRCatcacheInvalidation);
 
 	/*
 	 * Now, is this tuple one of the primary definers of a relcache entry? See
