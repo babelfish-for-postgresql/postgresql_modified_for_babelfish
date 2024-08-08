@@ -156,6 +156,6 @@ extern PGDLLIMPORT pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_fr
 
 extern void SaveCatcacheMessage(int cacheId, uint32 hashValue, Oid dbId);
 extern void ClearSavedCatcacheMessages(void);
-extern bool SIMessageIsForTempTable(SharedInvalidationMessage *msg);
+extern bool SIMessageIsForTempTable(const SharedInvalidationMessage *msg);
 
 #endif							/* QUERYENVIRONMENT_H */

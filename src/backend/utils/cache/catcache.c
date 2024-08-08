@@ -40,7 +40,6 @@
 #include "utils/rel.h"
 #include "utils/resowner_private.h"
 #include "utils/syscache.h"
-#include "utils/queryenvironment.h"
 
 
  /* #define CACHEDEBUG */	/* turns DEBUG elogs on */
@@ -2270,9 +2269,7 @@ PrepareToInvalidateCacheTuple(Relation relation,
 			newhashvalue = CatalogCacheComputeTupleHashValue(ccp, ccp->cc_nkeys, newtuple);
 
 			if (newhashvalue != hashvalue)
-			{
 				(*function) (ccp->id, newhashvalue, dbid);
-			}
 		}
 	}
 }

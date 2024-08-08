@@ -116,7 +116,6 @@
 #include "catalog/catalog.h"
 #include "catalog/pg_constraint.h"
 #include "miscadmin.h"
-#include "parser/parser.h"
 #include "storage/sinval.h"
 #include "storage/smgr.h"
 #include "utils/catcache.h"
@@ -566,7 +565,7 @@ RegisterENRCatcacheInvalidation(int cacheId,
 							 uint32 hashValue,
 							 Oid dbId)
 {
-	SaveCatcacheMessage(cacheId, hashvalue, dbId);
+	SaveCatcacheMessage(cacheId, hashValue, dbId);
 	AddCatcacheInvalidationMessage(&transInvalInfo->CurrentCmdInvalidMsgs,
 								   cacheId, hashValue, dbId);
 }
@@ -968,15 +967,6 @@ xactGetCommittedInvalidationMessages(SharedInvalidationMessage **msgs,
 										n * sizeof(SharedInvalidationMessage)),
 								 nmsgs += n));
 	Assert(nmsgs == nummsgs);
-
-	/*
-	 * If there are any SI messages that are for temp tables, remove them now so we don't see them in xlog.
-	 *
-	 * Realistically, this is only going to be needed on RO nodes, and it should always end up with 0 messages.
-	 * We can add an assert here later.
-	 */
-	if (temp_oid_buffer_size > 0 && pltsql_remove_inval_messages_from_xlog_hook)
-		nmsgs -= (*pltsql_is_local_only_inval_msg_hook) (msgs, nmsgs);
 
 	return nmsgs;
 }

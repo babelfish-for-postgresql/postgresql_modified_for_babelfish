@@ -251,8 +251,6 @@ void SaveCatcacheMessage(int cacheId,
 							 uint32 hashValue,
 							 Oid dbId)
 {
-
-
 	SharedInvalCatcacheMsg *msg = (SharedInvalCatcacheMsg *) palloc0(sizeof(SharedInvalCatcacheMsg));
 	msg->id = cacheId;
 	msg->dbId = dbId;
@@ -270,9 +268,20 @@ void ClearSavedCatcacheMessages()
 	currentQueryEnv->savedCatcacheMessages = NIL;
 }
 
-/* See LocalExecuteInvalidationMessage */
-bool SIMessageIsForTempTable(SharedInvalidationMessage *msg)
+/*
+ * SIMessageIsForTempTable
+ * 
+ * Determine whether the msg sent is for a temp table. 
+ * TSQL style temp tables do not need to add messages to the
+ * SI queue, as catalog changes are all session-local.
+ * 
+ * See LocalExecuteInvalidationMessage
+ */
+bool SIMessageIsForTempTable(const SharedInvalidationMessage *msg)
 {
+	if (sql_dialect != SQL_DIALECT_TSQL || temp_oid_buffer_size == 0)
+		return false;
+
 	if (msg->id >= 0)
 	{
 		ListCell *lc;
@@ -298,11 +307,7 @@ bool SIMessageIsForTempTable(SharedInvalidationMessage *msg)
 	}
 	else if (msg->id == SHAREDINVALSMGR_ID)
 	{
-		RelFileLocatorBackend rlocator;
-
-		rlocator.locator = msg->sm.rlocator;
-		rlocator.backend = (msg->sm.backend_hi << 16) | (int) msg->sm.backend_lo;
-		return RelFileLocatorBackendIsTemp(rlocator);
+		return false;
 	}
 	else if (msg->id == SHAREDINVALRELMAP_ID)
 	{
