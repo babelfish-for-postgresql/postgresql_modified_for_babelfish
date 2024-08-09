@@ -69,4 +69,7 @@ extern PGDLLEXPORT check_or_set_default_typmod_hook_type check_or_set_default_ty
 typedef void (*validate_var_datatype_scale_hook_type)(const TypeName *typeName, Type typ);
 extern PGDLLEXPORT validate_var_datatype_scale_hook_type validate_var_datatype_scale_hook;
 
+typedef Oid (*handle_default_collation_hook_type) (Type typ);
+extern PGDLLEXPORT handle_default_collation_hook_type handle_default_collation_hook;
+
 #endif							/* PARSE_TYPE_H */

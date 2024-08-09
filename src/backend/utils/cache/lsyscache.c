@@ -39,6 +39,7 @@
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "parser/parser.h"
+#include "parser/parse_type.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/catcache.h"
@@ -3051,21 +3052,13 @@ get_typcollation(Oid typid)
 		Oid			result;
 
 		result = typtup->typcollation;
-		if (IsNormalProcessingMode() && OidIsValid(typtup->typcollation) &&
-			sql_dialect == SQL_DIALECT_TSQL && pg_strcasecmp(get_namespace_name(typtup->typnamespace), "sys") == 0)
+
+		if (handle_default_collation_hook)
 		{
-			/*
-			 * Always set CLUSTER_COLLATION_OID() for babelfish collatable types so that
-			 * we can set collation according to database or server level later.
-			 */
-			result = CLUSTER_COLLATION_OID();
+			result = (*handle_default_collation_hook)((Type) tp);
 		}
 
 		ReleaseSysCache(tp);
-
-		if (result == DEFAULT_COLLATION_OID)
-			result = CLUSTER_COLLATION_OID();
-
 		return result;
 	}
 	else
