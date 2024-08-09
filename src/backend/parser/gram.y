@@ -510,7 +510,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 
 %type <boolean> opt_instead
 %type <boolean> opt_unique opt_verbose opt_full
-%type <boolean> opt_freeze opt_analyze opt_default opt_recheck
+%type <boolean> opt_freeze opt_analyze opt_default
 %type <defelt>	opt_binary copy_delimiter
 
 %type <boolean> copy_from opt_program
@@ -790,7 +790,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 
 	QUOTE QUOTES
 
-	RANGE READ REAL REASSIGN RECHECK RECURSIVE REF_P REFERENCES REFERENCING
+	RANGE READ REAL REASSIGN RECURSIVE REF_P REFERENCES REFERENCING
 	REFRESH REINDEX RELATIVE_P RELEASE RENAME REPEATABLE REPLACE REPLICA
 	RESET RESTART RESTRICT RETURN RETURNING RETURNS REVOKE RIGHT ROLE ROLLBACK ROLLUP
 	ROUTINE ROUTINES ROW ROWS RULE
@@ -6660,7 +6660,7 @@ opclass_item_list:
 		;
 
 opclass_item:
-			OPERATOR Iconst any_operator opclass_purpose opt_recheck
+			OPERATOR Iconst any_operator opclass_purpose
 				{
 					CreateOpClassItem *n = makeNode(CreateOpClassItem);
 					ObjectWithArgs *owa = makeNode(ObjectWithArgs);
@@ -6674,7 +6674,6 @@ opclass_item:
 					$$ = (Node *) n;
 				}
 			| OPERATOR Iconst operator_with_argtypes opclass_purpose
-			  opt_recheck
 				{
 					CreateOpClassItem *n = makeNode(CreateOpClassItem);
 
@@ -6724,23 +6723,6 @@ opt_opfamily:	FAMILY any_name				{ $$ = $2; }
 opclass_purpose: FOR SEARCH					{ $$ = NIL; }
 			| FOR ORDER BY any_name			{ $$ = $4; }
 			| /*EMPTY*/						{ $$ = NIL; }
-		;
-
-opt_recheck:	RECHECK
-				{
-					/*
-					 * RECHECK no longer does anything in opclass definitions,
-					 * but we still accept it to ease porting of old database
-					 * dumps.
-					 */
-					ereport(NOTICE,
-							(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-							 errmsg("RECHECK is no longer required"),
-							 errhint("Update your data type."),
-							 parser_errposition(@1)));
-					$$ = true;
-				}
-			| /*EMPTY*/						{ $$ = false; }
 		;
 
 
@@ -18031,7 +18013,6 @@ unreserved_keyword:
 			| RANGE
 			| READ
 			| REASSIGN
-			| RECHECK
 			| RECURSIVE
 			| REF_P
 			| REFERENCING
@@ -18661,7 +18642,6 @@ bare_label_keyword:
 			| READ
 			| REAL
 			| REASSIGN
-			| RECHECK
 			| RECURSIVE
 			| REF_P
 			| REFERENCES
