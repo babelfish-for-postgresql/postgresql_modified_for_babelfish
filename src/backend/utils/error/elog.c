@@ -1953,6 +1953,14 @@ ReThrowError(ErrorData *edata)
 	memcpy(newedata, edata, sizeof(ErrorData));
 
 	/* Make copies of separately-allocated fields */
+	if (newedata->filename)
+		newedata->filename = pstrdup(newedata->filename);
+	if (newedata->funcname)
+		newedata->funcname = pstrdup(newedata->funcname);
+	if (newedata->domain)
+		newedata->domain = pstrdup(newedata->domain);
+	if (newedata->context_domain)
+		newedata->context_domain = pstrdup(newedata->context_domain);
 	if (newedata->message)
 		newedata->message = pstrdup(newedata->message);
 	if (newedata->detail)
@@ -1965,6 +1973,8 @@ ReThrowError(ErrorData *edata)
 		newedata->context = pstrdup(newedata->context);
 	if (newedata->backtrace)
 		newedata->backtrace = pstrdup(newedata->backtrace);
+	if (newedata->message_id)
+		newedata->message_id = pstrdup(newedata->message_id);
 	if (newedata->schema_name)
 		newedata->schema_name = pstrdup(newedata->schema_name);
 	if (newedata->table_name)
