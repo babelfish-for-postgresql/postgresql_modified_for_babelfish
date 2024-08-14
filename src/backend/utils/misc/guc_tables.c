@@ -1716,7 +1716,6 @@ struct config_bool ConfigureNamesBool[] =
 		NULL, NULL, NULL
 	},
 
-#ifdef TRACE_SORT
 	{
 		{"trace_sort", PGC_USERSET, DEVELOPER_OPTIONS,
 			gettext_noop("Emit information about resource usage in sorting."),
@@ -1727,7 +1726,6 @@ struct config_bool ConfigureNamesBool[] =
 		false,
 		NULL, NULL, NULL
 	},
-#endif
 
 #ifdef TRACE_SYNCSCAN
 	/* this is undocumented because not exposed in a standard build */
