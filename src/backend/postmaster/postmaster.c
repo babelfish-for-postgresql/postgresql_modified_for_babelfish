@@ -2787,7 +2787,7 @@ CleanupBackend(Backend *bp,
 
 	if (crashed)
 	{
-		HandleChildCrash(bp->pid, exitstatus, namebuf);
+		HandleChildCrash(bp->pid, exitstatus, procname);
 		pfree(bp);
 		return;
 	}
