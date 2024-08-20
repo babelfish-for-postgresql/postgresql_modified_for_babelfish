@@ -151,6 +151,9 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
+* Mon Aug 5 2024 Masahiko Sawada <msawada@postgresql.com> - 16.4-1
+- [CVE-2024-7348] Restrict accesses to non-system views and foreign tables during pg_dump.
+
 * Mon Jul 8 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.4-1
 - Include ordering for constraints on babelfish tables
 
