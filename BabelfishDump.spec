@@ -26,8 +26,8 @@
 
 Name: BabelfishDump
 Summary: Postgresql dump utilities modified for Babelfish
-Version: 16.3
-Release: 2%{?dist}%{?_trivial}%{?_buildid}
+Version: 16.4
+Release: 1%{?dist}%{?_trivial}%{?_buildid}
 License: PostgreSQL
 Url: https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish
 
@@ -151,6 +151,12 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
+* Mon Jul 8 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.4-1
+- Include ordering for constraints on babelfish tables
+
+* Fri Jun 21 2024 Sumit Jaiswal <sumiji@amazon.com> - 16.4-1
+- Support dump/restore of Partition Function and Partition Scheme catalogs
+
 * Mon Jun 17 2024 Rishabh Tanwar <ritanwar@amazon.com> - 16.3-2
 - Improve catalog handling in bbf_dump
 
