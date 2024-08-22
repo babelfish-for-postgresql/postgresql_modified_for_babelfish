@@ -27,7 +27,6 @@
 #include "storage/procarray.h"
 #include "storage/sinvaladt.h"
 #include "utils/inval.h"
-#include "utils/queryenvironment.h"
 
 
 /*
@@ -332,9 +331,6 @@ bool
 CheckRelationLockedByMe(Relation relation, LOCKMODE lockmode, bool orstronger)
 {
 	LOCKTAG		tag;
-
-	if (pltsql_get_tsql_enr_from_oid_hook && (*pltsql_get_tsql_enr_from_oid_hook)(RelationGetRelid(relation)))
-		return true;
 
 	SET_LOCKTAG_RELATION(tag,
 						 relation->rd_lockInfo.lockRelId.dbId,

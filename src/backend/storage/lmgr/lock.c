@@ -879,27 +879,6 @@ LockAcquireExtended(const LOCKTAG *locktag,
 						lockMethodTable->lockModeNames[lockmode]),
 				 errhint("Only RowExclusiveLock or less can be acquired on database objects during recovery.")));
 
-	if (pltsql_get_tsql_enr_from_oid_hook && locktag->locktag_type == LOCKTAG_RELATION && 
-		(*pltsql_get_tsql_enr_from_oid_hook)(locktag->locktag_field2))
-	{
-		/*
-		 * Normally, opening a relation with AccessExclusiveLock will automatically trigger for an XID
-		 * to be grabbed. Since we are overriding it here, make sure to still grab an XID.
-		 */
-		if (lockmode == AccessExclusiveLock)
-			GetCurrentTransactionId();
-		
-		/*
-		 * LOCKACQUIRE_ALREADY_CLEAR indicates that this lock is "cleared for use" - that is, the target of the
-		 * lock is completely up-to-date with all inval messages. Since this is a local-only ENR temp table,
-		 * there cannot be any other backends which have tried to invalidate this relation - so return as if
-		 * the lock has been cleared. This will prevent downstream consumers of this function from unnecessarily
-		 * trying to receive invalidation messages, or (worse) trying to manually clear the locallock, which
-		 * doesn't even exist.
-		 */
-		return LOCKACQUIRE_ALREADY_CLEAR;
-	}
-
 #ifdef LOCK_DEBUG
 	if (LOCK_DEBUG_ENABLED(locktag))
 		elog(LOG, "LockAcquire: lock [%u,%u] %s",
@@ -2046,10 +2025,6 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 	lockMethodTable = LockMethods[lockmethodid];
 	if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
 		elog(ERROR, "unrecognized lock mode: %d", lockmode);
-	
-	if (pltsql_get_tsql_enr_from_oid_hook && locktag->locktag_type == LOCKTAG_RELATION && 
-		(*pltsql_get_tsql_enr_from_oid_hook)(locktag->locktag_field2))
-		return true;
 
 #ifdef LOCK_DEBUG
 	if (LOCK_DEBUG_ENABLED(locktag))
