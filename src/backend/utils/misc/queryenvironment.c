@@ -303,7 +303,8 @@ bool SIMessageIsForTempTable(const SharedInvalidationMessage *msg)
 	}
 	else if (msg->id == SHAREDINVALRELCACHE_ID)
 	{
-		return get_ENR_withoid(currentQueryEnv, msg->rc.relId, ENR_TSQL_TEMP);
+		/* This is set in AddRelcacheInvalidationMessage. */
+		return msg->rc.local_only;
 	}
 	else if (msg->id == SHAREDINVALSMGR_ID)
 	{
