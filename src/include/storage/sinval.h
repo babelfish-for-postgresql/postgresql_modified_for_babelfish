@@ -80,14 +80,6 @@ typedef struct
 	int8		id;				/* type field --- must be first */
 	Oid			dbId;			/* database ID, or 0 if a shared relation */
 	Oid			relId;			/* relation ID, or 0 if whole relcache */
-	/* 
-	 * We need a way to mark whether this inval message is for a local ENR entry,
-	 * so that we can skip inserting it into the SI message queue.
-	 * Note that checking whether the relId is an ENR entry at the time of insertion
-	 * is insufficient, as during drops the ENR entry is deleted before we perform
-	 * SI queue insertion.
-	 */
-	bool		local_only;
 } SharedInvalRelcacheMsg;
 
 #define SHAREDINVALSMGR_ID		(-3)
