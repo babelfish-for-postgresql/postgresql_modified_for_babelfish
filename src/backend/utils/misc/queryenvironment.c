@@ -48,8 +48,6 @@
 #include "utils/queryenvironment.h"
 #include "utils/rel.h"
 
-pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook = NULL;
-
 /*
  * Private state of a query environment.
  */
@@ -288,7 +286,7 @@ get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType ty
 {
 	ListCell   *lc;
 
-	if (queryEnv == NULL || !OidIsValid(id))
+	if (queryEnv == NULL)
 		return NULL;
 
 	foreach(lc, queryEnv->namedRelList)
