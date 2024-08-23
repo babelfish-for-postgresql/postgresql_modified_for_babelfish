@@ -828,6 +828,7 @@ cache_locale_time(void)
 	char	   *bufptr;
 	time_t		timenow;
 	struct tm  *timeinfo;
+	struct tm	timeinfobuf;
 	bool		strftimefail = false;
 	int			encoding;
 	int			i;
@@ -878,7 +879,7 @@ cache_locale_time(void)
 
 	/* We use times close to current time as data for strftime(). */
 	timenow = time(NULL);
-	timeinfo = localtime(&timenow);
+	timeinfo = gmtime_r(&timenow, &timeinfobuf);
 
 	/* Store the strftime results in MAX_L10N_DATA-sized portions of buf[] */
 	bufptr = buf;
