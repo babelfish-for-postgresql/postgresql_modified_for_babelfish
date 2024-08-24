@@ -54,7 +54,4 @@ typedef int (*print_pltsql_function_arguments_hook_type) (StringInfo buf,
 														  bool print_table_args,
 														  bool print_defaults);
 extern PGDLLEXPORT print_pltsql_function_arguments_hook_type print_pltsql_function_arguments_hook;
-
-extern char *get_list_partvalue_string(Const *val);
-
 #endif							/* RULEUTILS_H */
