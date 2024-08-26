@@ -9067,7 +9067,7 @@ mul_var_short(const NumericVar *var1, const NumericVar *var2,
 	int			res_ndigits;
 	NumericDigit *res_buf;
 	NumericDigit *res_digits;
-	uint32		carry;
+	uint32		carry = 0;
 	uint32		term;
 
 	/* Check preconditions */
@@ -9116,7 +9116,6 @@ mul_var_short(const NumericVar *var1, const NumericVar *var2,
 			 *		res_ndigits = var2ndigits + 1
 			 * ----------
 			 */
-			carry = 0;
 			for (int i = var2ndigits - 1; i >= 0; i--)
 			{
 				term = PRODSUM1(var1digits, 0, var2digits, i) + carry;
