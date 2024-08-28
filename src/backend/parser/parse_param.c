@@ -51,6 +51,8 @@ typedef struct VarParamState
 	int		   *numParams;		/* number of array entries */
 } VarParamState;
 
+handle_param_collation_hook_type handle_param_collation_hook = NULL;
+
 static Node *fixed_paramref_hook(ParseState *pstate, ParamRef *pref);
 static Node *variable_paramref_hook(ParseState *pstate, ParamRef *pref);
 static Node *variable_coerce_param_hook(ParseState *pstate, Param *param,
@@ -115,7 +117,14 @@ fixed_paramref_hook(ParseState *pstate, ParamRef *pref)
 	param->paramid = paramno;
 	param->paramtype = parstate->paramTypes[paramno - 1];
 	param->paramtypmod = -1;
-	param->paramcollid = get_typcollation(param->paramtype);
+	if (handle_param_collation_hook)
+	{
+		param->paramcollid = handle_param_collation_hook(param);
+	}
+	else
+	{
+		param->paramcollid = get_typcollation(param->paramtype);
+	}
 	param->location = pref->location;
 
 	return (Node *) param;

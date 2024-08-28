@@ -402,9 +402,6 @@ assign_collations_walker(Node *node, assign_collations_context *context)
 				CoerceToDomain *expr = (CoerceToDomain *) node;
 				Oid			typcollation = get_typcollation(expr->resulttype);
 
-				if (typcollation == DEFAULT_COLLATION_OID)
-					typcollation = CLUSTER_COLLATION_OID();
-
 				/* ... but first, recurse */
 				(void) expression_tree_walker(node,
 											  assign_collations_walker,

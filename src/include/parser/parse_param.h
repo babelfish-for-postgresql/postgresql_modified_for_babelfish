@@ -22,4 +22,8 @@ extern void setup_parse_variable_parameters(ParseState *pstate,
 extern void check_variable_parameters(ParseState *pstate, Query *query);
 extern bool query_contains_extern_params(Query *query);
 
+/* Special hook to handle collation of param in Babelfish context */
+typedef Oid (*handle_param_collation_hook_type) (Param *param);
+extern PGDLLEXPORT handle_param_collation_hook_type handle_param_collation_hook;
+
 #endif							/* PARSE_PARAM_H */
