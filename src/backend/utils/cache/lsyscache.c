@@ -39,6 +39,7 @@
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "parser/parser.h"
+#include "parser/parse_type.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/catcache.h"
@@ -3051,11 +3052,13 @@ get_typcollation(Oid typid)
 		Oid			result;
 
 		result = typtup->typcollation;
+
+		if (handle_default_collation_hook)
+		{
+			result = (*handle_default_collation_hook)((Type) tp, true);
+		}
+
 		ReleaseSysCache(tp);
-
-		if (result == DEFAULT_COLLATION_OID)
-			result = CLUSTER_COLLATION_OID();
-
 		return result;
 	}
 	else

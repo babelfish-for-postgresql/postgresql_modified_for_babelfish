@@ -32,6 +32,7 @@ static int32 typenameTypeMod(ParseState *pstate, const TypeName *typeName,
 
 check_or_set_default_typmod_hook_type check_or_set_default_typmod_hook = NULL;
 validate_var_datatype_scale_hook_type validate_var_datatype_scale_hook = NULL;
+handle_default_collation_hook_type handle_default_collation_hook = NULL;
 
 /*
  * LookupTypeName
@@ -567,15 +568,8 @@ GetColumnDefCollation(ParseState *pstate, ColumnDef *coldef, Oid typeOid)
 	}
 	else
 	{
-		if(sql_dialect == SQL_DIALECT_TSQL && OidIsValid(typcollation))
-		{
-			result = CLUSTER_COLLATION_OID();
-		}
-		else
-		{
-			/* Use the type's default collation if any */
-			result = typcollation;
-		}
+		/* Use the type's default collation if any */
+		result = typcollation;
 	}
 
 	/* Complain if COLLATE is applied to an uncollatable type */
@@ -659,6 +653,12 @@ typeTypeCollation(Type typ)
 	Form_pg_type typtup;
 
 	typtup = (Form_pg_type) GETSTRUCT(typ);
+
+	if (handle_default_collation_hook)
+	{
+		return (*handle_default_collation_hook)(typ, false);
+	}
+
 	return typtup->typcollation;
 }
 
