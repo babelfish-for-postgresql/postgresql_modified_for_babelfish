@@ -42,4 +42,7 @@ extern void SICleanupQueue(bool callerHasWriteLock, int minFree);
 
 extern LocalTransactionId GetNextLocalTransactionId(void);
 
+typedef bool (*pltsql_is_local_only_inval_msg_hook_type) (const SharedInvalidationMessage *msg);
+extern PGDLLIMPORT pltsql_is_local_only_inval_msg_hook_type pltsql_is_local_only_inval_msg_hook;
+
 #endif							/* SINVALADT_H */
