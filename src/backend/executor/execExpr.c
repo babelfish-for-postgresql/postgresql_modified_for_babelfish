@@ -62,6 +62,8 @@ typedef struct ExprSetupInfo
 	List	   *multiexpr_subplans;
 } ExprSetupInfo;
 
+ExecInitFunc_AclCheck_hook_type ExecInitFunc_AclCheck_hook = NULL;
+
 static void ExecReadyExpr(ExprState *state);
 static void ExecInitExprRec(Expr *node, ExprState *state,
 							Datum *resv, bool *resnull);
@@ -2557,7 +2559,10 @@ ExecInitFunc(ExprEvalStep *scratch, Expr *node, List *args, Oid funcid,
 	ListCell   *lc;
 
 	/* Check permission to call function */
-	aclresult = object_aclcheck(ProcedureRelationId, funcid, GetUserId(), ACL_EXECUTE);
+	if (ExecInitFunc_AclCheck_hook)
+		aclresult = ExecInitFunc_AclCheck_hook(funcid);
+	else
+		aclresult = object_aclcheck(ProcedureRelationId, funcid, GetUserId(), ACL_EXECUTE);
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_FUNCTION, get_func_name(funcid));
 	InvokeFunctionExecuteHook(funcid);

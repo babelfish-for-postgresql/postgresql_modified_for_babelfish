@@ -16,6 +16,7 @@
 
 #include "executor/nodeAgg.h"
 #include "nodes/execnodes.h"
+#include "utils/acl.h"
 
 /* forward references to avoid circularity */
 struct ExprEvalStep;
@@ -38,6 +39,9 @@ typedef void (*ExecEvalSubroutine) (ExprState *state,
 typedef bool (*ExecEvalBoolSubroutine) (ExprState *state,
 										struct ExprEvalStep *op,
 										ExprContext *econtext);
+
+typedef AclResult (*ExecInitFunc_AclCheck_hook_type) (Oid funcid);
+extern PGDLLIMPORT ExecInitFunc_AclCheck_hook_type ExecInitFunc_AclCheck_hook;
 
 /* ExprEvalSteps that cache a composite type's tupdesc need one of these */
 /* (it fits in-line in some step types, otherwise allocate out-of-line) */
