@@ -153,6 +153,13 @@ typedef struct
 static MemoryContext CollationCacheContext = NULL;
 static collation_cache_hash *CollationCache = NULL;
 
+/*
+ * The collation cache is often accessed repeatedly for the same collation, so
+ * remember the last one used.
+ */
+static Oid	last_collation_cache_oid = InvalidOid;
+static pg_locale_t last_collation_cache_locale = NULL;
+
 #if defined(WIN32) && defined(LC_MESSAGES)
 static char *IsoLocaleName(const char *);
 #endif
@@ -1573,6 +1580,9 @@ pg_newlocale_from_collation(Oid collid)
 	if (collid == DEFAULT_COLLATION_OID)
 		return &default_locale;
 
+	if (last_collation_cache_oid == collid)
+		return last_collation_cache_locale;
+
 	cache_entry = lookup_collation_cache(collid);
     
 	/* Call hook to get pervious cached value and return if not null*/
@@ -1708,11 +1718,13 @@ pg_newlocale_from_collation(Oid collid)
 		cache_entry->locale = resultp;
 	}
 
-/* Call hook to save the cached value */
+	/* Call hook to save the cached value */
 	if(collation_cache_entry_hook)
 	{
 		(*collation_cache_entry_hook)(cache_entry->collid, &cache_entry->locale);
-	}	
+	}
+	last_collation_cache_oid = collid;
+	last_collation_cache_locale = cache_entry->locale;
 
 	return cache_entry->locale;
 }
