@@ -777,7 +777,7 @@ DefineDomain(CreateDomainStmt *stmt)
 	baseType = (Form_pg_type) GETSTRUCT(typeTup);
 	basetypeoid = baseType->oid;
 	if (sql_dialect == SQL_DIALECT_TSQL && check_or_set_default_typmod_hook)
-		(*check_or_set_default_typmod_hook)(stmt->typeName, &basetypeMod, false);
+		(*check_or_set_default_typmod_hook)(stmt->typeName, &basetypeMod, false, false);
 
 	/*
 	 * Base type must be a plain base type, a composite type, another domain,

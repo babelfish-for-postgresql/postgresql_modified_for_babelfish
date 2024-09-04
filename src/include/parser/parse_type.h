@@ -59,7 +59,7 @@ extern bool parseTypeString(const char *str, Oid *typeid_p, int32 *typmod_p,
 #define ISCOMPLEX(typeid) (typeOrDomainTypeRelid(typeid) != InvalidOid)
 
 /* Hook to check/setup default typmod for sys.(N)(VAR)CHAR datatypes. */
-typedef void (*check_or_set_default_typmod_hook_type)(TypeName * typeName, int32 *typmod, bool is_cast);
+typedef void (*check_or_set_default_typmod_hook_type)(TypeName * typeName, int32 *typmod, bool is_cast, bool is_procedure);
 extern PGDLLEXPORT check_or_set_default_typmod_hook_type check_or_set_default_typmod_hook;
 
 /*
