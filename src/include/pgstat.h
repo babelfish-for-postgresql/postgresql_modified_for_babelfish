@@ -16,6 +16,7 @@
 #include "portability/instr_time.h"
 #include "storage/proc.h"
 #include "postmaster/pgarch.h"	/* for MAX_XFN_CHARS */
+#include "replication/conflict.h"
 #include "utils/backend_progress.h" /* for backward compatibility */
 #include "utils/backend_status.h"	/* for backward compatibility */
 #include "utils/relcache.h"
@@ -166,6 +167,7 @@ typedef struct PgStat_BackendSubEntry
 {
 	PgStat_Counter apply_error_count;
 	PgStat_Counter sync_error_count;
+	PgStat_Counter conflict_count[CONFLICT_NUM_TYPES];
 } PgStat_BackendSubEntry;
 
 /* ----------
@@ -424,6 +426,7 @@ typedef struct PgStat_StatSubEntry
 {
 	PgStat_Counter apply_error_count;
 	PgStat_Counter sync_error_count;
+	PgStat_Counter conflict_count[CONFLICT_NUM_TYPES];
 	TimestampTz stat_reset_timestamp;
 } PgStat_StatSubEntry;
 
@@ -730,6 +733,7 @@ extern PgStat_SLRUStats *pgstat_fetch_slru(void);
  */
 
 extern void pgstat_report_subscription_error(Oid subid, bool is_apply_error);
+extern void pgstat_report_subscription_conflict(Oid subid, ConflictType type);
 extern void pgstat_create_subscription(Oid subid);
 extern void pgstat_drop_subscription(Oid subid);
 extern PgStat_StatSubEntry *pgstat_fetch_stat_subscription(Oid subid);
