@@ -374,8 +374,7 @@ RI_FKey_check(TriggerData *trigdata)
 			break;
 	}
 
-	if (SPI_connect() != SPI_OK_CONNECT)
-		elog(ERROR, "SPI_connect failed");
+	SPI_connect();
 
 	/* Fetch or prepare a saved plan for the real check */
 	ri_BuildQueryKey(&qkey, riinfo, RI_PLAN_CHECK_LOOKUPPK);
@@ -503,8 +502,7 @@ ri_Check_Pk_Match(Relation pk_rel, Relation fk_rel,
 	/* Only called for non-null rows */
 	Assert(ri_NullCheck(RelationGetDescr(pk_rel), oldslot, riinfo, true) == RI_KEYS_NONE_NULL);
 
-	if (SPI_connect() != SPI_OK_CONNECT)
-		elog(ERROR, "SPI_connect failed");
+	SPI_connect();
 
 	/*
 	 * Fetch or prepare a saved plan for checking PK table with values coming
@@ -690,8 +688,7 @@ ri_restrict(TriggerData *trigdata, bool is_no_action)
 		return PointerGetDatum(NULL);
 	}
 
-	if (SPI_connect() != SPI_OK_CONNECT)
-		elog(ERROR, "SPI_connect failed");
+	SPI_connect();
 
 	/*
 	 * Fetch or prepare a saved plan for the restrict lookup (it's the same
@@ -800,8 +797,7 @@ RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 	pk_rel = trigdata->tg_relation;
 	oldslot = trigdata->tg_trigslot;
 
-	if (SPI_connect() != SPI_OK_CONNECT)
-		elog(ERROR, "SPI_connect failed");
+	SPI_connect();
 
 	/* Fetch or prepare a saved plan for the cascaded delete */
 	ri_BuildQueryKey(&qkey, riinfo, RI_PLAN_CASCADE_ONDELETE);
@@ -909,8 +905,7 @@ RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
 	newslot = trigdata->tg_newslot;
 	oldslot = trigdata->tg_trigslot;
 
-	if (SPI_connect() != SPI_OK_CONNECT)
-		elog(ERROR, "SPI_connect failed");
+	SPI_connect();
 
 	/* Fetch or prepare a saved plan for the cascaded update */
 	ri_BuildQueryKey(&qkey, riinfo, RI_PLAN_CASCADE_ONUPDATE);
@@ -1085,8 +1080,7 @@ ri_set(TriggerData *trigdata, bool is_set_null, int tgkind)
 	pk_rel = trigdata->tg_relation;
 	oldslot = trigdata->tg_trigslot;
 
-	if (SPI_connect() != SPI_OK_CONNECT)
-		elog(ERROR, "SPI_connect failed");
+	SPI_connect();
 
 	/*
 	 * Fetch or prepare a saved plan for the trigger.
@@ -1581,8 +1575,7 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 							 PGC_USERSET, PGC_S_SESSION,
 							 GUC_ACTION_SAVE, true, 0, false);
 
-	if (SPI_connect() != SPI_OK_CONNECT)
-		elog(ERROR, "SPI_connect failed");
+	SPI_connect();
 
 	/*
 	 * Generate the plan.  We don't need to cache it, and there are no
@@ -1821,8 +1814,7 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 							 PGC_USERSET, PGC_S_SESSION,
 							 GUC_ACTION_SAVE, true, 0, false);
 
-	if (SPI_connect() != SPI_OK_CONNECT)
-		elog(ERROR, "SPI_connect failed");
+	SPI_connect();
 
 	/*
 	 * Generate the plan.  We don't need to cache it, and there are no
