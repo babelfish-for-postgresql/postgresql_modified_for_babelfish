@@ -24,13 +24,13 @@ jobs:
           make check-world
       - name: upload-test-summary
         if: failure()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: regression-summary
           path: src/test/regress/regression.out
       - name: upload-test-differences
         if: failure()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: regression-differences
           path: src/test/regress/regression.diffs
