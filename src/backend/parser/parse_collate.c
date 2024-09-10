@@ -866,7 +866,7 @@ merge_collation_state(Oid collation,
 				/* We're still conflicted ... */
 				break;
 			case COLLATE_EXPLICIT:
-				if (collation != context->collation)
+				if (collation != context->collation && !is_bbf_dump_restore)
 				{
 					/*
 					 * Oops, we have a conflict of explicit COLLATE clauses.
