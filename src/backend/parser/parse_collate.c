@@ -47,6 +47,7 @@
 #include "parser/parse_collate.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
 #include "utils/lsyscache.h"
+#include "utils/guc.h"
 
 
 /*
@@ -91,6 +92,8 @@ static void assign_hypothetical_collations(Aggref *aggref,
 
 avoid_collation_override_hook_type avoid_collation_override_hook = NULL;
 
+static bool is_bbf_dump_restore = false;
+
 /*
  * assign_query_collations()
  *		Mark all expressions in the given Query with collation information.
@@ -102,6 +105,10 @@ avoid_collation_override_hook_type avoid_collation_override_hook = NULL;
 void
 assign_query_collations(ParseState *pstate, Query *query)
 {
+	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+	if (dump_restore && strcmp(dump_restore, "on") == 0)
+		is_bbf_dump_restore = true;
+
 	/*
 	 * We just use query_tree_walker() to visit all the contained expressions.
 	 * We can skip the rangetable and CTE subqueries, though, since RTEs and
@@ -113,6 +120,8 @@ assign_query_collations(ParseState *pstate, Query *query)
 							 (void *) pstate,
 							 QTW_IGNORE_RANGE_TABLE |
 							 QTW_IGNORE_CTE_SUBQUERIES);
+
+	is_bbf_dump_restore = false;	
 }
 
 /*
@@ -831,7 +840,7 @@ merge_collation_state(Oid collation,
 					/*
 					 * Non-default implicit collation always beats default.
 					 */
-					if (context->collation == CLUSTER_COLLATION_OID())
+					if (context->collation == CLUSTER_COLLATION_OID() || is_bbf_dump_restore)
 					{
 						/* Override previous parent state */
 						context->collation = collation;
