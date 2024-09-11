@@ -19,7 +19,6 @@
 
 #include "access/transam.h"
 #include "miscadmin.h"
-#include "parser/parser.h"
 #include "storage/backendid.h"
 #include "storage/ipc.h"
 #include "storage/proc.h"
@@ -27,7 +26,6 @@
 #include "storage/shmem.h"
 #include "storage/sinvaladt.h"
 #include "storage/spin.h"
-#include "utils/queryenvironment.h"
 
 /* hooks */
 pltsql_is_local_only_inval_msg_hook_type pltsql_is_local_only_inval_msg_hook = NULL;

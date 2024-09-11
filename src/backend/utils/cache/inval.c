@@ -559,6 +559,12 @@ RegisterCatcacheInvalidation(int cacheId,
  * 
  * We save the hashvalue so that it can be crosschecked and excluded from 
  * the SI queue later.
+ * 
+ * This is necessary because there isn't enough information in a 
+ * Catcache SI message itself to determine whether it's applying to ENR.
+ * 
+ * Saved messages are cleared at the end of the current transaction
+ * (see ClearSavedCatcacheMessages).
  */
 static void
 RegisterENRCatcacheInvalidation(int cacheId,
@@ -1345,6 +1351,12 @@ CacheInvalidateHeapTuple(Relation relation,
 	RegisterRelcacheInvalidation(databaseId, relationId);
 }
 
+/*
+ * This is nearly identical to CacheInvalidateHeapTuple but specifically called from
+ * ENR codepaths. This helps us avoid a larger refactor.
+ * 
+ * We call our new callback RegisterENRCatcacheInvalidation instead.
+ */
 void
 CacheInvalidateENRHeapTuple(Relation relation,
 						 HeapTuple tuple,

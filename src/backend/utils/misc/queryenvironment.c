@@ -259,6 +259,7 @@ void SaveCatcacheMessage(int cacheId,
 	currentQueryEnv->savedCatcacheMessages = lappend(currentQueryEnv->savedCatcacheMessages, msg);
 }
 
+/* Clear any saved catcache messages at end of xact. */
 void ClearSavedCatcacheMessages()
 {
 	if (!currentQueryEnv)
@@ -319,7 +320,7 @@ bool SIMessageIsForTempTable(const SharedInvalidationMessage *msg)
 		return false;
 	}
 	else
-		elog(FATAL, "unrecognized SI message ID: %d", msg->id);
+		elog(ERROR, "unrecognized SI message ID: %d", msg->id);
 }
 
 /*
