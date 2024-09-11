@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: clone-repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
       - name: install-dependencies
         run: |
           sudo apt update --fix-missing -y
