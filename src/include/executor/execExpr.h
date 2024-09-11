@@ -40,6 +40,11 @@ typedef bool (*ExecEvalBoolSubroutine) (ExprState *state,
 										struct ExprEvalStep *op,
 										ExprContext *econtext);
 
+/*
+ * Hook to perform permission check to EXECUTE a function.
+ * Helpful in cases when permissions need to be checked against
+ * a different user instead of current user.
+ */
 typedef AclResult (*ExecInitFunc_AclCheck_hook_type) (Oid funcid);
 extern PGDLLIMPORT ExecInitFunc_AclCheck_hook_type ExecInitFunc_AclCheck_hook;
 
