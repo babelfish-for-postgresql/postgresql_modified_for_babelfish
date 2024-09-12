@@ -10750,6 +10750,25 @@ get_const_expr(Const *constval, deparse_context *context, int showtype)
 	get_const_collation(constval, context);
 }
 
+static bool
+handleTSQLConstForDump(Const *constval, deparse_context *context)
+{
+	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+	bool is_bbf_dump_restore = (dump_restore && strcmp(dump_restore, "on") == 0);
+
+	if (!is_bbf_dump_restore)
+		return false;
+
+	StringInfo buf;
+	initStringInfo(buf);
+	appendStringInfoChar(buf, "(");
+	appendStringInfo(buf, context->buf->data);
+	appendStringInfo(buf, " COLLATE %s)", generate_collation_name(constval->constcollid));
+	
+	context->buf = buf;
+	return true;
+}
+
 /*
  * helper for get_const_expr: append COLLATE if needed
  */
@@ -10764,6 +10783,9 @@ get_const_collation(Const *constval, deparse_context *context)
 
 		if (constval->constcollid != typcollation)
 		{
+			bool res = handleTSQLConstForDump(constval, context);
+			if (res)
+				return;
 			appendStringInfo(buf, " COLLATE %s",
 							 generate_collation_name(constval->constcollid));
 		}

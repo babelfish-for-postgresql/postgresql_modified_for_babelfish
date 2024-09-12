@@ -511,31 +511,6 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 		return;
 
 	atttypname = attrDefInfo->adtable->atttypnames[attrDefInfo->adnum - 1];
-	if (strstr(source, "COLLATE") != NULL)
-	{
-		size_t input_len, output_len;
-		char *output_str = NULL;
-
-		input_len = strlen(attrDefInfo->adef_expr);
-		output_len = input_len + 3;  // 2 parentheses + null terminator
-		output_str = (char *)malloc(output_len * sizeof(char));
-
-		// Add the opening parenthesis
-		output_str[0] = '(';
-
-		// Copy the input string to the output string
-		strncpy(output_str + 1, attrDefInfo->adef_expr, input_len);
-
-		// Add the closing parenthesis and null terminator
-		output_str[output_len - 2] = ')';
-		output_str[output_len - 1] = '\0';
-
-		strcpy(attrDefInfo->adef_expr, output_str);
-		free(output_str);
-		free(source);
-		return;
-	}
-
 	if (!strstr(atttypname, "decimal") && !strstr(atttypname, "numeric"))
 		return;
 
