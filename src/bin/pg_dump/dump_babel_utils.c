@@ -9,6 +9,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "postgres.h"
 #include "postgres_fe.h"
 
 #include "catalog/pg_class_d.h"
@@ -511,6 +512,15 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 		return;
 
 	atttypname = attrDefInfo->adtable->atttypnames[attrDefInfo->adnum - 1];
+	if (strstr(atttypname, "varchar") != NULL || strstr(atttypname, "sys.varchar") != NULL)
+	{
+		char *collate_ptr = strstr(attrDefInfo->adef_expr, " COLLATE ");
+		if (collate_ptr != NULL)
+			*collate_ptr = '\0';
+		free(source);
+		return; 
+	}
+
 	if (!strstr(atttypname, "decimal") && !strstr(atttypname, "numeric"))
 		return;
 
