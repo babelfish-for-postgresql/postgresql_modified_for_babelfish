@@ -10759,13 +10759,13 @@ handleTSQLConstForDump(Const *constval, deparse_context *context)
 	if (!is_bbf_dump_restore)
 		return false;
 
-	StringInfo buf;
-	initStringInfo(buf);
-	appendStringInfoChar(buf, "(");
-	appendStringInfo(buf, context->buf->data);
-	appendStringInfo(buf, " COLLATE %s)", generate_collation_name(constval->constcollid));
+	StringInfoData buf;
+	initStringInfo(&buf);
+	appendStringInfoChar(&buf, "(");
+	appendStringInfo(&buf, context->buf->data);
+	appendStringInfo(&buf, " COLLATE %s)", generate_collation_name(constval->constcollid));
 	
-	context->buf = buf;
+	context->buf = &buf;
 	return true;
 }
 
