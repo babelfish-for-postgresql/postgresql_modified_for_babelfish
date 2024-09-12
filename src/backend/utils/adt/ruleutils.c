@@ -10755,14 +10755,14 @@ handleTSQLConstForDump(Const *constval, deparse_context *context)
 {
 	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 	bool is_bbf_dump_restore = (dump_restore && strcmp(dump_restore, "on") == 0);
+	StringInfoData buf;
 
 	if (!is_bbf_dump_restore)
 		return false;
 
-	StringInfoData buf;
 	initStringInfo(&buf);
-	appendStringInfoChar(&buf, "(");
-	appendStringInfo(&buf, context->buf->data);
+	appendStringInfo(&buf, "(");
+	appendStringInfo(&buf, "%s", context->buf->data);
 	appendStringInfo(&buf, " COLLATE %s)", generate_collation_name(constval->constcollid));
 	
 	context->buf = &buf;
