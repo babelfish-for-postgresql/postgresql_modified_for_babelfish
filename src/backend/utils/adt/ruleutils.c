@@ -10750,32 +10750,6 @@ get_const_expr(Const *constval, deparse_context *context, int showtype)
 	get_const_collation(constval, context);
 }
 
-static bool
-updateTsqlDefaultExprForDump(Const *constval, deparse_context *context)
-{
-	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
-	const char *tsql_tabletype = GetConfigOption("babelfishpg_tsql.restore_tsql_tabletype", true, false);
-	StringInfoData new_buf;
-
-	if ((!dump_restore || (dump_restore && strncmp(dump_restore, "on", 2) != 0))
-		&& (!tsql_tabletype || (tsql_tabletype && strncmp(tsql_tabletype, "on", 2) != 0))) /* allow extra collate clause for Const node to handle default values */
-		return false;
-
-	initStringInfo(&new_buf);
-
-	appendStringInfo(&new_buf, "(");
-	appendStringInfoString(&new_buf, context->buf->data);
-	appendStringInfo(&new_buf, " COLLATE %s)", generate_collation_name(constval->constcollid));
-
-	/* Replace the original buffer's content with the new buffer's content */
-	resetStringInfo(context->buf);
-	appendBinaryStringInfo(context->buf, new_buf.data, new_buf.len);
-
-	pfree(new_buf.data);
-
-	return true;
-}
-
 /*
  * helper for get_const_expr: append COLLATE if needed
  */
@@ -10790,9 +10764,6 @@ get_const_collation(Const *constval, deparse_context *context)
 
 		if (constval->constcollid != typcollation)
 		{
-			bool res = updateTsqlDefaultExprForDump(constval, context);
-			if (res)
-				return;
 			appendStringInfo(buf, " COLLATE %s",
 							 generate_collation_name(constval->constcollid));
 		}
