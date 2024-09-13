@@ -37,18 +37,18 @@
 
 
 static int	SB_MatchText(const char *t, int tlen, const char *p, int plen,
-						 pg_locale_t locale, bool locale_is_c);
+						 pg_locale_t locale);
 static text *SB_do_like_escape(text *pat, text *esc);
 
 static int	MB_MatchText(const char *t, int tlen, const char *p, int plen,
-						 pg_locale_t locale, bool locale_is_c);
+						 pg_locale_t locale);
 static text *MB_do_like_escape(text *pat, text *esc);
 
 static int	UTF8_MatchText(const char *t, int tlen, const char *p, int plen,
-						   pg_locale_t locale, bool locale_is_c);
+						   pg_locale_t locale);
 
 static int	SB_IMatchText(const char *t, int tlen, const char *p, int plen,
-						  pg_locale_t locale, bool locale_is_c);
+						  pg_locale_t locale);
 
 static int	GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation);
 static int	Generic_Text_IC_like(text *str, text *pat, Oid collation);
@@ -95,9 +95,9 @@ wchareq(const char *p1, const char *p2)
  * fold-on-the-fly processing, however.
  */
 static char
-SB_lower_char(unsigned char c, pg_locale_t locale, bool locale_is_c)
+SB_lower_char(unsigned char c, pg_locale_t locale)
 {
-	if (locale_is_c)
+	if (locale->ctype_is_c)
 		return pg_ascii_tolower(c);
 	else
 		return tolower_l(c, locale->info.lt);
@@ -133,7 +133,7 @@ SB_lower_char(unsigned char c, pg_locale_t locale, bool locale_is_c)
 #include "like_match.c"
 
 /* setup to compile like_match.c for single byte case insensitive matches */
-#define MATCH_LOWER(t) SB_lower_char((unsigned char) (t), locale, locale_is_c)
+#define MATCH_LOWER(t, locale) SB_lower_char((unsigned char) (t), locale)
 #define NextChar(p, plen) NextByte((p), (plen))
 #define MatchText SB_IMatchText
 
@@ -167,11 +167,11 @@ GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation
 	}
 
 	if (pg_database_encoding_max_length() == 1)
-		return SB_MatchText(s, slen, p, plen, 0, true);
+		return SB_MatchText(s, slen, p, plen, 0);
 	else if (GetDatabaseEncoding() == PG_UTF8)
-		return UTF8_MatchText(s, slen, p, plen, 0, true);
+		return UTF8_MatchText(s, slen, p, plen, 0);
 	else
-		return MB_MatchText(s, slen, p, plen, 0, true);
+		return MB_MatchText(s, slen, p, plen, 0);
 }
 
 static inline int
@@ -226,9 +226,9 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 		s = VARDATA_ANY(str);
 		slen = VARSIZE_ANY_EXHDR(str);
 		if (GetDatabaseEncoding() == PG_UTF8)
-			return UTF8_MatchText(s, slen, p, plen, 0, true);
+			return UTF8_MatchText(s, slen, p, plen, 0);
 		else
-			return MB_MatchText(s, slen, p, plen, 0, true);
+			return MB_MatchText(s, slen, p, plen, 0);
 	}
 	else
 	{
@@ -236,7 +236,7 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 		plen = VARSIZE_ANY_EXHDR(pat);
 		s = VARDATA_ANY(str);
 		slen = VARSIZE_ANY_EXHDR(str);
-		return SB_IMatchText(s, slen, p, plen, locale, locale->ctype_is_c);
+		return SB_IMatchText(s, slen, p, plen, locale);
 	}
 }
 
@@ -349,7 +349,7 @@ bytealike(PG_FUNCTION_ARGS)
 		set_like_collation_hook(PG_GET_COLLATION());
 	}
 
-	result = (SB_MatchText(s, slen, p, plen, 0, true) == LIKE_TRUE);
+	result = (SB_MatchText(s, slen, p, plen, 0) == LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -375,7 +375,7 @@ byteanlike(PG_FUNCTION_ARGS)
 		set_like_collation_hook(PG_GET_COLLATION());
 	}
 
-	result = (SB_MatchText(s, slen, p, plen, 0, true) != LIKE_TRUE);
+	result = (SB_MatchText(s, slen, p, plen, 0) != LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
