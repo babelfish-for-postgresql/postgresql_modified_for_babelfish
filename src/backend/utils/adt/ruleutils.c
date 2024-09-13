@@ -10754,9 +10754,11 @@ static bool
 updateTsqlDefaultExprForDump(Const *constval, deparse_context *context)
 {
 	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+	const char *tsql_tabletype = GetConfigOption("babelfishpg_tsql.restore_tsql_tabletype", true, false);
 	StringInfoData new_buf;
 
-	if (!dump_restore || (dump_restore && strncmp(dump_restore, "on", 2) != 0)) /* allow extra collate clause for Const node to handle default values */
+	if ((!dump_restore || (dump_restore && strncmp(dump_restore, "on", 2) != 0))
+		&& (!tsql_tabletype || (tsql_tabletype && strncmp(tsql_tabletype, "on", 2) != 0))) /* allow extra collate clause for Const node to handle default values */
 		return false;
 
 	initStringInfo(&new_buf);
