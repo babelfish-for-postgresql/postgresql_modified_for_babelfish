@@ -503,6 +503,7 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 	char *runtimeErrFunc = "babelfish_runtime_error";
 	char *runtimeErrStr = "'An empty or space-only string cannot be converted into numeric/decimal data type'";
 	char *atttypname;
+	bool isBabelfishDb = isBabelfishDatabase(fout);
 
 	/* 
 	 * We need to re-write the decompiled DEFAULT expression for non-default
@@ -516,15 +517,15 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 	 * This is allowed. Later, we handle the case of NUMERIC column with empty string
 	 * and if needed we re-write attrDefInfo->adef_expr again.
 	 */
-	if (isBabelfishDatabase(fout) && strstr(source, "COLLATE") != NULL)
+	if (isBabelfishDb && strstr(source, " COLLATE ") != NULL)
 	{
 		/* Update attrDefInfo->adef_expr with parentheses */
-		char *newExpr = psprintf("(%s)", source);
+		attrDefInfo->adef_expr = psprintf("(%s)", source);
 		free(source);
-		attrDefInfo->adef_expr = newExpr;
+		source = attrDefInfo->adef_expr;
 	}
 
-	if (!isBabelfishDatabase(fout) ||
+	if (!isBabelfishDb ||
 		!strstr(source, runtimeErrStr) ||
 		strstr(source, runtimeErrFunc) ||
 		attrDefInfo->adnum < 1)
