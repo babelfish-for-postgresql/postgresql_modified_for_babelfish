@@ -510,6 +510,15 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 		attrDefInfo->adnum < 1)
 		return;
 
+	if (strstr(source, "COLLATE") != NULL)
+	{
+		/* Update attrDefInfo->adef_expr with parentheses */
+		char *newExpr = psprintf("(%s)", source);
+		free(source);
+		attrDefInfo->adef_expr = newExpr;
+		return;
+	}
+
 	atttypname = attrDefInfo->adtable->atttypnames[attrDefInfo->adnum - 1];
 	if (!strstr(atttypname, "decimal") && !strstr(atttypname, "numeric"))
 		return;
