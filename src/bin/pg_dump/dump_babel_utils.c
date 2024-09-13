@@ -504,13 +504,7 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 	char *runtimeErrStr = "'An empty or space-only string cannot be converted into numeric/decimal data type'";
 	char *atttypname;
 
-	if (!isBabelfishDatabase(fout) ||
-		!strstr(source, runtimeErrStr) ||
-		strstr(source, runtimeErrFunc) ||
-		attrDefInfo->adnum < 1)
-		return;
-
-	if (strstr(source, "COLLATE") != NULL)
+	if (isBabelfishDatabase(fout) && strstr(source, "COLLATE") != NULL)
 	{
 		/* Update attrDefInfo->adef_expr with parentheses */
 		char *newExpr = psprintf("(%s)", source);
@@ -518,6 +512,12 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 		attrDefInfo->adef_expr = newExpr;
 		return;
 	}
+
+	if (!isBabelfishDatabase(fout) ||
+		!strstr(source, runtimeErrStr) ||
+		strstr(source, runtimeErrFunc) ||
+		attrDefInfo->adnum < 1)
+		return;
 
 	atttypname = attrDefInfo->adtable->atttypnames[attrDefInfo->adnum - 1];
 	if (!strstr(atttypname, "decimal") && !strstr(atttypname, "numeric"))
