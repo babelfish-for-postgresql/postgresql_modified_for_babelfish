@@ -10757,8 +10757,8 @@ handleTSQLConstForDump(Const *constval, deparse_context *context)
 	bool is_bbf_dump_restore = (dump_restore && strcmp(dump_restore, "on") == 0);
 	StringInfoData buf;
 
-	if (!is_bbf_dump_restore)
-		return false;
+	// if (!is_bbf_dump_restore)
+	// 	return false;
 
 	initStringInfo(&buf);
 	appendStringInfo(&buf, "(");
