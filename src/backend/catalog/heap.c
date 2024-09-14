@@ -1318,7 +1318,8 @@ heap_create_with_catalog(const char *relname,
 	 * it doesn't hurt to hold AccessExclusiveLock.  Do it here so callers
 	 * can't accidentally vary in their lock mode or acquisition timing.
 	 */
-	LockRelationOid(relid, AccessExclusiveLock);
+	if (!is_enr)
+		LockRelationOid(relid, AccessExclusiveLock);
 
 	/*
 	 * Determine the relation's initial permissions.
