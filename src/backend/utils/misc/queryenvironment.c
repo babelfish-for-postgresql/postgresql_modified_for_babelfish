@@ -41,7 +41,6 @@
 #include "catalog/pg_attrdef.h"
 #include "catalog/pg_shdepend.h"
 #include "catalog/pg_index_d.h"
-#include "catalog/storage.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
 #include "utils/inval.h"
 #include "utils/guc.h"
@@ -1360,8 +1359,6 @@ ENRRollbackChanges(QueryEnvironment *queryEnv)
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 		queryEnv->namedRelList = list_delete(queryEnv->namedRelList, enr);
-		/* add the enr to the pending deletes list so that the physical on-disk file gets cleaned up as well. */
-		RelationDropStorage(RelationIdGetRelation(enr->md.reliddesc));
 		free_ENR(enr);
 		pfree(enr);
 	}
