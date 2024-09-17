@@ -154,7 +154,7 @@ void remove_queryEnv() {
 	currentQueryEnv->dropped_namedRelList = NIL;
 
 	list_free(currentQueryEnv->savedCatcacheMessages);
-	currentQueryEnv->dropped_namedRelList = NIL;
+	currentQueryEnv->savedCatcacheMessages = NIL;
 
 	pfree(currentQueryEnv);
 	MemoryContextSwitchTo(oldcxt);
