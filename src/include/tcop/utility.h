@@ -16,6 +16,7 @@
 
 #include "tcop/cmdtag.h"
 #include "tcop/tcopprot.h"
+#include "catalog/dependency.h"
 
 typedef enum
 {
@@ -111,8 +112,8 @@ extern bool CommandIsReadOnly(PlannedStmt *pstmt);
 typedef bool (*bbfCustomProcessUtility_hook_type)(struct ParseState *pstate, PlannedStmt *pstmt, const char *queryString, ProcessUtilityContext context, 
 						  ParamListInfo params, QueryCompletion *qc);
 extern PGDLLEXPORT bbfCustomProcessUtility_hook_type bbfCustomProcessUtility_hook;
-typedef ObjectAddress (*bbfSelectIntoUtility_hook_type)(struct ParseState *pstate, PlannedStmt *pstmt, const char *queryString, QueryEnvironment *queryEnv, 
-						  ParamListInfo params, QueryCompletion *qc);
+typedef void (*bbfSelectIntoUtility_hook_type)(struct ParseState *pstate, PlannedStmt *pstmt, const char *queryString, QueryEnvironment *queryEnv, 
+						  ParamListInfo params, QueryCompletion *qc, ObjectAddress *address);
 extern PGDLLEXPORT bbfSelectIntoUtility_hook_type bbfSelectIntoUtility_hook;
 
 #endif							/* UTILITY_H */
