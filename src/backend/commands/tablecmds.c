@@ -10195,6 +10195,7 @@ addFkRecurseReferenced(List **wqueue, Constraint *fkconstraint, Relation rel,
 									  conislocal,	/* islocal */
 									  coninhcount,	/* inhcount */
 									  connoinherit, /* conNoInherit */
+									  false,	/* conPeriod */
 									  false);	/* is_internal */
 
 	ObjectAddressSet(address, ConstraintRelationId, constrOid);
@@ -10493,6 +10494,7 @@ addFkRecurseReferencing(List **wqueue, Constraint *fkconstraint, Relation rel,
 									  false,
 									  1,
 									  false,
+									  false,	/* conPeriod */
 									  false);
 
 			/*
@@ -11015,6 +11017,7 @@ CloneFkReferencing(List **wqueue, Relation parentRel, Relation partRel)
 								  false,	/* islocal */
 								  1,	/* inhcount */
 								  false,	/* conNoInherit */
+								  false,	/* conPeriod */
 								  true);
 
 		/* Set up partition dependencies for the new constraint */
@@ -14209,7 +14212,8 @@ TryReuseIndex(Oid oldId, IndexStmt *stmt)
 	if (CheckIndexCompatible(oldId,
 							 stmt->accessMethod,
 							 stmt->indexParams,
-							 stmt->excludeOpNames))
+							 stmt->excludeOpNames,
+							 stmt->iswithoutoverlaps))
 	{
 		Relation	irel = index_open(oldId, NoLock);
 
