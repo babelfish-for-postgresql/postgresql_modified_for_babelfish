@@ -4827,6 +4827,10 @@ SeqOptElem: AS SimpleTypename
 				{
 					$$ = makeDefElem("increment", (Node *) $3, @1);
 				}
+			| LOGGED
+				{
+					$$ = makeDefElem("logged", NULL, @1);
+				}
 			| MAXVALUE NumericOnly
 				{
 					$$ = makeDefElem("maxvalue", (Node *) $2, @1);
@@ -4849,7 +4853,6 @@ SeqOptElem: AS SimpleTypename
 				}
 			| SEQUENCE NAME_P any_name
 				{
-					/* not documented, only used by pg_dump */
 					$$ = makeDefElem("sequence_name", (Node *) $3, @1);
 				}
 			| START opt_with NumericOnly
@@ -4863,6 +4866,10 @@ SeqOptElem: AS SimpleTypename
 			| RESTART opt_with NumericOnly
 				{
 					$$ = makeDefElem("restart", (Node *) $3, @1);
+				}
+			| UNLOGGED
+				{
+					$$ = makeDefElem("unlogged", NULL, @1);
 				}
 		;
 
