@@ -111,7 +111,7 @@ extern bool CommandIsReadOnly(PlannedStmt *pstmt);
 typedef bool (*bbfCustomProcessUtility_hook_type)(struct ParseState *pstate, PlannedStmt *pstmt, const char *queryString, ProcessUtilityContext context, 
 						  ParamListInfo params, QueryCompletion *qc);
 extern PGDLLEXPORT bbfCustomProcessUtility_hook_type bbfCustomProcessUtility_hook;
-typedef void (*bbfSelectIntoUtility_hook_type)(struct ParseState *pstate, PlannedStmt *pstmt, const char *queryString, QueryEnvironment *queryEnv, 
+typedef ObjectAddress (*bbfSelectIntoUtility_hook_type)(struct ParseState *pstate, PlannedStmt *pstmt, const char *queryString, QueryEnvironment *queryEnv, 
 						  ParamListInfo params, QueryCompletion *qc);
 extern PGDLLEXPORT bbfSelectIntoUtility_hook_type bbfSelectIntoUtility_hook;
 
