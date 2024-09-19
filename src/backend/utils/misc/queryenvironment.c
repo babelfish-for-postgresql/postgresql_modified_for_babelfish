@@ -60,6 +60,7 @@ pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook = NULL;
 struct QueryEnvViewInfo
 {
 	bool 	   inView;
+	char	   *schemaName;
 	char	   *viewName;
 };
 
@@ -1558,7 +1559,7 @@ extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
 /*
  * Set view information for the current query environment.
  */
-void setQueryEnvViewInfo(QueryEnvironment *queryEnv, const char *viewName, bool inView)
+void setQueryEnvViewInfo(QueryEnvironment *queryEnv, const char *schemaName, const char *viewName, bool inView)
 {
 	MemoryContext oldcxt;
 
@@ -1573,6 +1574,11 @@ void setQueryEnvViewInfo(QueryEnvironment *queryEnv, const char *viewName, bool 
 	
 	queryEnv->viewInfo->inView = inView;
 	queryEnv->viewInfo->viewName = pstrdup(viewName);
+
+	if (schemaName != NULL)
+		queryEnv->viewInfo->schemaName = pstrdup(schemaName);
+	else
+		queryEnv->viewInfo->schemaName = NULL;
 	
 	MemoryContextSwitchTo(oldcxt);
 }
@@ -1598,4 +1604,15 @@ char *getQueryEnvViewName(QueryEnvironment *queryEnv)
 		return NULL;
 
 	return queryEnv->viewInfo->viewName;
+}
+
+/*
+ *  Get the schema name for the current query environment
+ */
+char *getQueryEnvViewSchemaName(QueryEnvironment *queryEnv)
+{
+	if (!queryEnv || !queryEnv->viewInfo)
+		return NULL;
+
+	return queryEnv->viewInfo->schemaName;
 }

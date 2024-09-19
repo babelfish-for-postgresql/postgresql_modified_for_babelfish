@@ -153,8 +153,9 @@ extern void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *
 typedef EphemeralNamedRelation (*pltsql_get_tsql_enr_from_oid_hook_type) (Oid oid);
 extern PGDLLIMPORT pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook;
 
-extern void setQueryEnvViewInfo(QueryEnvironment *queryEnv, const char *viewName, bool inView);
+extern void setQueryEnvViewInfo(QueryEnvironment *queryEnv, const char *schemaName, const char *viewName, bool inView);
 extern char *getQueryEnvViewName(QueryEnvironment *queryEnv);
+extern char *getQueryEnvViewSchemaName(QueryEnvironment *queryEnv);
 extern bool checkQueryWithinView(QueryEnvironment *queryEnv);
 
 #endif							/* QUERYENVIRONMENT_H */
