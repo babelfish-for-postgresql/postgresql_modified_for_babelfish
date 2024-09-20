@@ -1429,6 +1429,11 @@ heap_create_with_catalog(const char *relname,
 			
 			Assert(!OidIsValid(reltypeid));
 
+			/* 
+			 * We also assign reltypeid here. It would usually be assigned during AddNewRelationType
+			 * if the value provided is InvalidOid. Since we are providing a value, it won't
+			 * try to call GetNewOidWithIndex.
+			 */
 			reltypeid = GetNewTempOidWithIndex_hook(pg_type, TypeOidIndexId, Anum_pg_type_oid);
 			table_close(pg_type, AccessShareLock);
 		}
