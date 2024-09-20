@@ -53,6 +53,7 @@
 #include "commands/proclang.h"
 #include "commands/trigger.h"
 #include "commands/tablecmds.h"
+#include "executor/execExpr.h"
 #include "executor/execdesc.h"
 #include "executor/executor.h"
 #include "executor/functions.h"
@@ -2349,7 +2350,10 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 	Assert(fexpr);
 	Assert(IsA(fexpr, FuncExpr));
 
-	aclresult = object_aclcheck(ProcedureRelationId, fexpr->funcid, GetUserId(), ACL_EXECUTE);
+	if (ExecFuncProc_AclCheck_hook)
+		aclresult = ExecFuncProc_AclCheck_hook(fexpr->funcid);
+	else
+		aclresult = object_aclcheck(ProcedureRelationId, fexpr->funcid, GetUserId(), ACL_EXECUTE);
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_PROCEDURE, get_func_name(fexpr->funcid));
 
