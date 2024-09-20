@@ -509,13 +509,16 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 	 * We need to re-write the decompiled DEFAULT expression for non-default
 	 * database level collation. Else, pg_dump adds explicit COLLATE clause
 	 * after the DEFAULT expression as well. This creates two explicit
-	 * COLLATE clause -
+	 * COLLATE clause during dump -
 	 * 	1. For the column itself
 	 * 	2. For the default expression
+	 * Eg: CREATE TABLE t1(a nvarchar(11) DEFAULT 'default') --> 
+	 * CREATE TABLE t1("a" "sys"."nvarchar" DEFAULT 'default'::"sys"."varchar" COLLATE <non_default_collation> COLLATE <non_default_collation>)
+	 * This is an invalid syntax, hence it will fail during restore.
 	 * If, attrDefInfo->adef_expr contains COLLATE clause, it means the DEFAULT
-	 * value is collatable. Hence we re-write it to '(<original_default_expression_containing_collate>)'
-	 * This is allowed. Later, we handle the case of NUMERIC column with empty string
-	 * and if needed we re-write attrDefInfo->adef_expr again.
+	 * value is collatable. Hence we re-write it to:
+	 * CREATE TABLE t1("a" "sys"."nvarchar" DEFAULT ('default'::"sys"."varchar" COLLATE <non_default_collation>) COLLATE <non_default_collation>)
+	 * by adding parenthesis. 
 	 */
 	if (isBabelfishDb && strstr(source, " COLLATE ") != NULL)
 	{
