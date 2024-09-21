@@ -86,6 +86,6 @@ extern void EventTriggerCollectAlterTSConfig(AlterTSConfigurationStmt *stmt,
 extern void EventTriggerCollectAlterDefPrivs(AlterDefaultPrivilegesStmt *stmt);
 
 typedef void (*cache_look_ddl_event_trigger_hook_type) (ObjectAddress*);
-extern PGDLLIMPORT cache_look_ddl_event_trigger_hook_type cache_look_ddl_event_trigger_hook;
+extern PGDLLIMPORT cache_look_ddl_event_trigger_hook_type cache_look_ddl_event_trigger_hook; 
 
 #endif							/* EVENT_TRIGGER_H */
