@@ -1898,7 +1898,7 @@ pg_event_trigger_ddl_commands(PG_FUNCTION_ARGS)
 					 */
 					if(cache_look_ddl_event_trigger_hook)
 					{
-						identity = (*cache_look_ddl_event_trigger_hook)(&addr);
+						(*cache_look_ddl_event_trigger_hook)(&addr, identity);
 					}
 					else
 					{
