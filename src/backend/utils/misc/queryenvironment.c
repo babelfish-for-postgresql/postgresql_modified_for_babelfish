@@ -357,7 +357,8 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 		* executing PG functions such as nextval_internal() in the case of
 		* identity sequence.
 		*/
-		if (!(reloid == SequenceRelationId || reloid == RelationRelationId))
+	// || CALLED_AS_EVENT_TRIGGER(fcinfo)
+		if (reloid != SequenceRelationId)
 			return false;
 
 		if (get_func_language_oids_hook)
