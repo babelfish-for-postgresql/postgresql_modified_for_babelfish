@@ -1900,7 +1900,7 @@ pg_event_trigger_ddl_commands(PG_FUNCTION_ARGS)
 					{
 						char temp_identity;
 						(*cache_look_ddl_event_trigger_hook)(&addr, &temp_identity);
-						identity = *temp_identity;
+						identity = &temp_identity;
 					}
 					else
 					{
