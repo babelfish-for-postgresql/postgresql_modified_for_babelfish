@@ -262,7 +262,7 @@ void SaveCatcacheMessage(int cacheId,
 /* Clear any saved catcache messages at end of xact. */
 void ClearSavedCatcacheMessages()
 {
-	if (!currentQueryEnv)
+	if (!currentQueryEnv || !currentQueryEnv->savedCatcacheMessages)
 		return;
 
 	list_free_deep(currentQueryEnv->savedCatcacheMessages);
