@@ -503,7 +503,6 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 	char *runtimeErrFunc = "babelfish_runtime_error";
 	char *runtimeErrStr = "'An empty or space-only string cannot be converted into numeric/decimal data type'";
 	char *atttypname;
-	bool isBabelfishDb = isBabelfishDatabase(fout);
 
 	/* 
 	 * We need to re-write the decompiled DEFAULT expression for non-default
@@ -515,21 +514,18 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 	 * Eg: CREATE TABLE t1(a nvarchar(11) DEFAULT 'default') --> 
 	 * CREATE TABLE t1("a" "sys"."nvarchar" DEFAULT 'default'::"sys"."varchar" COLLATE <non_default_collation> COLLATE <non_default_collation>)
 	 * This is an invalid syntax, hence it will fail during restore.
-	 * If, attrDefInfo->adef_expr contains COLLATE clause, it means the DEFAULT
-	 * value is collatable. Hence we re-write it to:
+	 * Hence we re-write it to:
 	 * CREATE TABLE t1("a" "sys"."nvarchar" DEFAULT ('default'::"sys"."varchar" COLLATE <non_default_collation>) COLLATE <non_default_collation>)
-	 * by adding parenthesis. 
+	 * by adding parenthesis. As adding parenthesis is optional in PG, 
+	 * we update all such default expressions for babelfish
 	 */
-	if (isBabelfishDb && strstr(source, " COLLATE ") != NULL)
-	{
-		/* Update attrDefInfo->adef_expr with parentheses */
-		attrDefInfo->adef_expr = psprintf("(%s)", source);
-		free(source);
-		source = attrDefInfo->adef_expr;
-	}
+	if (!isBabelfishDatabase(fout))
+		return;
+	attrDefInfo->adef_expr = psprintf("(%s)", source);
+	free(source);
+	source = attrDefInfo->adef_expr;
 
-	if (!isBabelfishDb ||
-		!strstr(source, runtimeErrStr) ||
+	if (!strstr(source, runtimeErrStr) ||
 		strstr(source, runtimeErrFunc) ||
 		attrDefInfo->adnum < 1)
 		return;
