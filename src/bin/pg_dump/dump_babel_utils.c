@@ -1124,9 +1124,9 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						  "ON a.database_name = b.name COLLATE \"C\" "
 						  "WHERE b.dbid = %d "
 						  "AND a.rolname NOT IN "
-						  "('master_dbo', 'master_db_owner', 'master_guest', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') ",
+						  "('master_dbo', 'master_db_owner', 'master_guest', 'master_db_accessadmin', "
+						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', 'msdb_db_accessadmin', "
+						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', 'tempdb_db_accessadmin') ",
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	}
 	else
@@ -1170,9 +1170,9 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 	{
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
 						  "WHERE a.rolname NOT IN "
-						  "('master_dbo', 'master_db_owner', 'master_guest', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest')",
+						  "('master_dbo', 'master_db_owner', 'master_guest', 'master_db_accessadmin', "
+						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', 'tempdb_db_accessadmin', "
+						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', 'msdb_db_accessadmin')",
 						  fmtQualifiedDumpable(tbinfo));
 	}
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
