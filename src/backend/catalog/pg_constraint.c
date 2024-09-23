@@ -100,7 +100,6 @@ CreateConstraintEntry(const char *constraintName,
 	ObjectAddress conobject;
 	ObjectAddresses *addrs_auto;
 	ObjectAddresses *addrs_normal;
-	bool		is_enr = false;
 
 	conDesc = table_open(ConstraintRelationId, RowExclusiveLock);
 
@@ -177,12 +176,7 @@ CreateConstraintEntry(const char *constraintName,
 		values[i] = (Datum) NULL;
 	}
 
-	if (sql_dialect == SQL_DIALECT_TSQL && isTempNamespace(constraintNamespace))
-	{
-		is_enr = get_ENR_withoid(currentQueryEnv, relId, ENR_TSQL_TEMP);
-	}
-
-	if (is_enr && GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0)
+	if (useTempOidBufferForOid(relId) && isTempNamespace(constraintNamespace))
 		conOid = GetNewTempOidWithIndex_hook(conDesc, ConstraintOidIndexId,
 									Anum_pg_constraint_oid);
 	else

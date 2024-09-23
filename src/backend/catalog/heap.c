@@ -1184,7 +1184,6 @@ heap_create_with_catalog(const char *relname,
 	TransactionId relfrozenxid;
 	MultiXactId relminmxid;
 	bool		is_enr = false;
-	bool 		use_temp_oid_buffer = false;
 
 	if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL)
 	{
@@ -1198,9 +1197,6 @@ heap_create_with_catalog(const char *relname,
 		 */
 		if (relname && strlen(relname) > 0)
 			is_enr = (relname[0] == '@') || (relname[0] == '#' && !CheckTempTableHasDependencies(tupdesc));
-
-		if (is_enr && GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0)
-			use_temp_oid_buffer = true;
 	}
 
 	pg_class_desc = table_open(RelationRelationId, RowExclusiveLock);
@@ -1417,7 +1413,7 @@ heap_create_with_catalog(const char *relname,
 		 * 
 		 * For temp tables, we use temp OID assignment code here as well.
 		 */
-		if (use_temp_oid_buffer)
+		if (is_enr && useTempOidBuffer())
 		{
 			Relation	pg_type;
 
@@ -1456,7 +1452,6 @@ heap_create_with_catalog(const char *relname,
 										   ownerid,
 										   reltypeid,
 										   new_array_oid);
-
 		new_type_oid = new_type_addr.objectId;
 		if (typaddress)
 			*typaddress = new_type_addr;
