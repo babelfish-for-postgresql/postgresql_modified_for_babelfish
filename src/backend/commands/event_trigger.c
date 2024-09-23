@@ -1896,7 +1896,7 @@ pg_event_trigger_ddl_commands(PG_FUNCTION_ARGS)
 					 * rather than failing.  This can happen for example with
 					 * some subcommand combinations of ALTER TABLE.
 					 */
-					if(cache_look_ddl_event_trigger_hook)
+					if(cache_look_ddl_event_trigger_hook && getObjectClass(&addr) == OCLASS_CLASS)
 					{
 						identity=(*cache_look_ddl_event_trigger_hook)(&addr);
 					}
