@@ -102,6 +102,7 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/partcache.h"
+#include "utils/queryenvironment.h"
 #include "utils/relcache.h"
 #include "utils/ruleutils.h"
 #include "utils/snapmgr.h"
@@ -12977,7 +12978,14 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 			elog(ERROR, "found unexpected dependency for column: %s",
 				 getObjectDescription(&foundObject, false));
 
-		CatalogTupleDelete(depRel, &depTup->t_self);
+		if (scan->enr)
+		{
+			ENRdropTuple(depRel, depTup);
+		}
+		else 
+		{
+			CatalogTupleDelete(depRel, &depTup->t_self);
+		}
 	}
 
 	systable_endscan(scan);
