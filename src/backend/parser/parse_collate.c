@@ -833,7 +833,7 @@ merge_collation_state(Oid collation,
 					/*
 					 * Non-default implicit collation always beats default.
 					 */
-					if (context->collation == CLUSTER_COLLATION_OID() || (dump_restore && strcmp(dump_restore, "on") == 0))
+					if (context->collation == CLUSTER_COLLATION_OID())
 					{
 						/* Override previous parent state */
 						context->collation = collation;
@@ -859,20 +859,30 @@ merge_collation_state(Oid collation,
 				/* We're still conflicted ... */
 				break;
 			case COLLATE_EXPLICIT:
-				if ((collation != context->collation) && (!dump_restore || (dump_restore && strcmp(dump_restore, "on") != 0)))
+				if ((collation != context->collation))
 				{
-					/*
-					 * Oops, we have a conflict of explicit COLLATE clauses.
-					 * Here we choose to throw error immediately; that is what
-					 * the SQL standard says to do, and there's no good reason
-					 * to be less strict.
-					 */
-					ereport(ERROR,
-							(errcode(ERRCODE_COLLATION_MISMATCH),
-							 errmsg("collation mismatch between explicit collations \"%s\" and \"%s\"",
-									get_collation_name(context->collation),
-									get_collation_name(collation)),
-							 parser_errposition(context->pstate, location)));
+					if (dump_restore && strcmp(dump_restore, "on") == 0)
+					{
+						context->collation = collation;
+						context->strength = strength;
+						context->location = location;
+						break;
+					}
+					else
+					{
+						/*
+						* Oops, we have a conflict of explicit COLLATE clauses.
+						* Here we choose to throw error immediately; that is what
+						* the SQL standard says to do, and there's no good reason
+						* to be less strict.
+						*/
+						ereport(ERROR,
+								(errcode(ERRCODE_COLLATION_MISMATCH),
+								errmsg("collation mismatch between explicit collations \"%s\" and \"%s\"",
+										get_collation_name(context->collation),
+										get_collation_name(collation)),
+								parser_errposition(context->pstate, location)));
+					}
 				}
 				break;
 		}
