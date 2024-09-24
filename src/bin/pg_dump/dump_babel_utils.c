@@ -519,6 +519,50 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 	attrDefInfo->adef_expr = psprintf("(sys.%s(%s::text))::integer", runtimeErrFunc, runtimeErrStr);
 }
 
+bool
+fixComputedColumnParenthesis(Archive *fout, char *decompiled_string)
+{
+	int len = strlen(decompiled_string);
+	bool hasParentheses = false;
+	int balance = 0;
+
+	if(!isBabelfishDatabase(fout))
+		return false;
+
+	for (int i = 0; i < len; i++)
+	{
+		if (decompiled_string[i] == '(' || decompiled_string[i] == ')')
+		{
+			hasParentheses = true;
+			break;
+		}
+	}
+
+	if (!hasParentheses) 
+		return true;
+
+	// If the string is too short to be enclosed, return false
+	if (len < 2 || decompiled_string[0] != '(' || decompiled_string[len - 1] != ')')
+		return false;
+
+	// Loop through the string (excluding the outermost parentheses)
+	for (int i = 1; i < len - 1; i++)
+	{
+		if (decompiled_string[i] == '(')
+			balance++;
+		else if (decompiled_string[i] == ')')
+		{
+			balance--;
+			// If balance goes negative, it means we have unmatched ')'
+			if (balance < 0)
+				return false;
+		}
+	}
+
+	// If the balance is zero at the end, parentheses are balanced
+	return (balance == 0);
+}
+
 /*
  * fixTsqlTableTypeDependency:
  * Fixes following two types of dependency issues between T-SQL
