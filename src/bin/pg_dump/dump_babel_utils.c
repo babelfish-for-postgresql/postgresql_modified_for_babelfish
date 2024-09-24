@@ -544,8 +544,9 @@ fixComputedColumnParenthesis(Archive *fout, char *decompiled_string)
 {
 	int len = strlen(decompiled_string);
 	bool hasParentheses = false;
-	int balance = 0;
 	int openParens = 0; // Count of valid outermost opening parentheses
+	// Count how many layers of enclosing parentheses are present
+	int start = 0, end = len - 1;
 
 	if (!isBabelfishDatabase(fout))
 		return false;
@@ -566,9 +567,6 @@ fixComputedColumnParenthesis(Archive *fout, char *decompiled_string)
 	// If the string is too short to be enclosed, return false
 	if (len < 2 || decompiled_string[0] != '(' || decompiled_string[len - 1] != ')')
 		return false;
-
-	// Count how many layers of enclosing parentheses are present
-	int start = 0, end = len - 1;
 
 	while (start < end && decompiled_string[start] == '(' && decompiled_string[end] == ')')
 	{
