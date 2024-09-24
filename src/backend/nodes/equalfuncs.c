@@ -306,7 +306,6 @@ _equalFuncExpr(const FuncExpr *a, const FuncExpr *b)
 	COMPARE_SCALAR_FIELD(inputcollid);
 	COMPARE_NODE_FIELD(args);
 	COMPARE_LOCATION_FIELD(location);
-	COMPARE_NODE_FIELD(context);
 
 	return true;
 }
@@ -1104,6 +1103,12 @@ _equalSelectStmt(const SelectStmt *a, const SelectStmt *b)
 	COMPARE_SCALAR_FIELD(all);
 	COMPARE_NODE_FIELD(larg);
 	COMPARE_NODE_FIELD(rarg);
+	COMPARE_SCALAR_FIELD(isPivot);
+	COMPARE_NODE_FIELD(srcSql);
+	COMPARE_NODE_FIELD(catSql);
+	COMPARE_NODE_FIELD(value_col_strlist);
+	COMPARE_NODE_FIELD(pivotCol);
+	COMPARE_NODE_FIELD(aggFunc);
 
 	return true;
 }
@@ -2490,7 +2495,6 @@ _equalFuncCall(const FuncCall *a, const FuncCall *b)
 	COMPARE_SCALAR_FIELD(func_variadic);
 	COMPARE_COERCIONFORM_FIELD(funcformat);
 	COMPARE_LOCATION_FIELD(location);
-	COMPARE_NODE_FIELD(context);
 
 	return true;
 }

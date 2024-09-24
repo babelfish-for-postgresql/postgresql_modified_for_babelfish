@@ -1628,7 +1628,6 @@ _copyFuncExpr(const FuncExpr *from)
 	COPY_SCALAR_FIELD(inputcollid);
 	COPY_NODE_FIELD(args);
 	COPY_LOCATION_FIELD(location);
-	COPY_NODE_FIELD(context);
 
 	return newnode;
 }
@@ -2828,7 +2827,6 @@ _copyFuncCall(const FuncCall *from)
 	COPY_SCALAR_FIELD(func_variadic);
 	COPY_SCALAR_FIELD(funcformat);
 	COPY_LOCATION_FIELD(location);
-	COPY_NODE_FIELD(context);
 
 	return newnode;
 }
@@ -3353,6 +3351,13 @@ _copySelectStmt(const SelectStmt *from)
 	COPY_SCALAR_FIELD(all);
 	COPY_NODE_FIELD(larg);
 	COPY_NODE_FIELD(rarg);
+	COPY_SCALAR_FIELD(isPivot);
+	COPY_NODE_FIELD(srcSql);
+	COPY_NODE_FIELD(catSql);
+	COPY_NODE_FIELD(value_col_strlist);
+	COPY_NODE_FIELD(pivotCol);
+	COPY_NODE_FIELD(aggFunc);
+
 
 	return newnode;
 }

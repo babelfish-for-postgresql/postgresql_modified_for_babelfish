@@ -2529,7 +2529,6 @@ eval_const_expressions_mutator(Node *node,
 				newexpr->inputcollid = expr->inputcollid;
 				newexpr->args = args;
 				newexpr->location = expr->location;
-				newexpr->context = expr->context;
 				return (Node *) newexpr;
 			}
 		case T_OpExpr:
@@ -4478,7 +4477,6 @@ evaluate_function(Oid funcid, Oid result_type, int32 result_typmod,
 	newexpr->inputcollid = input_collid;
 	newexpr->args = args;
 	newexpr->location = -1;
-	newexpr->context = NULL;
 
 	return evaluate_expr((Expr *) newexpr, result_type, result_typmod,
 						 result_collid);
@@ -4591,7 +4589,6 @@ inline_function(Oid funcid, Oid result_type, Oid result_collid,
 	fexpr->inputcollid = input_collid;
 	fexpr->args = args;
 	fexpr->location = -1;
-	fexpr->context = NULL;
 
 	/* Fetch the function body */
 	tmp = SysCacheGetAttr(PROCOID,
