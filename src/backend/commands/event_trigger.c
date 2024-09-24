@@ -1896,6 +1896,14 @@ pg_event_trigger_ddl_commands(PG_FUNCTION_ARGS)
 					 * rather than failing.  This can happen for example with
 					 * some subcommand combinations of ALTER TABLE.
 					 */
+
+					/*
+					 * To support pgAudit extension we are adding a hook
+					 * For the case when we have the object type as 
+					 * table(temp table, table variable, hash table)
+					 * Along with hook not null, we will initialise 
+					 * the syscache lookup.
+					*/
 					if(cache_look_ddl_event_trigger_hook && getObjectClass(&addr) == OCLASS_CLASS)
 					{
 						identity=(*cache_look_ddl_event_trigger_hook)(&addr);
