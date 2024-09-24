@@ -150,6 +150,9 @@ extern void ENRCommitChanges(QueryEnvironment *queryEnv);
 extern void ENRRollbackChanges(QueryEnvironment *queryEnv);
 extern void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEnv);
 
+extern bool useTempOidBuffer(void);
+extern bool useTempOidBufferForOid(Oid relId);
+
 typedef EphemeralNamedRelation (*pltsql_get_tsql_enr_from_oid_hook_type) (Oid oid);
 extern PGDLLIMPORT pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook;
 

@@ -1442,6 +1442,25 @@ void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEn
 	MemoryContextSwitchTo(oldcxt);
 }
 
+/* 
+ * Simple check for whether to use temp OID buffer.
+ */
+bool useTempOidBuffer()
+{
+	return sql_dialect == SQL_DIALECT_TSQL 
+		&& GetNewTempOidWithIndex_hook 
+		&& temp_oid_buffer_size > 0;
+}
+
+/* Simple check for whether to use temp OID buffer given an existing OID. */
+bool useTempOidBufferForOid(Oid relId)
+{
+	return sql_dialect == SQL_DIALECT_TSQL 
+		&& GetNewTempOidWithIndex_hook 
+		&& temp_oid_buffer_size > 0
+		&& get_ENR_withoid(currentQueryEnv, relId, ENR_TSQL_TEMP);
+}
+
 /*
  * Drop all the temp tables registered as ENR in the given query environment.
  */
