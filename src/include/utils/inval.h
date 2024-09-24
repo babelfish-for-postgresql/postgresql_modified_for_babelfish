@@ -38,6 +38,10 @@ extern void CacheInvalidateHeapTuple(Relation relation,
 									 HeapTuple tuple,
 									 HeapTuple newtuple);
 
+extern void CacheInvalidateENRHeapTuple(Relation relation,
+									 HeapTuple tuple,
+									 HeapTuple newtuple);
+
 extern void CacheInvalidateCatalog(Oid catalogId);
 
 extern void CacheInvalidateRelcache(Relation relation);

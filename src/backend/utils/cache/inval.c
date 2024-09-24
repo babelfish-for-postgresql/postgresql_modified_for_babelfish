@@ -553,6 +553,30 @@ RegisterCatcacheInvalidation(int cacheId,
 }
 
 /*
+ * RegisterENRCatcacheInvalidation
+ *
+ * Register an invalidation event for an ENR catcache tuple entry. 
+ * 
+ * We save the hashvalue so that it can be crosschecked and excluded from 
+ * the SI queue later.
+ * 
+ * This is necessary because there isn't enough information in a 
+ * Catcache SI message itself to determine whether it's applying to ENR.
+ * 
+ * Saved messages are cleared at the end of the current transaction
+ * (see ClearSavedCatcacheMessages).
+ */
+static void
+RegisterENRCatcacheInvalidation(int cacheId,
+							 uint32 hashValue,
+							 Oid dbId)
+{
+	SaveCatcacheMessage(cacheId, hashValue, dbId);
+	AddCatcacheInvalidationMessage(&transInvalInfo->CurrentCmdInvalidMsgs,
+								   cacheId, hashValue, dbId);
+}
+
+/*
  * RegisterCatalogInvalidation
  *
  * Register an invalidation event for all catcache entries from a catalog.
@@ -1063,6 +1087,7 @@ AtEOXact_Inval(bool isCommit)
 
 	/* Need not free anything explicitly */
 	transInvalInfo = NULL;
+	ClearSavedCatcacheMessages();
 }
 
 /*
@@ -1251,6 +1276,133 @@ CacheInvalidateHeapTuple(Relation relation,
 	else
 		PrepareToInvalidateCacheTuple(relation, tuple, newtuple,
 									  RegisterCatcacheInvalidation);
+
+	/*
+	 * Now, is this tuple one of the primary definers of a relcache entry? See
+	 * comments in file header for deeper explanation.
+	 *
+	 * Note we ignore newtuple here; we assume an update cannot move a tuple
+	 * from being part of one relcache entry to being part of another.
+	 */
+	if (tupleRelId == RelationRelationId)
+	{
+		Form_pg_class classtup = (Form_pg_class) GETSTRUCT(tuple);
+
+		relationId = classtup->oid;
+		if (classtup->relisshared)
+			databaseId = InvalidOid;
+		else
+			databaseId = MyDatabaseId;
+	}
+	else if (tupleRelId == AttributeRelationId)
+	{
+		Form_pg_attribute atttup = (Form_pg_attribute) GETSTRUCT(tuple);
+
+		relationId = atttup->attrelid;
+
+		/*
+		 * KLUGE ALERT: we always send the relcache event with MyDatabaseId,
+		 * even if the rel in question is shared (which we can't easily tell).
+		 * This essentially means that only backends in this same database
+		 * will react to the relcache flush request.  This is in fact
+		 * appropriate, since only those backends could see our pg_attribute
+		 * change anyway.  It looks a bit ugly though.  (In practice, shared
+		 * relations can't have schema changes after bootstrap, so we should
+		 * never come here for a shared rel anyway.)
+		 */
+		databaseId = MyDatabaseId;
+	}
+	else if (tupleRelId == IndexRelationId)
+	{
+		Form_pg_index indextup = (Form_pg_index) GETSTRUCT(tuple);
+
+		/*
+		 * When a pg_index row is updated, we should send out a relcache inval
+		 * for the index relation.  As above, we don't know the shared status
+		 * of the index, but in practice it doesn't matter since indexes of
+		 * shared catalogs can't have such updates.
+		 */
+		relationId = indextup->indexrelid;
+		databaseId = MyDatabaseId;
+	}
+	else if (tupleRelId == ConstraintRelationId)
+	{
+		Form_pg_constraint constrtup = (Form_pg_constraint) GETSTRUCT(tuple);
+
+		/*
+		 * Foreign keys are part of relcache entries, too, so send out an
+		 * inval for the table that the FK applies to.
+		 */
+		if (constrtup->contype == CONSTRAINT_FOREIGN &&
+			OidIsValid(constrtup->conrelid))
+		{
+			relationId = constrtup->conrelid;
+			databaseId = MyDatabaseId;
+		}
+		else
+			return;
+	}
+	else
+		return;
+
+	/*
+	 * Yes.  We need to register a relcache invalidation event.
+	 */
+	RegisterRelcacheInvalidation(databaseId, relationId);
+}
+
+/*
+ * This is nearly identical to CacheInvalidateHeapTuple but specifically called from
+ * ENR codepaths. This helps us avoid a larger refactor.
+ * 
+ * We call our new callback RegisterENRCatcacheInvalidation instead.
+ */
+void
+CacheInvalidateENRHeapTuple(Relation relation,
+						 HeapTuple tuple,
+						 HeapTuple newtuple)
+{
+	Oid			tupleRelId;
+	Oid			databaseId;
+	Oid			relationId;
+
+	/* Do nothing during bootstrap */
+	if (IsBootstrapProcessingMode())
+		return;
+
+	/*
+	 * We only need to worry about invalidation for tuples that are in system
+	 * catalogs; user-relation tuples are never in catcaches and can't affect
+	 * the relcache either.
+	 */
+	if (!IsCatalogRelation(relation))
+		return;
+
+	/*
+	 * IsCatalogRelation() will return true for TOAST tables of system
+	 * catalogs, but we don't care about those, either.
+	 */
+	if (IsToastRelation(relation))
+		return;
+
+	/*
+	 * If we're not prepared to queue invalidation messages for this
+	 * subtransaction level, get ready now.
+	 */
+	PrepareInvalidationState();
+
+	/*
+	 * First let the catcache do its thing
+	 */
+	tupleRelId = RelationGetRelid(relation);
+	if (RelationInvalidatesSnapshotsOnly(tupleRelId))
+	{
+		databaseId = IsSharedRelation(tupleRelId) ? InvalidOid : MyDatabaseId;
+		RegisterSnapshotInvalidation(databaseId, tupleRelId);
+	}
+	else
+		PrepareToInvalidateCacheTuple(relation, tuple, newtuple,
+									  RegisterENRCatcacheInvalidation);
 
 	/*
 	 * Now, is this tuple one of the primary definers of a relcache entry? See
