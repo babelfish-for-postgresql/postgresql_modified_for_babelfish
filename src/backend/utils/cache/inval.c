@@ -116,6 +116,7 @@
 #include "catalog/catalog.h"
 #include "catalog/pg_constraint.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "storage/sinval.h"
 #include "storage/smgr.h"
 #include "utils/catcache.h"
@@ -234,6 +235,8 @@ typedef struct TransInvalidationInfo
 
 	/* init file must be invalidated? */
 	bool		RelcacheInitFileInval;
+
+	bool		localOnlyInval;
 } TransInvalidationInfo;
 
 static TransInvalidationInfo *transInvalInfo = NULL;
@@ -794,9 +797,12 @@ AcceptInvalidationMessages(void)
  *		Initialize inval data for the current (sub)transaction.
  */
 static void
-PrepareInvalidationState(void)
+PrepareInvalidationState(bool isEnr)
 {
 	TransInvalidationInfo *myInfo;
+
+	if (transInvalInfo != NULL && !isEnr)
+		transInvalInfo->localOnlyInval = false;
 
 	if (transInvalInfo != NULL &&
 		transInvalInfo->my_level == GetCurrentTransactionNestLevel())
@@ -807,6 +813,7 @@ PrepareInvalidationState(void)
 							   sizeof(TransInvalidationInfo));
 	myInfo->parent = transInvalInfo;
 	myInfo->my_level = GetCurrentTransactionNestLevel();
+	myInfo->localOnlyInval = isEnr;
 
 	/* Now, do we have a previous stack entry? */
 	if (transInvalInfo != NULL)
@@ -907,6 +914,10 @@ xactGetCommittedInvalidationMessages(SharedInvalidationMessage **msgs,
 	 * we committed.
 	 */
 	*RelcacheInitFileInval = transInvalInfo->RelcacheInitFileInval;
+
+	/* If we are localOnlyInval, we can skip writing to WAL */
+	if (transInvalInfo->localOnlyInval)
+		return 0;
 
 	/*
 	 * Collect all the pending messages into a single contiguous array of
@@ -1049,8 +1060,9 @@ AtEOXact_Inval(bool isCommit)
 		AppendInvalidationMessages(&transInvalInfo->PriorCmdInvalidMsgs,
 								   &transInvalInfo->CurrentCmdInvalidMsgs);
 
-		ProcessInvalidationMessagesMulti(&transInvalInfo->PriorCmdInvalidMsgs,
-										 SendSharedInvalidMessages);
+		if (!transInvalInfo->localOnlyInval)
+			ProcessInvalidationMessagesMulti(&transInvalInfo->PriorCmdInvalidMsgs,
+												SendSharedInvalidMessages);
 
 		if (transInvalInfo->RelcacheInitFileInval)
 			RelationCacheInitFilePostInvalidate();
@@ -1137,6 +1149,8 @@ AtEOSubXact_Inval(bool isCommit)
 		if (myInfo->RelcacheInitFileInval)
 			myInfo->parent->RelcacheInitFileInval = true;
 
+		myInfo->parent->localOnlyInval = (myInfo->parent->localOnlyInval && myInfo->localOnlyInval);
+
 		/* Pop the transaction state stack */
 		transInvalInfo = myInfo->parent;
 
@@ -1208,7 +1222,8 @@ CommandEndInvalidationMessages(void)
 void
 CacheInvalidateHeapTuple(Relation relation,
 						 HeapTuple tuple,
-						 HeapTuple newtuple)
+						 HeapTuple newtuple,
+						 bool isEnr)
 {
 	Oid			tupleRelId;
 	Oid			databaseId;
@@ -1237,7 +1252,7 @@ CacheInvalidateHeapTuple(Relation relation,
 	 * If we're not prepared to queue invalidation messages for this
 	 * subtransaction level, get ready now.
 	 */
-	PrepareInvalidationState();
+	PrepareInvalidationState(isEnr);
 
 	/*
 	 * First let the catcache do its thing
@@ -1342,7 +1357,7 @@ CacheInvalidateCatalog(Oid catalogId)
 {
 	Oid			databaseId;
 
-	PrepareInvalidationState();
+	PrepareInvalidationState(false);
 
 	if (IsSharedRelation(catalogId))
 		databaseId = InvalidOid;
@@ -1367,7 +1382,13 @@ CacheInvalidateRelcache(Relation relation)
 	Oid			databaseId;
 	Oid			relationId;
 
-	PrepareInvalidationState();
+	bool is_enr = false;
+
+	/* Index creation can call this code for temp tables, so we need to ensure that doesn't generate inval as well. */
+	if (sql_dialect == SQL_DIALECT_TSQL && relation->rd_rel->relpersistence == RELPERSISTENCE_TEMP)
+		is_enr = RelationIsBBFTableVariable(relation) || get_ENR_withoid(currentQueryEnv, relation->rd_id, ENR_TSQL_TEMP);
+
+	PrepareInvalidationState(is_enr);
 
 	relationId = RelationGetRelid(relation);
 	if (relation->rd_rel->relisshared)
@@ -1388,7 +1409,7 @@ CacheInvalidateRelcache(Relation relation)
 void
 CacheInvalidateRelcacheAll(void)
 {
-	PrepareInvalidationState();
+	PrepareInvalidationState(false);
 
 	RegisterRelcacheInvalidation(InvalidOid, InvalidOid);
 }
@@ -1404,7 +1425,7 @@ CacheInvalidateRelcacheByTuple(HeapTuple classTuple)
 	Oid			databaseId;
 	Oid			relationId;
 
-	PrepareInvalidationState();
+	PrepareInvalidationState(false);
 
 	relationId = classtup->oid;
 	if (classtup->relisshared)
@@ -1425,7 +1446,7 @@ CacheInvalidateRelcacheByRelid(Oid relid)
 {
 	HeapTuple	tup;
 
-	PrepareInvalidationState();
+	PrepareInvalidationState(false);
 
 	tup = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 	if (!HeapTupleIsValid(tup))
