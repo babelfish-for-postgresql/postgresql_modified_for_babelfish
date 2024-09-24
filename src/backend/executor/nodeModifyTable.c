@@ -1908,6 +1908,7 @@ ExecUpdate(ModifyTableState *mtstate,
 	}
 	else
 	{
+		ItemPointerData lockedtid;
 		LockTupleMode lockmode;
 		bool		partition_constraint_failed;
 		bool		update_indexes;
@@ -1920,6 +1921,7 @@ ExecUpdate(ModifyTableState *mtstate,
 		 * to do them again.)
 		 */
 lreplace:
+		lockedtid = *tupleid;
 
 		/*
 		 * Constraints and GENERATED expressions might reference the tableoid
@@ -2097,6 +2099,14 @@ lreplace:
 							if (unlikely(!resultRelInfo->ri_projectNewInfoValid))
 								ExecInitUpdateProjection(mtstate, resultRelInfo);
 
+							if (resultRelInfo->ri_needLockTagTuple)
+							{
+								UnlockTuple(resultRelationDesc,
+											&lockedtid, InplaceUpdateTupleLock);
+								LockTuple(resultRelationDesc,
+										  tupleid, InplaceUpdateTupleLock);
+							}
+
 							/* Fetch the most recent version of old tuple. */
 							oldSlot = resultRelInfo->ri_oldTupleSlot;
 							if (!table_tuple_fetch_row_version(resultRelationDesc,
@@ -2228,6 +2238,14 @@ ExecOnConflictUpdate(ModifyTableState *mtstate,
 	Datum		xminDatum;
 	TransactionId xmin;
 	bool		isnull;
+
+	/*
+	 * Parse analysis should have blocked ON CONFLICT for all system
+	 * relations, which includes these.  There's no fundamental obstacle to
+	 * supporting this; we'd just need to handle LOCKTAG_TUPLE like the other
+	 * ExecUpdate() caller.
+	 */
+	Assert(!resultRelInfo->ri_needLockTagTuple);
 
 	/* Determine lock mode to use */
 	lockmode = ExecUpdateLockMode(estate, resultRelInfo);
@@ -2632,6 +2650,7 @@ ExecModifyTable(PlanState *pstate)
 	Tuplestorestate *tss;
 	TupleDesc 	tupdesc;
 	DestReceiver *dest = NULL;
+	bool		tuplock;
 
 	CHECK_FOR_INTERRUPTS();
 
@@ -2867,6 +2886,8 @@ ExecModifyTable(PlanState *pstate)
 								  estate, node->canSetTag);
 				break;
 			case CMD_UPDATE:
+				tuplock = false;
+
 				/* Initialize projection info if first time for this table */
 				if (unlikely(!resultRelInfo->ri_projectNewInfoValid))
 					ExecInitUpdateProjection(node, resultRelInfo);
@@ -2878,6 +2899,7 @@ ExecModifyTable(PlanState *pstate)
 				oldSlot = resultRelInfo->ri_oldTupleSlot;
 				if (oldtuple != NULL)
 				{
+					Assert(!resultRelInfo->ri_needLockTagTuple);
 					/* Use the wholerow junk attr as the old tuple. */
 					ExecForceStoreHeapTuple(oldtuple, oldSlot, false);
 				}
@@ -2887,6 +2909,11 @@ ExecModifyTable(PlanState *pstate)
 					Relation	relation = resultRelInfo->ri_RelationDesc;
 
 					Assert(tupleid != NULL);
+					if (resultRelInfo->ri_needLockTagTuple)
+					{
+						LockTuple(relation, tupleid, InplaceUpdateTupleLock);
+						tuplock = true;
+					}
 					if (!table_tuple_fetch_row_version(relation, tupleid,
 													   SnapshotAny,
 													   oldSlot))
@@ -2899,6 +2926,9 @@ ExecModifyTable(PlanState *pstate)
 				slot = ExecUpdate(node, resultRelInfo, tupleid, oldtuple, slot,
 								  planSlot, &node->mt_epqstate, estate,
 								  node->canSetTag);
+				if (tuplock)
+					UnlockTuple(resultRelInfo->ri_RelationDesc, tupleid,
+								InplaceUpdateTupleLock);
 				break;
 			case CMD_DELETE:
 				slot = ExecDelete(node, resultRelInfo, tupleid, oldtuple,
