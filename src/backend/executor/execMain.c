@@ -1033,6 +1033,10 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation)
 	TriggerDesc *trigDesc = resultRel->trigdesc;
 	FdwRoutine *fdwroutine;
 
+	/* Expect a fully-formed ResultRelInfo from InitResultRelInfo(). */
+	Assert(resultRelInfo->ri_needLockTagTuple ==
+		   IsInplaceUpdateRelation(resultRel));
+
 	switch (resultRel->rd_rel->relkind)
 	{
 		case RELKIND_RELATION:
@@ -1241,6 +1245,8 @@ InitResultRelInfo(ResultRelInfo *resultRelInfo,
 	resultRelInfo->ri_NumIndices = 0;
 	resultRelInfo->ri_IndexRelationDescs = NULL;
 	resultRelInfo->ri_IndexRelationInfo = NULL;
+	resultRelInfo->ri_needLockTagTuple =
+		IsInplaceUpdateRelation(resultRelationDesc);
 	/* make a copy so as not to depend on relcache info not changing... */
 	resultRelInfo->ri_TrigDesc = CopyTriggerDesc(resultRelationDesc->trigdesc);
 	if (resultRelInfo->ri_TrigDesc)
