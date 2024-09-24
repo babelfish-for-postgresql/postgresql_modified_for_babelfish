@@ -519,7 +519,7 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
  * created by bootstrap have preassigned OIDs, so there's no need.
  */
 RelFileNumber
-GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence, bool override_temp)
+GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 {
 	RelFileLocatorBackend rlocator;
 	char	   *rpath;
@@ -563,7 +563,7 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence, b
 	rlocator.backend = backend;
 
 	use_bbf_oid_buffer = (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL 
-						&& GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0 && !override_temp);
+						&& GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0);
 
 	do
 	{
