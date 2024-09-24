@@ -106,10 +106,6 @@ typedef struct pg_locale_struct *pg_locale_t;
 
 extern pg_locale_t *collation_cache_entry_hook_function (Oid, pg_locale_t *);
 
-extern void make_icu_collator(const char *iculocstr,
-							  const char *icurules,
-							  struct pg_locale_struct *resultp);
-
 extern void init_database_collation(void);
 extern pg_locale_t pg_newlocale_from_collation(Oid collid);
 
