@@ -57,6 +57,7 @@ struct QueryEnvironment
 {
 	List	   *namedRelList;
 	List	   *dropped_namedRelList;
+	List 	   *savedCatcacheMessages;
 	struct QueryEnvironment *parentEnv;
 	MemoryContext	memctx;
 };
@@ -86,6 +87,7 @@ create_queryEnv2(MemoryContext cxt, bool top_level)
 		queryEnv = topLevelQueryEnv;
 		queryEnv->namedRelList = NIL;
 		queryEnv->dropped_namedRelList = NIL;
+		queryEnv->savedCatcacheMessages = NIL;
 		queryEnv->parentEnv = NULL;
 		queryEnv->memctx = cxt;
 	} else {
@@ -150,6 +152,9 @@ void remove_queryEnv() {
 
 	list_free(currentQueryEnv->dropped_namedRelList);
 	currentQueryEnv->dropped_namedRelList = NIL;
+
+	list_free(currentQueryEnv->savedCatcacheMessages);
+	currentQueryEnv->savedCatcacheMessages = NIL;
 
 	pfree(currentQueryEnv);
 	MemoryContextSwitchTo(oldcxt);
@@ -239,6 +244,83 @@ bool has_existing_enr_relations()
 	}
 
 	return false;
+}
+
+/* This only stores catcache inval messages meant for ENR tables in the current transaction. */
+void SaveCatcacheMessage(int cacheId,
+							 uint32 hashValue,
+							 Oid dbId)
+{
+	SharedInvalCatcacheMsg *msg = (SharedInvalCatcacheMsg *) palloc0(sizeof(SharedInvalCatcacheMsg));
+	msg->id = cacheId;
+	msg->dbId = dbId;
+	msg->hashValue = hashValue;
+
+	currentQueryEnv->savedCatcacheMessages = lappend(currentQueryEnv->savedCatcacheMessages, msg);
+}
+
+/* Clear any saved catcache messages at end of xact. */
+void ClearSavedCatcacheMessages()
+{
+	if (!currentQueryEnv || !currentQueryEnv->savedCatcacheMessages)
+		return;
+
+	list_free_deep(currentQueryEnv->savedCatcacheMessages);
+	currentQueryEnv->savedCatcacheMessages = NIL;
+}
+
+/*
+ * SIMessageIsForTempTable
+ * 
+ * Determine whether the msg sent is for a temp table. 
+ * TSQL style temp tables do not need to add messages to the
+ * SI queue, as catalog changes are all session-local.
+ * 
+ * See LocalExecuteInvalidationMessage
+ */
+bool SIMessageIsForTempTable(const SharedInvalidationMessage *msg)
+{
+	if (sql_dialect != SQL_DIALECT_TSQL || temp_oid_buffer_size == 0)
+		return false;
+
+	if (msg->id >= 0)
+	{
+		ListCell *lc;
+		if (!currentQueryEnv)
+			return false;
+		foreach(lc, currentQueryEnv->savedCatcacheMessages)
+		{
+			SharedInvalCatcacheMsg *saved_msg = (SharedInvalCatcacheMsg *) lfirst(lc);
+			if (saved_msg->dbId == msg->cc.dbId
+			&& saved_msg->hashValue == msg->cc.hashValue
+			&& saved_msg->id == msg->cc.id)
+				return true;
+		}
+		return false;
+	}
+	else if (msg->id == SHAREDINVALCATALOG_ID)
+	{
+		return false;
+	}
+	else if (msg->id == SHAREDINVALRELCACHE_ID)
+	{
+		/* This is set in AddRelcacheInvalidationMessage. */
+		return msg->rc.local_only;
+	}
+	else if (msg->id == SHAREDINVALSMGR_ID)
+	{
+		return false;
+	}
+	else if (msg->id == SHAREDINVALRELMAP_ID)
+	{
+		return false;
+	}
+	else if (msg->id == SHAREDINVALSNAPSHOT_ID)
+	{
+		return false;
+	}
+	else
+		elog(ERROR, "unrecognized SI message ID: %d", msg->id);
 }
 
 /*
@@ -1095,7 +1177,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, newtup, in_enr_rollback);
 					*list_ptr = list_insert_nth(*list_ptr, insert_at, newtup);
-					CacheInvalidateHeapTuple(catalog_rel, newtup, NULL);
+					CacheInvalidateENRHeapTuple(catalog_rel, newtup, NULL);
 					break;
 				case ENR_OP_UPDATE:
 					/*
@@ -1110,14 +1192,14 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					oldtup = lfirst(lc);
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, oldtup, in_enr_rollback);
-					CacheInvalidateHeapTuple(catalog_rel, oldtup, tup);
+					CacheInvalidateENRHeapTuple(catalog_rel, oldtup, tup);
 					lfirst(lc) = heap_copytuple(tup);
 					break;
 				case ENR_OP_DROP:
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, tup, in_enr_rollback);
 					if (!skip_cache_inval)
-						CacheInvalidateHeapTuple(catalog_rel, tup, NULL);
+						CacheInvalidateENRHeapTuple(catalog_rel, tup, NULL);
 					tmp = lfirst(lc);
 					*list_ptr = list_delete_ptr(*list_ptr, tmp);
 					heap_freetuple(tmp);
@@ -1440,6 +1522,25 @@ void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEn
 		pfree(enr);
 	}
 	MemoryContextSwitchTo(oldcxt);
+}
+
+/* 
+ * Simple check for whether to use temp OID buffer.
+ */
+bool useTempOidBuffer()
+{
+	return sql_dialect == SQL_DIALECT_TSQL 
+		&& GetNewTempOidWithIndex_hook 
+		&& temp_oid_buffer_size > 0;
+}
+
+/* Simple check for whether to use temp OID buffer given an existing OID. */
+bool useTempOidBufferForOid(Oid relId)
+{
+	return sql_dialect == SQL_DIALECT_TSQL 
+		&& GetNewTempOidWithIndex_hook 
+		&& temp_oid_buffer_size > 0
+		&& get_ENR_withoid(currentQueryEnv, relId, ENR_TSQL_TEMP);
 }
 
 /*
