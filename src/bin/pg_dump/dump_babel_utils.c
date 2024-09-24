@@ -539,7 +539,7 @@ fixComputedColumnParenthesis(Archive *fout, char *decompiled_string)
 	}
 
 	if (!hasParentheses) 
-		return true;
+		return false;
 
 	// If the string is too short to be enclosed, return false
 	if (len < 2 || decompiled_string[0] != '(' || decompiled_string[len - 1] != ')')
