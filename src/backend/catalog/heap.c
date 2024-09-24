@@ -72,6 +72,7 @@
 #include "storage/predicate.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
+#include "utils/guc.h"
 #include "utils/inval.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
@@ -1183,6 +1184,7 @@ heap_create_with_catalog(const char *relname,
 	TransactionId relfrozenxid;
 	MultiXactId relminmxid;
 	bool		is_enr = false;
+	bool 		use_temp_oid_buffer = false;
 
 	if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL)
 	{
@@ -1196,6 +1198,9 @@ heap_create_with_catalog(const char *relname,
 		 */
 		if (relname && strlen(relname) > 0)
 			is_enr = (relname[0] == '@') || (relname[0] == '#' && !CheckTempTableHasDependencies(tupdesc));
+
+		if (is_enr && GetNewTempOidWithIndex_hook && temp_oid_buffer_size > 0)
+			use_temp_oid_buffer = true;
 	}
 
 	pg_class_desc = table_open(RelationRelationId, RowExclusiveLock);
@@ -1310,7 +1315,7 @@ heap_create_with_catalog(const char *relname,
 
 		if (!OidIsValid(relid))
 			relid = GetNewRelFileNumber(reltablespace, pg_class_desc,
-										relpersistence, false);
+										relpersistence);
 	}
 
 	/*
@@ -1409,8 +1414,26 @@ heap_create_with_catalog(const char *relname,
 		/*
 		 * We'll make an array over the composite type, too.  For largely
 		 * historical reasons, the array type's OID is assigned first.
+		 * 
+		 * For temp tables, we use temp OID assignment code here as well.
 		 */
-		new_array_oid = AssignTypeArrayOid();
+		if (use_temp_oid_buffer)
+		{
+			Relation	pg_type;
+
+			/* We should not be creating TSQL Temp Tables in pg_upgrade. */
+			Assert(!IsBinaryUpgrade);
+
+			pg_type = table_open(TypeRelationId, AccessShareLock);
+			new_array_oid = GetNewTempOidWithIndex_hook(pg_type, TypeOidIndexId, Anum_pg_type_oid);
+			
+			Assert(!OidIsValid(reltypeid));
+
+			reltypeid = GetNewTempOidWithIndex_hook(pg_type, TypeOidIndexId, Anum_pg_type_oid);
+			table_close(pg_type, AccessShareLock);
+		}
+		else
+			new_array_oid = AssignTypeArrayOid();
 
 		/*
 		 * Make the pg_type entry for the composite type.  The OID of the
@@ -1428,6 +1451,7 @@ heap_create_with_catalog(const char *relname,
 										   ownerid,
 										   reltypeid,
 										   new_array_oid);
+
 		new_type_oid = new_type_addr.objectId;
 		if (typaddress)
 			*typaddress = new_type_addr;
@@ -1873,6 +1897,7 @@ heap_drop_with_catalog(Oid relid)
 	HeapTuple	tuple;
 	Oid			parentOid = InvalidOid,
 				defaultPartOid = InvalidOid;
+	bool		is_enr = get_ENR_withoid(currentQueryEnv, relid, ENR_TSQL_TEMP);
 
 	/*
 	 * To drop a partition safely, we must grab exclusive lock on its parent,
@@ -1909,9 +1934,9 @@ heap_drop_with_catalog(Oid relid)
 	ReleaseSysCache(tuple);
 
 	/*
-	 * Open and lock the relation.
+	 * Open and lock the relation. Skip locks for ENR tables since they are session-local.
 	 */
-	rel = relation_open(relid, AccessExclusiveLock);
+	rel = relation_open(relid, is_enr ? NoLock : AccessExclusiveLock);
 
 	if (drop_relation_refcnt_hook)
 		drop_relation_refcnt_hook(rel);

@@ -1217,8 +1217,16 @@ ProcessUtilitySlow(ParseState *pstate,
 												   toast_options,
 												   true);
 
-							NewRelationCreateToastTable(address.objectId,
-														toast_options);
+							if (sql_dialect == SQL_DIALECT_TSQL && 
+								table_rv->relname && table_rv->relname[0] == '#') // this is a TSQL temp table
+							{
+								NewTsqlTempTableCreateToastTable(address.objectId, toast_options);
+							}
+							else
+							{
+								NewRelationCreateToastTable(address.objectId,
+															toast_options);
+							}
 						}
 						else if (IsA(stmt, CreateForeignTableStmt))
 						{
@@ -1325,6 +1333,9 @@ ProcessUtilitySlow(ParseState *pstate,
 					 * permissions.
 					 */
 					lockmode = AlterTableGetLockLevel(atstmt->cmds);
+					if (sql_dialect == SQL_DIALECT_TSQL && 
+						atstmt->relation->relname[0] && atstmt->relation->relname[0] == '#')
+						lockmode = NoLock;
 					relid = AlterTableLookupRelation(atstmt, lockmode);
 
 					if (OidIsValid(relid))

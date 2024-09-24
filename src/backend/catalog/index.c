@@ -962,12 +962,7 @@ index_create(Relation heapRelation,
 		}
 		else
 		{
-			/* 
-			 * Index OIDs must be kept in normal OID range due to deletion issues.
-			 * Since deletion is sorted by OID, adding indexes to temp OID range 
-			 * causes deletion order issues.
-			 */
-			indexRelationId = GetNewRelFileNumber(tableSpaceId, pg_class, relpersistence, is_enr);
+			indexRelationId = GetNewRelFileNumber(tableSpaceId, pg_class, relpersistence);
 		}
 	}
 
@@ -1012,11 +1007,11 @@ index_create(Relation heapRelation,
 	}
 
 	/*
-	 * Obtain exclusive lock on it.  Although no other transactions can see it
+	 * Obtain exclusive lock on it, if this is not an ENR index.  Although no other transactions can see it
 	 * until we commit, this prevents deadlock-risk complaints from lock
 	 * manager in cases such as CLUSTER.
 	 */
-	LockRelation(indexRelation, AccessExclusiveLock);
+	LockRelation(indexRelation, is_enr ? NoLock : AccessExclusiveLock);
 
 	/*
 	 * Fill in fields of the index's pg_class entry that are not set correctly
@@ -2191,7 +2186,8 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 	 * more efficient.
 	 */
 	Assert(get_rel_persistence(indexId) != RELPERSISTENCE_TEMP ||
-		   (!concurrent && !concurrent_lock_mode));
+		   (!concurrent && !concurrent_lock_mode) ||
+		   (sql_dialect == SQL_DIALECT_TSQL && concurrent_lock_mode));
 
 	/*
 	 * To drop an index safely, we must grab exclusive lock on its parent

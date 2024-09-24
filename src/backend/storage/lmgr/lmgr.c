@@ -113,6 +113,9 @@ LockRelationOid(Oid relid, LOCKMODE lockmode)
 	LOCALLOCK  *locallock;
 	LockAcquireResult res;
 
+	if (get_ENR_withoid(currentQueryEnv, relid, ENR_TSQL_TEMP) && lockmode == NoLock)
+		return;
+
 	SetLocktagRelationOid(&tag, relid);
 
 	res = LockAcquireExtended(&tag, lockmode, false, false, true, &locallock);
@@ -248,6 +251,9 @@ LockRelation(Relation relation, LOCKMODE lockmode)
 	LOCKTAG		tag;
 	LOCALLOCK  *locallock;
 	LockAcquireResult res;
+
+	if (RelationIsENRTable(relation) && lockmode == NoLock)
+		return;
 
 	SET_LOCKTAG_RELATION(tag,
 						 relation->rd_lockInfo.lockRelId.dbId,

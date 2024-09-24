@@ -77,6 +77,12 @@ NewRelationCreateToastTable(Oid relOid, Datum reloptions)
 							 InvalidOid);
 }
 
+void
+NewTsqlTempTableCreateToastTable(Oid relOid, Datum reloptions)
+{
+	CheckAndCreateToastTable(relOid, reloptions, NoLock, false, InvalidOid);
+}
+
 static void
 CheckAndCreateToastTable(Oid relOid, Datum reloptions, LOCKMODE lockmode,
 						 bool check, Oid OIDOldToast)
@@ -188,20 +194,21 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 			return false;
 	}
 
+	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsENRTable(rel))
+	{
+		if (rel->rd_rel->relname.data && rel->rd_rel->relname.data[0] == '@')
+			pg_toast_prefix = "@pg_toast";
+		else if (rel->rd_rel->relname.data && rel->rd_rel->relname.data[0] == '#')
+			pg_toast_prefix = "#pg_toast";
+		else
+			elog(ERROR, "unrecognized ENR table %s", rel->rd_rel->relname.data);
+	}
 	/*
-	 * If requested check lockmode is sufficient. This is a cross check in
-	 * case of errors or conflicting decisions in earlier code.
-	 */
-	if (check && lockmode != AccessExclusiveLock)
+	* If requested check lockmode is sufficient. This is a cross check in
+	* case of errors or conflicting decisions in earlier code.
+	*/
+	else if (check && lockmode != AccessExclusiveLock)
 		elog(ERROR, "AccessExclusiveLock required to add toast table.");
-
-	/*
-	 * Create the toast table and its index
-	 */
-	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(rel))
-		pg_toast_prefix = "@pg_toast";
-	else if (sql_dialect == SQL_DIALECT_TSQL && rel->rd_rel->relpersistence == RELPERSISTENCE_TEMP && get_ENR_withoid(currentQueryEnv, rel->rd_id, ENR_TSQL_TEMP))
-		pg_toast_prefix = "#pg_toast";
 
 	snprintf(toast_relname, sizeof(toast_relname),
 			 "%s_%u", pg_toast_prefix, relOid);
