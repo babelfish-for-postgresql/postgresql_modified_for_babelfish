@@ -85,7 +85,7 @@ extern void EventTriggerCollectAlterTSConfig(AlterTSConfigurationStmt *stmt,
 											 Oid cfgId, Oid *dictIds, int ndicts);
 extern void EventTriggerCollectAlterDefPrivs(AlterDefaultPrivilegesStmt *stmt);
 
-typedef char* (*cache_look_ddl_event_trigger_hook_type) (ObjectAddress* address);
-extern PGDLLIMPORT cache_look_ddl_event_trigger_hook_type cache_look_ddl_event_trigger_hook; 
+typedef char* (*pltsql_get_object_identity_event_trigger_hook_type) (ObjectAddress* address);
+extern PGDLLIMPORT pltsql_get_object_identity_event_trigger_hook_type pltsql_get_object_identity_event_trigger_hook;
 
 #endif							/* EVENT_TRIGGER_H */

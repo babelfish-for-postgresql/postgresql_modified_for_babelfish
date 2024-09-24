@@ -100,7 +100,7 @@ static void validate_table_rewrite_tags(const char *filtervar, List *taglist);
 static void EventTriggerInvoke(List *fn_oid_list, EventTriggerData *trigdata);
 static const char *stringify_grant_objtype(ObjectType objtype);
 static const char *stringify_adefprivs_objtype(ObjectType objtype);
-cache_look_ddl_event_trigger_hook_type cache_look_ddl_event_trigger_hook = NULL;
+pltsql_get_object_identity_event_trigger_hook_type pltsql_get_object_identity_event_trigger_hook = NULL;
 
 /*
  * Create an event trigger.
@@ -1904,9 +1904,9 @@ pg_event_trigger_ddl_commands(PG_FUNCTION_ARGS)
 					 * Along with hook not null, we will initialise 
 					 * the syscache lookup.
 					*/
-					if(cache_look_ddl_event_trigger_hook && getObjectClass(&addr) == OCLASS_CLASS)
+					if(pltsql_get_object_identity_event_trigger_hook)
 					{
-						identity=(*cache_look_ddl_event_trigger_hook)(&addr);
+						identity=(*pltsql_get_object_identity_event_trigger_hook)(&addr);
 					}
 					else
 					{

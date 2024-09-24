@@ -16,7 +16,7 @@
 
 #include "tcop/cmdtag.h"
 #include "tcop/tcopprot.h"
-#include "catalog/dependency.h"
+#include "catalog/objectaddress.h"
 
 typedef enum
 {
