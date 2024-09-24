@@ -545,10 +545,12 @@ fixComputedColumnParenthesis(Archive *fout, char *decompiled_string)
 	int len = strlen(decompiled_string);
 	bool hasParentheses = false;
 	int balance = 0;
+	int openParens = 0; // Count of valid outermost opening parentheses
 
-	if(!isBabelfishDatabase(fout))
+	if (!isBabelfishDatabase(fout))
 		return false;
 
+	// Check if the string has parentheses
 	for (int i = 0; i < len; i++)
 	{
 		if (decompiled_string[i] == '(' || decompiled_string[i] == ')')
@@ -558,29 +560,33 @@ fixComputedColumnParenthesis(Archive *fout, char *decompiled_string)
 		}
 	}
 
-	if (!hasParentheses) 
+	if (!hasParentheses)
 		return false;
 
 	// If the string is too short to be enclosed, return false
 	if (len < 2 || decompiled_string[0] != '(' || decompiled_string[len - 1] != ')')
 		return false;
 
-	// Loop through the string (excluding the outermost parentheses)
-	for (int i = 1; i < len - 1; i++)
+	// Count how many layers of enclosing parentheses are present
+	int start = 0, end = len - 1;
+
+	while (start < end && decompiled_string[start] == '(' && decompiled_string[end] == ')')
 	{
-		if (decompiled_string[i] == '(')
-			balance++;
-		else if (decompiled_string[i] == ')')
-		{
-			balance--;
-			// If balance goes negative, it means we have unmatched ')'
-			if (balance < 0)
-				return false;
-		}
+		openParens++;
+		start++;
+		end--;
 	}
 
-	// If the balance is zero at the end, parentheses are balanced
-	return (balance == 0);
+	// If there is more than one layer of enclosing parentheses
+	if (openParens > 1)
+	{
+		// Shift the string inward to remove all but one outer layer of parentheses
+		memmove(decompiled_string, decompiled_string + openParens - 1, len - 2 * (openParens - 1));
+		decompiled_string[len - 2 * (openParens - 1)] = '\0'; // Properly terminate the string
+		return true;
+	}
+
+	return false; // No changes made if only one or zero layers of parentheses
 }
 
 /*
