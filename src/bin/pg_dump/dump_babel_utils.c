@@ -539,54 +539,6 @@ fixTsqlDefaultExpr(Archive *fout, AttrDefInfo *attrDefInfo)
 	attrDefInfo->adef_expr = psprintf("(sys.%s(%s::text))::integer", runtimeErrFunc, runtimeErrStr);
 }
 
-bool
-fixComputedColumnParenthesis(Archive *fout, char *decompiled_string)
-{
-	int len = strlen(decompiled_string);
-	bool hasParentheses = false;
-	int openParens = 0; // Count of valid outermost opening parentheses
-	// Count how many layers of enclosing parentheses are present
-	int start = 0, end = len - 1;
-
-	if (!isBabelfishDatabase(fout))
-		return false;
-
-	// Check if the string has parentheses
-	for (int i = 0; i < len; i++)
-	{
-		if (decompiled_string[i] == '(' || decompiled_string[i] == ')')
-		{
-			hasParentheses = true;
-			break;
-		}
-	}
-
-	if (!hasParentheses)
-		return false;
-
-	// If the string is too short to be enclosed, return false
-	if (len < 2 || decompiled_string[0] != '(' || decompiled_string[len - 1] != ')')
-		return false;
-
-	while (start < end && decompiled_string[start] == '(' && decompiled_string[end] == ')')
-	{
-		openParens++;
-		start++;
-		end--;
-	}
-
-	// If there is more than one layer of enclosing parentheses
-	if (openParens > 1)
-	{
-		// Shift the string inward to remove all but one outer layer of parentheses
-		memmove(decompiled_string, decompiled_string + openParens - 1, len - 2 * (openParens - 1));
-		decompiled_string[len - 2 * (openParens - 1)] = '\0'; // Properly terminate the string
-		return true;
-	}
-
-	return false; // No changes made if only one or zero layers of parentheses
-}
-
 /*
  * fixTsqlTableTypeDependency:
  * Fixes following two types of dependency issues between T-SQL

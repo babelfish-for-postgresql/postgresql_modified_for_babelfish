@@ -15852,7 +15852,7 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 					{
 						if (tbinfo->attgenerated[j] == ATTRIBUTE_GENERATED_STORED)
 						{
-							if(fixComputedColumnParenthesis(fout, tbinfo->attrdefs[j]->adef_expr))
+							if(isBabelfishDatabase(fout))
 								appendPQExpBuffer(q, " GENERATED ALWAYS AS %s STORED",
 									tbinfo->attrdefs[j]->adef_expr);
 							else

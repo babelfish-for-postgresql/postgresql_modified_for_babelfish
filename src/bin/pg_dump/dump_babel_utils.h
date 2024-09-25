@@ -56,6 +56,5 @@ extern void babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo
 extern bool bbfShouldDumpIndex(Archive *fout, const IndxInfo *indxinfo);
 extern void dumpBabelfishConstrIndex(Archive *fout, const IndxInfo *indxinfo,
                                      PQExpBuffer q, PQExpBuffer delq);
-extern bool fixComputedColumnParenthesis(Archive *fout, char *decompiled_string);
 
 #endif
