@@ -1671,7 +1671,7 @@ DeleteRelationTuple(Oid relid)
 		elog(ERROR, "cache lookup failed for relation %u", relid);
 
 	/* delete the relation tuple from pg_class, and finish up */
-	if (!ENRdropTuple(pg_class_desc, tup))
+	if (!ENRDropTuple(pg_class_desc, tup))
 		CatalogTupleDelete(pg_class_desc, &tup->t_self);
 
 	ReleaseSysCache(tup);
@@ -1761,7 +1761,7 @@ DeleteSystemAttributeTuples(Oid relid)
 
 	/* Delete all the matching tuples */
 	while ((atttup = systable_getnext(scan)) != NULL)
-		if (!ENRdropTuple(attrel, atttup))
+		if (!ENRDropTuple(attrel, atttup))
 			CatalogTupleDelete(attrel, &atttup->t_self);
 
 	/* Clean up after the scan */
@@ -1808,7 +1808,7 @@ RemoveAttributeById(Oid relid, AttrNumber attnum)
 	{
 		/* System attribute (probably OID) ... just delete the row */
 
-		if (!ENRdropTuple(attr_rel, tuple))
+		if (!ENRDropTuple(attr_rel, tuple))
 			CatalogTupleDelete(attr_rel, &tuple->t_self);
 	}
 	else
@@ -3099,7 +3099,7 @@ RemoveStatistics(Oid relid, AttrNumber attnum)
 
 	/* we must loop even when attnum != 0, in case of inherited stats */
 	while (HeapTupleIsValid(tuple = systable_getnext(scan)))
-		if (!ENRdropTuple(pgstatistic, tuple))
+		if (!ENRDropTuple(pgstatistic, tuple))
 			CatalogTupleDelete(pgstatistic, &tuple->t_self);
 
 	systable_endscan(scan);

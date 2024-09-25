@@ -597,7 +597,7 @@ DeleteSequenceTuple(Oid relid)
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for sequence %u", relid);
 
-	if (!ENRdropTuple(rel, tuple))
+	if (!ENRDropTuple(rel, tuple))
 		CatalogTupleDelete(rel, &tuple->t_self);
 
 	ReleaseSysCache(tuple);

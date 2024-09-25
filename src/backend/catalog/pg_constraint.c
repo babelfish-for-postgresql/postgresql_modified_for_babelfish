@@ -647,7 +647,7 @@ RemoveConstraintById(Oid conId)
 		elog(ERROR, "constraint %u is not of a known type", conId);
 
 	/* Fry the constraint itself */
-	if (!ENRdropTuple(conDesc, tup))
+	if (!ENRDropTuple(conDesc, tup))
 		CatalogTupleDelete(conDesc, &tup->t_self);
 
 	/* Clean up */

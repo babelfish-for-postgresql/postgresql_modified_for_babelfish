@@ -1367,7 +1367,7 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
 		if (scan->enr)
-			ENRdropTuple(*depRel, tup);
+			ENRDropTuple(*depRel, tup);
 		else
 			CatalogTupleDelete(*depRel, &tup->t_self);
 	}
