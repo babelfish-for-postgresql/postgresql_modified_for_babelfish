@@ -1898,13 +1898,11 @@ pg_event_trigger_ddl_commands(PG_FUNCTION_ARGS)
 					 */
 
 					/*
-					 * To support pgAudit extension we are adding a hook
-					 * For the case when we have the object type as 
-					 * table(temp table, table variable, hash table)
-					 * Along with hook not null, we will initialise 
-					 * the syscache lookup.
-					*/
-					if(pltsql_get_object_identity_event_trigger_hook)
+					 * When PgAudit extension is enabled we want to initialise 
+					 * the syscache lookup for babelfish temp tables and table 
+					 * variable from postgres dialect.
+					 */
+					if (pltsql_get_object_identity_event_trigger_hook)
 					{
 						identity=(*pltsql_get_object_identity_event_trigger_hook)(&addr);
 					}
