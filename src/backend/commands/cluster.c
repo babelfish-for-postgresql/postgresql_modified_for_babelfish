@@ -734,8 +734,14 @@ make_new_heap(Oid OIDOldHeap, Oid NewTableSpace, Oid NewAccessMethod,
 	 * a shared rel.  However, we do make the new heap mapped if the source is
 	 * mapped.  This simplifies swap_relation_files, and is absolutely
 	 * necessary for rebuilding pg_class, for reasons explained there.
+	 *
+	 * We also must ensure that these temp tables are properly named in TSQL
+	 * so that the metadata is properly cleaned up after in this function.
 	 */
-	snprintf(NewHeapName, sizeof(NewHeapName), "pg_temp_%u", OIDOldHeap);
+	if (sql_dialect == SQL_DIALECT_TSQL && relpersistence == RELPERSISTENCE_TEMP && get_ENR_withoid(currentQueryEnv, OIDOldHeap, ENR_TSQL_TEMP))
+		snprintf(NewHeapName, sizeof(NewHeapName), "#pg_temp_%u", OIDOldHeap);
+	else
+		snprintf(NewHeapName, sizeof(NewHeapName), "pg_temp_%u", OIDOldHeap);
 
 	OIDNewHeap = heap_create_with_catalog(NewHeapName,
 										  namespaceid,
