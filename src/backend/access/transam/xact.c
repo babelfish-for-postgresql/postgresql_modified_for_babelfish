@@ -2356,7 +2356,7 @@ CommitTransaction(void)
 	 * Other backends will observe the attendant catalog changes and not
 	 * attempt to access affected files.
 	 */
-	smgrDoPendingDeletes(true);
+	smgrDoPendingDeletes(true, false);
 
 	/*
 	 * Send out notification signals to other backends (and do other
@@ -2871,7 +2871,7 @@ AbortTransaction(void)
 		ResourceOwnerRelease(TopTransactionResourceOwner,
 							 RESOURCE_RELEASE_AFTER_LOCKS,
 							 false, true);
-		smgrDoPendingDeletes(false);
+		smgrDoPendingDeletes(false, false);
 
 		AtEOXact_GUC(false, 1);
 		AtEOXact_SPI(false);

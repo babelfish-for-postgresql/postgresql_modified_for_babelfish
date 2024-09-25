@@ -41,6 +41,7 @@
 #include "catalog/pg_attrdef.h"
 #include "catalog/pg_shdepend.h"
 #include "catalog/pg_index_d.h"
+#include "catalog/storage.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
 #include "utils/inval.h"
 #include "utils/guc.h"
@@ -1544,6 +1545,17 @@ bool useTempOidBufferForOid(Oid relId)
 }
 
 /*
+ * Helper function to drop physical storage for an ENR entry.
+ */
+static void
+ENRDelete(Oid relid)
+{
+	Relation rel = relation_open(relid, AccessExclusiveLock);
+	ENRDropStorage(rel);
+	relation_close(rel, NoLock);
+}
+
+/*
  * Drop all the temp tables registered as ENR in the given query environment.
  */
 void
@@ -1572,6 +1584,10 @@ ENRDropTempTables(QueryEnvironment *queryEnv)
 		object.objectSubId = 0;
 		object.objectId = enr->md.reliddesc;
 		add_exact_object_address(&object, objects);
+		/*
+		 * Also register the physical file to be deleted at the end of scope.
+		 */
+		ENRDelete(enr->md.reliddesc);
 	}
 
 	/*

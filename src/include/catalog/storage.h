@@ -26,6 +26,7 @@ extern SMgrRelation RelationCreateStorage(RelFileLocator rlocator,
 										  char relpersistence,
 										  bool register_delete);
 extern void RelationDropStorage(Relation rel);
+extern void ENRDropStorage(Relation rel);
 extern void RelationPreserveStorage(RelFileLocator rlocator, bool atCommit);
 extern void RelationPreTruncate(Relation rel);
 extern void RelationTruncate(Relation rel, BlockNumber nblocks);
@@ -40,7 +41,7 @@ extern void RestorePendingSyncs(char *startAddress);
  * These functions used to be in storage/smgr/smgr.c, which explains the
  * naming
  */
-extern void smgrDoPendingDeletes(bool isCommit);
+extern void smgrDoPendingDeletes(bool isCommit, bool forENR);
 extern void smgrDoPendingSyncs(bool isCommit, bool isParallelWorker);
 extern int	smgrGetPendingDeletes(bool forCommit, RelFileLocator **ptr);
 extern void AtSubCommit_smgr(void);
