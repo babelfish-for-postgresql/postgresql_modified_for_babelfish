@@ -1898,7 +1898,7 @@ pg_event_trigger_ddl_commands(PG_FUNCTION_ARGS)
 					 */
 					if (pltsql_get_object_identity_event_trigger_hook)
 					{
-						identity=(*pltsql_get_object_identity_event_trigger_hook)(&addr);
+						identity = (*pltsql_get_object_identity_event_trigger_hook)(&addr);
 					}
 					else
 					{
