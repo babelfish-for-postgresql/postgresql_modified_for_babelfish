@@ -1836,7 +1836,7 @@ transformCaseExpr(ParseState *pstate, CaseExpr *c)
 	newc->location = c->location;
 
 	/* Following hook will be used to set the typmod of all the CASE Branches. */
-	if(set_common_typemod_case_expr_hook)
+	if(sql_dialect == SQL_DIALECT_TSQL && set_common_typemod_case_expr_hook)
 	{
 		Node   *result = (*set_common_typemod_case_expr_hook)(pstate, resultexprs, newc);
 
