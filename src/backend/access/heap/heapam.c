@@ -6212,7 +6212,7 @@ heap_inplace_lock(Relation relation,
 	 * - don't try to continue even if the updater aborts: likewise
 	 * - no crosscheck
 	 */
-	result = HeapTupleSatisfiesUpdate(&oldtup, GetCurrentCommandId(false),
+	result = HeapTupleSatisfiesUpdate(relation, &oldtup, GetCurrentCommandId(false),
 									  buffer);
 
 	if (result == TM_Invisible)
