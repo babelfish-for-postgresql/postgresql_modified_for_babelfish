@@ -740,7 +740,7 @@ make_new_heap(Oid OIDOldHeap, Oid NewTableSpace, Oid NewAccessMethod,
 	 * We also must ensure that these temp tables are properly named in TSQL
 	 * so that the metadata is properly cleaned up after in this function.
 	 */
-	if (sql_dialect == SQL_DIALECT_TSQL && relpersistence == RELPERSISTENCE_TEMP && OidBelongsToENRTempTable(OIDOldHeap))
+	if (IsTsqlTempTable(relpersistence) && OidBelongsToENRTempTable(OIDOldHeap))
 		snprintf(NewHeapName, sizeof(NewHeapName), "#pg_temp_%u", OIDOldHeap);
 	else
 		snprintf(NewHeapName, sizeof(NewHeapName), "pg_temp_%u", OIDOldHeap);
@@ -1612,9 +1612,9 @@ finish_heap_swap(Oid OIDOldHeap, Oid OIDNewHeap,
 											 NoLock);
 
 			/* rename the toast table ... */
-			if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(newrel))
+			if (IsTsqlTableVariable(newrel))
 				pg_toast_prefix = "@pg_toast";
-			else if (sql_dialect == SQL_DIALECT_TSQL && newrel->rd_rel->relpersistence == RELPERSISTENCE_TEMP && OidBelongsToENRTempTable(newrel->rd_id))
+			else if (IsTsqlTempTable(newrel->rd_rel->relpersistence) && OidBelongsToENRTempTable(newrel->rd_id))
 				pg_toast_prefix = "#pg_toast";
 
 			snprintf(NewToastName, NAMEDATALEN, "%s_%u",

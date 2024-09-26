@@ -1185,7 +1185,7 @@ heap_create_with_catalog(const char *relname,
 	MultiXactId relminmxid;
 	bool		is_enr = false;
 
-	if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL)
+	if (IsTsqlTempTable(relpersistence))
 	{
 		/*
 		 * in TSQL, temporary table name should start with '#'.
@@ -1413,7 +1413,7 @@ heap_create_with_catalog(const char *relname,
 		 * 
 		 * For temp tables, we use temp OID assignment code here as well.
 		 */
-		if (is_enr && useTempOidBuffer())
+		if (is_enr && UseTempOidBuffer())
 		{
 			Relation	pg_type;
 

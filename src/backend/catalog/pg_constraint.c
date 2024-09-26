@@ -176,7 +176,7 @@ CreateConstraintEntry(const char *constraintName,
 		values[i] = (Datum) NULL;
 	}
 
-	if (useTempOidBufferForOid(relId) && isTempNamespace(constraintNamespace))
+	if (UseTempOidBufferForOid(relId) && isTempNamespace(constraintNamespace))
 		conOid = GetNewTempOidWithIndex_hook(conDesc, ConstraintOidIndexId,
 									Anum_pg_constraint_oid);
 	else

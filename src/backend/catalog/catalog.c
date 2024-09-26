@@ -583,7 +583,7 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 	 */
 	rlocator.backend = backend;
 
-	use_bbf_oid_buffer = (relpersistence == RELPERSISTENCE_TEMP && useTempOidBuffer());
+	use_bbf_oid_buffer = (relpersistence == RELPERSISTENCE_TEMP && UseTempOidBuffer());
 
 	do
 	{

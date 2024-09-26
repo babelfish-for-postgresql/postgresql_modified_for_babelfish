@@ -159,8 +159,10 @@ extern void ClearSavedCatcacheMessages(void);
 extern bool SIMessageIsForTempTable(const SharedInvalidationMessage *msg);
 
 /* Various checks */
-extern bool useTempOidBuffer(void);
-extern bool useTempOidBufferForOid(Oid relId);
+extern bool IsTsqlTableVariable(Relation rel);
+extern bool IsTsqlTempTable(char relpersistence);
+extern bool UseTempOidBuffer(void);
+extern bool UseTempOidBufferForOid(Oid relId);
 extern bool has_existing_enr_relations(void);
 
 /* Hooks */
