@@ -1568,7 +1568,7 @@ ENRDropTempTables(QueryEnvironment *queryEnv)
 	foreach(lc, queryEnv->namedRelList)
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
-		Relation rel = relation_open(enr->md.reliddesc, AccessExclusiveLock);
+		Relation rel;
 		SMgrRelation srel;
 
 		if (enr->md.enrtype != ENR_TSQL_TEMP)
@@ -1582,6 +1582,7 @@ ENRDropTempTables(QueryEnvironment *queryEnv)
 		 * Delete the physical storage for the relation.
 		 * See: smgrDoPendingDeletes()
 		 */
+		rel = relation_open(enr->md.reliddesc, AccessExclusiveLock);
 		srel = smgropen(rel->rd_locator, rel->rd_backend);
 
 		/* allocate the initial array, or extend it, if needed */
