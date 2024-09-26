@@ -462,9 +462,6 @@ extern Datum ExecMakeFunctionResultSet(SetExprState *fcache,
 									   MemoryContext argContext,
 									   bool *isNull,
 									   ExprDoneCond *isDone);
-typedef void (*pass_pivot_data_to_fcinfo_hook_type)(FunctionCallInfo fcinfo, Expr *expr);
-extern PGDLLEXPORT pass_pivot_data_to_fcinfo_hook_type pass_pivot_data_to_fcinfo_hook;
-
 /*
  * prototypes from functions in execScan.c
  */
