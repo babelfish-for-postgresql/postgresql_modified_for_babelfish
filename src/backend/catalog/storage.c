@@ -74,7 +74,6 @@ typedef struct PendingRelSync
 } PendingRelSync;
 
 static PendingRelDelete *pendingDeletes = NULL; /* head of linked list */
-static PendingRelDelete *pendingENRDeletes = NULL;
 static HTAB *pendingSyncHash = NULL;
 
 
@@ -234,59 +233,6 @@ RelationDropStorage(Relation rel)
 		pending->nestLevel = GetCurrentTransactionNestLevel();
 		pending->next = pendingDeletes;
 		pendingDeletes = pending;
-	}
-
-	/*
-	 * NOTE: if the relation was created in this transaction, it will now be
-	 * present in the pending-delete list twice, once with atCommit true and
-	 * once with atCommit false.  Hence, it will be physically deleted at end
-	 * of xact in either case (and the other entry will be ignored by
-	 * smgrDoPendingDeletes, so no error will occur).  We could instead remove
-	 * the existing list entry and delete the physical file immediately, but
-	 * for now I'll keep the logic simple.
-	 */
-
-	RelationCloseSmgr(rel);
-}
-
-/*
- * ENRDropStorage
- *		Schedule unlinking of physical storage at transaction commit.
- * 
- * This is copied from RelationDropStorage, with references to pendingDeletes
- * changed to pendingENRDeletes.
- */
-void
-ENRDropStorage(Relation rel)
-{
-	PendingRelDelete *pending;
-
-	/* Add the relation to the list of stuff to delete at commit */
-	pending = (PendingRelDelete *)
-		MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
-	pending->rlocator = rel->rd_locator;
-	pending->backend = rel->rd_backend;
-	pending->atCommit = true;	/* delete if commit */
-	pending->nestLevel = GetCurrentTransactionNestLevel();
-	pending->next = pendingENRDeletes;
-	pendingENRDeletes = pending;
-
-	/*
-	 * BBF Table Variables were not registered in pendingDeletes in RelationCreateStorage().
-	 * This allows us to skip files from being unlinked automatically during AbortTransaction().
-	 * However, we need to unlink the files on explicit DROP TABLE command regardless
-	 * if the transaction state is committing or aborting.
-	 */
-	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(rel))
-	{
-		pending = (PendingRelDelete *)
-		MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
-		pending->rlocator = rel->rd_locator;
-		pending->backend = rel->rd_backend;
-		pending->atCommit = false;
-		pending->nestLevel = GetCurrentTransactionNestLevel();
-		pending->next = pendingENRDeletes;
-		pendingENRDeletes = pending;
 	}
 
 	/*
@@ -718,14 +664,9 @@ RestorePendingSyncs(char *startAddress)
  * no physical storage in any fork. In particular, it's possible that we're
  * cleaning up an old temporary relation for which RemovePgTempFiles has
  * already recovered the physical storage.
- * 
- * Second Note: Since TSQL ENR entries (table variables and temp tables) need to 
- * be cleaned up at end of scope rather than end of transaction, we also maintain 
- * a separate list of pendingENRDeletes which can be separately processed by 
- * calling this function with forENR=true.
  */
 void
-smgrDoPendingDeletes(bool isCommit, bool forENR)
+smgrDoPendingDeletes(bool isCommit)
 {
 	int			nestLevel = GetCurrentTransactionNestLevel();
 	PendingRelDelete *pending;
@@ -736,7 +677,7 @@ smgrDoPendingDeletes(bool isCommit, bool forENR)
 	SMgrRelation *srels = NULL;
 
 	prev = NULL;
-	for (pending = (forENR ? pendingENRDeletes : pendingDeletes); pending != NULL; pending = next)
+	for (pending = pendingDeletes; pending != NULL; pending = next)
 	{
 		next = pending->next;
 		if (pending->nestLevel < nestLevel)
@@ -750,12 +691,7 @@ smgrDoPendingDeletes(bool isCommit, bool forENR)
 			if (prev)
 				prev->next = next;
 			else
-			{
-				if (forENR)
-					pendingENRDeletes = next;
-				else
-					pendingDeletes = next;
-			}
+				pendingDeletes = next;
 			/* do deletion if called for */
 			if (pending->atCommit == isCommit)
 			{
@@ -1034,7 +970,7 @@ AtSubCommit_smgr(void)
 void
 AtSubAbort_smgr(void)
 {
-	smgrDoPendingDeletes(false, false);
+	smgrDoPendingDeletes(false);
 }
 
 void
