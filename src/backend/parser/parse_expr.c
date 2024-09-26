@@ -101,6 +101,7 @@ static List *ExpandChecksumStar(ParseState *pstate, FuncCall *fn, int location);
 
 lookup_param_hook_type lookup_param_hook = NULL;
 handle_constant_literals_hook_type handle_constant_literals_hook = NULL;
+set_common_typemod_case_expr_hook_type set_common_typemod_case_expr_hook = NULL;
 /*
  * transformExpr -
  *	  Analyze and transform expressions. Type checking and type casting is
@@ -1833,6 +1834,15 @@ transformCaseExpr(ParseState *pstate, CaseExpr *c)
 									exprLocation(pstate->p_last_srf))));
 
 	newc->location = c->location;
+
+	/* Following hook will be used to set the typmod of all the CASE Branches. */
+	if(set_common_typemod_case_expr_hook)
+	{
+		Node   *result = (*set_common_typemod_case_expr_hook)(pstate, resultexprs, newc);
+
+		if(result)
+			return result;
+    }
 
 	return (Node *) newc;
 }
