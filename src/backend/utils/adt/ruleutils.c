@@ -12107,7 +12107,7 @@ generate_relation_name(Oid relid, List *namespaces)
 	if (!need_qual)
 		need_qual = !RelationIsVisible(relid);
 
-	if (need_qual)
+	if (need_qual || sql_dialect == SQL_DIALECT_TSQL)
 		nspname = get_namespace_name_or_temp(reltup->relnamespace);
 	else
 		nspname = NULL;
