@@ -101,7 +101,7 @@ static List *ExpandChecksumStar(ParseState *pstate, FuncCall *fn, int location);
 
 lookup_param_hook_type lookup_param_hook = NULL;
 handle_constant_literals_hook_type handle_constant_literals_hook = NULL;
-set_common_typemod_case_expr_hook_type set_common_typemod_case_expr_hook = NULL;
+set_common_typmod_case_expr_hook_type set_common_typmod_case_expr_hook = NULL;
 /*
  * transformExpr -
  *	  Analyze and transform expressions. Type checking and type casting is
@@ -1836,12 +1836,12 @@ transformCaseExpr(ParseState *pstate, CaseExpr *c)
 	newc->location = c->location;
 
 	/* Following hook will be used to set the typmod of all the CASE Branches. */
-	if(sql_dialect == SQL_DIALECT_TSQL && set_common_typemod_case_expr_hook)
+	if(sql_dialect == SQL_DIALECT_TSQL && set_common_typmod_case_expr_hook)
 	{
-		Node   *result = (*set_common_typemod_case_expr_hook)(pstate, resultexprs, newc);
+		/* calculating common_typemod for case expr */
+		int32 typmod = select_common_typmod(pstate, resultexprs, newc->casetype);
 
-		if(result)
-			return result;
+		(*set_common_typmod_case_expr_hook)(pstate, resultexprs, newc, typmod);
     }
 
 	return (Node *) newc;

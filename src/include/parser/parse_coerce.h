@@ -43,6 +43,11 @@ extern Node *coerce_to_target_type(ParseState *pstate,
 								   CoercionContext ccontext,
 								   CoercionForm cformat,
 								   int location);
+extern Node *coerce_type_typmod(Node *node,
+								Oid targetTypeId, int32 targetTypMod,
+								CoercionContext ccontext, CoercionForm cformat,
+								int location,
+								bool hideInputCoercion);
 extern bool can_coerce_type(int nargs, const Oid *input_typeids, const Oid *target_typeids,
 							CoercionContext ccontext);
 extern Node *coerce_type(ParseState *pstate, Node *node,
@@ -137,7 +142,7 @@ typedef int32 (*select_common_typmod_hook_type) (ParseState *pstate, List *exprs
 typedef Node *(*handle_constant_literals_hook_type) (ParseState *pstate, Node *e);
 extern PGDLLEXPORT handle_constant_literals_hook_type handle_constant_literals_hook;
 
-typedef Node *(*set_common_typemod_case_expr_hook_type) (ParseState *pstate, List *exprs, CaseExpr *newc);
-extern PGDLLEXPORT set_common_typemod_case_expr_hook_type set_common_typemod_case_expr_hook;
+typedef void (*set_common_typmod_case_expr_hook_type) (ParseState *pstate, List *exprs, CaseExpr *newc, int32 typmod);
+extern PGDLLIMPORT set_common_typmod_case_expr_hook_type set_common_typmod_case_expr_hook;
 
 #endif							/* PARSE_COERCE_H */

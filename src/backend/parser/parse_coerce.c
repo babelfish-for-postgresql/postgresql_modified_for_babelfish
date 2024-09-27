@@ -40,11 +40,6 @@ validate_implicit_conversion_from_string_literal_hook_type validate_implicit_con
 select_common_type_hook_type select_common_type_hook = NULL;
 select_common_typmod_hook_type select_common_typmod_hook = NULL;
 
-static Node *coerce_type_typmod(Node *node,
-								Oid targetTypeId, int32 targetTypMod,
-								CoercionContext ccontext, CoercionForm cformat,
-								int location,
-								bool hideInputCoercion);
 static void hide_coercion_node(Node *node);
 static Node *build_coercion_expression(Node *node,
 									   CoercionPathType pathtype,
@@ -827,7 +822,7 @@ coerce_to_domain(Node *arg, Oid baseTypeId, int32 baseTypeMod, Oid typeId,
  * coercion for a domain is considered to be part of the type coercion
  * needed to produce the domain value in the first place.  So, no getBaseType.
  */
-static Node *
+Node *
 coerce_type_typmod(Node *node, Oid targetTypeId, int32 targetTypMod,
 				   CoercionContext ccontext, CoercionForm cformat,
 				   int location,
