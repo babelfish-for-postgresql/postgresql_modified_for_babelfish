@@ -100,6 +100,7 @@ static void validate_table_rewrite_tags(const char *filtervar, List *taglist);
 static void EventTriggerInvoke(List *fn_oid_list, EventTriggerData *trigdata);
 static const char *stringify_grant_objtype(ObjectType objtype);
 static const char *stringify_adefprivs_objtype(ObjectType objtype);
+pltsql_get_object_identity_event_trigger_hook_type pltsql_get_object_identity_event_trigger_hook = NULL;
 
 /*
  * Create an event trigger.
@@ -1895,7 +1896,14 @@ pg_event_trigger_ddl_commands(PG_FUNCTION_ARGS)
 					 * rather than failing.  This can happen for example with
 					 * some subcommand combinations of ALTER TABLE.
 					 */
-					identity = getObjectIdentity(&addr, true);
+					if (pltsql_get_object_identity_event_trigger_hook)
+					{
+						identity = (*pltsql_get_object_identity_event_trigger_hook)(&addr);
+					}
+					else
+					{
+						identity = getObjectIdentity(&addr, true);
+					}
 					if (identity == NULL)
 						continue;
 
