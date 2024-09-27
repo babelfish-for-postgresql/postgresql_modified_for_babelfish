@@ -16,6 +16,7 @@
 
 #include "tcop/cmdtag.h"
 #include "tcop/tcopprot.h"
+#include "catalog/objectaddress.h"
 
 typedef enum
 {
@@ -112,7 +113,7 @@ typedef bool (*bbfCustomProcessUtility_hook_type)(struct ParseState *pstate, Pla
 						  ParamListInfo params, QueryCompletion *qc);
 extern PGDLLIMPORT bbfCustomProcessUtility_hook_type bbfCustomProcessUtility_hook;
 typedef void (*bbfSelectIntoUtility_hook_type)(struct ParseState *pstate, PlannedStmt *pstmt, const char *queryString, QueryEnvironment *queryEnv, 
-						  ParamListInfo params, QueryCompletion *qc);
+						  ParamListInfo params, QueryCompletion *qc, ObjectAddress *address);
 extern PGDLLIMPORT bbfSelectIntoUtility_hook_type bbfSelectIntoUtility_hook;
 
 #endif							/* UTILITY_H */

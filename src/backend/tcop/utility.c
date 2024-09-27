@@ -1684,7 +1684,7 @@ ProcessUtilitySlow(ParseState *pstate,
 			case T_CreateTableAsStmt:
 				{
 					if(sql_dialect == SQL_DIALECT_TSQL && bbfSelectIntoUtility_hook)
-						(*bbfSelectIntoUtility_hook)(pstate, pstmt, queryString, NULL, params, qc);
+						(*bbfSelectIntoUtility_hook)(pstate, pstmt, queryString, NULL, params, qc, &address);
 					else{
 						address = ExecCreateTableAs(pstate, (CreateTableAsStmt *) parsetree,
 									params, queryEnv, qc);
