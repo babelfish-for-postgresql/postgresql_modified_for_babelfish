@@ -42,6 +42,7 @@
 #include "catalog/pg_shdepend.h"
 #include "catalog/pg_index_d.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
+#include "storage/smgr.h"
 #include "utils/inval.h"
 #include "utils/guc.h"
 #include "utils/syscache.h"
@@ -1549,9 +1550,12 @@ bool useTempOidBufferForOid(Oid relId)
 void
 ENRDropTempTables(QueryEnvironment *queryEnv)
 {
-	ListCell   *lc = NULL;
-	ObjectAddress object;
-	ObjectAddresses *objects;
+	ListCell		*lc = NULL;
+	ObjectAddress	object;
+	ObjectAddresses	*objects;
+	int				nrels = 0,
+					maxrels = 0;
+	SMgrRelation	*srels = NULL;
 
 	if (!queryEnv)
 		return;
@@ -1564,6 +1568,8 @@ ENRDropTempTables(QueryEnvironment *queryEnv)
 	foreach(lc, queryEnv->namedRelList)
 	{
 		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+		Relation rel;
+		SMgrRelation srel;
 
 		if (enr->md.enrtype != ENR_TSQL_TEMP)
 			continue;
@@ -1572,6 +1578,45 @@ ENRDropTempTables(QueryEnvironment *queryEnv)
 		object.objectSubId = 0;
 		object.objectId = enr->md.reliddesc;
 		add_exact_object_address(&object, objects);
+		/*
+		 * Delete the physical storage for the relation.
+		 * See: smgrDoPendingDeletes()
+		 */
+		rel = relation_open(enr->md.reliddesc, AccessExclusiveLock);
+		srel = smgropen(rel->rd_locator, rel->rd_backend);
+
+		/* allocate the initial array, or extend it, if needed */
+		if (maxrels == 0)
+		{
+			maxrels = 8;
+			srels = palloc(sizeof(SMgrRelation) * maxrels);
+		}
+		else if (maxrels <= nrels)
+		{
+			maxrels *= 2;
+			srels = repalloc(srels, sizeof(SMgrRelation) * maxrels);
+		}
+
+		srels[nrels++] = srel;
+
+		relation_close(rel, NoLock);
+	}
+
+	/*
+	 * The below call to performMultpleDeletions() only registers the 
+	 * underlying files for deletion at the end of transaction, but they
+	 * need to be deleted now since we are exiting the current scope. We
+	 * still need to run the function though, to make sure that all of the
+	 * dependencies are properly cleaned up.
+	 */
+	if (nrels > 0)
+	{
+		smgrdounlinkall(srels, nrels, false);
+
+		for (int i = 0; i < nrels; i++)
+			smgrclose(srels[i]);
+
+		pfree(srels);
 	}
 
 	/*
