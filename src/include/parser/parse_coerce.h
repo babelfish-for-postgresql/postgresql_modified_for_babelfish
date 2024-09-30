@@ -137,7 +137,7 @@ typedef int32 (*select_common_typmod_hook_type) (ParseState *pstate, List *exprs
 typedef Node *(*handle_constant_literals_hook_type) (ParseState *pstate, Node *e);
 extern PGDLLEXPORT handle_constant_literals_hook_type handle_constant_literals_hook;
 
-typedef void (*set_common_typmod_case_expr_hook_type) (ParseState *pstate, List *exprs, CaseExpr *newc, int32 typmod);
+typedef void (*set_common_typmod_case_expr_hook_type) (ParseState *pstate, List *exprs, CaseExpr *newc);
 extern PGDLLIMPORT set_common_typmod_case_expr_hook_type set_common_typmod_case_expr_hook;
 
 #endif							/* PARSE_COERCE_H */
