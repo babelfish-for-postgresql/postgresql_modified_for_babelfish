@@ -2367,7 +2367,21 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 
 	/* Process RETURNING if present */
 	if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
-		rslot = ExecProcessReturning(resultRelInfo, slot, context->planSlot);
+	{
+		//TupleTableSlot *oldslot = ExecGetTriggerOldSlot(estate, resultRelInfo);
+		TupleTableSlot *oldslot = resultRelInfo->ri_oldTupleSlot;
+		Assert(ItemPointerIsValid(tupleid));
+
+		/*
+		 * We expect the tuple to be present, thus very simple error handling
+		 * suffices.
+		 */
+		if (!table_tuple_fetch_row_version(resultRelInfo->ri_RelationDesc, tupleid, SnapshotAny,
+										   oldslot))
+			elog(ERROR, "failed to fetch tuple to evaluate returning clause");
+
+		rslot = ExecProcessReturning(resultRelInfo, oldslot, context->planSlot);
+	}
 
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&
