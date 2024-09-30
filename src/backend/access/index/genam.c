@@ -884,6 +884,11 @@ systable_inplace_update_begin(Relation relation,
 			return;
 		}
 
+		if (scan->enr)
+		{
+			break;
+		}
+
 		slot = scan->slot;
 		Assert(TTS_IS_BUFFERTUPLE(slot));
 		bslot = (BufferHeapTupleTableSlot *) slot;
@@ -908,8 +913,25 @@ systable_inplace_update_finish(void *state, HeapTuple tuple)
 	Relation	relation = scan->heap_rel;
 	TupleTableSlot *slot = scan->slot;
 	BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
-	HeapTuple	oldtup = bslot->base.tuple;
-	Buffer		buffer = bslot->buffer;
+	HeapTuple	oldtup;
+	Buffer		buffer;
+
+	if (scan->enr)
+	{
+		/* 
+		 * heap_inplace_update is deprecated, but the replacement
+		 * function heap_inplace_update_and_unlock contains a ton of
+		 * functionality that is broken by our ENR implementation.
+		 * Therefore, we use it here to avoid introducing additional
+		 * issues.
+		 */
+		heap_inplace_update(relation, tuple);
+		systable_endscan(scan);
+		return;
+	}
+
+	oldtup = bslot->base.tuple;
+	buffer = bslot->buffer;
 
 	heap_inplace_update_and_unlock(relation, oldtup, tuple, buffer);
 	systable_endscan(scan);
@@ -927,8 +949,17 @@ systable_inplace_update_cancel(void *state)
 	Relation	relation = scan->heap_rel;
 	TupleTableSlot *slot = scan->slot;
 	BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
-	HeapTuple	oldtup = bslot->base.tuple;
-	Buffer		buffer = bslot->buffer;
+	HeapTuple	oldtup;
+	Buffer		buffer;
+
+	if (scan->enr)
+	{
+		systable_endscan(scan);
+		return;
+	}
+
+	oldtup = bslot->base.tuple;
+	buffer = bslot->buffer;
 
 	heap_inplace_unlock(relation, oldtup, buffer);
 	systable_endscan(scan);
