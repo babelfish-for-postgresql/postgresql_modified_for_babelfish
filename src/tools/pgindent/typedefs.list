@@ -2075,6 +2075,7 @@ PortalHashEnt
 PortalStatus
 PortalStrategy
 PostParseColumnRefHook
+PostParseFunctionRefHook
 PostgresPollingStatusType
 PostingItem
 PostponedQual
