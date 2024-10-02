@@ -200,7 +200,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	 */
 	if (IsTsqlTableVariable(rel))
 		pg_toast_prefix = "@pg_toast";
-	else if (IsTsqlTempTable(rel->rd_rel->relpersistence) && OidBelongsToENRTempTable(rel->rd_id))
+	else if (IsTsqlTempTable(rel->rd_rel->relpersistence) && GetENRTempTableWithOid(rel->rd_id))
 		pg_toast_prefix = "#pg_toast";
 
 	snprintf(toast_relname, sizeof(toast_relname),

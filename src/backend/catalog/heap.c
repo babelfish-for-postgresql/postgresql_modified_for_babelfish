@@ -395,8 +395,7 @@ heap_create(const char *relname,
 											   relpersistence,
 											   relfrozenxid, relminmxid);
 		else if (RELKIND_HAS_STORAGE(rel->rd_rel->relkind))
-			RelationCreateStorage(rel->rd_locator, relpersistence,
-				(sql_dialect != SQL_DIALECT_TSQL || !RelationIsBBFTableVariable(rel)));
+			RelationCreateStorage(rel->rd_locator, relpersistence, !IsTsqlTableVariable(rel));
 		else
 			Assert(false);
 	}

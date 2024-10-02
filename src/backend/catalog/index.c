@@ -766,7 +766,7 @@ index_create(Relation heapRelation,
 		 * PRIMARY KEYs and/or CONSTRAINTs.
 		 */
 		is_enr = (indexRelationName && strlen(indexRelationName) > 0 &&
-			(indexRelationName[0] == '@' || OidBelongsToENRTempTable(heapRelationId)));
+			(indexRelationName[0] == '@' || GetENRTempTableWithOid(heapRelationId)));
 	}
 
 	relkind = partitioned ? RELKIND_PARTITIONED_INDEX : RELKIND_INDEX;

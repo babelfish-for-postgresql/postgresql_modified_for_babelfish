@@ -136,7 +136,7 @@ extern void unregister_ENR(QueryEnvironment *queryEnv, const char *name);
 extern PGDLLEXPORT List *get_namedRelList(void);
 extern EphemeralNamedRelation get_ENR(QueryEnvironment *queryEnv, const char *name, bool search);
 extern PGDLLEXPORT EphemeralNamedRelation get_ENR_withoid(QueryEnvironment *queryEnv, Oid oid, EphemeralNameRelationType type);
-extern EphemeralNamedRelation OidBelongsToENRTempTable(Oid id);
+extern EphemeralNamedRelation GetENRTempTableWithOid(Oid id);
 extern TupleDesc ENRMetadataGetTupDesc(EphemeralNamedRelationMetadata enrmd);
 extern bool ENRGetSystableScan(Relation rel, Oid indexoid, int nkeys, ScanKey key, List **tuplist, int *tuplist_i, int *tuplist_flags);
 extern bool ENRAddTuple(Relation rel, HeapTuple tup);
