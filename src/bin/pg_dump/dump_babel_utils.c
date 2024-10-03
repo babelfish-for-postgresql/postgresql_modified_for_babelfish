@@ -2002,7 +2002,7 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 					"\n	) LOOP"
 					"\n		CASE WHEN original_name = 'dbo' THEN"
 					"\n			EXECUTE format('GRANT CREATE, CONNECT, TEMPORARY ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
-					"\n		CASE WHEN original_name = 'db_accessadmin' THEN"
+					"\n		WHEN original_name = 'db_accessadmin' THEN"
 					"\n			EXECUTE format('GRANT CREATE ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
 					"\n		END CASE;"
 					"\n	END LOOP;"
