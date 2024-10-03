@@ -1971,3 +1971,49 @@ dumpBabelfishConstrIndex(Archive *fout, const IndxInfo *indxinfo,
 	appendPQExpBuffer(delq, "DROP CONSTRAINT %s;\n",
 					  fmtId(constrinfo->dobj.name));
 }
+
+void
+dumpBabelPhysicalDatabaseACLs(Archive *fout)
+{
+	PQExpBuffer	query;
+
+	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade)
+		return;
+
+	query = createPQExpBuffer();
+
+	appendPQExpBuffer(query,
+					"DO $$"
+					"\nDECLARE"
+					"\n	rolname TEXT;"
+					"\n	original_name TEXT;"
+					"\nBEGIN"
+					"\n	SET LOCAL ROLE sysadmin;"
+					"\n	FOR rolname, original_name IN ("
+					"\n		SELECT a.rolname, a.orig_username FROM sys.babelfish_authid_user_ext a"
+					"\n			WHERE orig_username IN ('dbo') AND"
+					"\n			database_name NOT IN ('master', 'tempdb', 'msdb')");
+
+	if (bbf_db_name)
+		appendPQExpBuffer(query,
+					"\n			 AND database_name = '%s'", escaped_bbf_db_name);
+
+	appendPQExpBuffer(query,
+					"\n	) LOOP"
+					"\n		CASE WHEN original_name = 'dbo' THEN"
+					"\n			EXECUTE format('GRANT CREATE, CONNECT, TEMPORARY ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
+					"\n		END CASE;"
+					"\n	END LOOP;"
+					"\n	RESET ROLE;"
+					"\nEND$$;\n\n");
+
+	ArchiveEntry(fout, nilCatalogId, createDumpId(),
+				 ARCHIVE_OPTS(.tag = "BABELFISHDATABASEACLS",
+							  .description = "BABELFISHDATABASEACLS",
+							  .section = SECTION_POST_DATA,
+							  .createStmt = query->data));
+
+	destroyPQExpBuffer(query);
+
+	return;
+}
