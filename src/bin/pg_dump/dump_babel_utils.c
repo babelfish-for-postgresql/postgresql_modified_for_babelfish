@@ -1996,7 +1996,7 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 
 	if (bbf_db_name)
 		appendPQExpBuffer(query,
-					"\n			 AND database_name = '%s')", escaped_bbf_db_name);
+					"\n			 AND database_name = '%s'", escaped_bbf_db_name);
 
 	appendPQExpBuffer(query,
 					"\n	) LOOP"
