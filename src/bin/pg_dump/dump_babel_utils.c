@@ -1991,7 +1991,7 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 					"\n	SET LOCAL ROLE sysadmin;"
 					"\n	FOR rolname, original_name IN ("
 					"\n		SELECT a.rolname, a.orig_username FROM sys.babelfish_authid_user_ext a"
-					"\n			WHERE orig_username IN ('dbo') AND"
+					"\n			WHERE orig_username IN ('dbo','db_accessadmin') AND"
 					"\n			database_name NOT IN ('master', 'tempdb', 'msdb')");
 
 	if (bbf_db_name)
@@ -2002,6 +2002,8 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 					"\n	) LOOP"
 					"\n		CASE WHEN original_name = 'dbo' THEN"
 					"\n			EXECUTE format('GRANT CREATE, CONNECT, TEMPORARY ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
+					"\n		CASE WHEN original_name = 'db_accessadmin' THEN"
+					"\n			EXECUTE format('GRANT CREATE ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
 					"\n		END CASE;"
 					"\n	END LOOP;"
 					"\n	RESET ROLE;"
