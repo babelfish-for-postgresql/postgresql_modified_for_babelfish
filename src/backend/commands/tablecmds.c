@@ -18800,7 +18800,7 @@ ATExecAttachPartition(List **wqueue, Relation rel, PartitionCmd *cmd,
 
 	/*
 	 * Use list_concat_copy() to avoid modifying partBoundConstraint in place,
-	 * since it’s needed later to construct the constraint expression for
+	 * since it's needed later to construct the constraint expression for
 	 * validating against the default partition, if any.
 	 */
 	partConstraint = list_concat_copy(partBoundConstraint,
