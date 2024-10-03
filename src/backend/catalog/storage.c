@@ -33,6 +33,7 @@
 #include "storage/smgr.h"
 #include "utils/hsearch.h"
 #include "utils/memutils.h"
+#include "utils/queryenvironment.h"
 #include "utils/rel.h"
 
 /* GUC variables */
@@ -223,7 +224,7 @@ RelationDropStorage(Relation rel)
 	 * However, we need to unlink the files on explicit DROP TABLE command regardless
 	 * if the transaction state is committing or aborting.
 	 */
-	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(rel))
+	if (IsTsqlTableVariable(rel))
 	{
 		pending = (PendingRelDelete *)
 		MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));

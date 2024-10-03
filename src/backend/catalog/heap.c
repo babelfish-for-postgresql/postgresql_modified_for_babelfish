@@ -395,8 +395,7 @@ heap_create(const char *relname,
 											   relpersistence,
 											   relfrozenxid, relminmxid);
 		else if (RELKIND_HAS_STORAGE(rel->rd_rel->relkind))
-			RelationCreateStorage(rel->rd_locator, relpersistence,
-				(sql_dialect != SQL_DIALECT_TSQL || !RelationIsBBFTableVariable(rel)));
+			RelationCreateStorage(rel->rd_locator, relpersistence, !IsTsqlTableVariable(rel));
 		else
 			Assert(false);
 	}
@@ -1185,7 +1184,7 @@ heap_create_with_catalog(const char *relname,
 	MultiXactId relminmxid;
 	bool		is_enr = false;
 
-	if (relpersistence == RELPERSISTENCE_TEMP && sql_dialect == SQL_DIALECT_TSQL)
+	if (IsTsqlTempTable(relpersistence))
 	{
 		/*
 		 * in TSQL, temporary table name should start with '#'.
@@ -1413,7 +1412,7 @@ heap_create_with_catalog(const char *relname,
 		 * 
 		 * For temp tables, we use temp OID assignment code here as well.
 		 */
-		if (is_enr && useTempOidBuffer())
+		if (is_enr && UseTempOidBuffer())
 		{
 			Relation	pg_type;
 
@@ -1671,7 +1670,7 @@ DeleteRelationTuple(Oid relid)
 		elog(ERROR, "cache lookup failed for relation %u", relid);
 
 	/* delete the relation tuple from pg_class, and finish up */
-	if (!ENRdropTuple(pg_class_desc, tup))
+	if (!ENRDropTuple(pg_class_desc, tup))
 		CatalogTupleDelete(pg_class_desc, &tup->t_self);
 
 	ReleaseSysCache(tup);
@@ -1761,7 +1760,7 @@ DeleteSystemAttributeTuples(Oid relid)
 
 	/* Delete all the matching tuples */
 	while ((atttup = systable_getnext(scan)) != NULL)
-		if (!ENRdropTuple(attrel, atttup))
+		if (!ENRDropTuple(attrel, atttup))
 			CatalogTupleDelete(attrel, &atttup->t_self);
 
 	/* Clean up after the scan */
@@ -1808,7 +1807,7 @@ RemoveAttributeById(Oid relid, AttrNumber attnum)
 	{
 		/* System attribute (probably OID) ... just delete the row */
 
-		if (!ENRdropTuple(attr_rel, tuple))
+		if (!ENRDropTuple(attr_rel, tuple))
 			CatalogTupleDelete(attr_rel, &tuple->t_self);
 	}
 	else
@@ -3099,7 +3098,7 @@ RemoveStatistics(Oid relid, AttrNumber attnum)
 
 	/* we must loop even when attnum != 0, in case of inherited stats */
 	while (HeapTupleIsValid(tuple = systable_getnext(scan)))
-		if (!ENRdropTuple(pgstatistic, tuple))
+		if (!ENRDropTuple(pgstatistic, tuple))
 			CatalogTupleDelete(pgstatistic, &tuple->t_self);
 
 	systable_endscan(scan);

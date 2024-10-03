@@ -176,7 +176,7 @@ CreateConstraintEntry(const char *constraintName,
 		values[i] = (Datum) NULL;
 	}
 
-	if (useTempOidBufferForOid(relId) && isTempNamespace(constraintNamespace))
+	if (UseTempOidBufferForOid(relId) && isTempNamespace(constraintNamespace))
 		conOid = GetNewTempOidWithIndex_hook(conDesc, ConstraintOidIndexId,
 									Anum_pg_constraint_oid);
 	else
@@ -647,7 +647,7 @@ RemoveConstraintById(Oid conId)
 		elog(ERROR, "constraint %u is not of a known type", conId);
 
 	/* Fry the constraint itself */
-	if (!ENRdropTuple(conDesc, tup))
+	if (!ENRDropTuple(conDesc, tup))
 		CatalogTupleDelete(conDesc, &tup->t_self);
 
 	/* Clean up */

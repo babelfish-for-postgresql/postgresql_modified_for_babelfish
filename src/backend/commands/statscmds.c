@@ -719,7 +719,7 @@ RemoveStatisticsDataById(Oid statsOid, bool inh)
 	/* We don't know if the data row for inh value exists. */
 	if (HeapTupleIsValid(tup))
 	{
-		if (!ENRdropTuple(relation, tup))
+		if (!ENRDropTuple(relation, tup))
 			CatalogTupleDelete(relation, &tup->t_self);
 
 		ReleaseSysCache(tup);
@@ -767,7 +767,7 @@ RemoveStatisticsById(Oid statsOid)
 
 	CacheInvalidateRelcacheByRelid(relid);
 
-	if (!ENRdropTuple(relation, tup))
+	if (!ENRDropTuple(relation, tup))
 		CatalogTupleDelete(relation, &tup->t_self);
 
 	ReleaseSysCache(tup);

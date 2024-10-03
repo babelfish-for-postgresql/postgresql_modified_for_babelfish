@@ -67,6 +67,15 @@ struct QueryEnvironment topLevelQueryEnvData;
 struct QueryEnvironment *topLevelQueryEnv = &topLevelQueryEnvData;
 struct QueryEnvironment *currentQueryEnv = NULL;
 
+static void tsql_setup_queryEnv(QueryEnvironment *queryEnv);
+static void tsql_cleanup_queryEnv(QueryEnvironment *queryEnv);
+static void free_ENR(EphemeralNamedRelation enr);
+static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOperationType op, bool skip_cache_inval, bool in_enr_rollback);
+static void ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOperationType op, HeapTuple tup, bool in_enr_rollback);
+static void ENRDeleteUncommittedTupleData(SubTransactionId subid, EphemeralNamedRelation enr);
+static void ENRRollbackUncommittedTuple(QueryEnvironment *queryEnv, ENRUncommittedTuple uncommitted_tup);
+static EphemeralNamedRelation find_enr(Form_pg_depend entry);
+
 QueryEnvironment *
 create_queryEnv(void)
 {
@@ -86,9 +95,7 @@ create_queryEnv2(MemoryContext cxt, bool top_level)
 
 	if (top_level) {
 		queryEnv = topLevelQueryEnv;
-		queryEnv->namedRelList = NIL;
-		queryEnv->dropped_namedRelList = NIL;
-		queryEnv->savedCatcacheMessages = NIL;
+		tsql_setup_queryEnv(queryEnv);
 		queryEnv->parentEnv = NULL;
 		queryEnv->memctx = cxt;
 	} else {
@@ -103,38 +110,10 @@ create_queryEnv2(MemoryContext cxt, bool top_level)
 	return queryEnv;
 }
 
-/* Loop through structures in the ENR and make sure to free anything that needs to be freed. */
-static void free_ENR(EphemeralNamedRelation enr)
-{
-	for (int i = 0; i < ENR_CATTUP_END; i++)
-	{
-		List *uncommitted_cattups = enr->md.uncommitted_cattups[i];
-		List *cattups = enr->md.cattups[i];
-		ListCell *lc2, *lc3;
-
-		foreach(lc2, uncommitted_cattups)
-		{
-			ENRUncommittedTuple uncommitted_tup = (ENRUncommittedTuple) lfirst(lc2);
-
-			heap_freetuple(uncommitted_tup->tup);
-		}
-
-		foreach(lc3, cattups)
-		{
-			HeapTuple tup = (HeapTuple) lfirst(lc3);
-
-			heap_freetuple(tup);
-		}
-	}
-
-	pfree(enr->md.name);
-}
-
 /* Remove the current query environment and make its parent current. */
 void remove_queryEnv() {
 	MemoryContext			oldcxt;
 	QueryEnvironment		*tmp;
-	ListCell *lc;
 
 	/* We should never "free" top level query env as it's in stack memory. */
 	if (!currentQueryEnv || currentQueryEnv == topLevelQueryEnv)
@@ -142,6 +121,25 @@ void remove_queryEnv() {
 
 	tmp = currentQueryEnv->parentEnv;
 	oldcxt = MemoryContextSwitchTo(currentQueryEnv->memctx);
+	tsql_cleanup_queryEnv(currentQueryEnv);
+	pfree(currentQueryEnv);
+	MemoryContextSwitchTo(oldcxt);
+
+	currentQueryEnv = tmp;
+}
+
+/* Any tsql-specific queryEnv initialization should go here. */
+static void tsql_setup_queryEnv(QueryEnvironment *queryEnv)
+{
+	queryEnv->namedRelList = NIL;
+	queryEnv->dropped_namedRelList = NIL;
+	queryEnv->savedCatcacheMessages = NIL;
+}
+
+/* Any tsql-specific queryEnv cleanup should go here. */
+static void tsql_cleanup_queryEnv(QueryEnvironment *queryEnv)
+{
+	ListCell *lc;
 
 	/* Clean up structures in currentQueryEnv */
 	foreach(lc, currentQueryEnv->dropped_namedRelList)
@@ -156,11 +154,6 @@ void remove_queryEnv() {
 
 	list_free(currentQueryEnv->savedCatcacheMessages);
 	currentQueryEnv->savedCatcacheMessages = NIL;
-
-	pfree(currentQueryEnv);
-	MemoryContextSwitchTo(oldcxt);
-
-	currentQueryEnv = tmp;
 }
 
 EphemeralNamedRelationMetadata
@@ -232,98 +225,6 @@ List *get_namedRelList()
 	return relList;
 }
 
-bool has_existing_enr_relations()
-{
-	QueryEnvironment *queryEnv = currentQueryEnv;
-
-	while (queryEnv)
-	{
-		if (queryEnv->namedRelList != NIL)
-			return true;
-
-		queryEnv = queryEnv->parentEnv;
-	}
-
-	return false;
-}
-
-/* This only stores catcache inval messages meant for ENR tables in the current transaction. */
-void SaveCatcacheMessage(int cacheId,
-							 uint32 hashValue,
-							 Oid dbId)
-{
-	SharedInvalCatcacheMsg *msg = (SharedInvalCatcacheMsg *) palloc0(sizeof(SharedInvalCatcacheMsg));
-	msg->id = cacheId;
-	msg->dbId = dbId;
-	msg->hashValue = hashValue;
-
-	currentQueryEnv->savedCatcacheMessages = lappend(currentQueryEnv->savedCatcacheMessages, msg);
-}
-
-/* Clear any saved catcache messages at end of xact. */
-void ClearSavedCatcacheMessages()
-{
-	if (!currentQueryEnv || !currentQueryEnv->savedCatcacheMessages)
-		return;
-
-	list_free_deep(currentQueryEnv->savedCatcacheMessages);
-	currentQueryEnv->savedCatcacheMessages = NIL;
-}
-
-/*
- * SIMessageIsForTempTable
- * 
- * Determine whether the msg sent is for a temp table. 
- * TSQL style temp tables do not need to add messages to the
- * SI queue, as catalog changes are all session-local.
- * 
- * See LocalExecuteInvalidationMessage
- */
-bool SIMessageIsForTempTable(const SharedInvalidationMessage *msg)
-{
-	if (sql_dialect != SQL_DIALECT_TSQL || temp_oid_buffer_size == 0)
-		return false;
-
-	if (msg->id >= 0)
-	{
-		ListCell *lc;
-		if (!currentQueryEnv)
-			return false;
-		foreach(lc, currentQueryEnv->savedCatcacheMessages)
-		{
-			SharedInvalCatcacheMsg *saved_msg = (SharedInvalCatcacheMsg *) lfirst(lc);
-			if (saved_msg->dbId == msg->cc.dbId
-			&& saved_msg->hashValue == msg->cc.hashValue
-			&& saved_msg->id == msg->cc.id)
-				return true;
-		}
-		return false;
-	}
-	else if (msg->id == SHAREDINVALCATALOG_ID)
-	{
-		return false;
-	}
-	else if (msg->id == SHAREDINVALRELCACHE_ID)
-	{
-		/* This is set in AddRelcacheInvalidationMessage. */
-		return msg->rc.local_only;
-	}
-	else if (msg->id == SHAREDINVALSMGR_ID)
-	{
-		return false;
-	}
-	else if (msg->id == SHAREDINVALRELMAP_ID)
-	{
-		return false;
-	}
-	else if (msg->id == SHAREDINVALSNAPSHOT_ID)
-	{
-		return false;
-	}
-	else
-		elog(ERROR, "unrecognized SI message ID: %d", msg->id);
-}
-
 /*
  * This returns an ENR if there is a name match in the given collection.  It
  * must quietly return NULL if no match is found.
@@ -386,6 +287,16 @@ get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType ty
 }
 
 /*
+ * This is a wrapper function to get_ENR_withoid with the commonly 
+ * provided arguments of currentQueryEnv and ENR_TSQL_TEMP.
+ */
+EphemeralNamedRelation
+GetENRTempTableWithOid(Oid id)
+{
+	return get_ENR_withoid(currentQueryEnv, id, ENR_TSQL_TEMP);
+}
+
+/*
  * Gets the TupleDesc for a Ephemeral Named Relation, based on which field was
  * filled.
  *
@@ -421,7 +332,7 @@ ENRMetadataGetTupDesc(EphemeralNamedRelationMetadata enrmd)
  *
  * Returns true if we have found a qualified tuple and stored in *tuplist and *tuplist_i.
  */
-bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List **tuplist, int *tuplist_i, int *tuplist_flags)
+bool ENRGetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List **tuplist, int *tuplist_i, int *tuplist_flags)
 {
 	QueryEnvironment *queryEnv = currentQueryEnv;
 	bool found = false;
@@ -773,166 +684,35 @@ bool ENRgetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 	return found;
 }
 
-static EphemeralNamedRelation
-find_enr(Form_pg_depend entry)
+
+/*
+ * Add tuple to an ENR. It assumes that an ENR entry has been created with
+ * the relation name and relation oid.
+ */
+bool ENRAddTuple(Relation rel, HeapTuple tup)
 {
-	QueryEnvironment *queryEnv = currentQueryEnv;
-	Oid catalog_oid = entry->classid;
-
-	ListCell         *curlc;
-
-	while (queryEnv)
-	{
-		switch (catalog_oid) {
-			/*
-			* pg_depend entry shows relation/type/constraint depends on a given object.
-			* Find the relation from ENR. If found, make sure
-			* to register the dependency of the ENR relation to this object.
-			*/
-			case RelationRelationId:
-				return get_ENR_withoid(queryEnv, entry->objid, ENR_TSQL_TEMP);
-
-			case TypeRelationId:
-				foreach(curlc, queryEnv->namedRelList) {
-					EphemeralNamedRelation tmp_enr;
-					ListCell *type_lc;
-
-					tmp_enr = (EphemeralNamedRelation) lfirst(curlc);
-					if (tmp_enr->md.enrtype != ENR_TSQL_TEMP)
-						continue;
-
-					foreach(type_lc, tmp_enr->md.cattups[ENR_CATTUP_TYPE])
-					{
-						Form_pg_type tup = ((Form_pg_type)GETSTRUCT((HeapTuple)lfirst(type_lc)));
-						if (tup->oid == entry->objid)
-							return tmp_enr;
-					}
-					foreach(type_lc, tmp_enr->md.cattups[ENR_CATTUP_ARRAYTYPE])
-					{
-						Form_pg_type tup = ((Form_pg_type)GETSTRUCT((HeapTuple)lfirst(type_lc)));
-						if (tup->oid == entry->objid)
-							return tmp_enr;
-					}
-				}
-				break;
-
-			case ConstraintRelationId:
-			case AttrDefaultRelationId:
-				return get_ENR_withoid(queryEnv, entry->refobjid, ENR_TSQL_TEMP);
-
-			default:
-				break;
-		}
-		queryEnv = queryEnv->parentEnv;
-	}
-	return NULL;
+	return _ENR_tuple_operation(rel, tup, ENR_OP_ADD, false, false);
 }
 
 /*
- * Store uncommitted tuple metadata in ENR.
+ * Drop tuple of an ENR.
+ * We shouldn't assume the origin of the input tuples (i.e. whether it comes
+ * from the ENR itself) so we need to search in ENR based on the given tuple.
  */
-static void
-ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOperationType op, HeapTuple tup, bool in_enr_rollback)
+bool ENRDropTuple(Relation rel, HeapTuple tup)
 {
-	ENRUncommittedTuple uncommitted_tup;
-	List **list_ptr = NULL;
-	
-	if (in_enr_rollback)
-		return;
-	
-	uncommitted_tup = (ENRUncommittedTuple) palloc0(sizeof(ENRUncommittedTupleData));
-	uncommitted_tup->catalog_oid = catoid;
-	uncommitted_tup->optype = op;
-	uncommitted_tup->tup = heap_copytuple(tup);
-	uncommitted_tup->subid = GetCurrentSubTransactionId();
-
-	switch (catoid)
-	{
-		case RelationRelationId:
-			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_CLASS];
-			break;
-		case DependRelationId:
-			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_DEPEND];
-			break;
-		case SharedDependRelationId:
-			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_SHDEPEND];
-			break;
-		case IndexRelationId:
-			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_INDEX];
-			break;
-		case TypeRelationId:
-			/* Composite type */
-			if (((Form_pg_type) GETSTRUCT(tup))->typelem == InvalidOid) {
-				list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_TYPE];
-				break;
-			/* Array type */
-			} else {
-				list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_ARRAYTYPE];
-				break;
-			}
-		case AttributeRelationId:
-			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_ATTRIBUTE];
-			break;
-		case ConstraintRelationId:
-			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_CONSTRAINT];
-			break;
-		case StatisticRelationId:
-			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_STATISTIC];
-			break;
-		case StatisticExtRelationId:
-			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_STATISTIC_EXT];
-			break;
-		case SequenceRelationId:
-			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_SEQUENCE];
-			break;
-		case AttrDefaultRelationId:
-			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_ATTR_DEF_REL];
-			break;
-		default:
-			/* Shouldn't reach here */
-			elog(ERROR, "Did not find matching ENR catalog entry for catoid %d", catoid);
-			break;
-	}
-
 	/*
-	 * lcons here takes the length of the list, so it is less efficient than lappend. 
-	 * However, we want the uncommitted_tup order to behave more like a stack to 
-	 * process ROLLBACK in the right order of operations. 
+	 * If we've already dropped it in this transaction but haven't committed, pretend the drop is done. 
 	 */
-	*list_ptr = lcons(uncommitted_tup, *list_ptr);
+	return _ENR_tuple_operation(rel, tup, ENR_OP_DROP, false, false);
 }
 
 /*
- * Clean up all uncommitted tuple data from this ENR.
- * 
- * This is called on COMMIT, to wipe unnecessary uncommitted tuple data away
- * and on ROLLBACK, once the changes have been rolled back. 
+ * Update tuple of an ENR.
  */
-static void
-ENRDeleteUncommittedTupleData(SubTransactionId subid, EphemeralNamedRelation enr)
+bool ENRUpdateTuple(Relation rel, HeapTuple tup)
 {
-	for (int i = 0; i < ENR_CATTUP_END; i++)
-	{
-		ListCell *lc;
-
-		foreach(lc, enr->md.uncommitted_cattups[i])
-		{
-			ENRUncommittedTuple uncommitted_tup = (ENRUncommittedTuple) lfirst(lc);
-
-			if (subid != InvalidSubTransactionId && uncommitted_tup->subid < subid)
-				continue;
-
-			heap_freetuple(uncommitted_tup->tup);
-			pfree(uncommitted_tup);
-
-			enr->md.uncommitted_cattups[i] = foreach_delete_current(enr->md.uncommitted_cattups[i], lc);
-		}
-		if (subid == InvalidSubTransactionId)
-		{
-			list_free(enr->md.uncommitted_cattups[i]);
-			enr->md.uncommitted_cattups[i] = NIL;
-		}
-	}
+	return _ENR_tuple_operation(rel, tup, ENR_OP_UPDATE, false, false);
 }
 
 /*
@@ -1217,33 +997,60 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 }
 
 /*
- * Add tuple to an ENR. It assumes that an ENR entry has been created with
- * the relation name and relation oid.
+ * Helper for _ENR_tuple_operation
  */
-bool ENRaddTuple(Relation rel, HeapTuple tup)
+static EphemeralNamedRelation find_enr(Form_pg_depend entry)
 {
-	return _ENR_tuple_operation(rel, tup, ENR_OP_ADD, false, false);
-}
+	QueryEnvironment *queryEnv = currentQueryEnv;
+	Oid catalog_oid = entry->classid;
 
-/*
- * Drop tuple of an ENR.
- * We shouldn't assume the origin of the input tuples (i.e. whether it comes
- * from the ENR itself) so we need to search in ENR based on the given tuple.
- */
-bool ENRdropTuple(Relation rel, HeapTuple tup)
-{
-	/*
-	 * If we've already dropped it in this transaction but haven't committed, pretend the drop is done. 
-	 */
-	return _ENR_tuple_operation(rel, tup, ENR_OP_DROP, false, false);
-}
+	ListCell         *curlc;
 
-/*
- * Update tuple of an ENR.
- */
-bool ENRupdateTuple(Relation rel, HeapTuple tup)
-{
-	return _ENR_tuple_operation(rel, tup, ENR_OP_UPDATE, false, false);
+	while (queryEnv)
+	{
+		switch (catalog_oid) {
+			/*
+			* pg_depend entry shows relation/type/constraint depends on a given object.
+			* Find the relation from ENR. If found, make sure
+			* to register the dependency of the ENR relation to this object.
+			*/
+			case RelationRelationId:
+				return get_ENR_withoid(queryEnv, entry->objid, ENR_TSQL_TEMP);
+
+			case TypeRelationId:
+				foreach(curlc, queryEnv->namedRelList) {
+					EphemeralNamedRelation tmp_enr;
+					ListCell *type_lc;
+
+					tmp_enr = (EphemeralNamedRelation) lfirst(curlc);
+					if (tmp_enr->md.enrtype != ENR_TSQL_TEMP)
+						continue;
+
+					foreach(type_lc, tmp_enr->md.cattups[ENR_CATTUP_TYPE])
+					{
+						Form_pg_type tup = ((Form_pg_type)GETSTRUCT((HeapTuple)lfirst(type_lc)));
+						if (tup->oid == entry->objid)
+							return tmp_enr;
+					}
+					foreach(type_lc, tmp_enr->md.cattups[ENR_CATTUP_ARRAYTYPE])
+					{
+						Form_pg_type tup = ((Form_pg_type)GETSTRUCT((HeapTuple)lfirst(type_lc)));
+						if (tup->oid == entry->objid)
+							return tmp_enr;
+					}
+				}
+				break;
+
+			case ConstraintRelationId:
+			case AttrDefaultRelationId:
+				return get_ENR_withoid(queryEnv, entry->refobjid, ENR_TSQL_TEMP);
+
+			default:
+				break;
+		}
+		queryEnv = queryEnv->parentEnv;
+	}
+	return NULL;
 }
 
 /*
@@ -1257,7 +1064,7 @@ void ENRDropEntry(Oid id)
 	if (sql_dialect != SQL_DIALECT_TSQL || !currentQueryEnv)
 		return;
 
-	if ((enr = get_ENR_withoid(currentQueryEnv, id, ENR_TSQL_TEMP)) == NULL)
+	if ((enr = GetENRTempTableWithOid(id)) == NULL)
 		return;
 
 	oldcxt = MemoryContextSwitchTo(currentQueryEnv->memctx);
@@ -1275,6 +1082,169 @@ void ENRDropEntry(Oid id)
 		pfree(enr);
 	}
 	MemoryContextSwitchTo(oldcxt);
+}
+
+/*
+ * Drop all the temp tables registered as ENR in the given query environment.
+ */
+void
+ENRDropTempTables(QueryEnvironment *queryEnv)
+{
+	ListCell		*lc = NULL;
+	ObjectAddress	object;
+	ObjectAddresses	*objects;
+	int				nrels = 0,
+					maxrels = 0;
+	SMgrRelation	*srels = NULL;
+
+	if (!queryEnv)
+		return;
+
+	objects = new_object_addresses();
+
+	/*
+	 * Loop through the registered ENRs to drop temp tables.
+	 */
+	foreach(lc, queryEnv->namedRelList)
+	{
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+		Relation rel;
+		SMgrRelation srel;
+
+		if (enr->md.enrtype != ENR_TSQL_TEMP)
+			continue;
+
+		object.classId = RelationRelationId;
+		object.objectSubId = 0;
+		object.objectId = enr->md.reliddesc;
+		add_exact_object_address(&object, objects);
+		/*
+		 * Delete the physical storage for the relation.
+		 * See: smgrDoPendingDeletes()
+		 */
+		rel = relation_open(enr->md.reliddesc, AccessExclusiveLock);
+		srel = smgropen(rel->rd_locator, rel->rd_backend);
+
+		/* allocate the initial array, or extend it, if needed */
+		if (maxrels == 0)
+		{
+			maxrels = 8;
+			srels = palloc(sizeof(SMgrRelation) * maxrels);
+		}
+		else if (maxrels <= nrels)
+		{
+			maxrels *= 2;
+			srels = repalloc(srels, sizeof(SMgrRelation) * maxrels);
+		}
+
+		srels[nrels++] = srel;
+
+		relation_close(rel, NoLock);
+	}
+
+	/*
+	 * The below call to performMultpleDeletions() only registers the 
+	 * underlying files for deletion at the end of transaction, but they
+	 * need to be deleted now since we are exiting the current scope. We
+	 * still need to run the function though, to make sure that all of the
+	 * dependencies are properly cleaned up.
+	 */
+	if (nrels > 0)
+	{
+		smgrdounlinkall(srels, nrels, false);
+
+		for (int i = 0; i < nrels; i++)
+			smgrclose(srels[i]);
+
+		pfree(srels);
+	}
+
+	/*
+	 * performMultipleDeletions() will remove the table AND the ENR entry,
+	 * so no need to remove the entry afterwards. It also takes care of
+	 * proper object drop order, to prevent dependency issues.
+	 */
+	performMultipleDeletions(objects, DROP_CASCADE, PERFORM_DELETION_INTERNAL | PERFORM_DELETION_QUIETLY);
+	free_object_addresses(objects);
+}
+
+/*
+ * Drop all records of the relid from catalog_relation.
+ * ie: delete * from catalog_relation where *relid=<relid>
+ */
+void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
+{
+	QueryEnvironment	*queryEnv = currentQueryEnv;
+	bool ret = false;
+	Oid catalog_oid;
+	List	**list_ptr = NULL;
+	EphemeralNamedRelation enr;
+
+	catalog_oid = RelationGetRelid(catalog_relation);
+	while (queryEnv && !ret)
+	{
+		switch (catalog_oid) {
+			case AttributeRelationId:
+				if ((enr = get_ENR_withoid(queryEnv, relid, ENR_TSQL_TEMP))) {
+					list_ptr = &enr->md.cattups[ENR_CATTUP_ATTRIBUTE];
+					ret = true;
+				}
+				break;
+			default:
+				ereport(ERROR, (errmsg("Unreachable codepath")));
+		}
+
+		if (ret) {
+			HeapTuple htup;
+			MemoryContext oldcxt;
+
+			Assert(queryEnv->memctx);
+			oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
+
+			while (*list_ptr)
+			{
+				htup = list_nth(*list_ptr, 0);
+				*list_ptr = list_delete_ptr(*list_ptr, htup);
+
+				if (temp_table_xact_support)
+					ENRAddUncommittedTupleData(enr, catalog_oid, ENR_OP_DROP, htup, false);
+
+				CacheInvalidateHeapTuple(catalog_relation, htup, NULL);
+				heap_freetuple(htup); // heap_copytuple was called during ADD
+			}
+
+			MemoryContextSwitchTo(oldcxt);
+		}
+
+		queryEnv = queryEnv->parentEnv;
+	}
+}
+
+/* Loop through structures in the ENR and make sure to free anything that needs to be freed. */
+static void free_ENR(EphemeralNamedRelation enr)
+{
+	for (int i = 0; i < ENR_CATTUP_END; i++)
+	{
+		List *uncommitted_cattups = enr->md.uncommitted_cattups[i];
+		List *cattups = enr->md.cattups[i];
+		ListCell *lc2, *lc3;
+
+		foreach(lc2, uncommitted_cattups)
+		{
+			ENRUncommittedTuple uncommitted_tup = (ENRUncommittedTuple) lfirst(lc2);
+
+			heap_freetuple(uncommitted_tup->tup);
+		}
+
+		foreach(lc3, cattups)
+		{
+			HeapTuple tup = (HeapTuple) lfirst(lc3);
+
+			heap_freetuple(tup);
+		}
+	}
+
+	pfree(enr->md.name);
 }
 
 /*
@@ -1321,54 +1291,6 @@ ENRCommitChanges(QueryEnvironment *queryEnv)
 	MemoryContextSwitchTo(oldcxt);
 }
 
-/*
- * Helper function - finish the ROLLBACK processing for a single uncommitted_tup entry.
- */
-static void
-ENRRollbackUncommittedTuple(QueryEnvironment *queryEnv, ENRUncommittedTuple uncommitted_tup)
-{
-	Relation rel;
-	bool skip_cache_inval = false;
-
-	if (!OidIsValid(uncommitted_tup->catalog_oid) || !HeapTupleIsValid(uncommitted_tup->tup))
-	{
-		elog(WARNING, "Invalid temp table entries were found during ROLLBACK");
-		return;
-	}
-
-	if (uncommitted_tup->catalog_oid == IndexRelationId && uncommitted_tup->optype == ENR_OP_ADD)
-	{
-		/*
-		* We skip invalidating IndexRelationId on drop (ie committed table, index created in transaction) 
-		* because it will be taken care of when the index itself is dropped - otherwise we risk
-		* throwing an error because the entry is already wiped away.
-		*/
-		
-		Form_pg_index idx_form = (Form_pg_index) GETSTRUCT(uncommitted_tup->tup);
-		EphemeralNamedRelation tmp_enr = get_ENR_withoid(queryEnv, idx_form->indrelid, ENR_TSQL_TEMP);
-		if (tmp_enr)
-		{
-			skip_cache_inval = true;
-		}
-	}
-
-	rel = relation_open(uncommitted_tup->catalog_oid, RowExclusiveLock);
-
-	switch(uncommitted_tup->optype)
-	{
-		/* Peform the opposite operation as the saved optype. */
-		case ENR_OP_ADD:
-			_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_DROP, skip_cache_inval, true);
-			break;
-		case ENR_OP_UPDATE:
-			_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_UPDATE, skip_cache_inval, true);
-			break;
-		case ENR_OP_DROP:
-			_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_ADD, skip_cache_inval, true);
-			break;
-	}
-	relation_close(rel, RowExclusiveLock);
-}
 
 /*
  * ENRRollbackChanges
@@ -1525,10 +1447,260 @@ void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEn
 	MemoryContextSwitchTo(oldcxt);
 }
 
+/*
+ * Store uncommitted tuple metadata in ENR.
+ */
+static void
+ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOperationType op, HeapTuple tup, bool in_enr_rollback)
+{
+	ENRUncommittedTuple uncommitted_tup;
+	List **list_ptr = NULL;
+	
+	if (in_enr_rollback)
+		return;
+	
+	uncommitted_tup = (ENRUncommittedTuple) palloc0(sizeof(ENRUncommittedTupleData));
+	uncommitted_tup->catalog_oid = catoid;
+	uncommitted_tup->optype = op;
+	uncommitted_tup->tup = heap_copytuple(tup);
+	uncommitted_tup->subid = GetCurrentSubTransactionId();
+
+	switch (catoid)
+	{
+		case RelationRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_CLASS];
+			break;
+		case DependRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_DEPEND];
+			break;
+		case SharedDependRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_SHDEPEND];
+			break;
+		case IndexRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_INDEX];
+			break;
+		case TypeRelationId:
+			/* Composite type */
+			if (((Form_pg_type) GETSTRUCT(tup))->typelem == InvalidOid) {
+				list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_TYPE];
+				break;
+			/* Array type */
+			} else {
+				list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_ARRAYTYPE];
+				break;
+			}
+		case AttributeRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_ATTRIBUTE];
+			break;
+		case ConstraintRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_CONSTRAINT];
+			break;
+		case StatisticRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_STATISTIC];
+			break;
+		case StatisticExtRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_STATISTIC_EXT];
+			break;
+		case SequenceRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_SEQUENCE];
+			break;
+		case AttrDefaultRelationId:
+			list_ptr = &enr->md.uncommitted_cattups[ENR_CATTUP_ATTR_DEF_REL];
+			break;
+		default:
+			/* Shouldn't reach here */
+			elog(ERROR, "Did not find matching ENR catalog entry for catoid %d", catoid);
+			break;
+	}
+
+	/*
+	 * lcons here takes the length of the list, so it is less efficient than lappend. 
+	 * However, we want the uncommitted_tup order to behave more like a stack to 
+	 * process ROLLBACK in the right order of operations. 
+	 */
+	*list_ptr = lcons(uncommitted_tup, *list_ptr);
+}
+
+/*
+ * Clean up all uncommitted tuple data from this ENR.
+ * 
+ * This is called on COMMIT, to wipe unnecessary uncommitted tuple data away
+ * and on ROLLBACK, once the changes have been rolled back. 
+ */
+static void
+ENRDeleteUncommittedTupleData(SubTransactionId subid, EphemeralNamedRelation enr)
+{
+	for (int i = 0; i < ENR_CATTUP_END; i++)
+	{
+		ListCell *lc;
+
+		foreach(lc, enr->md.uncommitted_cattups[i])
+		{
+			ENRUncommittedTuple uncommitted_tup = (ENRUncommittedTuple) lfirst(lc);
+
+			if (subid != InvalidSubTransactionId && uncommitted_tup->subid < subid)
+				continue;
+
+			heap_freetuple(uncommitted_tup->tup);
+			pfree(uncommitted_tup);
+
+			enr->md.uncommitted_cattups[i] = foreach_delete_current(enr->md.uncommitted_cattups[i], lc);
+		}
+		if (subid == InvalidSubTransactionId)
+		{
+			list_free(enr->md.uncommitted_cattups[i]);
+			enr->md.uncommitted_cattups[i] = NIL;
+		}
+	}
+}
+
+/*
+ * Helper function - finish the ROLLBACK processing for a single uncommitted_tup entry.
+ */
+static void
+ENRRollbackUncommittedTuple(QueryEnvironment *queryEnv, ENRUncommittedTuple uncommitted_tup)
+{
+	Relation rel;
+	bool skip_cache_inval = false;
+
+	if (!OidIsValid(uncommitted_tup->catalog_oid) || !HeapTupleIsValid(uncommitted_tup->tup))
+	{
+		elog(WARNING, "Invalid temp table entries were found during ROLLBACK");
+		return;
+	}
+
+	if (uncommitted_tup->catalog_oid == IndexRelationId && uncommitted_tup->optype == ENR_OP_ADD)
+	{
+		/*
+		* We skip invalidating IndexRelationId on drop (ie committed table, index created in transaction) 
+		* because it will be taken care of when the index itself is dropped - otherwise we risk
+		* throwing an error because the entry is already wiped away.
+		*/
+		
+		Form_pg_index idx_form = (Form_pg_index) GETSTRUCT(uncommitted_tup->tup);
+		if (get_ENR_withoid(queryEnv, idx_form->indrelid, ENR_TSQL_TEMP))
+		{
+			skip_cache_inval = true;
+		}
+	}
+
+	rel = relation_open(uncommitted_tup->catalog_oid, RowExclusiveLock);
+
+	switch(uncommitted_tup->optype)
+	{
+		/* Peform the opposite operation as the saved optype. */
+		case ENR_OP_ADD:
+			_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_DROP, skip_cache_inval, true);
+			break;
+		case ENR_OP_UPDATE:
+			_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_UPDATE, skip_cache_inval, true);
+			break;
+		case ENR_OP_DROP:
+			_ENR_tuple_operation(rel, uncommitted_tup->tup, ENR_OP_ADD, skip_cache_inval, true);
+			break;
+	}
+	relation_close(rel, RowExclusiveLock);
+}
+
+/* This only stores catcache inval messages meant for ENR tables in the current transaction. */
+void SaveCatcacheMessage(int cacheId,
+							 uint32 hashValue,
+							 Oid dbId)
+{
+	SharedInvalCatcacheMsg *msg = (SharedInvalCatcacheMsg *) palloc0(sizeof(SharedInvalCatcacheMsg));
+	msg->id = cacheId;
+	msg->dbId = dbId;
+	msg->hashValue = hashValue;
+
+	currentQueryEnv->savedCatcacheMessages = lappend(currentQueryEnv->savedCatcacheMessages, msg);
+}
+
+/* Clear any saved catcache messages at end of xact. */
+void ClearSavedCatcacheMessages()
+{
+	if (!currentQueryEnv || !currentQueryEnv->savedCatcacheMessages)
+		return;
+
+	list_free_deep(currentQueryEnv->savedCatcacheMessages);
+	currentQueryEnv->savedCatcacheMessages = NIL;
+}
+
+/*
+ * SIMessageIsForTempTable
+ * 
+ * Determine whether the msg sent is for a temp table. 
+ * TSQL style temp tables do not need to add messages to the
+ * SI queue, as catalog changes are all session-local.
+ * 
+ * See LocalExecuteInvalidationMessage
+ */
+bool SIMessageIsForTempTable(const SharedInvalidationMessage *msg)
+{
+	if (sql_dialect != SQL_DIALECT_TSQL || temp_oid_buffer_size == 0)
+		return false;
+
+	if (msg->id >= 0)
+	{
+		ListCell *lc;
+		if (!currentQueryEnv)
+			return false;
+		foreach(lc, currentQueryEnv->savedCatcacheMessages)
+		{
+			SharedInvalCatcacheMsg *saved_msg = (SharedInvalCatcacheMsg *) lfirst(lc);
+			if (saved_msg->dbId == msg->cc.dbId
+			&& saved_msg->hashValue == msg->cc.hashValue
+			&& saved_msg->id == msg->cc.id)
+				return true;
+		}
+		return false;
+	}
+	else if (msg->id == SHAREDINVALCATALOG_ID)
+	{
+		return false;
+	}
+	else if (msg->id == SHAREDINVALRELCACHE_ID)
+	{
+		/* This is set in AddRelcacheInvalidationMessage. */
+		return msg->rc.local_only;
+	}
+	else if (msg->id == SHAREDINVALSMGR_ID)
+	{
+		return false;
+	}
+	else if (msg->id == SHAREDINVALRELMAP_ID)
+	{
+		return false;
+	}
+	else if (msg->id == SHAREDINVALSNAPSHOT_ID)
+	{
+		return false;
+	}
+	else
+		elog(ERROR, "unrecognized SI message ID: %d", msg->id);
+}
+
+/* Simple wrapper for Table Variable checks */
+bool IsTsqlTableVariable(Relation relation)
+{
+	return sql_dialect == SQL_DIALECT_TSQL 
+		&& relation
+		&& relation->rd_rel->relpersistence == RELPERSISTENCE_TEMP 
+		&& relation->rd_rel->relname.data 
+		&& strlen(relation->rd_rel->relname.data) >= 1 
+		&& relation->rd_rel->relname.data[0] == '@';
+}
+
+/* Simple wrapper for Temp Table checks */
+bool IsTsqlTempTable(char relpersistence)
+{
+	return sql_dialect == SQL_DIALECT_TSQL 
+		&& relpersistence == RELPERSISTENCE_TEMP;
+}
+
 /* 
  * Simple check for whether to use temp OID buffer.
  */
-bool useTempOidBuffer()
+bool UseTempOidBuffer()
 {
 	return sql_dialect == SQL_DIALECT_TSQL 
 		&& GetNewTempOidWithIndex_hook 
@@ -1536,146 +1708,23 @@ bool useTempOidBuffer()
 }
 
 /* Simple check for whether to use temp OID buffer given an existing OID. */
-bool useTempOidBufferForOid(Oid relId)
+bool UseTempOidBufferForOid(Oid relId)
 {
-	return sql_dialect == SQL_DIALECT_TSQL 
-		&& GetNewTempOidWithIndex_hook 
-		&& temp_oid_buffer_size > 0
-		&& get_ENR_withoid(currentQueryEnv, relId, ENR_TSQL_TEMP);
+	return UseTempOidBuffer()
+		&& GetENRTempTableWithOid(relId);
 }
 
-/*
- * Drop all the temp tables registered as ENR in the given query environment.
- */
-void
-ENRDropTempTables(QueryEnvironment *queryEnv)
+bool has_existing_enr_relations()
 {
-	ListCell		*lc = NULL;
-	ObjectAddress	object;
-	ObjectAddresses	*objects;
-	int				nrels = 0,
-					maxrels = 0;
-	SMgrRelation	*srels = NULL;
+	QueryEnvironment *queryEnv = currentQueryEnv;
 
-	if (!queryEnv)
-		return;
-
-	objects = new_object_addresses();
-
-	/*
-	 * Loop through the registered ENRs to drop temp tables.
-	 */
-	foreach(lc, queryEnv->namedRelList)
+	while (queryEnv)
 	{
-		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
-		Relation rel;
-		SMgrRelation srel;
-
-		if (enr->md.enrtype != ENR_TSQL_TEMP)
-			continue;
-
-		object.classId = RelationRelationId;
-		object.objectSubId = 0;
-		object.objectId = enr->md.reliddesc;
-		add_exact_object_address(&object, objects);
-		/*
-		 * Delete the physical storage for the relation.
-		 * See: smgrDoPendingDeletes()
-		 */
-		rel = relation_open(enr->md.reliddesc, AccessExclusiveLock);
-		srel = smgropen(rel->rd_locator, rel->rd_backend);
-
-		/* allocate the initial array, or extend it, if needed */
-		if (maxrels == 0)
-		{
-			maxrels = 8;
-			srels = palloc(sizeof(SMgrRelation) * maxrels);
-		}
-		else if (maxrels <= nrels)
-		{
-			maxrels *= 2;
-			srels = repalloc(srels, sizeof(SMgrRelation) * maxrels);
-		}
-
-		srels[nrels++] = srel;
-
-		relation_close(rel, NoLock);
-	}
-
-	/*
-	 * The below call to performMultpleDeletions() only registers the 
-	 * underlying files for deletion at the end of transaction, but they
-	 * need to be deleted now since we are exiting the current scope. We
-	 * still need to run the function though, to make sure that all of the
-	 * dependencies are properly cleaned up.
-	 */
-	if (nrels > 0)
-	{
-		smgrdounlinkall(srels, nrels, false);
-
-		for (int i = 0; i < nrels; i++)
-			smgrclose(srels[i]);
-
-		pfree(srels);
-	}
-
-	/*
-	 * performMultipleDeletions() will remove the table AND the ENR entry,
-	 * so no need to remove the entry afterwards. It also takes care of
-	 * proper object drop order, to prevent dependency issues.
-	 */
-	performMultipleDeletions(objects, DROP_CASCADE, PERFORM_DELETION_INTERNAL | PERFORM_DELETION_QUIETLY);
-	free_object_addresses(objects);
-}
-
-/*
- * Drop all records of the relid from catalog_relation.
- * ie: delete * from catalog_relation where *relid=<relid>
-*/
-extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
-{
-	QueryEnvironment	*queryEnv = currentQueryEnv;
-	bool ret = false;
-	Oid catalog_oid;
-	List	**list_ptr = NULL;
-	EphemeralNamedRelation enr;
-
-	catalog_oid = RelationGetRelid(catalog_relation);
-	while (queryEnv && !ret)
-	{
-		switch (catalog_oid) {
-			case AttributeRelationId:
-				if ((enr = get_ENR_withoid(queryEnv, relid, ENR_TSQL_TEMP))) {
-					list_ptr = &enr->md.cattups[ENR_CATTUP_ATTRIBUTE];
-					ret = true;
-				}
-				break;
-			default:
-				ereport(ERROR, (errmsg("Unreachable codepath")));
-		}
-
-		if (ret) {
-			HeapTuple htup;
-			MemoryContext oldcxt;
-
-			Assert(queryEnv->memctx);
-			oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
-
-			while (*list_ptr)
-			{
-				htup = list_nth(*list_ptr, 0);
-				*list_ptr = list_delete_ptr(*list_ptr, htup);
-
-				if (temp_table_xact_support)
-					ENRAddUncommittedTupleData(enr, catalog_oid, ENR_OP_DROP, htup, false);
-
-				CacheInvalidateHeapTuple(catalog_relation, htup, NULL);
-				heap_freetuple(htup); // heap_copytuple was called during ADD
-			}
-
-			MemoryContextSwitchTo(oldcxt);
-		}
+		if (queryEnv->namedRelList != NIL)
+			return true;
 
 		queryEnv = queryEnv->parentEnv;
 	}
+
+	return false;
 }

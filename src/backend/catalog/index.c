@@ -766,7 +766,7 @@ index_create(Relation heapRelation,
 		 * PRIMARY KEYs and/or CONSTRAINTs.
 		 */
 		is_enr = (indexRelationName && strlen(indexRelationName) > 0 &&
-			(indexRelationName[0] == '@' || get_ENR_withoid(currentQueryEnv, heapRelationId, ENR_TSQL_TEMP)));
+			(indexRelationName[0] == '@' || GetENRTempTableWithOid(heapRelationId)));
 	}
 
 	relkind = partitioned ? RELKIND_PARTITIONED_INDEX : RELKIND_INDEX;
@@ -2391,7 +2391,7 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 	hasexprs = !heap_attisnull(tuple, Anum_pg_index_indexprs,
 							   RelationGetDescr(indexRelation));
 
-	if (!ENRdropTuple(indexRelation, tuple))
+	if (!ENRDropTuple(indexRelation, tuple))
 		CatalogTupleDelete(indexRelation, &tuple->t_self);
 
 	ReleaseSysCache(tuple);

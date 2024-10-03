@@ -136,29 +136,37 @@ extern void unregister_ENR(QueryEnvironment *queryEnv, const char *name);
 extern PGDLLEXPORT List *get_namedRelList(void);
 extern EphemeralNamedRelation get_ENR(QueryEnvironment *queryEnv, const char *name, bool search);
 extern PGDLLEXPORT EphemeralNamedRelation get_ENR_withoid(QueryEnvironment *queryEnv, Oid oid, EphemeralNameRelationType type);
+extern EphemeralNamedRelation GetENRTempTableWithOid(Oid id);
 extern TupleDesc ENRMetadataGetTupDesc(EphemeralNamedRelationMetadata enrmd);
-extern bool ENRaddTuple(Relation rel, HeapTuple tup);
-extern bool ENRdropTuple(Relation rel, HeapTuple tup);
-extern bool ENRupdateTuple(Relation rel, HeapTuple tup);
-extern bool ENRgetSystableScan(Relation rel, Oid indexoid, int nkeys, ScanKey key, List **tuplist, int *tuplist_i, int *tuplist_flags);
-extern PGDLLEXPORT void ENRDropTempTables(QueryEnvironment *queryEnv);
-extern void ENRDropEntry(Oid id);
-extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid);
-extern bool has_existing_enr_relations(void);
+extern bool ENRGetSystableScan(Relation rel, Oid indexoid, int nkeys, ScanKey key, List **tuplist, int *tuplist_i, int *tuplist_flags);
+extern bool ENRAddTuple(Relation rel, HeapTuple tup);
+extern bool ENRDropTuple(Relation rel, HeapTuple tup);
+extern bool ENRUpdateTuple(Relation rel, HeapTuple tup);
 
+extern void ENRDropEntry(Oid id);
+extern PGDLLEXPORT void ENRDropTempTables(QueryEnvironment *queryEnv);
+extern void ENRDropCatalogEntry(Relation catalog_relation, Oid relid);
+
+/* ENR Rollback functions */
 extern bool ENRTupleIsDropped(Relation rel, HeapTuple tup);
 extern void ENRCommitChanges(QueryEnvironment *queryEnv);
 extern void ENRRollbackChanges(QueryEnvironment *queryEnv);
 extern void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEnv);
 
-extern bool useTempOidBuffer(void);
-extern bool useTempOidBufferForOid(Oid relId);
-
-typedef EphemeralNamedRelation (*pltsql_get_tsql_enr_from_oid_hook_type) (Oid oid);
-extern PGDLLIMPORT pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook;
-
+/* Temp Table Cache Inval */
 extern void SaveCatcacheMessage(int cacheId, uint32 hashValue, Oid dbId);
 extern void ClearSavedCatcacheMessages(void);
 extern bool SIMessageIsForTempTable(const SharedInvalidationMessage *msg);
+
+/* Various checks */
+extern bool IsTsqlTableVariable(Relation rel);
+extern bool IsTsqlTempTable(char relpersistence);
+extern bool UseTempOidBuffer(void);
+extern bool UseTempOidBufferForOid(Oid relId);
+extern bool has_existing_enr_relations(void);
+
+/* Hooks */
+typedef EphemeralNamedRelation (*pltsql_get_tsql_enr_from_oid_hook_type) (Oid oid);
+extern PGDLLIMPORT pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook;
 
 #endif							/* QUERYENVIRONMENT_H */
