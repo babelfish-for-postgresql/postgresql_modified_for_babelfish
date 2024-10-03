@@ -72,6 +72,7 @@
 #include "storage/predicate.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
+#include "utils/guc.h"
 #include "utils/inval.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
@@ -1310,7 +1311,7 @@ heap_create_with_catalog(const char *relname,
 
 		if (!OidIsValid(relid))
 			relid = GetNewRelFileNumber(reltablespace, pg_class_desc,
-										relpersistence, false);
+										relpersistence);
 	}
 
 	/*
@@ -1409,8 +1410,31 @@ heap_create_with_catalog(const char *relname,
 		/*
 		 * We'll make an array over the composite type, too.  For largely
 		 * historical reasons, the array type's OID is assigned first.
+		 * 
+		 * For temp tables, we use temp OID assignment code here as well.
 		 */
-		new_array_oid = AssignTypeArrayOid();
+		if (is_enr && useTempOidBuffer())
+		{
+			Relation	pg_type;
+
+			/* We should not be creating TSQL Temp Tables in pg_upgrade. */
+			Assert(!IsBinaryUpgrade);
+
+			pg_type = table_open(TypeRelationId, AccessShareLock);
+			new_array_oid = GetNewTempOidWithIndex_hook(pg_type, TypeOidIndexId, Anum_pg_type_oid);
+			
+			Assert(!OidIsValid(reltypeid));
+
+			/* 
+			 * We also assign reltypeid here. It would usually be assigned during AddNewRelationType
+			 * if the value provided is InvalidOid. Since we are providing a value, it won't
+			 * try to call GetNewOidWithIndex.
+			 */
+			reltypeid = GetNewTempOidWithIndex_hook(pg_type, TypeOidIndexId, Anum_pg_type_oid);
+			table_close(pg_type, AccessShareLock);
+		}
+		else
+			new_array_oid = AssignTypeArrayOid();
 
 		/*
 		 * Make the pg_type entry for the composite type.  The OID of the

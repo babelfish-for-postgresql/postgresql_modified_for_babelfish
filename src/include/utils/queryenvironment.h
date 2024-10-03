@@ -19,6 +19,7 @@
 #include "access/skey.h"
 #include "utils/memutils.h"
 #include "utils/relcache.h"
+#include "storage/sinval.h"
 
 
 typedef enum EphemeralNameRelationType
@@ -150,7 +151,14 @@ extern void ENRCommitChanges(QueryEnvironment *queryEnv);
 extern void ENRRollbackChanges(QueryEnvironment *queryEnv);
 extern void ENRRollbackSubtransaction(SubTransactionId subid, QueryEnvironment *queryEnv);
 
+extern bool useTempOidBuffer(void);
+extern bool useTempOidBufferForOid(Oid relId);
+
 typedef EphemeralNamedRelation (*pltsql_get_tsql_enr_from_oid_hook_type) (Oid oid);
 extern PGDLLIMPORT pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook;
+
+extern void SaveCatcacheMessage(int cacheId, uint32 hashValue, Oid dbId);
+extern void ClearSavedCatcacheMessages(void);
+extern bool SIMessageIsForTempTable(const SharedInvalidationMessage *msg);
 
 #endif							/* QUERYENVIRONMENT_H */

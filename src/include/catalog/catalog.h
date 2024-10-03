@@ -42,8 +42,7 @@ extern Oid	GetNewOidWithIndex(Relation relation, Oid indexId,
 							   AttrNumber oidcolumn);
 extern RelFileNumber GetNewRelFileNumber(Oid reltablespace,
 										 Relation pg_class,
-										 char relpersistence,
-										 bool override_temp);
+										 char relpersistence);
 
 typedef Oid (*GetNewTempObjectId_hook_type) (void);
 extern GetNewTempObjectId_hook_type GetNewTempObjectId_hook;
