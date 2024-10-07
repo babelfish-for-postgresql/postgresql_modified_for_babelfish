@@ -1124,9 +1124,9 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						  "ON a.database_name = b.name COLLATE \"C\" "
 						  "WHERE b.dbid = %d "
 						  "AND a.rolname NOT IN "
-						  "('master_dbo', 'master_db_owner', 'master_guest', 'master_db_datareader', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', 'msdb_db_datareader', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', 'tempdb_db_datareader') ",
+						  "('master_dbo', 'master_db_owner', 'master_guest', 'master_db_datareader', 'master_db_datawriter', "
+						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', 'msdb_db_datareader', 'msdb_db_datawriter', "
+						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', 'tempdb_db_datareader', 'tempdb_db_datawriter') ",
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	}
 	else
