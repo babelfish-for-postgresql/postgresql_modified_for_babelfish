@@ -52,6 +52,12 @@ typedef enum {
 
 static babelfish_status bbf_status = NONE;
 
+static char *default_bbf_db_principals =
+			"('master_dbo', 'master_db_owner', 'master_guest', 'master_db_accessadmin', "
+			"'msdb_dbo', 'msdb_db_owner', 'msdb_guest', 'msdb_db_accessadmin', "
+			"'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', 'tempdb_db_accessadmin') ";
+
+
 
 static char *
 getMinOid(Archive *fout)
@@ -1123,11 +1129,8 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						  "INNER JOIN sys.babelfish_sysdatabases b "
 						  "ON a.database_name = b.name COLLATE \"C\" "
 						  "WHERE b.dbid = %d "
-						  "AND a.rolname NOT IN "
-						  "('master_dbo', 'master_db_owner', 'master_guest', 'master_db_accessadmin', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', 'msdb_db_accessadmin', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', 'tempdb_db_accessadmin') ",
-						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
+						  "AND a.rolname NOT IN %s",
+						  fmtQualifiedDumpable(tbinfo), bbf_db_id, default_bbf_db_principals);
 	}
 	else
 	{
@@ -1169,11 +1172,8 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 	{
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
-						  "WHERE a.rolname NOT IN "
-						  "('master_dbo', 'master_db_owner', 'master_guest', 'master_db_accessadmin', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', 'tempdb_db_accessadmin', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', 'msdb_db_accessadmin')",
-						  fmtQualifiedDumpable(tbinfo));
+						  "WHERE a.rolname NOT IN %s",
+						  fmtQualifiedDumpable(tbinfo), default_bbf_db_principals);
 	}
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
