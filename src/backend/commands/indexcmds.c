@@ -48,6 +48,7 @@
 #include "parser/parse_coerce.h"
 #include "parser/parse_func.h"
 #include "parser/parse_oper.h"
+#include "parser/parser.h"
 #include "partitioning/partdesc.h"
 #include "pgstat.h"
 #include "rewrite/rewriteManip.h"
@@ -63,6 +64,7 @@
 #include "utils/memutils.h"
 #include "utils/partcache.h"
 #include "utils/pg_rusage.h"
+#include "utils/queryenvironment.h"
 #include "utils/regproc.h"
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
@@ -4295,16 +4297,21 @@ update_relispartition(Oid relationId, bool newval)
 	HeapTuple	tup;
 	Relation	classRel;
 	ItemPointerData otid;
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relationId, ENR_TSQL_TEMP));
 
 	classRel = table_open(RelationRelationId, RowExclusiveLock);
-	tup = SearchSysCacheLockedCopy1(RELOID, ObjectIdGetDatum(relationId));
+	if (is_enr)
+		tup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relationId));
+	else
+		tup = SearchSysCacheLockedCopy1(RELOID, ObjectIdGetDatum(relationId));
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for relation %u", relationId);
 	otid = tup->t_self;
 	Assert(((Form_pg_class) GETSTRUCT(tup))->relispartition != newval);
 	((Form_pg_class) GETSTRUCT(tup))->relispartition = newval;
 	CatalogTupleUpdate(classRel, &otid, tup);
-	UnlockTuple(classRel, &otid, InplaceUpdateTupleLock);
+	if (!is_enr)
+		UnlockTuple(classRel, &otid, InplaceUpdateTupleLock);
 	heap_freetuple(tup);
 	table_close(classRel, RowExclusiveLock);
 }
