@@ -71,6 +71,8 @@
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/optimizer.h"
+#include "parser/parser.h"
+#include "postmaster/autovacuum.h"
 #include "rewrite/rewriteDefine.h"
 #include "rewrite/rowsecurity.h"
 #include "storage/lmgr.h"
@@ -3700,6 +3702,7 @@ RelationSetNewRelfilenode(Relation relation, char persistence)
 	MultiXactId minmulti = InvalidMultiXactId;
 	TransactionId freezeXid = InvalidTransactionId;
 	RelFileNode newrnode;
+	bool			is_enr = false;
 
 	/* Allocate a new relfilenode */
 	newrelfilenode = GetNewRelFileNode(relation->rd_rel->reltablespace, NULL,
@@ -3710,8 +3713,13 @@ RelationSetNewRelfilenode(Relation relation, char persistence)
 	 */
 	pg_class = table_open(RelationRelationId, RowExclusiveLock);
 
-	tuple = SearchSysCacheLockedCopy1(RELOID,
-									  ObjectIdGetDatum(RelationGetRelid(relation)));
+	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, RelationGetRelid(relation), ENR_TSQL_TEMP));
+	if (is_enr)
+		tuple = SearchSysCacheCopy1(RELOID,
+									ObjectIdGetDatum(RelationGetRelid(relation)));
+	else
+		tuple = SearchSysCacheLockedCopy1(RELOID,
+										  ObjectIdGetDatum(RelationGetRelid(relation)));
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "could not find tuple for relation %u",
 			 RelationGetRelid(relation));
@@ -3817,7 +3825,8 @@ RelationSetNewRelfilenode(Relation relation, char persistence)
 		CatalogTupleUpdate(pg_class, &otid, tuple);
 	}
 
-	UnlockTuple(pg_class, &otid, InplaceUpdateTupleLock);
+	if (!is_enr)
+		UnlockTuple(pg_class, &otid, InplaceUpdateTupleLock);
 	heap_freetuple(tuple);
 
 	table_close(pg_class, RowExclusiveLock);

@@ -68,6 +68,7 @@
 #include "nodes/makefuncs.h"
 #include "parser/parse_func.h"
 #include "parser/parse_type.h"
+#include "parser/parser.h"
 #include "storage/lmgr.h"
 #include "utils/acl.h"
 #include "utils/aclchk_internal.h"
@@ -1779,8 +1780,12 @@ ExecGrant_Relation(InternalGrant *istmt)
 		Oid			ownerId;
 		HeapTuple	tuple;
 		ListCell   *cell_colprivs;
+		bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relOid, ENR_TSQL_TEMP));
 
-		tuple = SearchSysCacheLocked1(RELOID, ObjectIdGetDatum(relOid));
+		if (is_enr)
+			tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relOid));
+		else
+			tuple = SearchSysCacheLocked1(RELOID, ObjectIdGetDatum(relOid));
 		if (!HeapTupleIsValid(tuple))
 			elog(ERROR, "cache lookup failed for relation %u", relOid);
 		pg_class_tuple = (Form_pg_class) GETSTRUCT(tuple);
@@ -1996,7 +2001,8 @@ ExecGrant_Relation(InternalGrant *istmt)
 										 values, nulls, replaces);
 
 			CatalogTupleUpdate(relation, &newtuple->t_self, newtuple);
-			UnlockTuple(relation, &tuple->t_self, InplaceUpdateTupleLock);
+			if (!is_enr)
+				UnlockTuple(relation, &tuple->t_self, InplaceUpdateTupleLock);
 
 			/* Update initial privileges for extensions */
 			recordExtensionInitPriv(relOid, RelationRelationId, 0, new_acl);
@@ -2009,7 +2015,7 @@ ExecGrant_Relation(InternalGrant *istmt)
 
 			pfree(new_acl);
 		}
-		else
+		else if (!is_enr)
 			UnlockTuple(relation, &tuple->t_self, InplaceUpdateTupleLock);
 
 		/*
@@ -2119,8 +2125,12 @@ ExecGrant_Database(InternalGrant *istmt)
 		Oid		   *oldmembers;
 		Oid		   *newmembers;
 		HeapTuple	tuple;
+		bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, datId, ENR_TSQL_TEMP));
 
-		tuple = SearchSysCacheLocked1(DATABASEOID, ObjectIdGetDatum(datId));
+		if (is_enr)
+			tuple = SearchSysCache1(DATABASEOID, ObjectIdGetDatum(datId));
+		else
+			tuple = SearchSysCacheLocked1(DATABASEOID, ObjectIdGetDatum(datId));
 		if (!HeapTupleIsValid(tuple))
 			elog(ERROR, "cache lookup failed for database %u", datId);
 
@@ -2189,7 +2199,8 @@ ExecGrant_Database(InternalGrant *istmt)
 									 nulls, replaces);
 
 		CatalogTupleUpdate(relation, &newtuple->t_self, newtuple);
-		UnlockTuple(relation, &tuple->t_self, InplaceUpdateTupleLock);
+		if (!is_enr)
+			UnlockTuple(relation, &tuple->t_self, InplaceUpdateTupleLock);
 
 		/* Update the shared dependency ACL info */
 		updateAclDependencies(DatabaseRelationId, pg_database_tuple->oid, 0,
