@@ -1215,6 +1215,12 @@ ReleaseSysCache(HeapTuple tuple)
  *
  * The returned tuple may be the subject of an uncommitted update, so this
  * doesn't prevent the "tuple concurrently updated" error.
+ * 
+ * Note: For Babelfish, this function should not be used if the target tuple is
+ * for an ENR entry, as there is no physical tid for ENR catalog tuples (since ENR
+ * entries hold all catalog data internally in their cache). Use SearchSysCache1() instead
+ * to look up tuples for catalogs for ENR entries, and also skip the UnlockTuple() call
+ * in such cases.
  */
 HeapTuple
 SearchSysCacheLocked1(int cacheId,
@@ -1328,6 +1334,9 @@ SearchSysCacheCopy(int cacheId,
  * Meld SearchSysCacheLockedCopy1 with SearchSysCacheCopy().  After the
  * caller's heap_update(), it should UnlockTuple(InplaceUpdateTupleLock) and
  * heap_freetuple().
+ * 
+ * See SearchSysCacheLocked1() for notes about ENR entries (do not use this 
+ * function for tuples related to ENR entries).
  */
 HeapTuple
 SearchSysCacheLockedCopy1(int cacheId,

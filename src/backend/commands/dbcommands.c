@@ -49,6 +49,7 @@
 #include "common/file_perm.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
+#include "parser/parser.h"
 #include "pgstat.h"
 #include "postmaster/bgwriter.h"
 #include "replication/slot.h"
@@ -1058,6 +1059,7 @@ RenameDatabase(const char *oldname, const char *newname)
 	int			notherbackends;
 	int			npreparedxacts;
 	ObjectAddress address;
+	bool		is_enr = false;
 
 	/*
 	 * Look up the target database's OID, and get exclusive lock on it. We
@@ -1125,13 +1127,18 @@ RenameDatabase(const char *oldname, const char *newname)
 				 errdetail_busy_db(notherbackends, npreparedxacts)));
 
 	/* rename */
-	newtup = SearchSysCacheLockedCopy1(DATABASEOID, ObjectIdGetDatum(db_id));
+	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, db_id, ENR_TSQL_TEMP));
+	if (is_enr)
+		newtup = SearchSysCacheCopy1(DATABASEOID, ObjectIdGetDatum(db_id));
+	else
+		newtup = SearchSysCacheLockedCopy1(DATABASEOID, ObjectIdGetDatum(db_id));
 	if (!HeapTupleIsValid(newtup))
 		elog(ERROR, "cache lookup failed for database %u", db_id);
 	otid = newtup->t_self;
 	namestrcpy(&(((Form_pg_database) GETSTRUCT(newtup))->datname), newname);
 	CatalogTupleUpdate(rel, &otid, newtup);
-	UnlockTuple(rel, &otid, InplaceUpdateTupleLock);
+	if (!is_enr)
+		UnlockTuple(rel, &otid, InplaceUpdateTupleLock);
 
 	InvokeObjectPostAlterHook(DatabaseRelationId, db_id, 0);
 
