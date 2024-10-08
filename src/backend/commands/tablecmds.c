@@ -3438,13 +3438,17 @@ SetRelationTableSpace(Relation rel,
 	ItemPointerData otid;
 	Form_pg_class rd_rel;
 	Oid			reloid = RelationGetRelid(rel);
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, reloid, ENR_TSQL_TEMP));
 
 	Assert(CheckRelationTableSpaceMove(rel, newTableSpaceId));
 
 	/* Get a modifiable copy of the relation's pg_class row. */
 	pg_class = table_open(RelationRelationId, RowExclusiveLock);
 
-	tuple = SearchSysCacheLockedCopy1(RELOID, ObjectIdGetDatum(reloid));
+	if (is_enr)
+			tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(reloid));
+	else
+		tuple = SearchSysCacheLockedCopy1(RELOID, ObjectIdGetDatum(reloid));
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for relation %u", reloid);
 	otid = tuple->t_self;
@@ -3456,7 +3460,8 @@ SetRelationTableSpace(Relation rel,
 	if (OidIsValid(newRelFileNode))
 		rd_rel->relfilenode = newRelFileNode;
 	CatalogTupleUpdate(pg_class, &otid, tuple);
-	UnlockTuple(pg_class, &otid, InplaceUpdateTupleLock);
+	if (!is_enr)
+		UnlockTuple(pg_class, &otid, InplaceUpdateTupleLock);
 
 	/*
 	 * Record dependency on tablespace.  This is only required for relations
@@ -3954,6 +3959,7 @@ RenameRelationInternal(Oid myrelid, const char *newrelname, bool is_internal, bo
 	HeapTuple	reltup;
 	Form_pg_class relform;
 	Oid			namespaceId;
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, myrelid, ENR_TSQL_TEMP));
 
 	/*
 	 * Grab a lock on the target relation, which we will NOT release until end
@@ -3973,7 +3979,10 @@ RenameRelationInternal(Oid myrelid, const char *newrelname, bool is_internal, bo
 	 */
 	relrelation = table_open(RelationRelationId, RowExclusiveLock);
 
-	reltup = SearchSysCacheLockedCopy1(RELOID, ObjectIdGetDatum(myrelid));
+	if (is_enr)
+		reltup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(myrelid));
+	else
+		reltup = SearchSysCacheLockedCopy1(RELOID, ObjectIdGetDatum(myrelid));
 	if (!HeapTupleIsValid(reltup))	/* shouldn't happen */
 		elog(ERROR, "cache lookup failed for relation %u", myrelid);
 	otid = reltup->t_self;
@@ -4002,7 +4011,8 @@ RenameRelationInternal(Oid myrelid, const char *newrelname, bool is_internal, bo
 	namestrcpy(&(relform->relname), newrelname);
 
 	CatalogTupleUpdate(relrelation, &otid, reltup);
-	UnlockTuple(relrelation, &otid, InplaceUpdateTupleLock);
+	if (!is_enr)
+		UnlockTuple(relrelation, &otid, InplaceUpdateTupleLock);
 
 	InvokeObjectPostAlterHookArg(RelationRelationId, myrelid, 0,
 								 InvalidOid, is_internal);
@@ -14589,6 +14599,7 @@ ATExecSetRelOptions(Relation rel, List *defList, AlterTableType operation,
 	bool		repl_null[Natts_pg_class];
 	bool		repl_repl[Natts_pg_class];
 	static char *validnsps[] = HEAP_RELOPT_NAMESPACES;
+	bool		is_enr = false;
 
 	if (defList == NIL && operation != AT_ReplaceRelOptions)
 		return;					/* nothing to do */
@@ -14597,7 +14608,11 @@ ATExecSetRelOptions(Relation rel, List *defList, AlterTableType operation,
 
 	/* Fetch heap tuple */
 	relid = RelationGetRelid(rel);
-	tuple = SearchSysCacheLocked1(RELOID, ObjectIdGetDatum(relid));
+	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relid, ENR_TSQL_TEMP));
+	if (is_enr)
+		tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+	else
+		tuple = SearchSysCacheLocked1(RELOID, ObjectIdGetDatum(relid));
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for relation %u", relid);
 
@@ -14701,7 +14716,8 @@ ATExecSetRelOptions(Relation rel, List *defList, AlterTableType operation,
 								 repl_val, repl_null, repl_repl);
 
 	CatalogTupleUpdate(pgclass, &newtuple->t_self, newtuple);
-	UnlockTuple(pgclass, &tuple->t_self, InplaceUpdateTupleLock);
+	if (!is_enr)
+		UnlockTuple(pgclass, &tuple->t_self, InplaceUpdateTupleLock);
 
 	InvokeObjectPostAlterHook(RelationRelationId, RelationGetRelid(rel), 0);
 
@@ -16897,9 +16913,13 @@ AlterRelationNamespaceInternal(Relation classRel, Oid relOid,
 	Form_pg_class classForm;
 	ObjectAddress thisobj;
 	bool		already_done = false;
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relOid, ENR_TSQL_TEMP));
 
 	/* no rel lock for relkind=c so use LOCKTAG_TUPLE */
-	classTup = SearchSysCacheLockedCopy1(RELOID, ObjectIdGetDatum(relOid));
+	if (is_enr)
+		classTup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relOid));
+	else
+		classTup = SearchSysCacheLockedCopy1(RELOID, ObjectIdGetDatum(relOid));
 	if (!HeapTupleIsValid(classTup))
 		elog(ERROR, "cache lookup failed for relation %u", relOid);
 	classForm = (Form_pg_class) GETSTRUCT(classTup);
@@ -16933,7 +16953,8 @@ AlterRelationNamespaceInternal(Relation classRel, Oid relOid,
 		classForm->relnamespace = newNspOid;
 
 		CatalogTupleUpdate(classRel, &otid, classTup);
-		UnlockTuple(classRel, &otid, InplaceUpdateTupleLock);
+		if (!is_enr)
+			UnlockTuple(classRel, &otid, InplaceUpdateTupleLock);
 
 
 		/* Update dependency on schema if caller said so */
@@ -16946,7 +16967,7 @@ AlterRelationNamespaceInternal(Relation classRel, Oid relOid,
 			elog(ERROR, "failed to change schema dependency for relation \"%s\"",
 				 NameStr(classForm->relname));
 	}
-	else
+	else if (!is_enr)
 		UnlockTuple(classRel, &classTup->t_self, InplaceUpdateTupleLock);
 	if (!already_done)
 	{
