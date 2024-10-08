@@ -36,6 +36,7 @@ extern void updateExtConfigArray(Archive *fout, char ***extconfigarray, int ncon
 extern void prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_patterns);
 extern void setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout);
 extern void dumpBabelGUCs(Archive *fout);
+extern void dumpBabelPhysicalDatabaseACLs(Archive *fout);
 extern void fixCopyCommand(Archive *fout, PQExpBuffer copyBuf, TableInfo *tbinfo, bool isFrom);
 extern bool bbfIsDumpWithInsert(Archive *fout, TableInfo *tbinfo);
 extern void addFromClauseForBabelfishCatalogTable(PQExpBuffer buf, TableInfo *tbinfo);
