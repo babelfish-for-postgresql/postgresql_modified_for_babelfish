@@ -29,6 +29,7 @@
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
 #include "parser/parser.h"
+#include "common/int.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
@@ -78,7 +79,7 @@ CreateConstraintEntry(const char *constraintName,
 					  Node *conExpr,
 					  const char *conBin,
 					  bool conIsLocal,
-					  int conInhCount,
+					  int16 conInhCount,
 					  bool conNoInherit,
 					  bool conPeriod,
 					  bool is_internal)
@@ -858,11 +859,12 @@ ConstraintSetParentConstraint(Oid childConstrId,
 				 childConstrId);
 
 		constrForm->conislocal = false;
-		constrForm->coninhcount++;
-		if (constrForm->coninhcount < 0)
+		if (pg_add_s16_overflow(constrForm->coninhcount, 1,
+								&constrForm->coninhcount))
 			ereport(ERROR,
 					errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
 					errmsg("too many inheritance parents"));
+
 		constrForm->conparentid = parentConstrId;
 
 		CatalogTupleUpdate(constrRel, &tuple->t_self, newtup);
