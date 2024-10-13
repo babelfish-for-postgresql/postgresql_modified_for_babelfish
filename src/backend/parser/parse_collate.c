@@ -47,6 +47,7 @@
 #include "parser/parse_collate.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
 #include "utils/lsyscache.h"
+#include "utils/guc.h"
 
 
 /*
@@ -799,6 +800,7 @@ merge_collation_state(Oid collation,
 					  int location2,
 					  assign_collations_context *context)
 {
+	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 	/*
 	 * If the collation strength for this node is different from what's
 	 * already in *context, then this node either dominates or is dominated by
@@ -857,20 +859,30 @@ merge_collation_state(Oid collation,
 				/* We're still conflicted ... */
 				break;
 			case COLLATE_EXPLICIT:
-				if (collation != context->collation)
+				if ((collation != context->collation))
 				{
-					/*
-					 * Oops, we have a conflict of explicit COLLATE clauses.
-					 * Here we choose to throw error immediately; that is what
-					 * the SQL standard says to do, and there's no good reason
-					 * to be less strict.
-					 */
-					ereport(ERROR,
-							(errcode(ERRCODE_COLLATION_MISMATCH),
-							 errmsg("collation mismatch between explicit collations \"%s\" and \"%s\"",
-									get_collation_name(context->collation),
-									get_collation_name(collation)),
-							 parser_errposition(context->pstate, location)));
+					if (dump_restore && strcmp(dump_restore, "on") == 0)
+					{
+						context->collation = collation;
+						context->strength = strength;
+						context->location = location;
+						break;
+					}
+					else
+					{
+						/*
+						* Oops, we have a conflict of explicit COLLATE clauses.
+						* Here we choose to throw error immediately; that is what
+						* the SQL standard says to do, and there's no good reason
+						* to be less strict.
+						*/
+						ereport(ERROR,
+								(errcode(ERRCODE_COLLATION_MISMATCH),
+								errmsg("collation mismatch between explicit collations \"%s\" and \"%s\"",
+										get_collation_name(context->collation),
+										get_collation_name(collation)),
+								parser_errposition(context->pstate, location)));
+					}
 				}
 				break;
 		}

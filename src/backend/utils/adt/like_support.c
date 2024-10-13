@@ -1771,7 +1771,7 @@ string_to_const(const char *str, Oid datatype)
 		case TEXTOID:
 		case VARCHAROID:
 		case BPCHAROID:
-			collation = DEFAULT_COLLATION_OID;
+			collation = CLUSTER_COLLATION_OID();
 			constlen = -1;
 			break;
 
