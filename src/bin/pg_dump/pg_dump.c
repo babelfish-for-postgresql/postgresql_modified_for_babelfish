@@ -993,6 +993,8 @@ main(int argc, char **argv)
 	for (i = 0; i < numObjs; i++)
 		dumpDumpableObject(fout, dobjs[i]);
 
+	dumpBabelPhysicalDatabaseACLs(fout);
+
 	/*
 	 * Set up options info to ensure we dump what we want.
 	 */
