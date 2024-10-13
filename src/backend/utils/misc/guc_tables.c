@@ -3481,7 +3481,7 @@ struct config_int ConfigureNamesInt[] =
 			NULL
 		},
 		&max_parallel_maintenance_workers,
-		2, 0, 1024,
+		2, 0, MAX_PARALLEL_WORKER_LIMIT,
 		NULL, NULL, NULL
 	},
 
