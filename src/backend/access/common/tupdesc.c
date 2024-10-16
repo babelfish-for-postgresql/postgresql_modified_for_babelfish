@@ -827,7 +827,7 @@ BuildDescForRelation(List *schema)
 		typenameTypeIdAndMod(NULL, entry->typeName, &atttypid, &atttypmod);
 
 		if (sql_dialect == SQL_DIALECT_TSQL && check_or_set_default_typmod_hook)
-			(*check_or_set_default_typmod_hook)(entry->typeName, &atttypmod, false, false);
+			(*check_or_set_default_typmod_hook)(entry->typeName, &atttypmod, false);
 
 		aclresult = object_aclcheck(TypeRelationId, atttypid, GetUserId(), ACL_USAGE);
 		if (aclresult != ACLCHECK_OK)

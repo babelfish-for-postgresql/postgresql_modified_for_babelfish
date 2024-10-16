@@ -7051,7 +7051,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 					   0);
 
 	if (sql_dialect == SQL_DIALECT_TSQL && check_or_set_default_typmod_hook)
-		(*check_or_set_default_typmod_hook)(colDef->typeName, &typmod, false, false);
+		(*check_or_set_default_typmod_hook)(colDef->typeName, &typmod, false);
 
 	/*
 	 * Construct new attribute's pg_attribute entry.  (Variable-length fields
@@ -12426,7 +12426,7 @@ ATPrepAlterColumnType(List **wqueue,
 	targetcollid = GetColumnDefCollation(NULL, def, targettype);
 
 	if (sql_dialect == SQL_DIALECT_TSQL && check_or_set_default_typmod_hook)
-		(*check_or_set_default_typmod_hook)(typeName, &targettypmod, false, false);
+		(*check_or_set_default_typmod_hook)(typeName, &targettypmod, false);
 
 	/* make sure datatype is legal for a column */
 	CheckAttributeType(colName, targettype, targetcollid,
@@ -12750,7 +12750,7 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 	targetcollid = GetColumnDefCollation(NULL, def, targettype);
 
 	if (sql_dialect == SQL_DIALECT_TSQL && check_or_set_default_typmod_hook)
-		(*check_or_set_default_typmod_hook)(typeName, &targettypmod, false, false);
+		(*check_or_set_default_typmod_hook)(typeName, &targettypmod, false);
 
 	/*
 	 * If there is a default expression for the column, get it and ensure we

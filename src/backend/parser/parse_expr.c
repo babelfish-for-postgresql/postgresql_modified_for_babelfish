@@ -2796,7 +2796,7 @@ transformTypeCast(ParseState *pstate, TypeCast *tc)
 	typenameTypeIdAndMod(pstate, tc->typeName, &targetType, &targetTypmod);
 
 	if (sql_dialect == SQL_DIALECT_TSQL && check_or_set_default_typmod_hook)
-		(*check_or_set_default_typmod_hook)(tc->typeName, &targetTypmod, true, false);
+		(*check_or_set_default_typmod_hook)(tc->typeName, &targetTypmod, true);
 
 	/*
 	 * If the subject of the typecast is an ARRAY[] construct and the target
