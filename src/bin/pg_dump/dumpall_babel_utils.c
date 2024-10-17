@@ -35,7 +35,7 @@ typedef enum {
 
 static babelfish_status bbf_status = NONE;
 
-static char default_bbf_roles[] = "('sysadmin', 'bbf_role_admin', "
+static char default_bbf_roles[] = "('sysadmin', 'bbf_role_admin', 'securityadmin', "
 								  "'master_dbo', 'master_db_owner', 'master_guest', "
 								  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
 								  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest')";
@@ -300,7 +300,8 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 	else
 		appendPQExpBufferStr(buf,
 							 "SELECT 'sysadmin' AS rolname UNION "
-							 "SELECT 'bbf_role_admin' AS rolname UNION ");
+							 "SELECT 'bbf_role_admin' AS rolname UNION "
+							 "SELECT 'securityadmin' AS rolname UNION ");
 	appendPQExpBuffer(buf,
 					  "SELECT rolname FROM sys.babelfish_authid_user_ext ");
 	/* Only dump users of the specific logical database we are currently dumping. */
