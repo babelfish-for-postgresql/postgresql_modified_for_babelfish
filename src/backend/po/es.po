@@ -1003,7 +1003,7 @@ msgstr "no se puede truncar ONLY una tabla particionada"
 
 #: access/common/reloptions.c:1992
 #, c-format
-msgid "Specify storage parameters for its leaf partitions, instead."
+msgid "Specify storage parameters for its leaf partitions instead."
 msgstr ""
 
 #: access/common/toast_compression.c:33

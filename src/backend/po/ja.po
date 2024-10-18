@@ -780,7 +780,7 @@ msgstr "パーティション親テーブルに対してストレージパラメ
 
 #: access/common/reloptions.c:1992
 #, c-format
-msgid "Specify storage parameters for its leaf partitions, instead."
+msgid "Specify storage parameters for its leaf partitions instead."
 msgstr "代わりにリーフパーティションに対してストレージパラメータを指定してください。"
 
 #: access/common/toast_compression.c:33

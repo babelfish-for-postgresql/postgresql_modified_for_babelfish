@@ -946,7 +946,7 @@ msgstr "für eine partitionierte Tabelle können keine Storage-Parameter angegeb
 
 #: access/common/reloptions.c:1992
 #, c-format
-msgid "Specify storage parameters for its leaf partitions, instead."
+msgid "Specify storage parameters for its leaf partitions instead."
 msgstr ""
 
 #: access/common/toast_compression.c:33
