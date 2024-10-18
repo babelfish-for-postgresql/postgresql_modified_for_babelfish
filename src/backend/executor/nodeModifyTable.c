@@ -2365,25 +2365,6 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 	if (!ExecUpdatePrologue(context, resultRelInfo, tupleid, oldtuple, slot, NULL))
 		return NULL;
 
-	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
-		rslot = ExecProcessReturning(resultRelInfo, slot, context->planSlot);
-	// {
-	// 	//TupleTableSlot *oldslot = ExecGetTriggerOldSlot(estate, resultRelInfo);
-	// 	TupleTableSlot *oldslot = resultRelInfo->ri_oldTupleSlot;
-	// 	Assert(ItemPointerIsValid(tupleid));
-
-	// 	/*
-	// 	 * We expect the tuple to be present, thus very simple error handling
-	// 	 * suffices.
-	// 	 */
-	// 	if (!table_tuple_fetch_row_version(resultRelInfo->ri_RelationDesc, tupleid, SnapshotAny,
-	// 									   oldslot))
-	// 		elog(ERROR, "failed to fetch tuple to evaluate returning clause");
-
-	// 	rslot = ExecProcessReturning(resultRelInfo, oldslot, context->planSlot);
-	// }
-
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&
 		sql_dialect == SQL_DIALECT_TSQL && bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(resultRelationDesc, CMD_UPDATE) &&
@@ -3761,6 +3742,7 @@ ExecModifyTable(PlanState *pstate)
 	Tuplestorestate *tss;
 	TupleDesc 	tupdesc;
 	DestReceiver *dest = NULL;
+	TupleTableSlot *rslot = NULL;
 
 	CHECK_FOR_INTERRUPTS();
 
@@ -4055,6 +4037,33 @@ ExecModifyTable(PlanState *pstate)
 				 * the old tuple being updated.
 				 */
 				oldSlot = resultRelInfo->ri_oldTupleSlot;
+
+				if (sql_dialect == SQL_DIALECT_TSQL && resultRelInfo->ri_projectReturning)
+				{
+					SeqScanState *node;
+					ProjectionInfo *projInfo;
+
+					Assert(ItemPointerIsValid(tupleid));
+					/*
+					 * We expect the tuple to be present, thus very simple error handling
+					 * suffices.
+					 */
+					if (!table_tuple_fetch_row_version(resultRelInfo->ri_RelationDesc, tupleid, SnapshotAny,
+													oldSlot))
+						elog(ERROR, "failed to fetch tuple to evaluate returning clause");
+
+					rslot = ExecProcessReturning(resultRelInfo, oldSlot, context.planSlot);
+
+					/*
+					 * We want to reapply ProjInfo on context.planSlot so that any update happened to local variables
+					 * gets applied to final update row.
+					 */
+					node = castNode(SeqScanState, subplanstate);
+					projInfo = node->ss.ps.ps_ProjInfo;
+					if (projInfo)
+						context.planSlot = ExecProject(projInfo);
+				}
+
 				if (oldtuple != NULL)
 				{
 					/* Use the wholerow junk attr as the old tuple. */
@@ -4077,6 +4086,13 @@ ExecModifyTable(PlanState *pstate)
 				/* Now apply the update. */
 				slot = ExecUpdate(&context, resultRelInfo, tupleid, oldtuple,
 								  slot, node->canSetTag);
+
+				if (sql_dialect == SQL_DIALECT_TSQL && resultRelInfo->ri_projectReturning)
+				{
+					Assert(slot == NULL);
+					slot = rslot;
+				}
+
 				break;
 
 			case CMD_DELETE:
