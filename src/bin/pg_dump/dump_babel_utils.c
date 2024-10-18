@@ -52,6 +52,12 @@ typedef enum {
 
 static babelfish_status bbf_status = NONE;
 
+static char *default_bbf_db_principals =
+			"('master_dbo', 'master_db_owner', 'master_guest', 'master_db_accessadmin', "
+			"'msdb_dbo', 'msdb_db_owner', 'msdb_guest', 'msdb_db_accessadmin', "
+			"'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', 'tempdb_db_accessadmin') ";
+
+
 
 static char *
 getMinOid(Archive *fout)
@@ -1123,11 +1129,8 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						  "INNER JOIN sys.babelfish_sysdatabases b "
 						  "ON a.database_name = b.name COLLATE \"C\" "
 						  "WHERE b.dbid = %d "
-						  "AND a.rolname NOT IN "
-						  "('master_dbo', 'master_db_owner', 'master_guest', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') ",
-						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
+						  "AND a.rolname NOT IN %s",
+						  fmtQualifiedDumpable(tbinfo), bbf_db_id, default_bbf_db_principals);
 	}
 	else
 	{
@@ -1169,11 +1172,8 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 	{
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
-						  "WHERE a.rolname NOT IN "
-						  "('master_dbo', 'master_db_owner', 'master_guest', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest')",
-						  fmtQualifiedDumpable(tbinfo));
+						  "WHERE a.rolname NOT IN %s",
+						  fmtQualifiedDumpable(tbinfo), default_bbf_db_principals);
 	}
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
@@ -1992,7 +1992,7 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 					"\n	SET LOCAL ROLE sysadmin;"
 					"\n	FOR rolname, original_name IN ("
 					"\n		SELECT a.rolname, a.orig_username FROM sys.babelfish_authid_user_ext a"
-					"\n			WHERE orig_username IN ('dbo') AND"
+					"\n			WHERE orig_username IN ('dbo','db_accessadmin') AND"
 					"\n			database_name NOT IN ('master', 'tempdb', 'msdb')");
 
 	if (bbf_db_name)
@@ -2003,6 +2003,8 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 					"\n	) LOOP"
 					"\n		CASE WHEN original_name = 'dbo' THEN"
 					"\n			EXECUTE format('GRANT CREATE, CONNECT, TEMPORARY ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
+					"\n		WHEN original_name = 'db_accessadmin' THEN"
+					"\n			EXECUTE format('GRANT CREATE ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
 					"\n		END CASE;"
 					"\n	END LOOP;"
 					"\n	RESET ROLE;"
