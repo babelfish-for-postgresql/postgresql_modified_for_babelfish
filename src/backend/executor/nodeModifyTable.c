@@ -3715,6 +3715,94 @@ ExecPrepareTupleRouting(ModifyTableState *mtstate,
 	return slot;
 }
 
+static ProjectionInfo*
+GetProjInfo(PlanState  *pstate)
+{
+	Assert(sql_dialect == SQL_DIALECT_TSQL);
+	switch(pstate->type)
+	{
+		case T_BitmapHeapScanState:
+		{
+			BitmapHeapScanState *node = castNode(BitmapHeapScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_CteScanState:
+		{
+			CteScanState *node = castNode(CteScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_ForeignScanState:
+		{
+			ForeignScanState *node = castNode(ForeignScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_FunctionScanState:
+		{
+			FunctionScanState *node = castNode(FunctionScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_IndexOnlyScanState:
+		{
+			IndexOnlyScanState *node = castNode(IndexOnlyScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_IndexScanState:
+		{
+			IndexScanState *node = castNode(IndexScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_NamedTuplestoreScanState:
+		{
+			NamedTuplestoreScanState *node = castNode(NamedTuplestoreScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_SampleScanState:
+		{
+			SampleScanState *node = castNode(SampleScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_SeqScanState:
+		{
+			SeqScanState *node = castNode(SeqScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_SubqueryScanState:
+		{
+			SubqueryScanState *node = castNode(SubqueryScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_TableFuncScanState:
+		{
+			TableFuncScanState *node = castNode(TableFuncScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_TidRangeScanState:
+		{
+			TidRangeScanState *node = castNode(TidRangeScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_TidScanState:
+		{
+			TidScanState *node = castNode(TidScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_ValuesScanState:
+		{
+			ValuesScanState *node = castNode(ValuesScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		case T_WorkTableScanState:
+		{
+			WorkTableScanState *node = castNode(WorkTableScanState, pstate);
+			return node->ss.ps.ps_ProjInfo;
+		}
+		default:
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("Scan type %d is unknown", pstate->type)));
+	}
+}
+
 /* ----------------------------------------------------------------
  *	   ExecModifyTable
  *
@@ -4040,7 +4128,6 @@ ExecModifyTable(PlanState *pstate)
 
 				if (sql_dialect == SQL_DIALECT_TSQL && resultRelInfo->ri_projectReturning)
 				{
-					SeqScanState *node;
 					ProjectionInfo *projInfo;
 
 					Assert(ItemPointerIsValid(tupleid));
@@ -4058,8 +4145,7 @@ ExecModifyTable(PlanState *pstate)
 					 * We want to reapply ProjInfo on context.planSlot so that any update happened to local variables
 					 * gets applied to final update row.
 					 */
-					node = castNode(SeqScanState, subplanstate);
-					projInfo = node->ss.ps.ps_ProjInfo;
+					projInfo = GetProjInfo(subplanstate);
 					if (projInfo)
 						context.planSlot = ExecProject(projInfo);
 				}
