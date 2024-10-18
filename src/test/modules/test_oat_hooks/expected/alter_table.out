@@ -160,4 +160,6 @@ NOTICE:  in object access: superuser attempting drop (subId=0x0) []
 NOTICE:  in object access: superuser finished drop (subId=0x0) []
 NOTICE:  in object access: superuser attempting drop (subId=0x0) []
 NOTICE:  in object access: superuser finished drop (subId=0x0) []
+NOTICE:  in object access: superuser attempting drop (subId=0x0) []
+NOTICE:  in object access: superuser finished drop (subId=0x0) []
 NOTICE:  in process utility: superuser finished DROP TABLE
