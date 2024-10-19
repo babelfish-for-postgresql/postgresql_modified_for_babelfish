@@ -53,9 +53,9 @@ typedef enum {
 static babelfish_status bbf_status = NONE;
 
 static char *default_bbf_db_principals =
-			"('master_dbo', 'master_db_owner', 'master_guest', 'master_db_accessadmin', "
-			"'msdb_dbo', 'msdb_db_owner', 'msdb_guest', 'msdb_db_accessadmin', "
-			"'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', 'tempdb_db_accessadmin') ";
+			"('master_dbo', 'master_db_owner', 'master_guest', 'master_db_accessadmin', 'master_db_datareader', 'master_db_datawriter', "
+			"'msdb_dbo', 'msdb_db_owner', 'msdb_guest', 'msdb_db_accessadmin', 'msdb_db_datareader', 'msdb_db_datawriter', "
+			"'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', 'tempdb_db_accessadmin', 'tempdb_db_datareader', 'tempdb_db_datawriter') ";
 
 
 
