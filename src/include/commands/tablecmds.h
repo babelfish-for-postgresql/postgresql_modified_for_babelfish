@@ -115,7 +115,7 @@ typedef bool (*check_extended_attoptions_hook_type) (Node *options);
 extern PGDLLEXPORT check_extended_attoptions_hook_type check_extended_attoptions_hook;
 
 typedef int (*find_attr_by_name_from_column_def_list_hook_type) (
-	const char *attributeName, List *schema);
+	const char *attributeName, const List *schema);
 extern PGDLLEXPORT find_attr_by_name_from_column_def_list_hook_type
 	find_attr_by_name_from_column_def_list_hook;
 
