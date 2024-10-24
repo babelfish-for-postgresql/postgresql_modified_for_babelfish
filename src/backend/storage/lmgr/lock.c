@@ -49,6 +49,7 @@
 #include "utils/memutils.h"
 #include "utils/ps_status.h"
 #include "utils/resowner.h"
+#include "utils/queryenvironment.h"
 
 
 /* This configuration variable is used to set the lock table size */
