@@ -2441,7 +2441,15 @@ _SPI_execute_plan(SPIPlanPtr plan, const SPIExecuteOptions *options,
 	 * We allow nonatomic behavior only if options->allow_nonatomic is set
 	 * *and* the SPI_OPT_NONATOMIC flag was given when connecting.
 	 */
-	allow_nonatomic = options->allow_nonatomic && !_SPI_current->atomic;
+	if (check_pltsql_support_tsql_transactions_hook && (*check_pltsql_support_tsql_transactions_hook)())
+	{
+		allow_nonatomic = options->allow_nonatomic && !_SPI_current->atomic;
+	}
+	else
+	{
+		allow_nonatomic = options->allow_nonatomic &&
+			!_SPI_current->atomic && !IsSubTransaction();
+	}
 
 	/*
 	 * Setup error traceback support for ereport()
