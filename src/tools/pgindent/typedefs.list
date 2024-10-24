@@ -3127,6 +3127,7 @@ WaitEventIPC
 WaitEventSet
 WaitEventTimeout
 WaitLSNProcInfo
+WaitLSNResult
 WaitLSNState
 WaitPMResult
 WalCloseMethod
