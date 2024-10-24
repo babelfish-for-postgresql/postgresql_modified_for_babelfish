@@ -2447,8 +2447,15 @@ _SPI_execute_plan(SPIPlanPtr plan, const SPIExecuteOptions *options,
 	 * not inside a subtransaction.  The latter two tests match whether
 	 * _SPI_commit() would allow a commit; see there for more commentary.
 	 */
-	allow_nonatomic = options->allow_nonatomic &&
-		!_SPI_current->atomic && !IsSubTransaction();
+	if (check_pltsql_support_tsql_transactions_hook && (*check_pltsql_support_tsql_transactions_hook)())
+	{
+		allow_nonatomic = options->allow_nonatomic && !_SPI_current->atomic;
+	}
+	else
+	{
+		allow_nonatomic = options->allow_nonatomic &&
+			!_SPI_current->atomic && !IsSubTransaction();
+	}
 
 	/*
 	 * Setup error traceback support for ereport()
