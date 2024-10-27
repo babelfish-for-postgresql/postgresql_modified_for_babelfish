@@ -504,7 +504,9 @@ tsql_openjson_with_get_subjsonb(PG_FUNCTION_ARGS)
 
 	/* retrieve sub_jb */
 	vars = (Jsonb *) DirectFunctionCall1(jsonb_in, CStringGetDatum("{}"));
-	(void) executeJsonPath(jp, vars, jb, false, &found, false);
+	(void) executeJsonPath(jp, vars, getJsonPathVariableFromJsonb,
+						   countVariablesFromJsonb,
+						   jb, false, &found, false);
 
 	if (JsonValueListLength(&found) >= 1) {
 		JsonbValue *jv = JsonValueListHead(&found);
@@ -630,7 +632,9 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 	if(!strict)
 		jp->header |= JSONPATH_LAX;
 
-	(void) executeJsonPath(jp, vars, jb, false, &found, false);
+	(void) executeJsonPath(jp, vars, getJsonPathVariableFromJsonb,
+						   countVariablesFromJsonb,
+						   jb, false, &found, false);
 
 	list = JsonValueListGetList(&found);
 	/* go through found and convert values to strings. Truncate as necessary based on col_size */
