@@ -17,7 +17,6 @@
 
 #include "catalog/namespace.h"
 #include "catalog/pg_aggregate.h"
-#include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
 #include "commands/dbcommands.h"
 #include "miscadmin.h"
@@ -39,7 +38,6 @@
 #include "utils/builtins.h"
 #include "utils/date.h"
 #include "utils/fmgroids.h"
-#include "utils/jsonb.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/timestamp.h"
