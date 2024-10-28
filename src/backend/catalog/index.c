@@ -2366,13 +2366,9 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 
 	/*
 	 * Updating pg_index might involve TOAST table access, so ensure we have a
-	 * valid snapshot.  We only expect to get here without a snapshot in the
-	 * concurrent path.
+	 * valid snapshot.
 	 */
-	if (concurrent)
-		PushActiveSnapshot(GetTransactionSnapshot());
-	else
-		Assert(HaveRegisteredOrActiveSnapshot());
+	PushActiveSnapshot(GetTransactionSnapshot());
 
 	/*
 	 * fix INDEX relation, and check for expressional index
@@ -2392,8 +2388,7 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 	ReleaseSysCache(tuple);
 	table_close(indexRelation, RowExclusiveLock);
 
-	if (concurrent)
-		PopActiveSnapshot();
+	PopActiveSnapshot();
 
 	/*
 	 * if it has any expression columns, we might have stored statistics about
