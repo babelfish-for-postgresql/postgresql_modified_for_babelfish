@@ -136,7 +136,7 @@ RelationCreateStorage(RelFileLocator rlocator, char relpersistence,
 			break;
 		case RELPERSISTENCE_UNLOGGED:
 			procNumber = INVALID_PROC_NUMBER;
-			needs_wal = false;
+			needs_wal = true;
 			break;
 		case RELPERSISTENCE_PERMANENT:
 			procNumber = INVALID_PROC_NUMBER;
@@ -229,7 +229,7 @@ RelationDropStorage(Relation rel)
 		pending = (PendingRelDelete *)
 		MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
 		pending->rlocator = rel->rd_locator;
-		pending->backend = rel->rd_backend;
+		pending->procNumber = rel->rd_backend;
 		pending->atCommit = false;
 		pending->nestLevel = GetCurrentTransactionNestLevel();
 		pending->next = pendingDeletes;
