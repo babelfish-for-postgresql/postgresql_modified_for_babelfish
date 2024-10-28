@@ -4851,6 +4851,7 @@ void
 assign_sql_dialect(int newval, void *extra)
 {
 	baseSearchPathValid = false;
+	searchPathCacheValid = false;
 }
 
 /*
