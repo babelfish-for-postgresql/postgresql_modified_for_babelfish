@@ -4326,8 +4326,8 @@ finalNamespacePath(List *oidlist, Oid *firstNS)
 	if (sql_dialect == SQL_DIALECT_TSQL)
 	{
 		Oid sys_oid = get_namespace_oid(SYS_NAMESPACE_NAME, true);
-		if (!list_member_oid(oidlist, sys_oid))
-			oidlist = lcons_oid(sys_oid, oidlist);
+		if (!list_member_oid(finalPath, sys_oid))
+			finalPath = lcons_oid(sys_oid, finalPath);
 	}
 
 	if (OidIsValid(myTempNamespace) &&
