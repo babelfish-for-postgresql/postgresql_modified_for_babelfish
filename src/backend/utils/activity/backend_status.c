@@ -118,7 +118,7 @@ CreateSharedBackendStatus(void)
 {
 	Size		size;
 	bool		found;
-	int			i;
+	ProcNumber	procNumber;
 	char	   *buffer;
 
 	/* Create or attach to the shared array */
@@ -145,9 +145,9 @@ CreateSharedBackendStatus(void)
 
 		/* Initialize st_appname pointers. */
 		buffer = BackendAppnameBuffer;
-		for (i = 0; i < NumBackendStatSlots; i++)
+		for (procNumber = 0; procNumber < NumBackendStatSlots; procNumber++)
 		{
-			BackendStatusArray[i].st_appname = buffer;
+			BackendStatusArray[procNumber].st_appname = buffer;
 			buffer += NAMEDATALEN;
 		}
 	}
@@ -163,9 +163,9 @@ CreateSharedBackendStatus(void)
 
 		/* Initialize st_clienthostname pointers. */
 		buffer = BackendClientHostnameBuffer;
-		for (i = 0; i < NumBackendStatSlots; i++)
+		for (procNumber = 0; procNumber < NumBackendStatSlots; procNumber++)
 		{
-			BackendStatusArray[i].st_clienthostname = buffer;
+			BackendStatusArray[procNumber].st_clienthostname = buffer;
 			buffer += NAMEDATALEN;
 		}
 	}
@@ -184,9 +184,9 @@ CreateSharedBackendStatus(void)
 
 		/* Initialize st_activity pointers. */
 		buffer = BackendActivityBuffer;
-		for (i = 0; i < NumBackendStatSlots; i++)
+		for (procNumber = 0; procNumber < NumBackendStatSlots; procNumber++)
 		{
-			BackendStatusArray[i].st_activity_raw = buffer;
+			BackendStatusArray[procNumber].st_activity_raw = buffer;
 			buffer += pgstat_track_activity_query_size;
 		}
 	}
@@ -832,7 +832,7 @@ pgstat_read_current_status(void)
 			/*
 			 * The BackendStatusArray index is exactly the ProcNumber of the
 			 * source backend.  Note that this means localBackendStatusTable
-			 * is in order by proc_number.  pgstat_get_beentry_by_backend_id()
+			 * is in order by proc_number.  pgstat_get_beentry_by_proc_number()
 			 * depends on that.
 			 */
 			localentry->proc_number = procNumber;
@@ -886,10 +886,9 @@ const char *
 pgstat_get_backend_current_activity(int pid, bool checkUser)
 {
 	PgBackendStatus *beentry;
-	int			i;
 
 	beentry = BackendStatusArray;
-	for (i = 1; i <= MaxBackends; i++)
+	for (ProcNumber p = 0; p < MaxBackends; p++)
 	{
 		/*
 		 * Although we expect the target backend's entry to be stable, that
@@ -964,7 +963,6 @@ const char *
 pgstat_get_crashed_backend_activity(int pid, char *buffer, int buflen)
 {
 	volatile PgBackendStatus *beentry;
-	int			i;
 
 	beentry = BackendStatusArray;
 
@@ -975,7 +973,7 @@ pgstat_get_crashed_backend_activity(int pid, char *buffer, int buflen)
 	if (beentry == NULL || BackendActivityBuffer == NULL)
 		return NULL;
 
-	for (i = 1; i <= MaxBackends; i++)
+	for (ProcNumber p = 0; p < MaxBackends; p++)
 	{
 		if (beentry->st_procpid == pid)
 		{
@@ -1060,7 +1058,7 @@ cmp_lbestatus(const void *a, const void *b)
  *
  *	Support function for the SQL-callable pgstat* functions. Returns
  *	our local copy of the current-activity entry for one backend,
- *	or NULL if the given beid doesn't identify any known session.
+ *	or NULL if the given procno doesn't identify any known session.
  *
  *	The argument is the ProcNumber of the desired session
  *	(note that this is unlike pgstat_get_local_beentry_by_index()).
@@ -1074,7 +1072,7 @@ pgstat_get_beentry_by_proc_number(ProcNumber procNumber)
 {
 	LocalPgBackendStatus *ret = pgstat_get_local_beentry_by_proc_number(procNumber);
 
-	if (ret)
+	if (ret && ret->backendStatus.st_procpid > 0)
 		return &ret->backendStatus;
 
 	return NULL;
@@ -1114,11 +1112,11 @@ pgstat_get_local_beentry_by_proc_number(ProcNumber procNumber)
 /* ----------
  * pgstat_get_local_beentry_by_index() -
  *
- *	Like pgstat_get_beentry_by_backend_id() but with locally computed additions
+ *	Like pgstat_get_beentry_by_proc_number() but with locally computed additions
  *	(like xid and xmin values of the backend)
  *
  *	The idx argument is a 1-based index in the localBackendStatusTable
- *	(note that this is unlike pgstat_get_beentry_by_backend_id()).
+ *	(note that this is unlike pgstat_get_beentry_by_proc_number()).
  *	Returns NULL if the argument is out of range (no current caller does that).
  *
  *	NB: caller is responsible for a check if the user is permitted to see

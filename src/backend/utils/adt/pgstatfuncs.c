@@ -210,9 +210,9 @@ pg_stat_get_backend_idset(PG_FUNCTION_ARGS)
 	 * We recheck pgstat_fetch_stat_numbackends() each time through, just in
 	 * case the local status data has been refreshed since we started.  It's
 	 * plenty cheap enough if not.  If a refresh does happen, we'll likely
-	 * miss or duplicate some backend IDs, but we're content not to crash.
+	 * miss or duplicate some proc numbers, but we're content not to crash.
 	 * (Refreshing midway through such a query would be problematic usage
-	 * anyway, since the backend IDs we've already returned might no longer
+	 * anyway, since the proc numbers we've already returned might no longer
 	 * refer to extant sessions.)
 	 */
 	if (fctx[0] <= pgstat_fetch_stat_numbackends())
