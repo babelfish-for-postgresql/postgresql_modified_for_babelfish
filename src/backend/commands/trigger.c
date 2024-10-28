@@ -7344,7 +7344,7 @@ void EndCompositeTriggers(bool error)
 			AfterTriggerEvent event;
 			AfterTriggerEventChunk *chunk;
 			EState *estate;
-			int before_lxid = MyProc->lxid;
+			int before_lxid = MyProc->vxid.lxid;
 			ResourceOwner oldOwner = CurrentResourceOwner;
 
 			/* Mark all triggers as IN PROGRESS */
@@ -7364,7 +7364,7 @@ void EndCompositeTriggers(bool error)
 			CurrentResourceOwner = oldOwner;
 
 			/* In case of transactional event, skip cleanup */
-			if (before_lxid == MyProc->lxid && triggers->cleanupReq)
+			if (before_lxid == MyProc->vxid.lxid && triggers->cleanupReq)
 				ExecCloseResultRelations(estate);
 			ExecResetTupleTable(estate->es_tupleTable, false);
 			FreeExecutorState(estate);

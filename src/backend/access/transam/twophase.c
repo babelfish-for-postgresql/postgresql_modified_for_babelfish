@@ -873,7 +873,7 @@ TwoPhaseGetXidByVirtualXID(VirtualTransactionId vxid,
 		GET_VXID_FROM_PGPROC(proc_vxid, *proc);
 		if (VirtualTransactionIdEquals(vxid, proc_vxid))
 		{
-			/* Startup process sets proc->backendId to InvalidBackendId. */
+			/* Startup process sets proc->vxid.backendId to InvalidBackendId. */
 			Assert(!gxact->inredo);
 
 			if (result != InvalidTransactionId)
