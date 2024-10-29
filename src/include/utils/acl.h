@@ -284,4 +284,7 @@ extern PGDLLEXPORT bbf_get_sysadmin_oid_hook_type bbf_get_sysadmin_oid_hook;
 typedef Oid (*get_bbf_admin_oid_hook_type) (void);
 extern PGDLLEXPORT get_bbf_admin_oid_hook_type get_bbf_admin_oid_hook;
 
+typedef Oid (*pltsql_get_object_owner_hook_type) (Oid, Oid);
+extern PGDLLEXPORT pltsql_get_object_owner_hook_type pltsql_get_object_owner_hook;
+
 #endif							/* ACL_H */

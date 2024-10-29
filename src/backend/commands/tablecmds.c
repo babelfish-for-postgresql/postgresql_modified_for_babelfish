@@ -830,6 +830,11 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	if (!OidIsValid(ownerId))
 		ownerId = GetUserId();
 
+	if (pltsql_get_object_owner_hook)
+	{
+		ownerId = (*pltsql_get_object_owner_hook)(namespaceId, ownerId);
+	}
+
 	/*
 	 * Parse and validate reloptions, if any.
 	 */

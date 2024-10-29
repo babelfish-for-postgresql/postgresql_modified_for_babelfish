@@ -126,6 +126,7 @@ static void RoleMembershipCacheCallback(Datum arg, int cacheid, uint32 hashvalue
 
 bbf_get_sysadmin_oid_hook_type bbf_get_sysadmin_oid_hook = NULL;
 get_bbf_admin_oid_hook_type get_bbf_admin_oid_hook = NULL;
+pltsql_get_object_owner_hook_type pltsql_get_object_owner_hook = NULL;
 
 
 /*
