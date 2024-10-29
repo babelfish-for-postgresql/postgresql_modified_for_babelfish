@@ -1403,11 +1403,15 @@ doDeletion(const ObjectAddress *object, int flags)
 			break;
 
 		case TypeRelationId:
-			RemoveTypeById(object->objectId);
+			if ((flags & PERFORM_DELETION_SKIP_ENR) == 0 ||
+					SearchSysCacheExists1(TYPEOID, ObjectIdGetDatum(object->objectId)))
+				RemoveTypeById(object->objectId);
 			break;
 
 		case ConstraintRelationId:
-			RemoveConstraintById(object->objectId);
+			if ((flags & PERFORM_DELETION_SKIP_ENR) == 0 ||
+					SearchSysCacheExists1(CONSTROID, ObjectIdGetDatum(object->objectId)))
+				RemoveConstraintById(object->objectId);
 			break;
 
 		case AttrDefaultRelationId:
@@ -1431,7 +1435,9 @@ doDeletion(const ObjectAddress *object, int flags)
 			break;
 
 		case StatisticExtRelationId:
-			RemoveStatisticsById(object->objectId);
+			if ((flags & PERFORM_DELETION_SKIP_ENR) == 0 ||
+					SearchSysCacheExists1(STATEXTOID, ObjectIdGetDatum(object->objectId)))
+				RemoveStatisticsById(object->objectId);
 			break;
 
 		case TSConfigRelationId:
