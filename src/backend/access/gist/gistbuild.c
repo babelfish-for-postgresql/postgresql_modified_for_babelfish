@@ -36,6 +36,7 @@
 
 #include "access/genam.h"
 #include "access/gist_private.h"
+#include "access/gistxlog.h"
 #include "access/tableam.h"
 #include "access/xloginsert.h"
 #include "miscadmin.h"

@@ -18,6 +18,7 @@
 
 #include "access/genam.h"
 #include "access/spgist_private.h"
+#include "access/spgxlog.h"
 #include "access/tableam.h"
 #include "access/xloginsert.h"
 #include "miscadmin.h"

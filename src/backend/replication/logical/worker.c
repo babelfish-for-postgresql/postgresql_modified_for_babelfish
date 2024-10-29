@@ -169,6 +169,7 @@
 #include "postmaster/bgworker.h"
 #include "postmaster/interrupt.h"
 #include "postmaster/walwriter.h"
+#include "replication/logical.h"
 #include "replication/logicallauncher.h"
 #include "replication/logicalproto.h"
 #include "replication/logicalrelation.h"

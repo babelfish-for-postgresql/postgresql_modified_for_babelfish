@@ -16,6 +16,7 @@
 
 #include "access/nbtree.h"
 #include "common/int.h"
+#include "storage/lmgr.h"
 
 typedef enum
 {
