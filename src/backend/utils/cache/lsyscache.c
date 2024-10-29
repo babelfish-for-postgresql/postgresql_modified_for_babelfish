@@ -3055,7 +3055,7 @@ get_typcollation(Oid typid)
 
 		if (handle_default_collation_hook)
 		{
-			result = (*handle_default_collation_hook)((Type) tp, true);
+			result = (*handle_default_collation_hook)((Type) tp);
 		}
 
 		ReleaseSysCache(tp);
