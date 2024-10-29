@@ -826,14 +826,14 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("only shared relations can be placed in pg_global tablespace")));
 
-	/* Identify user ID that will own the table */
-	if (!OidIsValid(ownerId))
-		ownerId = GetUserId();
-
-	if (pltsql_get_object_owner_hook)
+	if (pltsql_get_object_owner_hook && !OidIsValid(ownerId))
 	{
 		ownerId = (*pltsql_get_object_owner_hook)(namespaceId, ownerId);
 	}
+
+	/* Identify user ID that will own the table */
+	if (!OidIsValid(ownerId))
+		ownerId = GetUserId();
 
 	/*
 	 * Parse and validate reloptions, if any.
