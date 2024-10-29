@@ -14,6 +14,7 @@
 #define _POSTMASTER_H
 
 #include "miscadmin.h"
+#include "libpq/libpq-be.h"
 
 /* GUC options */
 extern PGDLLIMPORT bool EnableSSL;
@@ -60,6 +61,7 @@ extern bool LoadedSSL;
 extern void PostmasterMain(int argc, char *argv[]) pg_attribute_noreturn();
 extern void ClosePostmasterPorts(bool am_syslogger);
 extern void InitProcessGlobals(void);
+extern void ExitPostmaster(int status) pg_attribute_noreturn();
 
 extern int	MaxLivePostmasterChildren(void);
 
@@ -78,6 +80,7 @@ extern void pgwin32_register_deadchild_callback(HANDLE procHandle, DWORD procId)
 
 /* defined in globals.c */
 extern struct ClientSocket *MyClientSocket;
+extern ProtocolExtensionConfig default_protocol_config;
 
 /* prototypes for functions in launch_backend.c */
 extern pid_t postmaster_child_launch(BackendType child_type, char *startup_data, size_t startup_data_len, struct ClientSocket *sock);
