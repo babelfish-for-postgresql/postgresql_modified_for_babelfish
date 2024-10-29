@@ -15,7 +15,7 @@
 #include "postgres.h"
 
 #include "access/commit_ts.h"
-
+#include "utils/timestamp.h"
 
 void
 commit_ts_desc(StringInfo buf, XLogReaderState *record)
