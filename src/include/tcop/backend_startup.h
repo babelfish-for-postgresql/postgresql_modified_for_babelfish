@@ -37,5 +37,6 @@ typedef struct BackendStartupData
 } BackendStartupData;
 
 extern void BackendMain(char *startup_data, size_t startup_data_len) pg_attribute_noreturn();
+extern int	ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done);
 
 #endif							/* BACKEND_STARTUP_H */

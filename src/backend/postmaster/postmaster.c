@@ -98,6 +98,7 @@
 #include "lib/ilist.h"
 #include "libpq/libpq.h"
 #include "libpq/pqsignal.h"
+#include "libpq/pqformat.h"
 #include "pg_getopt.h"
 #include "pgstat.h"
 #include "port/pg_bswap.h"
@@ -124,6 +125,7 @@
 #include "utils/pidfile.h"
 #include "utils/timestamp.h"
 #include "utils/varlena.h"
+#include "utils/timeout.h"
 
 #ifdef EXEC_BACKEND
 #include "storage/pg_shmem.h"
@@ -229,7 +231,7 @@ static pgsocket *ListenSockets = NULL;
 /* The wire protocol callbacks to use for those server sockets. */
 static ProtocolExtensionConfig *ListenConfig[MAXLISTEN];
 
-static ProtocolExtensionConfig default_protocol_config = {
+ProtocolExtensionConfig default_protocol_config = {
 	libpq_accept,
 	libpq_close,
 	libpq_init,
@@ -435,7 +437,7 @@ static void LogChildExit(int lev, const char *procname,
 						 int pid, int exitstatus);
 static void PostmasterStateMachine(void);
 
-static void ExitPostmaster(int status) pg_attribute_noreturn();
+void ExitPostmaster(int status) pg_attribute_noreturn();
 static int	ServerLoop(void);
 static int	BackendStartup(ClientSocket *client_sock, ProtocolExtensionConfig *protocol_config);
 static void report_fork_failure_to_client(ClientSocket *client_sock, int errnum);
@@ -3831,7 +3833,7 @@ report_fork_failure_to_client(ClientSocket *client_sock, int errnum)
  *
  * Do NOT call exit() directly --- always go through here!
  */
-static void
+void
 ExitPostmaster(int status)
 {
 #ifdef HAVE_PTHREAD_IS_THREADED_NP

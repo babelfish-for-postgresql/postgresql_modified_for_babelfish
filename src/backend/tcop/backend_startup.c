@@ -26,6 +26,7 @@
 #include "libpq/pqsignal.h"
 #include "miscadmin.h"
 #include "postmaster/postmaster.h"
+#include "postmaster/protocol_extension.h"
 #include "replication/walsender.h"
 #include "storage/fd.h"
 #include "storage/ipc.h"
@@ -37,8 +38,8 @@
 #include "utils/ps_status.h"
 #include "utils/timeout.h"
 
-static void BackendInitialize(ClientSocket *client_sock, CAC_state cac);
-static int	ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done);
+static void BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionConfig *protocol_config);
+int	ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done);
 static void SendNegotiateProtocolVersion(List *unrecognized_protocol_options);
 static void process_startup_packet_die(SIGNAL_ARGS);
 static void StartupPacketTimeoutHandler(void);
@@ -84,7 +85,7 @@ BackendMain(char *startup_data, size_t startup_data_len)
 #endif
 
 	/* Perform additional initialization and collect startup packet */
-	BackendInitialize(MyClientSocket, bsdata->canAcceptConnections);
+	BackendInitialize(MyClientSocket, bsdata->canAcceptConnections, &default_protocol_config);
 
 	/*
 	 * Create a per-backend PGPROC struct in shared memory.  We must do this
@@ -98,7 +99,7 @@ BackendMain(char *startup_data, size_t startup_data_len)
 	 */
 	MemoryContextSwitchTo(TopMemoryContext);
 
-	PostgresMain(MyProcPort->database_name, MyProcPort->user_name);
+	(MyProcPort->protocol_config->fn_mainfunc)(MyProcPort);
 }
 
 
@@ -115,7 +116,7 @@ BackendMain(char *startup_data, size_t startup_data_len)
  * but have not yet set up most of our local pointers to shmem structures.
  */
 static void
-BackendInitialize(ClientSocket *client_sock, CAC_state cac)
+BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionConfig *protocol_config)
 {
 	int			status;
 	int			ret;
@@ -151,7 +152,8 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac)
 	 * aren't in the postmaster process anymore.
 	 */
 	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
-	port = MyProcPort = pq_init(client_sock);
+	port = MyProcPort = (protocol_config->fn_init)(client_sock);
+	port->protocol_config = protocol_config;
 	MemoryContextSwitchTo(oldcontext);
 
 	whereToSendOutput = DestRemote; /* now safe to ereport to client */
@@ -252,7 +254,7 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac)
 	 * Receive the startup packet (which might turn out to be a cancel request
 	 * packet).
 	 */
-	status = ProcessStartupPacket(port, false, false);
+	status = (port->protocol_config->fn_start)(port);
 
 	/*
 	 * If we're going to reject the connection due to database state, say so
@@ -362,7 +364,7 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac)
  * should make no assumption here about the order in which the client may make
  * requests.
  */
-static int
+int
 ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done)
 {
 	int32		len;
