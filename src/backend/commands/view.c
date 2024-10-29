@@ -51,7 +51,6 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 {
 	Oid			viewOid;
 	LOCKMODE	lockmode;
-	CreateStmt *createStmt = makeNode(CreateStmt);
 	List	   *attrList;
 	ListCell   *t;
 
@@ -230,6 +229,7 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 	}
 	else
 	{
+		CreateStmt *createStmt = makeNode(CreateStmt);
 		ObjectAddress address;
 
 		/*
