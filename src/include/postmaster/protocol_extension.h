@@ -28,9 +28,9 @@ extern PGDLLEXPORT int	listen_have_free_slot(void);
 extern PGDLLEXPORT void	listen_add_socket(pgsocket fd,
 								ProtocolExtensionConfig *protocol_config);
 
-extern int	libpq_accept(pgsocket server_fd, Port *port);
-extern void	libpq_close(pgsocket server_fd);
-extern void	libpq_init(void);
+extern int	libpq_accept(pgsocket server_fd, ClientSocket *client_sock);
+extern int	libpq_close(pgsocket server_fd);
+extern Port	*libpq_init(ClientSocket *client_sock);
 extern int	libpq_start(Port *port);
 extern void	libpq_authenticate(Port *port, const char **username);
 extern void	libpq_mainfunc(Port *port)pg_attribute_noreturn();

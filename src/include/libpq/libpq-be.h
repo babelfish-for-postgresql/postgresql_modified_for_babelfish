@@ -81,14 +81,25 @@ typedef struct
 #endif
 
 /*
+ * ClientSocket holds a socket for an accepted connection, along with the
+ * information about the remote endpoint.  This is passed from postmaster to
+ * the backend process.
+ */
+typedef struct ClientSocket
+{
+	pgsocket	sock;			/* File descriptor */
+	SockAddr	raddr;			/* remote addr (client) */
+} ClientSocket;
+
+/*
  * ProtocolExtensionConfig
  *
  * 	All the callbacks implementing a specific wire protocol
  */
 typedef struct ProtocolExtensionConfig {
-	int		(*fn_accept)(pgsocket server_fd, struct Port *port);
-	void	(*fn_close)(pgsocket server_fd);
-	void	(*fn_init)(void);
+	int		(*fn_accept)(pgsocket server_fd, ClientSocket *client_sock);
+	int		(*fn_close)(pgsocket server_fd);
+	struct Port*	(*fn_init)(ClientSocket *client_sock);
 	int		(*fn_start)(struct Port *port);
 	void	(*fn_authenticate)(struct Port *port, const char **username);
 	void	(*fn_mainfunc)(struct Port *port) pg_attribute_noreturn();
@@ -246,17 +257,6 @@ typedef struct Port
 #endif
 	bool		is_tds_conn;
 } Port;
-
-/*
- * ClientSocket holds a socket for an accepted connection, along with the
- * information about the remote endpoint.  This is passed from postmaster to
- * the backend process.
- */
-typedef struct ClientSocket
-{
-	pgsocket	sock;			/* File descriptor */
-	SockAddr	raddr;			/* remote addr (client) */
-} ClientSocket;
 
 #ifdef USE_SSL
 /*
