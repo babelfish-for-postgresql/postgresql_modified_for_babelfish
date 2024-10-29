@@ -454,11 +454,11 @@ typedef enum CAC_state
 	CAC_TOOMANY,
 } CAC_state;
 
-static void BackendInitialize(ClientSocket *client_sock, CAC_state cac);
+static void BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionConfig *protocol_config);
 static void BackendRun(void) pg_attribute_noreturn();
 static void ExitPostmaster(int status) pg_attribute_noreturn();
 static int	ServerLoop(void);
-static int	BackendStartup(ClientSocket *client_sock);
+static int	BackendStartup(ClientSocket *client_sock, ProtocolExtensionConfig *protocol_config);
 static int	ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done);
 static void SendNegotiateProtocolVersion(List *unrecognized_protocol_options);
 static void processCancelRequest(Port *port, void *pkt);
@@ -1519,21 +1519,21 @@ PostmasterMain(int argc, char *argv[])
 }
 
 int
-libpq_accept(pgsocket server_fd, Port *port)
+libpq_accept(pgsocket server_fd, ClientSocket *client_sock)
 {
-	return StreamConnection(server_fd, port);
+	return AcceptConnection(server_fd, client_sock);
 }
 
-void
+int
 libpq_close(pgsocket server_fd)
 {
-	StreamClose(server_fd);
+	return closesocket(server_fd);
 }
 
-void
-libpq_init(void)
+Port*
+libpq_init(ClientSocket *client_sock)
 {
-	pq_init();
+	return pq_init(client_sock);
 }
 
 int
@@ -1942,7 +1942,7 @@ ServerLoop(void)
 	 					&& ListenSockets[listen_index] == events[i].fd);
 
 				if ((ListenConfig[listen_index]->fn_accept)(events[i].fd, &s) == STATUS_OK)
-					BackendStartup(&s);
+					BackendStartup(&s, ListenConfig[listen_index]);
 
 				/* We no longer need the open socket in this process */
 				if (s.sock != PGINVALID_SOCKET)
@@ -4214,7 +4214,7 @@ TerminateChildren(int signal)
  * Note: if you change this code, also consider StartAutovacuumWorker.
  */
 static int
-BackendStartup(ClientSocket *client_sock)
+BackendStartup(ClientSocket *client_sock, ProtocolExtensionConfig *protocol_config)
 {
 	Backend    *bn;				/* for backend cleanup */
 	pid_t		pid;
@@ -4277,7 +4277,7 @@ BackendStartup(ClientSocket *client_sock)
 		ClosePostmasterPorts(false);
 
 		/* Perform additional initialization and collect startup packet */
-		BackendInitialize(client_sock, cac);
+		BackendInitialize(client_sock, cac, protocol_config);
 
 		/* And run the backend */
 		BackendRun();
@@ -4364,7 +4364,7 @@ report_fork_failure_to_client(ClientSocket *client_sock, int errnum)
  * but have not yet set up most of our local pointers to shmem structures.
  */
 static void
-BackendInitialize(ClientSocket *client_sock, CAC_state cac)
+BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionConfig *protocol_config)
 {
 	int			status;
 	int			ret;
@@ -4400,7 +4400,8 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac)
 	 * aren't in the postmaster process anymore.
 	 */
 	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
-	port = MyProcPort = pq_init(client_sock);
+	port = MyProcPort = (protocol_config->fn_init)(client_sock);
+	port->protocol_config = protocol_config;
 	MemoryContextSwitchTo(oldcontext);
 
 	whereToSendOutput = DestRemote; /* now safe to ereport to client */
