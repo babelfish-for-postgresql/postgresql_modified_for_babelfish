@@ -54,7 +54,8 @@ typedef struct
 } PruneState;
 
 /* Local functions */
-static HTSV_Result heap_prune_satisfies_vacuum(PruneState *prstate,
+static HTSV_Result heap_prune_satisfies_vacuum(Relation relation, 
+											   PruneState *prstate,
 											   HeapTuple tup,
 											   Buffer buffer);
 static int	heap_prune_chain(Buffer buffer,
@@ -295,7 +296,7 @@ heap_page_prune(Relation relation, Buffer buffer,
 		if (off_loc)
 			*off_loc = offnum;
 
-		presult->htsv[offnum] = heap_prune_satisfies_vacuum(&prstate, &tup,
+		presult->htsv[offnum] = heap_prune_satisfies_vacuum(relation, &prstate, &tup,
 															buffer);
 	}
 
@@ -430,12 +431,12 @@ heap_page_prune(Relation relation, Buffer buffer,
  * Perform visibility checks for heap pruning.
  */
 static HTSV_Result
-heap_prune_satisfies_vacuum(PruneState *prstate, HeapTuple tup, Buffer buffer)
+heap_prune_satisfies_vacuum(Relation relation, PruneState *prstate, HeapTuple tup, Buffer buffer)
 {
 	HTSV_Result res;
 	TransactionId dead_after;
 
-	res = HeapTupleSatisfiesVacuumHorizon(prstate->rel, tup, buffer, &dead_after);
+	res = HeapTupleSatisfiesVacuumHorizon(relation, tup, buffer, &dead_after);
 
 	if (res != HEAPTUPLE_RECENTLY_DEAD)
 		return res;
