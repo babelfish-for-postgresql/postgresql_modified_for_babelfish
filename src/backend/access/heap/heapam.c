@@ -397,7 +397,7 @@ heapgetpage_collect(HeapScanDesc scan, Snapshot snapshot,
 		if (all_visible)
 			valid = true;
 		else
-			valid = HeapTupleSatisfiesVisibility(&loctup, snapshot, buffer);
+			valid = HeapTupleSatisfiesVisibility(scan->rs_base.rs_rd, &loctup, snapshot, buffer);
 
 		if (check_serializable)
 			HeapCheckForSerializableConflictOut(valid, scan->rs_base.rs_rd,
