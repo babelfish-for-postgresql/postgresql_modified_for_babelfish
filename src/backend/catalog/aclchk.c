@@ -161,6 +161,7 @@ static void recordExtensionInitPrivWorker(Oid objoid, Oid classoid, int objsubid
 										  Acl *new_acl);
 
 tsql_has_linked_srv_permissions_hook_type tsql_has_linked_srv_permissions_hook = NULL;
+bbf_execute_grantstmt_as_dbsecadmin_hook_type bbf_execute_grantstmt_as_dbsecadmin_hook = NULL;
 
 /*
  * If is_grant is true, adds the given privileges for the list of
@@ -1722,6 +1723,11 @@ ExecGrant_Attribute(InternalGrant *istmt, Oid relOid, const char *relname,
 
 	pfree(merged_acl);
 
+	if (bbf_execute_grantstmt_as_dbsecadmin_hook)
+	{
+		(*bbf_execute_grantstmt_as_dbsecadmin_hook) (OBJECT_COLUMN, relOid, ownerId, col_privileges, &grantorId, &avail_goptions);
+	}
+
 	/*
 	 * Restrict the privileges to what we can actually grant, and emit the
 	 * standards-mandated warning and error messages.  Note: we don't track
@@ -2003,6 +2009,11 @@ ExecGrant_Relation(InternalGrant *istmt)
 					break;
 			}
 
+			if (bbf_execute_grantstmt_as_dbsecadmin_hook)
+			{
+				(*bbf_execute_grantstmt_as_dbsecadmin_hook) (objtype, relOid, ownerId, this_privileges, &grantorId, &avail_goptions);
+			}
+
 			/*
 			 * Restrict the privileges to what we can actually grant, and emit
 			 * the standards-mandated warning and error messages.
@@ -2204,6 +2215,11 @@ ExecGrant_common(InternalGrant *istmt, Oid classid, AclMode default_privs,
 		select_best_grantor(GetUserId(), istmt->privileges,
 							old_acl, ownerId,
 							&grantorId, &avail_goptions);
+
+		if (bbf_execute_grantstmt_as_dbsecadmin_hook)
+		{
+			(*bbf_execute_grantstmt_as_dbsecadmin_hook) (get_object_type(classid, objectid), objectid, ownerId, istmt->privileges, &grantorId, &avail_goptions);
+		}
 
 		nameDatum = SysCacheGetAttrNotNull(cacheid, tuple,
 										   get_object_attnum_name(classid));
