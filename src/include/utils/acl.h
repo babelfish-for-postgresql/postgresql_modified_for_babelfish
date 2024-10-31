@@ -35,6 +35,7 @@
 #include "access/htup.h"
 #include "nodes/parsenodes.h"
 #include "parser/parse_node.h"
+#include "utils/aclchk_internal.h"
 #include "utils/snapshot.h"
 
 
@@ -283,5 +284,8 @@ extern PGDLLEXPORT bbf_get_sysadmin_oid_hook_type bbf_get_sysadmin_oid_hook;
 
 typedef Oid (*get_bbf_admin_oid_hook_type) (void);
 extern PGDLLEXPORT get_bbf_admin_oid_hook_type get_bbf_admin_oid_hook;
+
+typedef void (*bbf_execute_grantstmt_as_dbsecadmin_hook_type) (ObjectType objType, Oid objId, Oid ownerId, AclMode privileges, Oid *grantorId, AclMode *grantOptions);
+extern PGDLLEXPORT bbf_execute_grantstmt_as_dbsecadmin_hook_type bbf_execute_grantstmt_as_dbsecadmin_hook;
 
 #endif							/* ACL_H */
