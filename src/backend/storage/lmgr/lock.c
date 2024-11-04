@@ -1175,22 +1175,7 @@ LockAcquireExtended(const LOCKTAG *locktag,
 		 * case, because while trying to go to sleep, we may discover that we
 		 * can acquire the lock immediately after all.
 		 */
-
-		TRACE_POSTGRESQL_LOCK_WAIT_START(locktag->locktag_field1,
-										 locktag->locktag_field2,
-										 locktag->locktag_field3,
-										 locktag->locktag_field4,
-										 locktag->locktag_type,
-										 lockmode);
-
 		WaitOnLock(locallock, owner, dontWait);
-
-		TRACE_POSTGRESQL_LOCK_WAIT_DONE(locktag->locktag_field1,
-										locktag->locktag_field2,
-										locktag->locktag_field3,
-										locktag->locktag_field4,
-										locktag->locktag_type,
-										lockmode);
 
 		/*
 		 * NOTE: do not do any material change of state between here and
@@ -1935,6 +1920,13 @@ WaitOnLock(LOCALLOCK *locallock, ResourceOwner owner, bool dontWait)
 	LOCKMETHODID lockmethodid = LOCALLOCK_LOCKMETHOD(*locallock);
 	LockMethod	lockMethodTable = LockMethods[lockmethodid];
 
+	TRACE_POSTGRESQL_LOCK_WAIT_START(locallock->tag.lock.locktag_field1,
+									 locallock->tag.lock.locktag_field2,
+									 locallock->tag.lock.locktag_field3,
+									 locallock->tag.lock.locktag_field4,
+									 locallock->tag.lock.locktag_type,
+									 locallock->tag.mode);
+
 	LOCK_PRINT("WaitOnLock: sleeping on lock",
 			   locallock->lock, locallock->tag.mode);
 
@@ -2007,6 +1999,13 @@ WaitOnLock(LOCALLOCK *locallock, ResourceOwner owner, bool dontWait)
 
 	LOCK_PRINT("WaitOnLock: wakeup on lock",
 			   locallock->lock, locallock->tag.mode);
+
+	TRACE_POSTGRESQL_LOCK_WAIT_DONE(locallock->tag.lock.locktag_field1,
+									locallock->tag.lock.locktag_field2,
+									locallock->tag.lock.locktag_field3,
+									locallock->tag.lock.locktag_field4,
+									locallock->tag.lock.locktag_type,
+									locallock->tag.mode);
 }
 
 /*
