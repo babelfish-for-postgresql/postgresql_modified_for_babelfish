@@ -61,6 +61,15 @@ my %syscache_catalogs;
 my %oidcounts;
 my @system_constraints;
 
+# Define all the new extension syscache IDs here
+my @extension_syscaches = qw(
+    SYSDATABASEOID
+    SYSDATABASENAME
+    PROCNAMENSPSIGNATURE
+    SYSNAMESPACENAME
+    AUTHIDUSEREXTROLENAME
+);
+
 foreach my $header (@ARGV)
 {
 	$header =~ /(.+)\.h$/
@@ -819,13 +828,23 @@ foreach my $syscache (sort keys %syscaches)
 	print $syscache_info_fh "\t},\n";
 }
 
-print $syscache_ids_fh "};\n";
-print $syscache_ids_fh "#define SysCacheSize ($last_syscache + 1)\n";
+#
+# Below are cache IDs for extensions. We need to have them defined here
+# instead of their respective extension modules because we do not want
+# the IDs to conflict.
+#
+my $last_extension_syscache;
+foreach my $extension_syscache (@extension_syscaches)
+{
+    print $syscache_ids_fh "\t$extension_syscache,\n";
+    $last_extension_syscache = $extension_syscache;
+}
 
-# Define SysCacheNoExtensionSize to be the same as SysCacheSize here to accommodate community commit:
-# https://github.com/postgres/postgres/commit/9b1a6f50b9
-# Todo items including Jira for Babelfish for APG17 are mentioned in the CR
+# Finalize and define the SysCache sizes including extensions
+print $syscache_ids_fh "};\n";
+
 print $syscache_ids_fh "#define SysCacheNoExtensionSize ($last_syscache + 1)\n";
+print $syscache_ids_fh "#define SysCacheSize ($last_extension_syscache + 1)\n";
 
 print $syscache_info_fh "};\n";
 
