@@ -88,7 +88,7 @@ BackendMain(char *startup_data, size_t startup_data_len)
 #endif
 
 	/* Perform additional initialization and collect startup packet */
-	BackendInitialize(MyClientSocket, bsdata->canAcceptConnections, &default_protocol_config);
+	BackendInitialize(MyClientSocket, bsdata->canAcceptConnections, bsdata->protocol_config);
 
 	/*
 	 * Create a per-backend PGPROC struct in shared memory.  We must do this
@@ -253,14 +253,15 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionCon
 	RegisterTimeout(STARTUP_PACKET_TIMEOUT, StartupPacketTimeoutHandler);
 	enable_timeout_after(STARTUP_PACKET_TIMEOUT, AuthenticationTimeout * 1000);
 
-	/* Handle direct SSL handshake */
+	/* Handle direct SSL handshake for non-TDS connections */
+	if (!port->is_tds_conn)
 	status = ProcessSSLStartup(port);
 
 	/*
 	 * Receive the startup packet (which might turn out to be a cancel request
 	 * packet).
 	 */
-	if (status == STATUS_OK)
+	if (port->is_tds_conn || status == STATUS_OK)
 		status = (port->protocol_config->fn_start)(port);
 
 	/*

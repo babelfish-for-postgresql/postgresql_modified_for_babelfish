@@ -3743,8 +3743,9 @@ BackendStartup(ClientSocket *client_sock, ProtocolExtensionConfig *protocol_conf
 		return STATUS_ERROR;
 	}
 
-	/* Pass down canAcceptConnections state */
+	/* Pass down canAcceptConnections state and protocol config */
 	startup_data.canAcceptConnections = canAcceptConnections(BACKEND_TYPE_NORMAL);
+	startup_data.protocol_config = protocol_config;
 	bn->dead_end = (startup_data.canAcceptConnections != CAC_OK);
 	bn->cancel_key = MyCancelKey;
 
