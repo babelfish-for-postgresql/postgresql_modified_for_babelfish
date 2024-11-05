@@ -34,6 +34,7 @@ typedef enum CAC_state
 typedef struct BackendStartupData
 {
 	CAC_state	canAcceptConnections;
+	ProtocolExtensionConfig *protocol_config; /* this will be used during backend initialization */
 } BackendStartupData;
 
 extern void BackendMain(char *startup_data, size_t startup_data_len) pg_attribute_noreturn();
