@@ -603,8 +603,7 @@ heapam_relation_set_new_filelocator(Relation rel,
 	 */
 	*minmulti = GetOldestMultiXactId();
 
-	srel = RelationCreateStorage(*newrlocator, persistence,
-		(sql_dialect != SQL_DIALECT_TSQL || !RelationIsBBFTableVariable(rel)));
+	srel = RelationCreateStorage(*newrlocator, persistence, !IsTsqlTableVariable(rel));
 
 	/*
 	 * If required, set up an init fork for an unlogged table so that it can

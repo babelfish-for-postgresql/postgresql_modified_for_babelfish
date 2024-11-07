@@ -13259,7 +13259,7 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 
 		if (scan->enr)
 		{
-			ENRdropTuple(depRel, depTup);
+			ENRDropTuple(depRel, depTup);
 		}
 		else 
 		{
