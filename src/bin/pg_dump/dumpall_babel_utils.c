@@ -138,6 +138,9 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 	res = executeQuery(conn, "SELECT setting::INT from pg_settings WHERE name = 'server_version_num';");
 	source_server_version_num = atoi(PQgetvalue(res, 0, 0));
 
+	/* SET babelfishpg_tsql.dump_restore GUC in the beginning */
+	appendPQExpBufferStr(qry, "SET babelfishpg_tsql.dump_restore = TRUE;\n");
+
 	/*
 	 * Temporarily enable ON_ERROR_STOP so that whole restore script
 	 * execution fails if the following do block raises an error.
