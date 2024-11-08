@@ -425,7 +425,7 @@ systable_beginscan(Relation heapRelation,
 	}
 
 	/* Catalog tuples for ENR are not in the on-disk catalogs */
-	if (ENRgetSystableScan(heapRelation, indexId, nkeys, key, &sysscan->enr_tuplist, &sysscan->enr_tuplist_i, &sysscan->enr_tuplist_flags))
+	if (ENRGetSystableScan(heapRelation, indexId, nkeys, key, &sysscan->enr_tuplist, &sysscan->enr_tuplist_i, &sysscan->enr_tuplist_flags))
 	{
 		sysscan->enr = true;
 		index_close(sysscan->irel, AccessShareLock);

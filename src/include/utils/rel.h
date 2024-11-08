@@ -709,10 +709,4 @@ RelationCloseSmgr(Relation relation)
 extern void RelationIncrementReferenceCount(Relation rel);
 extern void RelationDecrementReferenceCount(Relation rel);
 
-#define RelationIsBBFTableVariable(relation) \
-	((relation)->rd_rel->relpersistence == RELPERSISTENCE_TEMP && \
-	 (relation)->rd_rel->relname.data && \
-	 strlen((relation)->rd_rel->relname.data) >= 1 && \
-	 (relation)->rd_rel->relname.data[0] == '@')
-
 #endif							/* REL_H */

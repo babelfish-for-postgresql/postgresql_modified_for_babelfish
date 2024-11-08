@@ -240,7 +240,7 @@ CatalogTupleInsert(Relation heapRel, HeapTuple tup)
 	CatalogTupleCheckConstraints(heapRel, tup);
 
 	/* ENR carries catalog tuples themselves. Do not insert, and skip index.*/
-	if (ENRaddTuple(heapRel, tup))
+	if (ENRAddTuple(heapRel, tup))
 		return;
 
 	indstate = CatalogOpenIndexes(heapRel);
@@ -266,7 +266,7 @@ CatalogTupleInsertWithInfo(Relation heapRel, HeapTuple tup,
 	CatalogTupleCheckConstraints(heapRel, tup);
 
 	/* ENR carries catalog tuples themselves. Do not insert, and skip index.*/
-	if (ENRaddTuple(heapRel, tup))
+	if (ENRAddTuple(heapRel, tup))
 		return;
 
 	simple_heap_insert(heapRel, tup);
@@ -353,7 +353,7 @@ CatalogTupleUpdate(Relation heapRel, ItemPointer otid, HeapTuple tup)
 	CatalogTupleCheckConstraints(heapRel, tup);
 
 	/* ENR carries catalog tuples themselves. Do not update, and skip index.*/
-	if (ENRupdateTuple(heapRel, tup))
+	if (ENRUpdateTuple(heapRel, tup))
 		return;
 
 	indstate = CatalogOpenIndexes(heapRel);
@@ -381,7 +381,7 @@ CatalogTupleUpdateWithInfo(Relation heapRel, ItemPointer otid, HeapTuple tup,
 	CatalogTupleCheckConstraints(heapRel, tup);
 
 	/* ENR carries catalog tuples themselves. Do not update.*/
-	if (ENRupdateTuple(heapRel, tup))
+	if (ENRUpdateTuple(heapRel, tup))
 		return;
 
 	simple_heap_update(heapRel, otid, tup, &updateIndexes);

@@ -674,7 +674,7 @@ RemoveTypeById(Oid typeOid)
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for type %u", typeOid);
 
-	if (!ENRdropTuple(relation, tup))
+	if (!ENRDropTuple(relation, tup))
 		CatalogTupleDelete(relation, &tup->t_self);
 
 	/*
