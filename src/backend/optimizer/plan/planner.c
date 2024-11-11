@@ -1168,6 +1168,11 @@ preprocess_expression(PlannerInfo *root, Node *expr, int kind)
 		printf("After canonicalize_qual()\n");
 		pprint(expr);
 #endif
+
+	/* Reset context of expression */
+	if(EXPRKIND_TARGET == kind && planner_node_transformer_hook)
+		expr = planner_node_transformer_hook(root, NULL, -1);
+
 	}
 
 	/*
