@@ -80,6 +80,7 @@
 #include "utils/builtins.h"
 #include "utils/combocid.h"
 #include "utils/snapmgr.h"
+#include "utils/queryenvironment.h"
 
 table_variable_satisfies_visibility_hook_type table_variable_satisfies_visibility_hook = NULL;
 table_variable_satisfies_update_hook_type table_variable_satisfies_update_hook = NULL;
@@ -468,7 +469,7 @@ HeapTupleSatisfiesUpdate(Relation relation, HeapTuple htup, CommandId curcid,
 	HeapTupleHeader tuple = htup->t_data;
 
 	/* See HeapTupleSatisfiesVisibility why */
-	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(relation))
+	if (IsTsqlTableVariable(relation))
 		return table_variable_satisfies_update_hook(htup, curcid, buffer);
 
 	Assert(ItemPointerIsValid(&htup->t_self));
@@ -1177,7 +1178,7 @@ HeapTupleSatisfiesVacuum(Relation relation, HeapTuple htup, TransactionId Oldest
 	HTSV_Result res;
 
 	/* See HeapTupleSatisfiesVisibility why */
-	if (sql_dialect == SQL_DIALECT_TSQL && RelationIsBBFTableVariable(relation))
+	if (IsTsqlTableVariable(relation))
 		return table_variable_satisfies_vacuum_hook(htup, OldestXmin, buffer);
 
 	res = HeapTupleSatisfiesVacuumHorizon(NULL, htup, buffer, &dead_after);
@@ -1219,7 +1220,7 @@ HeapTupleSatisfiesVacuumHorizon(Relation relation, HeapTuple htup, Buffer buffer
 	*dead_after = InvalidTransactionId;
 
 	/* See HeapTupleSatisfiesVisibility why */
-	if (sql_dialect == SQL_DIALECT_TSQL && relation && RelationIsBBFTableVariable(relation))
+	if (IsTsqlTableVariable(relation))
 		return table_variable_satisfies_vacuum_horizon_hook(htup, buffer, dead_after);
 
 	/*
@@ -1789,7 +1790,7 @@ HeapTupleSatisfiesVisibility(Relation relation, HeapTuple htup, Snapshot snapsho
 	* Babelfish extension has a different type of heap table but non-transactional.
 	* It is not worth introducing a new table AM because the new table still uses heap format.
 	*/
-	if (sql_dialect == SQL_DIALECT_TSQL && relation && RelationIsBBFTableVariable(relation))
+	if (IsTsqlTableVariable(relation))
 		return table_variable_satisfies_visibility_hook(htup, snapshot, buffer);
 
 	switch (snapshot->snapshot_type)

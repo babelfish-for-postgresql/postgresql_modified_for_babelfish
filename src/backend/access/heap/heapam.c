@@ -5938,7 +5938,7 @@ heap_inplace_update(Relation relation, HeapTuple tuple)
 				 errmsg("cannot update tuples during a parallel operation")));
 
 	/* Don't proceed further if the tuple is for an ENR. We just update there.*/
-	if (ENRupdateTuple(relation, tuple))
+	if (ENRUpdateTuple(relation, tuple))
 		return;
 
 	buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(&(tuple->t_self)));
