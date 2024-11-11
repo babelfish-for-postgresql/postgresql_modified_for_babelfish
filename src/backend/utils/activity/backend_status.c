@@ -204,9 +204,9 @@ CreateSharedBackendStatus(void)
 
 		/* Initialize st_sslstatus pointers. */
 		ptr = BackendSslStatusBuffer;
-		for (i = 0; i < NumBackendStatSlots; i++)
+		for (procNumber = 0; procNumber < NumBackendStatSlots; procNumber++)
 		{
-			BackendStatusArray[i].st_sslstatus = ptr;
+			BackendStatusArray[procNumber].st_sslstatus = ptr;
 			ptr++;
 		}
 	}
@@ -226,9 +226,9 @@ CreateSharedBackendStatus(void)
 
 		/* Initialize st_gssstatus pointers. */
 		ptr = BackendGssStatusBuffer;
-		for (i = 0; i < NumBackendStatSlots; i++)
+		for (procNumber = 0; procNumber < NumBackendStatSlots; procNumber++)
 		{
-			BackendStatusArray[i].st_gssstatus = ptr;
+			BackendStatusArray[procNumber].st_gssstatus = ptr;
 			ptr++;
 		}
 	}
