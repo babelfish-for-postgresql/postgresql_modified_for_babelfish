@@ -621,8 +621,7 @@ ExecInitInsertProjection(ModifyTableState *mtstate,
  */
 static void
 ExecInitUpdateProjection(ModifyTableState *mtstate,
-						 ResultRelInfo *resultRelInfo,
-						 bool evalTargetList)
+						 ResultRelInfo *resultRelInfo)
 {
 	ModifyTable *node = (ModifyTable *) mtstate->ps.plan;
 	Plan	   *subplan = outerPlan(node);
@@ -660,14 +659,30 @@ ExecInitUpdateProjection(ModifyTableState *mtstate,
 	if (mtstate->ps.ps_ExprContext == NULL)
 		ExecAssignExprContext(estate, &mtstate->ps);
 
-	resultRelInfo->ri_projectNew =
-		ExecBuildUpdateProjection(subplan->targetlist,
-								  evalTargetList,	/* subplan did the evaluation */
-								  updateColnos,
-								  relDesc,
-								  mtstate->ps.ps_ExprContext,
-								  resultRelInfo->ri_newTupleSlot,
-								  &mtstate->ps);
+	/* 
+	 * We want to re-eval TargetList in case of Babelfish so that
+	 * any updated variables can also apply to Update row.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL &&
+		resultRelInfo->ri_projectReturning &&
+		mtstate->operation == CMD_UPDATE)
+		resultRelInfo->ri_projectNew =
+			ExecBuildUpdateProjection(subplan->targetlist,
+									  true,
+									  updateColnos,
+									  relDesc,
+									  mtstate->ps.ps_ExprContext,
+									  resultRelInfo->ri_newTupleSlot,
+									  &mtstate->ps);
+	else
+		resultRelInfo->ri_projectNew =
+			ExecBuildUpdateProjection(subplan->targetlist,
+									  false,	/* subplan did the evaluation */
+									  updateColnos,
+									  relDesc,
+									  mtstate->ps.ps_ExprContext,
+									  resultRelInfo->ri_newTupleSlot,
+									  &mtstate->ps);
 
 	resultRelInfo->ri_projectNewInfoValid = true;
 }
@@ -1924,7 +1939,7 @@ ExecCrossPartitionUpdate(ModifyTableContext *context,
 
 			/* ... but first, make sure ri_oldTupleSlot is initialized. */
 			if (unlikely(!resultRelInfo->ri_projectNewInfoValid))
-				ExecInitUpdateProjection(mtstate, resultRelInfo, false);
+				ExecInitUpdateProjection(mtstate, resultRelInfo);
 			oldSlot = resultRelInfo->ri_oldTupleSlot;
 			if (!table_tuple_fetch_row_version(resultRelInfo->ri_RelationDesc,
 											   tupleid,
@@ -2366,10 +2381,6 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 	if (!ExecUpdatePrologue(context, resultRelInfo, tupleid, oldtuple, slot, NULL))
 		return NULL;
 
-	/* Process RETURNING if present */
-	// if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
-	// 	rslot = ExecProcessReturning(resultRelInfo, slot, context->planSlot);
-
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&
 		sql_dialect == SQL_DIALECT_TSQL && bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(resultRelationDesc, CMD_UPDATE) &&
@@ -2513,7 +2524,7 @@ redo_act:
 							/* Make sure ri_oldTupleSlot is initialized. */
 							if (unlikely(!resultRelInfo->ri_projectNewInfoValid))
 								ExecInitUpdateProjection(context->mtstate,
-														 resultRelInfo, false);
+														 resultRelInfo);
 
 							/* Fetch the most recent version of old tuple. */
 							oldSlot = resultRelInfo->ri_oldTupleSlot;
@@ -3720,96 +3731,6 @@ ExecPrepareTupleRouting(ModifyTableState *mtstate,
 	return slot;
 }
 
-#if 0
-static ProjectionInfo*
-GetProjInfo(PlanState  *pstate)
-{
-	Assert(sql_dialect == SQL_DIALECT_TSQL);
-	switch(pstate->type)
-	{
-		case T_BitmapHeapScanState:
-		{
-			BitmapHeapScanState *node = castNode(BitmapHeapScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_CteScanState:
-		{
-			CteScanState *node = castNode(CteScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_ForeignScanState:
-		{
-			ForeignScanState *node = castNode(ForeignScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_FunctionScanState:
-		{
-			FunctionScanState *node = castNode(FunctionScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_IndexOnlyScanState:
-		{
-			IndexOnlyScanState *node = castNode(IndexOnlyScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_IndexScanState:
-		{
-			IndexScanState *node = castNode(IndexScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_NamedTuplestoreScanState:
-		{
-			NamedTuplestoreScanState *node = castNode(NamedTuplestoreScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_SampleScanState:
-		{
-			SampleScanState *node = castNode(SampleScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_SeqScanState:
-		{
-			SeqScanState *node = castNode(SeqScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_SubqueryScanState:
-		{
-			SubqueryScanState *node = castNode(SubqueryScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_TableFuncScanState:
-		{
-			TableFuncScanState *node = castNode(TableFuncScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_TidRangeScanState:
-		{
-			TidRangeScanState *node = castNode(TidRangeScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_TidScanState:
-		{
-			TidScanState *node = castNode(TidScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_ValuesScanState:
-		{
-			ValuesScanState *node = castNode(ValuesScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		case T_WorkTableScanState:
-		{
-			WorkTableScanState *node = castNode(WorkTableScanState, pstate);
-			return node->ss.ps.ps_ProjInfo;
-		}
-		default:
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("Scan type %d is unknown", pstate->type)));
-	}
-}
-#endif
-
 /* ----------------------------------------------------------------
  *	   ExecModifyTable
  *
@@ -4125,38 +4046,13 @@ ExecModifyTable(PlanState *pstate)
 			case CMD_UPDATE:
 				/* Initialize projection info if first time for this table */
 				if (unlikely(!resultRelInfo->ri_projectNewInfoValid))
-					ExecInitUpdateProjection(node, resultRelInfo, (sql_dialect == SQL_DIALECT_TSQL && resultRelInfo->ri_projectReturning));
+					ExecInitUpdateProjection(node, resultRelInfo);
 
 				/*
 				 * Make the new tuple by combining plan's output tuple with
 				 * the old tuple being updated.
 				 */
 				oldSlot = resultRelInfo->ri_oldTupleSlot;
-
-				// if (sql_dialect == SQL_DIALECT_TSQL && resultRelInfo->ri_projectReturning)
-				// {
-				// 	// ProjectionInfo *projInfo;
-
-				// 	Assert(ItemPointerIsValid(tupleid));
-				// 	/*
-				// 	 * We expect the tuple to be present, thus very simple error handling
-				// 	 * suffices.
-				// 	 */
-				// 	if (!table_tuple_fetch_row_version(resultRelInfo->ri_RelationDesc, tupleid, SnapshotAny,
-				// 									oldSlot))
-				// 		elog(ERROR, "failed to fetch tuple to evaluate returning clause");
-
-				// 	rslot = ExecProcessReturning(resultRelInfo, oldSlot, context.planSlot);
-
-				// 	/*
-				// 	 * We want to reapply ProjInfo on context.planSlot so that any update happened to local variables
-				// 	 * gets applied to final update row.
-				// 	 */
-				// 	// projInfo = GetProjInfo(subplanstate);
-				// 	// if (projInfo)
-				// 	// 	context.planSlot = ExecProject(projInfo);
-				// }
-
 				if (oldtuple != NULL)
 				{
 					/* Use the wholerow junk attr as the old tuple. */
