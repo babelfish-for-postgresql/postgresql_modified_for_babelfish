@@ -5010,10 +5010,11 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 		Oid sysadminOid;
 
 		/*
-		 * For TSQL system roles, grantor will be sysadmin instead of owner.
+		 * For babelfish database, grantor will be sysadmin instead of object owner.
 		 */
 		if (bbf_get_sysadmin_oid_hook &&
 			classid == DatabaseRelationId &&
+			objid == get_database_oid(GetConfigOption("babelfishpg_tsql.database_name", true, false), true) &&
 			is_member_of_role(GetUserId(), sysadminOid = (*bbf_get_sysadmin_oid_hook)()))
 		{
 			grantorId = sysadminOid;
