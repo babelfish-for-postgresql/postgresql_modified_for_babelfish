@@ -5008,13 +5008,15 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 	if (old_acl != NULL)
 	{
 		Oid sysadminOid;
+		const char *babelfish_db_name;
 
 		/*
 		 * For babelfish database, grantor will be sysadmin instead of object owner.
 		 */
 		if (bbf_get_sysadmin_oid_hook &&
 			classid == DatabaseRelationId &&
-			objid == get_database_oid(GetConfigOption("babelfishpg_tsql.database_name", true, false), true) &&
+			(babelfish_db_name = GetConfigOption("babelfishpg_tsql.database_name", true, false)) &&
+			objid == get_database_oid(babelfish_db_name, true) &&
 			is_member_of_role(GetUserId(), sysadminOid = (*bbf_get_sysadmin_oid_hook)()))
 		{
 			grantorId = sysadminOid;
