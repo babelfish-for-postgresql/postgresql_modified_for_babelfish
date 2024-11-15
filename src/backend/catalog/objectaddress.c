@@ -899,7 +899,8 @@ get_trigger_object_address_hook_type  get_trigger_object_address_hook = NULL;
  *
  * If the object is a relation or a child object of a relation (e.g. an
  * attribute or constraint), the relation is also opened and *relp receives
- * the open relcache entry pointer; otherwise, *relp is set to NULL.  This
+ * the open relcache entry pointer; otherwise, *relp is set to NULL.
+ * (relp can be NULL if the caller never passes a relation-related object.)  This
  * is a bit grotty but it makes life simpler, since the caller will
  * typically need the relcache entry too.  Caller must close the relcache
  * entry when done with it.  The relation is locked with the specified lockmode
@@ -1218,8 +1219,12 @@ get_object_address(ObjectType objtype, Node *object,
 		old_address = address;
 	}
 
+	/* relp must be given if it's a relation */
+	Assert(!relation || relp);
+
 	/* Return the object address and the relation. */
-	*relp = relation;
+	if (relp)
+		*relp = relation;
 	return address;
 }
 

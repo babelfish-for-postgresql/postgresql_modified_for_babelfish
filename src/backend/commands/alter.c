@@ -422,13 +422,11 @@ ExecRenameStmt(RenameStmt *stmt)
 			{
 				ObjectAddress address;
 				Relation	catalog;
-				Relation	relation;
 
 				address = get_object_address(stmt->renameType,
 											 stmt->object,
-											 &relation,
+											 NULL,
 											 AccessExclusiveLock, false);
-				Assert(relation == NULL);
 
 				catalog = table_open(address.classId, RowExclusiveLock);
 				AlterObjectRename_internal(catalog,
@@ -483,8 +481,7 @@ ExecAlterObjectDependsStmt(AlterObjectDependsStmt *stmt, ObjectAddress *refAddre
 		table_close(rel, NoLock);
 
 	refAddr = get_object_address(OBJECT_EXTENSION, (Node *) stmt->extname,
-								 &rel, AccessExclusiveLock, false);
-	Assert(rel == NULL);
+								 NULL, AccessExclusiveLock, false);
 	if (refAddress)
 		*refAddress = refAddr;
 
@@ -564,16 +561,14 @@ ExecAlterObjectSchemaStmt(AlterObjectSchemaStmt *stmt,
 		case OBJECT_TSTEMPLATE:
 			{
 				Relation	catalog;
-				Relation	relation;
 				Oid			classId;
 				Oid			nspOid;
 
 				address = get_object_address(stmt->objectType,
 											 stmt->object,
-											 &relation,
+											 NULL,
 											 AccessExclusiveLock,
 											 false);
-				Assert(relation == NULL);
 				classId = address.classId;
 				catalog = table_open(classId, RowExclusiveLock);
 				nspOid = LookupCreationNamespace(stmt->newschema);
@@ -877,15 +872,13 @@ ExecAlterOwnerStmt(AlterOwnerStmt *stmt)
 		case OBJECT_TSDICTIONARY:
 		case OBJECT_TSCONFIGURATION:
 			{
-				Relation	relation;
 				ObjectAddress address;
 
 				address = get_object_address(stmt->objectType,
 											 stmt->object,
-											 &relation,
+											 NULL,
 											 AccessExclusiveLock,
 											 false);
-				Assert(relation == NULL);
 
 				AlterObjectOwner_internal(address.classId, address.objectId,
 										  newowner);
