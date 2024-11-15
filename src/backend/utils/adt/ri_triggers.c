@@ -237,7 +237,7 @@ static void ri_BuildQueryKey(RI_QueryKey *key,
 							 int32 constr_queryno);
 static bool ri_KeysEqual(Relation rel, TupleTableSlot *oldslot, TupleTableSlot *newslot,
 						 const RI_ConstraintInfo *riinfo, bool rel_is_pk);
-static bool ri_CompareWithCast(Oid eq_opr, Oid typeid,
+static bool ri_CompareWithCast(Oid eq_opr, Oid typeid, Oid collid,
 							   Datum lhs, Datum rhs);
 
 static void ri_InitHashTables(void);
@@ -810,8 +810,6 @@ ri_restrict(TriggerData *trigdata, bool is_no_action)
 		{
 			Oid			pk_type = RIAttType(pk_rel, riinfo->pk_attnums[i]);
 			Oid			fk_type = RIAttType(fk_rel, riinfo->fk_attnums[i]);
-			Oid			pk_coll = RIAttCollation(pk_rel, riinfo->pk_attnums[i]);
-			Oid			fk_coll = RIAttCollation(fk_rel, riinfo->fk_attnums[i]);
 
 			quoteOneName(attname,
 						 RIAttName(fk_rel, riinfo->fk_attnums[i]));
@@ -820,8 +818,6 @@ ri_restrict(TriggerData *trigdata, bool is_no_action)
 							paramname, pk_type,
 							riinfo->pf_eq_oprs[i],
 							attname, fk_type);
-			if (pk_coll != fk_coll && !get_collation_isdeterministic(pk_coll))
-				ri_GenerateQualCollation(&querybuf, pk_coll);
 			querysep = "AND";
 			queryoids[i] = pk_type;
 		}
@@ -915,8 +911,6 @@ RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 		{
 			Oid			pk_type = RIAttType(pk_rel, riinfo->pk_attnums[i]);
 			Oid			fk_type = RIAttType(fk_rel, riinfo->fk_attnums[i]);
-			Oid			pk_coll = RIAttCollation(pk_rel, riinfo->pk_attnums[i]);
-			Oid			fk_coll = RIAttCollation(fk_rel, riinfo->fk_attnums[i]);
 
 			quoteOneName(attname,
 						 RIAttName(fk_rel, riinfo->fk_attnums[i]));
@@ -925,8 +919,6 @@ RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 							paramname, pk_type,
 							riinfo->pf_eq_oprs[i],
 							attname, fk_type);
-			if (pk_coll != fk_coll && !get_collation_isdeterministic(pk_coll))
-				ri_GenerateQualCollation(&querybuf, pk_coll);
 			querysep = "AND";
 			queryoids[i] = pk_type;
 		}
@@ -1030,8 +1022,6 @@ RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
 		{
 			Oid			pk_type = RIAttType(pk_rel, riinfo->pk_attnums[i]);
 			Oid			fk_type = RIAttType(fk_rel, riinfo->fk_attnums[i]);
-			Oid			pk_coll = RIAttCollation(pk_rel, riinfo->pk_attnums[i]);
-			Oid			fk_coll = RIAttCollation(fk_rel, riinfo->fk_attnums[i]);
 
 			quoteOneName(attname,
 						 RIAttName(fk_rel, riinfo->fk_attnums[i]));
@@ -1043,8 +1033,6 @@ RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
 							paramname, pk_type,
 							riinfo->pf_eq_oprs[i],
 							attname, fk_type);
-			if (pk_coll != fk_coll && !get_collation_isdeterministic(pk_coll))
-				ri_GenerateQualCollation(&querybuf, pk_coll);
 			querysep = ",";
 			qualsep = "AND";
 			queryoids[i] = pk_type;
@@ -1266,8 +1254,6 @@ ri_set(TriggerData *trigdata, bool is_set_null, int tgkind)
 		{
 			Oid			pk_type = RIAttType(pk_rel, riinfo->pk_attnums[i]);
 			Oid			fk_type = RIAttType(fk_rel, riinfo->fk_attnums[i]);
-			Oid			pk_coll = RIAttCollation(pk_rel, riinfo->pk_attnums[i]);
-			Oid			fk_coll = RIAttCollation(fk_rel, riinfo->fk_attnums[i]);
 
 			quoteOneName(attname,
 						 RIAttName(fk_rel, riinfo->fk_attnums[i]));
@@ -1277,8 +1263,6 @@ ri_set(TriggerData *trigdata, bool is_set_null, int tgkind)
 							paramname, pk_type,
 							riinfo->pf_eq_oprs[i],
 							attname, fk_type);
-			if (pk_coll != fk_coll && !get_collation_isdeterministic(pk_coll))
-				ri_GenerateQualCollation(&querybuf, pk_coll);
 			qualsep = "AND";
 			queryoids[i] = pk_type;
 		}
@@ -2032,19 +2016,17 @@ ri_GenerateQual(StringInfo buf,
 /*
  * ri_GenerateQualCollation --- add a COLLATE spec to a WHERE clause
  *
- * At present, we intentionally do not use this function for RI queries that
- * compare a variable to a $n parameter.  Since parameter symbols always have
- * default collation, the effect will be to use the variable's collation.
- * Now that is only strictly correct when testing the referenced column, since
- * the SQL standard specifies that RI comparisons should use the referenced
- * column's collation.  However, so long as all collations have the same
- * notion of equality (which they do, because texteq reduces to bitwise
- * equality), there's no visible semantic impact from using the referencing
- * column's collation when testing it, and this is a good thing to do because
- * it lets us use a normal index on the referencing column.  However, we do
- * have to use this function when directly comparing the referencing and
- * referenced columns, if they are of different collations; else the parser
- * will fail to resolve the collation to use.
+ * We only have to use this function when directly comparing the referencing
+ * and referenced columns, if they are of different collations; else the
+ * parser will fail to resolve the collation to use.  We don't need to use
+ * this function for RI queries that compare a variable to a $n parameter.
+ * Since parameter symbols always have default collation, the effect will be
+ * to use the variable's collation.
+ *
+ * Note that we require that the collations of the referencing and the
+ * referenced column have the same notion of equality: Either they have to
+ * both be deterministic or else they both have to be the same.  (See also
+ * ATAddForeignKeyConstraint().)
  */
 static void
 ri_GenerateQualCollation(StringInfo buf, Oid collation)
@@ -2986,7 +2968,7 @@ ri_KeysEqual(Relation rel, TupleTableSlot *oldslot, TupleTableSlot *newslot,
 			 * operator.  Changes that compare equal will still satisfy the
 			 * constraint after the update.
 			 */
-			if (!ri_CompareWithCast(eq_opr, RIAttType(rel, attnums[i]),
+			if (!ri_CompareWithCast(eq_opr, RIAttType(rel, attnums[i]), RIAttCollation(rel, attnums[i]),
 									newvalue, oldvalue))
 				return false;
 		}
@@ -3002,11 +2984,12 @@ ri_KeysEqual(Relation rel, TupleTableSlot *oldslot, TupleTableSlot *newslot,
  * Call the appropriate comparison operator for two values.
  * Normally this is equality, but for the PERIOD part of foreign keys
  * it is ContainedBy, so the order of lhs vs rhs is significant.
+ * See below for how the collation is applied.
  *
  * NB: we have already checked that neither value is null.
  */
 static bool
-ri_CompareWithCast(Oid eq_opr, Oid typeid,
+ri_CompareWithCast(Oid eq_opr, Oid typeid, Oid collid,
 				   Datum lhs, Datum rhs)
 {
 	RI_CompareHashEntry *entry = ri_HashCompareOp(eq_opr, typeid);
@@ -3032,9 +3015,9 @@ ri_CompareWithCast(Oid eq_opr, Oid typeid,
 	 * on the other side of a foreign-key constraint.  Therefore, the
 	 * comparison here would need to be done with the collation of the *other*
 	 * table.  For simplicity (e.g., we might not even have the other table
-	 * open), we'll just use the default collation here, which could lead to
-	 * some false negatives.  All this would break if we ever allow
-	 * database-wide collations to be nondeterministic.
+	 * open), we'll use our own collation.  This is fine because we require
+	 * that both collations have the same notion of equality (either they are
+	 * both deterministic or else they are both the same).
 	 *
 	 * With range/multirangetypes, the collation of the base type is stored as
 	 * part of the rangetype (pg_range.rngcollation), and always used, so
@@ -3042,9 +3025,7 @@ ri_CompareWithCast(Oid eq_opr, Oid typeid,
 	 * But if we support arbitrary types with PERIOD, we should perhaps just
 	 * always force a re-check.
 	 */
-	return DatumGetBool(FunctionCall2Coll(&entry->eq_opr_finfo,
-										  DEFAULT_COLLATION_OID,
-										  lhs, rhs));
+	return DatumGetBool(FunctionCall2Coll(&entry->eq_opr_finfo, collid, lhs, rhs));
 }
 
 /*
