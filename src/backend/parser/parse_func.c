@@ -2059,11 +2059,11 @@ funcname_signature_string(const char *funcname, int nargs,
 	int			numposargs;
 	ListCell   *lc;
 	int			i;
+	const char *ptr;
 
 	initStringInfo(&argbuf);
 
 	/* Check if there is schema in funcname */
-	char * ptr = funcname;
 	while (ptr) {
 		if (*ptr == '.') {
             break;
