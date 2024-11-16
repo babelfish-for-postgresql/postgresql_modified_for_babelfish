@@ -4958,7 +4958,6 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 	int			nnewmembers;
 	Oid		   *oldmembers;
 	Oid		   *newmembers;
-	Oid		   grantorId;
 
 	/* Search for existing pg_init_privs entry for the target object. */
 	rel = table_open(InitPrivsRelationId, RowExclusiveLock);
@@ -5024,6 +5023,7 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 	if (old_acl != NULL)
 	{
 		Oid sysadminOid;
+		Acl *temp_acl;
 		const char *babelfish_db_name;
 
 		/*
@@ -5035,10 +5035,17 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 			objid == get_database_oid(babelfish_db_name, true) &&
 			is_member_of_role(GetUserId(), sysadminOid = (*bbf_get_sysadmin_oid_hook)()))
 		{
-			grantorId = sysadminOid;
+
+			temp_acl = merge_acl_with_grant(old_acl,
+									   false,	/* is_grant */
+									   false,	/* grant_option */
+									   DROP_RESTRICT,
+									   list_make1_oid(roleid),
+									   ACLITEM_ALL_PRIV_BITS,
+									   sysadminOid,
+									   ownerId);
+			old_acl = temp_acl;
 		}
-		else
-			grantorId = ownerId;
 
 		new_acl = merge_acl_with_grant(old_acl,
 									   false,	/* is_grant */
@@ -5046,7 +5053,7 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 									   DROP_RESTRICT,
 									   list_make1_oid(roleid),
 									   ACLITEM_ALL_PRIV_BITS,
-									   grantorId,
+									   ownerId,
 									   ownerId);
 	}
 	else
