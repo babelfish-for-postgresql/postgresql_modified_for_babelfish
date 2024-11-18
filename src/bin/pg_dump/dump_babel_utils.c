@@ -52,6 +52,18 @@ typedef enum {
 
 static babelfish_status bbf_status = NONE;
 
+static char *default_bbf_db_principals =
+			"('master_dbo', 'master_db_owner', 'master_guest', "
+			"'master_db_accessadmin', 'master_db_securityadmin', "
+			"'master_db_datareader', 'master_db_datawriter', "
+			"'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
+			"'msdb_db_accessadmin', 'msdb_db_securityadmin', "
+			"'msdb_db_datareader', 'msdb_db_datawriter', "
+			"'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', "
+			"'tempdb_db_accessadmin', 'tempdb_db_securityadmin', "
+			"'tempdb_db_datareader', 'tempdb_db_datawriter')" ;
+
+
 
 static char *
 getMinOid(Archive *fout)
@@ -1123,11 +1135,8 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						  "INNER JOIN sys.babelfish_sysdatabases b "
 						  "ON a.database_name = b.name COLLATE \"C\" "
 						  "WHERE b.dbid = %d "
-						  "AND a.rolname NOT IN "
-						  "('master_dbo', 'master_db_owner', 'master_guest', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') ",
-						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
+						  "AND a.rolname NOT IN %s",
+						  fmtQualifiedDumpable(tbinfo), bbf_db_id, default_bbf_db_principals);
 	}
 	else
 	{
@@ -1169,15 +1178,17 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 	{
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
-						  "WHERE a.rolname NOT IN "
-						  "('master_dbo', 'master_db_owner', 'master_guest', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest')",
-						  fmtQualifiedDumpable(tbinfo));
+						  "WHERE a.rolname NOT IN %s",
+						  fmtQualifiedDumpable(tbinfo), default_bbf_db_principals);
 	}
+	/* 
+	 * Do not dump sysadmin, bbf_role_admin, securityadmin,
+	 * dbcreator and Babelfish initialize user 
+	 */
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
-						"WHERE a.rolname NOT IN ('sysadmin', 'bbf_role_admin', '%s')", /* Do not dump sysadmin, bbf_role_admin and Babelfish initialize user */
+						"WHERE a.rolname NOT IN ('sysadmin', 'bbf_role_admin', "
+						"'securityadmin', 'dbcreator', '%s')",
 						fmtQualifiedDumpable(tbinfo), babel_init_user);
 	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
@@ -1991,7 +2002,7 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 					"\n	SET LOCAL ROLE sysadmin;"
 					"\n	FOR rolname, original_name IN ("
 					"\n		SELECT a.rolname, a.orig_username FROM sys.babelfish_authid_user_ext a"
-					"\n			WHERE orig_username IN ('dbo') AND"
+					"\n			WHERE orig_username IN ('dbo','db_accessadmin','db_securityadmin') AND"
 					"\n			database_name NOT IN ('master', 'tempdb', 'msdb')");
 
 	if (bbf_db_name)
@@ -2002,6 +2013,8 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 					"\n	) LOOP"
 					"\n		CASE WHEN original_name = 'dbo' THEN"
 					"\n			EXECUTE format('GRANT CREATE, CONNECT, TEMPORARY ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
+					"\n		WHEN original_name IN ('db_securityadmin','db_accessadmin') THEN"
+					"\n			EXECUTE format('GRANT CREATE ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
 					"\n		END CASE;"
 					"\n	END LOOP;"
 					"\n	RESET ROLE;"

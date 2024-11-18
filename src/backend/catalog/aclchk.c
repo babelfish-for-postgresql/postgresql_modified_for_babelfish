@@ -170,6 +170,7 @@ static void recordExtensionInitPrivWorker(Oid objoid, Oid classoid, int objsubid
 										  Acl *new_acl);
 
 tsql_has_linked_srv_permissions_hook_type tsql_has_linked_srv_permissions_hook = NULL;
+bbf_execute_grantstmt_as_dbsecadmin_hook_type bbf_execute_grantstmt_as_dbsecadmin_hook = NULL;
 
 /*
  * If is_grant is true, adds the given privileges for the list of
@@ -1743,6 +1744,11 @@ ExecGrant_Attribute(InternalGrant *istmt, Oid relOid, const char *relname,
 
 	pfree(merged_acl);
 
+	if (bbf_execute_grantstmt_as_dbsecadmin_hook)
+	{
+		(*bbf_execute_grantstmt_as_dbsecadmin_hook) (OBJECT_COLUMN, relOid, ownerId, col_privileges, &grantorId, &avail_goptions);
+	}
+
 	/*
 	 * Restrict the privileges to what we can actually grant, and emit the
 	 * standards-mandated warning and error messages.  Note: we don't track
@@ -2024,6 +2030,11 @@ ExecGrant_Relation(InternalGrant *istmt)
 					break;
 			}
 
+			if (bbf_execute_grantstmt_as_dbsecadmin_hook)
+			{
+				(*bbf_execute_grantstmt_as_dbsecadmin_hook) (objtype, relOid, ownerId, this_privileges, &grantorId, &avail_goptions);
+			}
+
 			/*
 			 * Restrict the privileges to what we can actually grant, and emit
 			 * the standards-mandated warning and error messages.
@@ -2225,6 +2236,11 @@ ExecGrant_common(InternalGrant *istmt, Oid classid, AclMode default_privs,
 		select_best_grantor(GetUserId(), istmt->privileges,
 							old_acl, ownerId,
 							&grantorId, &avail_goptions);
+
+		if (bbf_execute_grantstmt_as_dbsecadmin_hook)
+		{
+			(*bbf_execute_grantstmt_as_dbsecadmin_hook) (get_object_type(classid, objectid), objectid, ownerId, istmt->privileges, &grantorId, &avail_goptions);
+		}
 
 		nameDatum = SysCacheGetAttrNotNull(cacheid, tuple,
 										   get_object_attnum_name(classid));
@@ -4942,7 +4958,6 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 	int			nnewmembers;
 	Oid		   *oldmembers;
 	Oid		   *newmembers;
-	Oid		   grantorId;
 
 	/* Search for existing pg_init_privs entry for the target object. */
 	rel = table_open(InitPrivsRelationId, RowExclusiveLock);
@@ -5008,6 +5023,7 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 	if (old_acl != NULL)
 	{
 		Oid sysadminOid;
+		Acl *temp_acl;
 		const char *babelfish_db_name;
 
 		/*
@@ -5019,10 +5035,17 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 			objid == get_database_oid(babelfish_db_name, true) &&
 			is_member_of_role(GetUserId(), sysadminOid = (*bbf_get_sysadmin_oid_hook)()))
 		{
-			grantorId = sysadminOid;
+
+			temp_acl = merge_acl_with_grant(old_acl,
+									   false,	/* is_grant */
+									   false,	/* grant_option */
+									   DROP_RESTRICT,
+									   list_make1_oid(roleid),
+									   ACLITEM_ALL_PRIV_BITS,
+									   sysadminOid,
+									   ownerId);
+			old_acl = temp_acl;
 		}
-		else
-			grantorId = ownerId;
 
 		new_acl = merge_acl_with_grant(old_acl,
 									   false,	/* is_grant */
@@ -5030,7 +5053,7 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 									   DROP_RESTRICT,
 									   list_make1_oid(roleid),
 									   ACLITEM_ALL_PRIV_BITS,
-									   grantorId,
+									   ownerId,
 									   ownerId);
 	}
 	else
