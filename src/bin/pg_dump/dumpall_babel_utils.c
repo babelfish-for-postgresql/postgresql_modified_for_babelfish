@@ -37,14 +37,14 @@ static babelfish_status bbf_status = NONE;
 
 static char default_bbf_roles[] = "('sysadmin', 'bbf_role_admin', 'securityadmin', 'dbcreator', "
                                   "'master_dbo', 'master_db_owner', 'master_guest', "
-                                  "'master_db_accessadmin', 'master_db_securityadmin', "
+                                  "'master_db_accessadmin', 'master_db_securityadmin', 'master_db_ddladmin', "
                                   "'master_db_datareader', 'master_db_datawriter', "
                                   "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
                                   "'msdb_db_accessadmin', 'msdb_db_securityadmin', "
-                                  "'msdb_db_datareader', 'msdb_db_datawriter', "
+                                  "'msdb_db_datareader', 'msdb_db_datawriter', 'msdb_db_ddladmin', "
                                   "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', "
                                   "'tempdb_db_accessadmin', 'tempdb_db_securityadmin', "
-                                  "'tempdb_db_datareader', 'tempdb_db_datawriter')" ;
+                                  "'tempdb_db_datareader', 'tempdb_db_datawriter', 'tempdb_db_ddladmin')";
 
 /*
  * Run a query, return the results, exit program on failure.
