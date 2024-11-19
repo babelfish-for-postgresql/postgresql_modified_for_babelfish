@@ -219,7 +219,8 @@ AlterObjectRename_internal(Relation rel, Oid objectId, const char *new_name)
 		Assert(!isnull);
 		ownerId = DatumGetObjectId(datum);
 
-		if (!has_privs_of_role(GetUserId(), DatumGetObjectId(ownerId)))
+		if (!has_privs_of_role(GetUserId(), DatumGetObjectId(ownerId)) &&
+			!(OidIsValid(namespaceId) && IS_BBF_DB_DDLADMIN(namespaceId)))
 			aclcheck_error(ACLCHECK_NOT_OWNER, get_object_type(classId, objectId),
 						   old_name);
 

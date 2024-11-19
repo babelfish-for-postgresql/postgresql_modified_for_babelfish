@@ -300,4 +300,15 @@ extern PGDLLEXPORT get_bbf_admin_oid_hook_type get_bbf_admin_oid_hook;
 typedef void (*bbf_execute_grantstmt_as_dbsecadmin_hook_type) (ObjectType objType, Oid objId, Oid ownerId, AclMode privileges, Oid *grantorId, AclMode *grantOptions);
 extern PGDLLEXPORT bbf_execute_grantstmt_as_dbsecadmin_hook_type bbf_execute_grantstmt_as_dbsecadmin_hook;
 
+typedef Oid (*pltsql_get_object_owner_hook_type) (Oid, Oid);
+extern PGDLLEXPORT pltsql_get_object_owner_hook_type pltsql_get_object_owner_hook;
+
+typedef bool (*is_bbf_db_ddladmin_operation_hook_type) (Oid namespaceId);
+extern PGDLLEXPORT is_bbf_db_ddladmin_operation_hook_type is_bbf_db_ddladmin_operation_hook;
+
+#define IS_BBF_DB_DDLADMIN(namespaceId) \
+	(is_bbf_db_ddladmin_operation_hook &&       \
+	 is_bbf_db_ddladmin_operation_hook(namespaceId))
+
+
 #endif							/* ACL_H */

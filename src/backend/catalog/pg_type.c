@@ -253,6 +253,11 @@ TypeCreate(Oid newTypeOid,
 				 errmsg("invalid type internal size %d",
 						internalSize)));
 
+	if (pltsql_get_object_owner_hook)
+	{
+		ownerId = (*pltsql_get_object_owner_hook)(typeNamespace, ownerId);
+	}
+
 	if (passedByValue)
 	{
 		/*

@@ -271,7 +271,8 @@ DefineQueryRewrite(const char *rulename,
 	/*
 	 * Check user has permission to apply rules to this relation.
 	 */
-	if (!object_ownercheck(RelationRelationId, event_relid, GetUserId()))
+	if (!object_ownercheck(RelationRelationId, event_relid, GetUserId()) &&
+		!IS_BBF_DB_DDLADMIN(RelationGetNamespace(event_relation)))
 		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(event_relation->rd_rel->relkind),
 					   RelationGetRelationName(event_relation));
 

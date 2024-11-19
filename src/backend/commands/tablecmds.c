@@ -847,6 +847,12 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("only shared relations can be placed in pg_global tablespace")));
 
+
+	if (pltsql_get_object_owner_hook && !OidIsValid(ownerId))
+	{
+		ownerId = (*pltsql_get_object_owner_hook)(namespaceId, ownerId);
+	}
+
 	/* Identify user ID that will own the table */
 	if (!OidIsValid(ownerId))
 		ownerId = GetUserId();
@@ -1743,7 +1749,8 @@ RangeVarCallbackForDropRelation(const RangeVar *rel, Oid relOid, Oid oldRelOid,
 
 	/* Allow DROP to either table owner or schema owner */
 	if (!object_ownercheck(RelationRelationId, relOid, GetUserId()) &&
-		!object_ownercheck(NamespaceRelationId, classform->relnamespace, GetUserId()))
+		!object_ownercheck(NamespaceRelationId, classform->relnamespace, GetUserId()) &&
+		!IS_BBF_DB_DDLADMIN(classform->relnamespace))
 		aclcheck_error(ACLCHECK_NOT_OWNER,
 					   get_relkind_objtype(classform->relkind),
 					   rel->relname);
@@ -2697,7 +2704,8 @@ MergeAttributes(List *columns, const List *supers, char relpersistence,
 		 * We should have an UNDER permission flag for this, but for now,
 		 * demand that creator of a child table own the parent.
 		 */
-		if (!object_ownercheck(RelationRelationId, RelationGetRelid(relation), GetUserId()))
+		if (!object_ownercheck(RelationRelationId, RelationGetRelid(relation), GetUserId()) &&
+			!IS_BBF_DB_DDLADMIN(RelationGetNamespace(relation)))
 			aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(relation->rd_rel->relkind),
 						   RelationGetRelationName(relation));
 
@@ -3743,7 +3751,8 @@ renameatt_check(Oid myrelid, Form_pg_class classform, bool recursing)
 	/*
 	 * permissions checking.  only the owner of a class can change its schema.
 	 */
-	if (!object_ownercheck(RelationRelationId, myrelid, GetUserId()))
+	if (!object_ownercheck(RelationRelationId, myrelid, GetUserId()) &&
+		!IS_BBF_DB_DDLADMIN(get_rel_namespace(myrelid)))
 		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(myrelid)),
 					   NameStr(classform->relname));
 	if (!allowSystemTableMods && IsSystemClass(myrelid, classform))
@@ -6689,7 +6698,8 @@ ATSimplePermissions(AlterTableType cmdtype, Relation rel, int allowed_targets)
 	}
 
 	/* Permissions checks */
-	if (!object_ownercheck(RelationRelationId, RelationGetRelid(rel), GetUserId()))
+	if (!object_ownercheck(RelationRelationId, RelationGetRelid(rel), GetUserId()) &&
+		!IS_BBF_DB_DDLADMIN(RelationGetNamespace(rel)))
 		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(rel->rd_rel->relkind),
 					   RelationGetRelationName(rel));
 
@@ -12187,7 +12197,7 @@ checkFkeyPermissions(Relation rel, int16 *attnums, int natts)
 	/* Okay if we have relation-level REFERENCES permission */
 	aclresult = pg_class_aclcheck(RelationGetRelid(rel), roleid,
 								  ACL_REFERENCES);
-	if (aclresult == ACLCHECK_OK)
+	if (aclresult == ACLCHECK_OK || IS_BBF_DB_DDLADMIN(RelationGetNamespace(rel)))
 		return;
 	/* Else we must have REFERENCES on each column */
 	for (i = 0; i < natts; i++)
@@ -17765,7 +17775,8 @@ RangeVarCallbackOwnsRelation(const RangeVar *relation,
 	if (!HeapTupleIsValid(tuple))	/* should not happen */
 		elog(ERROR, "cache lookup failed for relation %u", relId);
 
-	if (!object_ownercheck(RelationRelationId, relId, GetUserId()))
+	if (!object_ownercheck(RelationRelationId, relId, GetUserId()) &&
+		!IS_BBF_DB_DDLADMIN(get_rel_namespace(relId)))
 		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(relId)),
 					   relation->relname);
 
@@ -17801,7 +17812,8 @@ RangeVarCallbackForAlterRelation(const RangeVar *rv, Oid relid, Oid oldrelid,
 	relkind = classform->relkind;
 
 	/* Must own relation. */
-	if (!object_ownercheck(RelationRelationId, relid, GetUserId()))
+	if (!object_ownercheck(RelationRelationId, relid, GetUserId()) &&
+		!IS_BBF_DB_DDLADMIN(classform->relnamespace))
 		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(relid)), rv->relname);
 
 	/* No system table modifications unless explicitly allowed. */

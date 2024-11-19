@@ -376,7 +376,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	{
 		aclresult = pg_class_aclcheck(RelationGetRelid(rel), GetUserId(),
 									  ACL_TRIGGER);
-		if (aclresult != ACLCHECK_OK)
+		if (aclresult != ACLCHECK_OK && !IS_BBF_DB_DDLADMIN(RelationGetNamespace(rel)))
 			aclcheck_error(aclresult, get_relkind_objtype(rel->rd_rel->relkind),
 						   RelationGetRelationName(rel));
 
@@ -751,7 +751,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 	if (!isInternal)
 	{
 		aclresult = object_aclcheck(ProcedureRelationId, funcoid, GetUserId(), ACL_EXECUTE);
-		if (aclresult != ACLCHECK_OK)
+		if (aclresult != ACLCHECK_OK && !IS_BBF_DB_DDLADMIN(get_func_namespace(funcoid)))
 			aclcheck_error(aclresult, OBJECT_FUNCTION,
 						   NameListToString(stmt->funcname));
 	}
@@ -1569,7 +1569,8 @@ RangeVarCallbackForRenameTrigger(const RangeVar *rv, Oid relid, Oid oldrelid,
 				 errdetail_relkind_not_supported(form->relkind)));
 
 	/* you must own the table to rename one of its triggers */
-	if (!object_ownercheck(RelationRelationId, relid, GetUserId()))
+	if (!object_ownercheck(RelationRelationId, relid, GetUserId()) &&
+		!IS_BBF_DB_DDLADMIN(get_rel_namespace(relid)))
 		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(relid)), rv->relname);
 	if (!allowSystemTableMods && IsSystemClass(relid, form))
 		ereport(ERROR,
