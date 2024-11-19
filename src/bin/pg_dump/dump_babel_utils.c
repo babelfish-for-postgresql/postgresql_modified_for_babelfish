@@ -55,13 +55,13 @@ static babelfish_status bbf_status = NONE;
 static char *default_bbf_db_principals =
 			"('master_dbo', 'master_db_owner', 'master_guest', "
 			"'master_db_accessadmin', 'master_db_securityadmin', "
-			"'master_db_datareader', 'master_db_datawriter', "
+			"'master_db_datareader', 'master_db_datawriter', 'master_db_ddladmin', "
 			"'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
 			"'msdb_db_accessadmin', 'msdb_db_securityadmin', "
-			"'msdb_db_datareader', 'msdb_db_datawriter', "
+			"'msdb_db_datareader', 'msdb_db_datawriter', 'msdb_db_ddladmin', "
 			"'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', "
 			"'tempdb_db_accessadmin', 'tempdb_db_securityadmin', "
-			"'tempdb_db_datareader', 'tempdb_db_datawriter')" ;
+			"'tempdb_db_datareader', 'tempdb_db_datawriter', 'tempdb_db_ddladmin')";
 
 
 
@@ -2002,7 +2002,7 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 					"\n	SET LOCAL ROLE sysadmin;"
 					"\n	FOR rolname, original_name IN ("
 					"\n		SELECT a.rolname, a.orig_username FROM sys.babelfish_authid_user_ext a"
-					"\n			WHERE orig_username IN ('dbo','db_accessadmin','db_securityadmin') AND"
+					"\n			WHERE orig_username IN ('dbo','db_accessadmin','db_securityadmin','db_ddladmin') AND"
 					"\n			database_name NOT IN ('master', 'tempdb', 'msdb')");
 
 	if (bbf_db_name)
@@ -2013,7 +2013,7 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 					"\n	) LOOP"
 					"\n		CASE WHEN original_name = 'dbo' THEN"
 					"\n			EXECUTE format('GRANT CREATE, CONNECT, TEMPORARY ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
-					"\n		WHEN original_name IN ('db_securityadmin','db_accessadmin') THEN"
+					"\n		WHEN original_name IN ('db_securityadmin','db_accessadmin','db_ddladmin') THEN"
 					"\n			EXECUTE format('GRANT CREATE ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
 					"\n		END CASE;"
 					"\n	END LOOP;"

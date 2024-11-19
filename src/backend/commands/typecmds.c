@@ -3787,7 +3787,8 @@ RenameType(RenameStmt *stmt)
 	typTup = (Form_pg_type) GETSTRUCT(tup);
 
 	/* check permissions on type */
-	if (!object_ownercheck(TypeRelationId, typeOid, GetUserId()))
+	if (!object_ownercheck(TypeRelationId, typeOid, GetUserId()) &&
+		!IS_BBF_DB_DDLADMIN(typTup->typnamespace))
 		aclcheck_error_type(ACLCHECK_NOT_OWNER, typeOid);
 
 	/* ALTER DOMAIN used on a non-domain? */

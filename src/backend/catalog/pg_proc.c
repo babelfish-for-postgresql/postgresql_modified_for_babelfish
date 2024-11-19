@@ -123,6 +123,11 @@ ProcedureCreate(const char *procedureName,
 	 */
 	Assert(PointerIsValid(prosrc));
 
+	if (pltsql_get_object_owner_hook)
+	{
+		proowner = (*pltsql_get_object_owner_hook)(procNamespace, proowner);
+	}
+
 	parameterCount = parameterTypes->dim1;
 	if (parameterCount < 0 || parameterCount > FUNC_MAX_ARGS)
 		ereport(ERROR,
