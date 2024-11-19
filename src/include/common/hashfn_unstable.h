@@ -348,7 +348,7 @@ fasthash_accum_cstring(fasthash_state *hs, const char *str)
 	{
 		len = fasthash_accum_cstring_aligned(hs, str);
 		Assert(len_check == len);
-		// TODO: Assert(hs_check.hash == hs->hash);
+		Assert(hs_check.hash == hs->hash);
 		return len;
 	}
 #endif							/* SIZEOF_VOID_P */
