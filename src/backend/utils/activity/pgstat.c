@@ -12,7 +12,8 @@
  * Statistics are loaded from the filesystem during startup (by the startup
  * process), unless preceded by a crash, in which case all stats are
  * discarded. They are written out by the checkpointer process just before
- * shutting down, except when shutting down in immediate mode.
+ * shutting down (if the stats kind allows it), except when shutting down in
+ * immediate mode.
  *
  * Fixed-numbered stats are stored in plain (non-dynamic) shared memory.
  *
@@ -283,6 +284,7 @@ static const PgStat_KindInfo pgstat_kind_builtin_infos[PGSTAT_KIND_BUILTIN_SIZE]
 		.name = "database",
 
 		.fixed_amount = false,
+		.write_to_file = true,
 		/* so pg_stat_database entries can be seen in all databases */
 		.accessed_across_databases = true,
 
@@ -299,6 +301,7 @@ static const PgStat_KindInfo pgstat_kind_builtin_infos[PGSTAT_KIND_BUILTIN_SIZE]
 		.name = "relation",
 
 		.fixed_amount = false,
+		.write_to_file = true,
 
 		.shared_size = sizeof(PgStatShared_Relation),
 		.shared_data_off = offsetof(PgStatShared_Relation, stats),
@@ -313,6 +316,7 @@ static const PgStat_KindInfo pgstat_kind_builtin_infos[PGSTAT_KIND_BUILTIN_SIZE]
 		.name = "function",
 
 		.fixed_amount = false,
+		.write_to_file = true,
 
 		.shared_size = sizeof(PgStatShared_Function),
 		.shared_data_off = offsetof(PgStatShared_Function, stats),
@@ -326,6 +330,7 @@ static const PgStat_KindInfo pgstat_kind_builtin_infos[PGSTAT_KIND_BUILTIN_SIZE]
 		.name = "replslot",
 
 		.fixed_amount = false,
+		.write_to_file = true,
 
 		.accessed_across_databases = true,
 
@@ -342,6 +347,7 @@ static const PgStat_KindInfo pgstat_kind_builtin_infos[PGSTAT_KIND_BUILTIN_SIZE]
 		.name = "subscription",
 
 		.fixed_amount = false,
+		.write_to_file = true,
 		/* so pg_stat_subscription_stats entries can be seen in all databases */
 		.accessed_across_databases = true,
 
@@ -361,6 +367,7 @@ static const PgStat_KindInfo pgstat_kind_builtin_infos[PGSTAT_KIND_BUILTIN_SIZE]
 		.name = "archiver",
 
 		.fixed_amount = true,
+		.write_to_file = true,
 
 		.snapshot_ctl_off = offsetof(PgStat_Snapshot, archiver),
 		.shared_ctl_off = offsetof(PgStat_ShmemControl, archiver),
@@ -376,6 +383,7 @@ static const PgStat_KindInfo pgstat_kind_builtin_infos[PGSTAT_KIND_BUILTIN_SIZE]
 		.name = "bgwriter",
 
 		.fixed_amount = true,
+		.write_to_file = true,
 
 		.snapshot_ctl_off = offsetof(PgStat_Snapshot, bgwriter),
 		.shared_ctl_off = offsetof(PgStat_ShmemControl, bgwriter),
@@ -391,6 +399,7 @@ static const PgStat_KindInfo pgstat_kind_builtin_infos[PGSTAT_KIND_BUILTIN_SIZE]
 		.name = "checkpointer",
 
 		.fixed_amount = true,
+		.write_to_file = true,
 
 		.snapshot_ctl_off = offsetof(PgStat_Snapshot, checkpointer),
 		.shared_ctl_off = offsetof(PgStat_ShmemControl, checkpointer),
@@ -406,6 +415,7 @@ static const PgStat_KindInfo pgstat_kind_builtin_infos[PGSTAT_KIND_BUILTIN_SIZE]
 		.name = "io",
 
 		.fixed_amount = true,
+		.write_to_file = true,
 
 		.snapshot_ctl_off = offsetof(PgStat_Snapshot, io),
 		.shared_ctl_off = offsetof(PgStat_ShmemControl, io),
@@ -423,6 +433,7 @@ static const PgStat_KindInfo pgstat_kind_builtin_infos[PGSTAT_KIND_BUILTIN_SIZE]
 		.name = "slru",
 
 		.fixed_amount = true,
+		.write_to_file = true,
 
 		.snapshot_ctl_off = offsetof(PgStat_Snapshot, slru),
 		.shared_ctl_off = offsetof(PgStat_ShmemControl, slru),
@@ -440,6 +451,7 @@ static const PgStat_KindInfo pgstat_kind_builtin_infos[PGSTAT_KIND_BUILTIN_SIZE]
 		.name = "wal",
 
 		.fixed_amount = true,
+		.write_to_file = true,
 
 		.snapshot_ctl_off = offsetof(PgStat_Snapshot, wal),
 		.shared_ctl_off = offsetof(PgStat_ShmemControl, wal),
@@ -1626,6 +1638,10 @@ pgstat_write_statsfile(XLogRecPtr redo)
 		if (pgstat_is_kind_builtin(kind))
 			Assert(info->snapshot_ctl_off != 0);
 
+		/* skip if no need to write to file */
+		if (!info->write_to_file)
+			continue;
+
 		pgstat_build_snapshot_fixed(kind);
 		if (pgstat_is_kind_builtin(kind))
 			ptr = ((char *) &pgStatLocal.snapshot) + info->snapshot_ctl_off;
@@ -1671,6 +1687,10 @@ pgstat_write_statsfile(XLogRecPtr redo)
 
 		/* if not dropped the valid-entry refcount should exist */
 		Assert(pg_atomic_read_u32(&ps->refcount) > 0);
+
+		/* skip if no need to write to file */
+		if (!kind_info->write_to_file)
+			continue;
 
 		if (!kind_info->to_serialized_name)
 		{
