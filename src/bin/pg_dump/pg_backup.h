@@ -116,8 +116,6 @@ typedef struct _restoreOptions
 	int			strict_names;
 
 	const char *filename;
-	int			dataOnly;
-	int			schemaOnly;
 	int			dumpSections;
 	int			verbose;
 	int			aclsSkip;
@@ -159,6 +157,10 @@ typedef struct _restoreOptions
 	int			sequence_data;	/* dump sequence data even in schema-only mode */
 	int			binary_upgrade;
 	bool		babelfish_db; /* is this a Babelfish database? */
+
+	/* flags derived from the user-settable flags */
+	bool		dumpSchema;
+	bool		dumpData;
 } RestoreOptions;
 
 typedef struct _dumpOptions
@@ -168,8 +170,6 @@ typedef struct _dumpOptions
 	int			binary_upgrade;
 
 	/* various user-settable parameters */
-	bool		schemaOnly;
-	bool		dataOnly;
 	int			dumpSections;	/* bitmask of chosen sections */
 	bool		aclsSkip;
 	const char *lockWaitTimeout;
@@ -205,6 +205,10 @@ typedef struct _dumpOptions
 
 	int			sequence_data;	/* dump sequence data even in schema-only mode */
 	int			do_nothing;
+
+	/* flags derived from the user-settable flags */
+	bool		dumpSchema;
+	bool		dumpData;
 } DumpOptions;
 
 /*
