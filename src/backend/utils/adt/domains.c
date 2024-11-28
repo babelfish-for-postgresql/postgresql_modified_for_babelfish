@@ -256,7 +256,7 @@ domain_in(PG_FUNCTION_ARGS)
 	{
 		my_extra = domain_state_setup(domainType, false,
 									  fcinfo->flinfo->fn_mcxt);
-		fcinfo->flinfo->fn_extra = (void *) my_extra;
+		fcinfo->flinfo->fn_extra = my_extra;
 	}
 
 	/*
@@ -324,7 +324,7 @@ domain_recv(PG_FUNCTION_ARGS)
 	{
 		my_extra = domain_state_setup(domainType, true,
 									  fcinfo->flinfo->fn_mcxt);
-		fcinfo->flinfo->fn_extra = (void *) my_extra;
+		fcinfo->flinfo->fn_extra = my_extra;
 	}
 
 	/*
@@ -398,7 +398,7 @@ domain_check_internal(Datum value, bool isnull, Oid domainType,
 	{
 		my_extra = domain_state_setup(domainType, true, mcxt);
 		if (extra)
-			*extra = (void *) my_extra;
+			*extra = my_extra;
 	}
 
 	/*

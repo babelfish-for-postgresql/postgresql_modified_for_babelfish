@@ -645,7 +645,7 @@ setRuleCheckAsUser_walker(Node *node, Oid *context)
 		return false;
 	}
 	return expression_tree_walker(node, setRuleCheckAsUser_walker,
-								  (void *) context);
+								  context);
 }
 
 static void
@@ -680,7 +680,7 @@ setRuleCheckAsUser_Query(Query *qry, Oid userid)
 
 	/* If there are sublinks, search for them and process their RTEs */
 	if (qry->hasSubLinks)
-		query_tree_walker(qry, setRuleCheckAsUser_walker, (void *) &userid,
+		query_tree_walker(qry, setRuleCheckAsUser_walker, &userid,
 						  QTW_IGNORE_RC_SUBQUERIES);
 }
 
