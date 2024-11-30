@@ -3640,6 +3640,7 @@ nodeitem
 normal_rand_fctx
 nsphash_hash
 ntile_context
+nullingrel_info
 numeric
 object_access_hook_type
 object_access_hook_type_str
