@@ -133,3 +133,6 @@ test: serializable
 # run tablespace test at the end because it drops the tablespace created during
 # setup that other tests may use.
 test: tablespace
+
+# Test Babel returning issue BABEL-5343
+test: babel_5343_returning
