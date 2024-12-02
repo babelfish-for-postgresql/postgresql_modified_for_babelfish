@@ -15871,7 +15871,7 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 						appendPQExpBufferStr(q, " NOT NULL");
 
 					/* Add collation if not default for the type */
-					if (OidIsValid(tbinfo->attcollation[j]))
+					if (OidIsValid(tbinfo->attcollation[j]) && !isBabelfishDatabase(fout))
 					{
 						CollInfo   *coll;
 
