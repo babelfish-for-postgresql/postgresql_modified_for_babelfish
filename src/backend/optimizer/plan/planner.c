@@ -1157,6 +1157,10 @@ preprocess_expression(PlannerInfo *root, Node *expr, int kind)
 	if (kind != EXPRKIND_RTFUNC)
 		expr = eval_const_expressions(root, expr);
 
+	/* Reset context of expression */
+	if(EXPRKIND_TARGET == kind && planner_node_transformer_hook)
+		(void) planner_node_transformer_hook(root, NULL, -1);
+
 	/*
 	 * If it's a qual or havingQual, canonicalize it.
 	 */
