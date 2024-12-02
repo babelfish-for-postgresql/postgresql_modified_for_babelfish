@@ -137,3 +137,6 @@ test: event_trigger oidjoins
 test: fast_default
 
 test: serializable
+
+# Test Babel returning issue BABEL-5343
+test: babel_5343_returning
