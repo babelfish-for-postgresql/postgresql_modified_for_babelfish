@@ -1,0 +1,21 @@
+CREATE TABLE toverflow(id SERIAL, col1 VARCHAR);
+INSERT INTO toverflow VALUES (default, 'hope') RETURNING xmax::text::int;
+ xmax 
+------
+    0
+(1 row)
+
+INSERT INTO toverflow VALUES (default, 'jack') RETURNING xmax;
+ xmax 
+------
+    0
+(1 row)
+
+SELECT * FROM toverflow ORDER BY id;
+ id | col1 
+----+------
+  1 | hope
+  2 | jack
+(2 rows)
+
+DROP TABLE toverflow;
