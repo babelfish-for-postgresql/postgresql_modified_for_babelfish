@@ -823,7 +823,7 @@ ExecInsert(ModifyTableContext *context,
 	}
 
 	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning)
+	if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
 		result = ExecProcessReturning(resultRelInfo, slot, planSlot);
 
 	/* INSTEAD OF ROW INSERT Triggers */
@@ -1217,7 +1217,7 @@ ExecInsert(ModifyTableContext *context,
 		ExecWithCheckOptions(WCO_VIEW_CHECK, resultRelInfo, slot, estate);
 
 	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning)
+	if (resultRelInfo->ri_projectReturning && sql_dialect != SQL_DIALECT_TSQL)
 		result = ExecProcessReturning(resultRelInfo, slot, planSlot);
 
 	if (inserted_tuple)
