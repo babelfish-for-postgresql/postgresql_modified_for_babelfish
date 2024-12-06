@@ -2562,7 +2562,13 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 		TupleTableSlot *slot;
 
 		if (fcinfo->isnull)
+		{
+			if (stmt->relation && stmt->attrnos)
+			/* insert exec babelfish */
+				return;
+			
 			elog(ERROR, "procedure returned null record");
+		}
 
 		/*
 		 * Ensure there's an active snapshot whilst we execute whatever's
