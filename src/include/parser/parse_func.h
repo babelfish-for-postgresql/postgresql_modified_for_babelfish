@@ -74,7 +74,7 @@ extern void check_srf_call_placement(ParseState *pstate, Node *last_srf,
 /*
  * Hook interface to select a function from candidates
  */
-typedef FuncCandidateList (*func_select_candidate_hook_type) (List *names, List *fargs, int nargs, Oid *input_typeids, FuncCandidateList candidates, bool unknowns_resolved, bool is_special);
+typedef FuncCandidateList (*func_select_candidate_hook_type) (List *names, int nargs, Oid *input_typeids, FuncCandidateList candidates, bool unknowns_resolved, bool is_special);
 /* Hook interface to process function arguments using probin */
 typedef void (*make_fn_arguments_from_stored_proc_probin_hook_type)(ParseState *pstate,List *fargs,Oid *actual_arg_types,Oid *declared_arg_types,Oid funcid);
 extern PGDLLEXPORT make_fn_arguments_from_stored_proc_probin_hook_type make_fn_arguments_from_stored_proc_probin_hook;
