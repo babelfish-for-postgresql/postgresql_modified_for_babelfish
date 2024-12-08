@@ -306,6 +306,9 @@ extern PGDLLEXPORT pltsql_get_object_owner_hook_type pltsql_get_object_owner_hoo
 typedef bool (*is_bbf_db_ddladmin_operation_hook_type) (Oid namespaceId);
 extern PGDLLEXPORT is_bbf_db_ddladmin_operation_hook_type is_bbf_db_ddladmin_operation_hook;
 
+typedef bool (*pltsql_check_store_init_privs_flag_hook_type) (void);
+extern PGDLLEXPORT pltsql_check_store_init_privs_flag_hook_type pltsql_check_store_init_privs_flag_hook;
+
 #define IS_BBF_DB_DDLADMIN(namespaceId) \
 	(is_bbf_db_ddladmin_operation_hook &&       \
 	 is_bbf_db_ddladmin_operation_hook(namespaceId))
