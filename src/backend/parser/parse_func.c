@@ -2063,14 +2063,6 @@ funcname_signature_string(const char *funcname, int nargs,
 
 	initStringInfo(&argbuf);
 
-	/* Check if there is schema in funcname */
-	while (ptr) {
-		if (*ptr == '.') {
-            break;
-        }
-        ptr++;
-	}
-
 	if (sql_dialect == SQL_DIALECT_TSQL && remove_db_name_in_schema_hook && ptr) {
 		funcname = (*remove_db_name_in_schema_hook)(funcname);
 	}
