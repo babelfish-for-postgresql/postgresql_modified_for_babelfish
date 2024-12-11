@@ -12630,7 +12630,7 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 
 	if (*protrftypes)
 	{
-		Oid		   *typeids = palloc(FUNC_MAX_ARGS * sizeof(Oid));
+		Oid		   *typeids = pg_malloc(FUNC_MAX_ARGS * sizeof(Oid));
 		int			i;
 
 		appendPQExpBufferStr(q, " TRANSFORM ");
@@ -12642,6 +12642,8 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 			appendPQExpBuffer(q, "FOR TYPE %s",
 							  getFormattedTypeName(fout, typeids[i], zeroAsNone));
 		}
+
+		free(typeids);
 	}
 
 	if (prokind[0] == PROKIND_WINDOW)
