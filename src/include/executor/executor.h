@@ -176,7 +176,7 @@ extern TupleHashEntry LookupTupleHashEntryHash(TupleHashTable hashtable,
 extern TupleHashEntry FindTupleHashEntry(TupleHashTable hashtable,
 										 TupleTableSlot *slot,
 										 ExprState *eqcomp,
-										 FmgrInfo *hashfunctions);
+										 ExprState *hashexpr);
 extern void ResetTupleHashTable(TupleHashTable hashtable);
 
 /*
@@ -307,6 +307,14 @@ extern ExprState *ExecInitCheck(List *qual, PlanState *parent);
 extern List *ExecInitExprList(List *nodes, PlanState *parent);
 extern ExprState *ExecBuildAggTrans(AggState *aggstate, struct AggStatePerPhaseData *phase,
 									bool doSort, bool doHash, bool nullcheck);
+extern ExprState *ExecBuildHash32FromAttrs(TupleDesc desc,
+										   const TupleTableSlotOps *ops,
+										   FmgrInfo *hashfunctions,
+										   Oid *collations,
+										   int numCols,
+										   AttrNumber *keyColIdx,
+										   PlanState *parent,
+										   uint32 init_value);
 extern ExprState *ExecBuildHash32Expr(TupleDesc desc,
 									  const TupleTableSlotOps *ops,
 									  const Oid *hashfunc_oids,
