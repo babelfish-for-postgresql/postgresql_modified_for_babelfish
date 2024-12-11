@@ -368,7 +368,6 @@ pg_stat_get_activity(PG_FUNCTION_ARGS)
 		/* Values only available to role member or pg_read_all_stats */
 		if (HAS_PGSTAT_PERMISSIONS(beentry->st_userid))
 		{
-			SockAddr	zero_clientaddr;
 			char	   *clipped_activity;
 
 			switch (beentry->st_state)
@@ -490,9 +489,8 @@ pg_stat_get_activity(PG_FUNCTION_ARGS)
 				nulls[11] = true;
 
 			/* A zeroed client addr means we don't know */
-			memset(&zero_clientaddr, 0, sizeof(zero_clientaddr));
-			if (memcmp(&(beentry->st_clientaddr), &zero_clientaddr,
-					   sizeof(zero_clientaddr)) == 0)
+			if (pg_memory_is_all_zeros(&beentry->st_clientaddr,
+									   sizeof(beentry->st_clientaddr)))
 			{
 				nulls[12] = true;
 				nulls[13] = true;
@@ -887,7 +885,6 @@ pg_stat_get_backend_client_addr(PG_FUNCTION_ARGS)
 {
 	int32		procNumber = PG_GETARG_INT32(0);
 	PgBackendStatus *beentry;
-	SockAddr	zero_clientaddr;
 	char		remote_host[NI_MAXHOST];
 	int			ret;
 
@@ -898,9 +895,8 @@ pg_stat_get_backend_client_addr(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 
 	/* A zeroed client addr means we don't know */
-	memset(&zero_clientaddr, 0, sizeof(zero_clientaddr));
-	if (memcmp(&(beentry->st_clientaddr), &zero_clientaddr,
-			   sizeof(zero_clientaddr)) == 0)
+	if (pg_memory_is_all_zeros(&beentry->st_clientaddr,
+							   sizeof(beentry->st_clientaddr)))
 		PG_RETURN_NULL();
 
 	switch (beentry->st_clientaddr.addr.ss_family)
@@ -932,7 +928,6 @@ pg_stat_get_backend_client_port(PG_FUNCTION_ARGS)
 {
 	int32		procNumber = PG_GETARG_INT32(0);
 	PgBackendStatus *beentry;
-	SockAddr	zero_clientaddr;
 	char		remote_port[NI_MAXSERV];
 	int			ret;
 
@@ -943,9 +938,8 @@ pg_stat_get_backend_client_port(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 
 	/* A zeroed client addr means we don't know */
-	memset(&zero_clientaddr, 0, sizeof(zero_clientaddr));
-	if (memcmp(&(beentry->st_clientaddr), &zero_clientaddr,
-			   sizeof(zero_clientaddr)) == 0)
+	if (pg_memory_is_all_zeros(&beentry->st_clientaddr,
+							   sizeof(beentry->st_clientaddr)))
 		PG_RETURN_NULL();
 
 	switch (beentry->st_clientaddr.addr.ss_family)
