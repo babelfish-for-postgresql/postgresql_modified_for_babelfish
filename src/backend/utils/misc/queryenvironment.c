@@ -832,11 +832,8 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 								 * When adding entries to pg_depend, do an additional sanity check
 								 * to verify we aren't creating links to non-ENR catalogs.
 								 */
-								if (op == ENR_OP_ADD)
-								{
-									Assert(IsENRRelationOid(tf1->classid, true));
-									Assert(IsENRRelationOid(tf1->refclassid, true));
-								}
+								if (op == ENR_OP_ADD && (!IsENRRelationOid(tf1->classid, true) || !IsENRRelationOid(tf1->refclassid, true)))
+									elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->classid);
 
 								break;
 							}
@@ -866,11 +863,8 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 								 * When adding entries to pg_shdepend, do an additional check
 								 * to verify we aren't creating links to non-ENR catalogs.
 								 */
-								if (op == ENR_OP_ADD)
-								{
-									Assert(IsENRRelationOid(tf1->classid, true));
-									Assert(IsENRRelationOid(tf1->refclassid, true));
-								}
+								if (op == ENR_OP_ADD && (!IsENRRelationOid(tf1->classid, true) || !IsENRRelationOid(tf1->refclassid, true)))
+									elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->classid);
 
 								break;
 							}
