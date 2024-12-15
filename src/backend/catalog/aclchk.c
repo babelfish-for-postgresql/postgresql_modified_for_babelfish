@@ -4687,7 +4687,7 @@ recordExtensionInitPriv(Oid objoid, Oid classoid, int objsubid, Acl *new_acl)
 	if (!creating_extension && !binary_upgrade_record_init_privs)
 		return;
 
-	if (pltsql_check_store_init_privs_flag_hook && ((*pltsql_check_store_init_privs_flag_hook)()))
+	if (pltsql_check_store_init_privs_flag_hook && ((*pltsql_check_store_init_privs_flag_hook)(objoid, classoid, objsubid)))
 		return;
 
 	recordExtensionInitPrivWorker(objoid, classoid, objsubid, new_acl);
