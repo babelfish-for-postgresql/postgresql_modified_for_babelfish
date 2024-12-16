@@ -1496,8 +1496,6 @@ select conname, obj_description(oid, 'pg_constraint') as desc
 
 alter table at_partitioned alter column name type varchar(127);
 
--- Note: these tests currently show the wrong behavior for comments :-(
-
 select relname,
   c.oid = oldoid as orig_oid,
   case relfilenode
@@ -2425,6 +2423,13 @@ CREATE TABLE parent (LIKE list_parted);
 CREATE TABLE child () INHERITS (parent);
 ALTER TABLE list_parted ATTACH PARTITION child FOR VALUES IN (1);
 ALTER TABLE list_parted ATTACH PARTITION parent FOR VALUES IN (1);
+DROP TABLE child;
+-- now it should work, with a little tweak
+ALTER TABLE parent ADD CONSTRAINT check_a CHECK (a > 0);
+ALTER TABLE list_parted ATTACH PARTITION parent FOR VALUES IN (1);
+-- test insert/update, per bug #18550
+INSERT INTO parent VALUES (1);
+UPDATE parent SET a = 2 WHERE a = 1;
 DROP TABLE parent CASCADE;
 
 -- check any TEMP-ness

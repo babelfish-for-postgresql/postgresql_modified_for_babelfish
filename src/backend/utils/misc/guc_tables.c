@@ -586,6 +586,7 @@ static char *server_encoding_string;
 static char *server_version_string;
 static int	server_version_num;
 static char *debug_io_direct_string;
+static char *restrict_nonsystem_relation_kind_string;
 
 #ifdef HAVE_SYSLOG
 #define	DEFAULT_SYSLOG_FACILITY LOG_LOCAL0
@@ -1033,7 +1034,7 @@ struct config_bool ConfigureNamesBool[] =
 		{"is_superuser", PGC_INTERNAL, UNGROUPED,
 			gettext_noop("Shows whether the current user is a superuser."),
 			NULL,
-			GUC_REPORT | GUC_NO_SHOW_ALL | GUC_NO_RESET_ALL | GUC_NOT_IN_SAMPLE | GUC_DISALLOW_IN_FILE
+			GUC_REPORT | GUC_NO_SHOW_ALL | GUC_NO_RESET_ALL | GUC_NOT_IN_SAMPLE | GUC_DISALLOW_IN_FILE | GUC_ALLOW_IN_PARALLEL
 		},
 		&current_role_is_superuser,
 		false,
@@ -2036,7 +2037,7 @@ struct config_bool ConfigureNamesBool[] =
 
 	{
 		{"sync_replication_slots", PGC_SIGHUP, REPLICATION_STANDBY,
-			gettext_noop("Enables a physical standby to synchronize logical failover slots from the primary server."),
+			gettext_noop("Enables a physical standby to synchronize logical failover replication slots from the primary server."),
 		},
 		&sync_replication_slots,
 		false,
@@ -2366,7 +2367,7 @@ struct config_int ConfigureNamesInt[] =
 
 	{
 		{"subtransaction_buffers", PGC_POSTMASTER, RESOURCES_MEM,
-			gettext_noop("Sets the size of the dedicated buffer pool used for the sub-transaction cache."),
+			gettext_noop("Sets the size of the dedicated buffer pool used for the subtransaction cache."),
 			gettext_noop("Specify 0 to have this value determined as a fraction of shared_buffers."),
 			GUC_UNIT_BLOCKS
 		},
@@ -2464,6 +2465,11 @@ struct config_int ConfigureNamesInt[] =
 		NULL, NULL, NULL
 	},
 
+	/*
+	 * Dynamic shared memory has a higher overhead than local memory contexts,
+	 * so when testing low-memory scenarios that could use shared memory, the
+	 * recommended minimum is 1MB.
+	 */
 	{
 		{"maintenance_work_mem", PGC_USERSET, RESOURCES_MEM,
 			gettext_noop("Sets the maximum memory to be used for maintenance operations."),
@@ -2471,7 +2477,7 @@ struct config_int ConfigureNamesInt[] =
 			GUC_UNIT_KB
 		},
 		&maintenance_work_mem,
-		65536, 1024, MAX_KILOBYTES,
+		65536, 64, MAX_KILOBYTES,
 		NULL, NULL, NULL
 	},
 
@@ -4710,17 +4716,28 @@ struct config_string ConfigureNamesString[] =
 	},
 
 	{
-		{"standby_slot_names", PGC_SIGHUP, REPLICATION_PRIMARY,
-			gettext_noop("Lists streaming replication standby server slot "
+		{"synchronized_standby_slots", PGC_SIGHUP, REPLICATION_PRIMARY,
+			gettext_noop("Lists streaming replication standby server replication slot "
 						 "names that logical WAL sender processes will wait for."),
 			gettext_noop("Logical WAL sender processes will send decoded "
-						 "changes to plugins only after the specified  "
-						 "replication slots confirm receiving WAL."),
+						 "changes to output plugins only after the specified "
+						 "replication slots have confirmed receiving WAL."),
 			GUC_LIST_INPUT
 		},
-		&standby_slot_names,
+		&synchronized_standby_slots,
 		"",
-		check_standby_slot_names, assign_standby_slot_names, NULL
+		check_synchronized_standby_slots, assign_synchronized_standby_slots, NULL
+	},
+
+	{
+		{"restrict_nonsystem_relation_kind", PGC_USERSET, CLIENT_CONN_STATEMENT,
+			gettext_noop("Prohibits access to non-system relations of specified kinds."),
+			NULL,
+			GUC_LIST_INPUT | GUC_NOT_IN_SAMPLE
+		},
+		&restrict_nonsystem_relation_kind_string,
+		"",
+		check_restrict_nonsystem_relation_kind, assign_restrict_nonsystem_relation_kind, NULL
 	},
 
 	/* End-of-list marker */

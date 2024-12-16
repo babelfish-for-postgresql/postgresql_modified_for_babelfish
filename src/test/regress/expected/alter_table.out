@@ -2215,7 +2215,6 @@ select conname, obj_description(oid, 'pg_constraint') as desc
 (3 rows)
 
 alter table at_partitioned alter column name type varchar(127);
--- Note: these tests currently show the wrong behavior for comments :-(
 select relname,
   c.oid = oldoid as orig_oid,
   case relfilenode
@@ -2232,9 +2231,9 @@ select relname,
 ------------------------------+----------+---------+--------------
  at_partitioned               | t        | none    | 
  at_partitioned_0             | t        | own     | 
- at_partitioned_0_id_name_key | f        | own     | parent index
+ at_partitioned_0_id_name_key | f        | own     | 
  at_partitioned_1             | t        | own     | 
- at_partitioned_1_id_name_key | f        | own     | parent index
+ at_partitioned_1_id_name_key | f        | own     | 
  at_partitioned_id_name_key   | f        | none    | parent index
 (6 rows)
 
@@ -3950,8 +3949,16 @@ ALTER TABLE list_parted ATTACH PARTITION child FOR VALUES IN (1);
 ERROR:  cannot attach inheritance child as partition
 ALTER TABLE list_parted ATTACH PARTITION parent FOR VALUES IN (1);
 ERROR:  cannot attach inheritance parent as partition
+DROP TABLE child;
+-- now it should work, with a little tweak
+ALTER TABLE parent ADD CONSTRAINT check_a CHECK (a > 0);
+ALTER TABLE list_parted ATTACH PARTITION parent FOR VALUES IN (1);
+-- test insert/update, per bug #18550
+INSERT INTO parent VALUES (1);
+UPDATE parent SET a = 2 WHERE a = 1;
+ERROR:  new row for relation "parent" violates partition constraint
+DETAIL:  Failing row contains (2, null).
 DROP TABLE parent CASCADE;
-NOTICE:  drop cascades to table child
 -- check any TEMP-ness
 CREATE TEMP TABLE temp_parted (a int) PARTITION BY LIST (a);
 CREATE TABLE perm_part (a int);

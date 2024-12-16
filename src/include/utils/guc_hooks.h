@@ -127,6 +127,9 @@ extern void assign_recovery_target_xid(const char *newval, void *extra);
 extern bool check_role(char **newval, void **extra, GucSource source);
 extern void assign_role(const char *newval, void *extra);
 extern const char *show_role(void);
+extern bool check_restrict_nonsystem_relation_kind(char **newval, void **extra,
+												   GucSource source);
+extern void assign_restrict_nonsystem_relation_kind(const char *newval, void *extra);
 extern bool check_search_path(char **newval, void **extra, GucSource source);
 extern void assign_search_path(const char *newval, void *extra);
 extern void assign_sql_dialect(int newval, void *extra);
@@ -177,9 +180,9 @@ extern bool check_wal_consistency_checking(char **newval, void **extra,
 extern void assign_wal_consistency_checking(const char *newval, void *extra);
 extern bool check_wal_segment_size(int *newval, void **extra, GucSource source);
 extern void assign_wal_sync_method(int new_wal_sync_method, void *extra);
-extern bool check_standby_slot_names(char **newval, void **extra,
-									 GucSource source);
-extern void assign_standby_slot_names(const char *newval, void *extra);
+extern bool check_synchronized_standby_slots(char **newval, void **extra,
+											 GucSource source);
+extern void assign_synchronized_standby_slots(const char *newval, void *extra);
 
 /* Babelfish-specific hook for updating GUCs */
 typedef void (*guc_newval_hook_type) (const char *guc, bool boolVal, const char *strVal, int intVal);

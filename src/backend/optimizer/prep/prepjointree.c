@@ -158,6 +158,9 @@ transform_MERGE_to_join(Query *parse)
 	int			joinrti;
 	List	   *vars;
 	RangeTblRef *rtr;
+	FromExpr   *target;
+	Node	   *source;
+	int			sourcerti;
 
 	if (parse->commandType != CMD_MERGE)
 		return;
@@ -226,13 +229,36 @@ transform_MERGE_to_join(Query *parse)
 	 * parse->jointree->quals are restrictions on the target relation (if the
 	 * target relation is an auto-updatable view).
 	 */
+	/* target rel, with any quals */
 	rtr = makeNode(RangeTblRef);
 	rtr->rtindex = parse->mergeTargetRelation;
+	target = makeFromExpr(list_make1(rtr), parse->jointree->quals);
+
+	/* source rel (expect exactly one -- see transformMergeStmt()) */
+	Assert(list_length(parse->jointree->fromlist) == 1);
+	source = linitial(parse->jointree->fromlist);
+
+	/*
+	 * index of source rel (expect either a RangeTblRef or a JoinExpr -- see
+	 * transformFromClauseItem()).
+	 */
+	if (IsA(source, RangeTblRef))
+		sourcerti = ((RangeTblRef *) source)->rtindex;
+	else if (IsA(source, JoinExpr))
+		sourcerti = ((JoinExpr *) source)->rtindex;
+	else
+	{
+		elog(ERROR, "unrecognized source node type: %d",
+			 (int) nodeTag(source));
+		sourcerti = 0;			/* keep compiler quiet */
+	}
+
+	/* Join the source and target */
 	joinexpr = makeNode(JoinExpr);
 	joinexpr->jointype = jointype;
 	joinexpr->isNatural = false;
-	joinexpr->larg = (Node *) makeFromExpr(list_make1(rtr), parse->jointree->quals);
-	joinexpr->rarg = linitial(parse->jointree->fromlist);	/* source rel */
+	joinexpr->larg = (Node *) target;
+	joinexpr->rarg = source;
 	joinexpr->usingClause = NIL;
 	joinexpr->join_using_alias = NULL;
 	joinexpr->quals = parse->mergeJoinCondition;
@@ -257,13 +283,82 @@ transform_MERGE_to_join(Query *parse)
 							   bms_make_singleton(joinrti));
 
 	/*
+	 * If the source relation is on the outer side of the join, mark any
+	 * source relation Vars in the join condition, actions, and RETURNING list
+	 * as nullable by the join.  These Vars will be added to the targetlist by
+	 * preprocess_targetlist(), so it's important to mark them correctly here.
+	 *
+	 * It might seem that this is not necessary for Vars in the join
+	 * condition, since it is inside the join, but it is also needed above the
+	 * join (in the ModifyTable node) to distinguish between the MATCHED and
+	 * NOT MATCHED BY SOURCE cases -- see ExecMergeMatched().  Note that this
+	 * creates a modified copy of the join condition, for use above the join,
+	 * without modifying the the original join condition, inside the join.
+	 */
+	if (jointype == JOIN_LEFT || jointype == JOIN_FULL)
+	{
+		parse->mergeJoinCondition =
+			add_nulling_relids(parse->mergeJoinCondition,
+							   bms_make_singleton(sourcerti),
+							   bms_make_singleton(joinrti));
+
+		foreach_node(MergeAction, action, parse->mergeActionList)
+		{
+			action->qual =
+				add_nulling_relids(action->qual,
+								   bms_make_singleton(sourcerti),
+								   bms_make_singleton(joinrti));
+
+			action->targetList = (List *)
+				add_nulling_relids((Node *) action->targetList,
+								   bms_make_singleton(sourcerti),
+								   bms_make_singleton(joinrti));
+		}
+
+		parse->returningList = (List *)
+			add_nulling_relids((Node *) parse->returningList,
+							   bms_make_singleton(sourcerti),
+							   bms_make_singleton(joinrti));
+	}
+
+	/*
 	 * If there are any WHEN NOT MATCHED BY SOURCE actions, the executor will
 	 * use the join condition to distinguish between MATCHED and NOT MATCHED
 	 * BY SOURCE cases.  Otherwise, it's no longer needed, and we set it to
 	 * NULL, saving cycles during planning and execution.
+	 *
+	 * We need to be careful though: the executor evaluates this condition
+	 * using the output of the join subplan node, which nulls the output from
+	 * the source relation when the join condition doesn't match.  That risks
+	 * producing incorrect results when rechecking using a "non-strict" join
+	 * condition, such as "src.col IS NOT DISTINCT FROM tgt.col".  To guard
+	 * against that, we add an additional "src IS NOT NULL" check to the join
+	 * condition, so that it does the right thing when performing a recheck
+	 * based on the output of the join subplan.
 	 */
-	if (!have_action[MERGE_WHEN_NOT_MATCHED_BY_SOURCE])
-		parse->mergeJoinCondition = NULL;
+	if (have_action[MERGE_WHEN_NOT_MATCHED_BY_SOURCE])
+	{
+		Var		   *var;
+		NullTest   *ntest;
+
+		/* source wholerow Var (nullable by the new join) */
+		var = makeWholeRowVar(rt_fetch(sourcerti, parse->rtable),
+							  sourcerti, 0, false);
+		var->varnullingrels = bms_make_singleton(joinrti);
+
+		/* "src IS NOT NULL" check */
+		ntest = makeNode(NullTest);
+		ntest->arg = (Expr *) var;
+		ntest->nulltesttype = IS_NOT_NULL;
+		ntest->argisrow = false;
+		ntest->location = -1;
+
+		/* combine it with the original join condition */
+		parse->mergeJoinCondition =
+			(Node *) make_and_qual((Node *) ntest, parse->mergeJoinCondition);
+	}
+	else
+		parse->mergeJoinCondition = NULL;	/* join condition not needed */
 }
 
 /*
@@ -2490,14 +2585,48 @@ pullup_replace_vars_callback(Var *var,
 				else
 					wrap = false;
 			}
+			else if (rcon->wrap_non_vars)
+			{
+				/* Caller told us to wrap all non-Vars in a PlaceHolderVar */
+				wrap = true;
+			}
 			else
 			{
 				/*
-				 * Must wrap, either because we need a place to insert
-				 * varnullingrels or because caller told us to wrap
-				 * everything.
+				 * If the node contains Var(s) or PlaceHolderVar(s) of the
+				 * subquery being pulled up, and does not contain any
+				 * non-strict constructs, then instead of adding a PHV on top
+				 * we can add the required nullingrels to those Vars/PHVs.
+				 * (This is fundamentally a generalization of the above cases
+				 * for bare Vars and PHVs.)
+				 *
+				 * This test is somewhat expensive, but it avoids pessimizing
+				 * the plan in cases where the nullingrels get removed again
+				 * later by outer join reduction.
+				 *
+				 * This analysis could be tighter: in particular, a non-strict
+				 * construct hidden within a lower-level PlaceHolderVar is not
+				 * reason to add another PHV.  But for now it doesn't seem
+				 * worth the code to be more exact.
+				 *
+				 * For a LATERAL subquery, we have to check the actual var
+				 * membership of the node, but if it's non-lateral then any
+				 * level-zero var must belong to the subquery.
 				 */
-				wrap = true;
+				if ((rcon->target_rte->lateral ?
+					 bms_overlap(pull_varnos(rcon->root, newnode),
+								 rcon->relids) :
+					 contain_vars_of_level(newnode, 0)) &&
+					!contain_nonstrict_functions(newnode))
+				{
+					/* No wrap needed */
+					wrap = false;
+				}
+				else
+				{
+					/* Else wrap it in a PlaceHolderVar */
+					wrap = true;
+				}
 			}
 
 			if (wrap)
@@ -2518,18 +2647,14 @@ pullup_replace_vars_callback(Var *var,
 		}
 	}
 
-	/* Must adjust varlevelsup if replaced Var is within a subquery */
-	if (var->varlevelsup > 0)
-		IncrementVarSublevelsUp(newnode, var->varlevelsup, 0);
-
-	/* Propagate any varnullingrels into the replacement Var or PHV */
+	/* Propagate any varnullingrels into the replacement expression */
 	if (var->varnullingrels != NULL)
 	{
 		if (IsA(newnode, Var))
 		{
 			Var		   *newvar = (Var *) newnode;
 
-			Assert(newvar->varlevelsup == var->varlevelsup);
+			Assert(newvar->varlevelsup == 0);
 			newvar->varnullingrels = bms_add_members(newvar->varnullingrels,
 													 var->varnullingrels);
 		}
@@ -2537,13 +2662,25 @@ pullup_replace_vars_callback(Var *var,
 		{
 			PlaceHolderVar *newphv = (PlaceHolderVar *) newnode;
 
-			Assert(newphv->phlevelsup == var->varlevelsup);
+			Assert(newphv->phlevelsup == 0);
 			newphv->phnullingrels = bms_add_members(newphv->phnullingrels,
 													var->varnullingrels);
 		}
 		else
-			elog(ERROR, "failed to wrap a non-Var");
+		{
+			/* There should be lower-level Vars/PHVs we can modify */
+			newnode = add_nulling_relids(newnode,
+										 NULL,	/* modify all Vars/PHVs */
+										 var->varnullingrels);
+			/* Assert we did put the varnullingrels into the expression */
+			Assert(bms_is_subset(var->varnullingrels,
+								 pull_varnos(rcon->root, newnode)));
+		}
 	}
+
+	/* Must adjust varlevelsup if replaced Var is within a subquery */
+	if (var->varlevelsup > 0)
+		IncrementVarSublevelsUp(newnode, var->varlevelsup, 0);
 
 	return newnode;
 }

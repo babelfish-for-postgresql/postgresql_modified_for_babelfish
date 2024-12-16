@@ -337,15 +337,20 @@ ReorderBufferAllocate(void)
 											sizeof(ReorderBufferTXN));
 
 	/*
-	 * XXX the allocation sizes used below pre-date generation context's block
-	 * growing code.  These values should likely be benchmarked and set to
-	 * more suitable values.
+	 * To minimize memory fragmentation caused by long-running transactions
+	 * with changes spanning multiple memory blocks, we use a single
+	 * fixed-size memory block for decoded tuple storage. The performance
+	 * testing showed that the default memory block size maintains logical
+	 * decoding performance without causing fragmentation due to concurrent
+	 * transactions. One might think that we can use the max size as
+	 * SLAB_LARGE_BLOCK_SIZE but the test also showed it doesn't help resolve
+	 * the memory fragmentation.
 	 */
 	buffer->tup_context = GenerationContextCreate(new_ctx,
 												  "Tuples",
-												  SLAB_LARGE_BLOCK_SIZE,
-												  SLAB_LARGE_BLOCK_SIZE,
-												  SLAB_LARGE_BLOCK_SIZE);
+												  SLAB_DEFAULT_BLOCK_SIZE,
+												  SLAB_DEFAULT_BLOCK_SIZE,
+												  SLAB_DEFAULT_BLOCK_SIZE);
 
 	hash_ctl.keysize = sizeof(TransactionId);
 	hash_ctl.entrysize = sizeof(ReorderBufferTXNByIdEnt);
@@ -466,6 +471,9 @@ ReorderBufferReturnTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 
 	/* Reset the toast hash */
 	ReorderBufferToastReset(rb, txn);
+
+	/* All changes must be deallocated */
+	Assert(txn->size == 0);
 
 	pfree(txn);
 }
@@ -1506,6 +1514,7 @@ ReorderBufferCleanupTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 {
 	bool		found;
 	dlist_mutable_iter iter;
+	Size		mem_freed = 0;
 
 	/* cleanup subtransactions & their changes */
 	dlist_foreach_modify(iter, &txn->subtxns)
@@ -1535,8 +1544,19 @@ ReorderBufferCleanupTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 		/* Check we're not mixing changes from different transactions. */
 		Assert(change->txn == txn);
 
+		/*
+		 * Instead of updating the memory counter for individual changes, we
+		 * sum up the size of memory to free so we can update the memory
+		 * counter all together below. This saves costs of maintaining the
+		 * max-heap.
+		 */
+		mem_freed += ReorderBufferChangeSize(change);
+
 		ReorderBufferReturnChange(rb, change, false);
 	}
+
+	/* Update the memory counter */
+	ReorderBufferChangeMemoryUpdate(rb, NULL, txn, false, mem_freed);
 
 	/*
 	 * Cleanup the tuplecids we stored for decoding catalog snapshot access.
@@ -1594,9 +1614,6 @@ ReorderBufferCleanupTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 	if (rbtxn_is_serialized(txn))
 		ReorderBufferRestoreCleanup(rb, txn);
 
-	/* Update the memory counter */
-	ReorderBufferChangeMemoryUpdate(rb, NULL, txn, false, txn->size);
-
 	/* deallocate */
 	ReorderBufferReturnTXN(rb, txn);
 }
@@ -1616,6 +1633,7 @@ static void
 ReorderBufferTruncateTXN(ReorderBuffer *rb, ReorderBufferTXN *txn, bool txn_prepared)
 {
 	dlist_mutable_iter iter;
+	Size		mem_freed = 0;
 
 	/* cleanup subtransactions & their changes */
 	dlist_foreach_modify(iter, &txn->subtxns)
@@ -1648,11 +1666,19 @@ ReorderBufferTruncateTXN(ReorderBuffer *rb, ReorderBufferTXN *txn, bool txn_prep
 		/* remove the change from it's containing list */
 		dlist_delete(&change->node);
 
+		/*
+		 * Instead of updating the memory counter for individual changes, we
+		 * sum up the size of memory to free so we can update the memory
+		 * counter all together below. This saves costs of maintaining the
+		 * max-heap.
+		 */
+		mem_freed += ReorderBufferChangeSize(change);
+
 		ReorderBufferReturnChange(rb, change, false);
 	}
 
 	/* Update the memory counter */
-	ReorderBufferChangeMemoryUpdate(rb, NULL, txn, false, txn->size);
+	ReorderBufferChangeMemoryUpdate(rb, NULL, txn, false, mem_freed);
 
 	/*
 	 * Mark the transaction as streamed.
@@ -2062,6 +2088,9 @@ ReorderBufferResetTXN(ReorderBuffer *rb, ReorderBufferTXN *txn,
 		rb->stream_stop(rb, txn, last_lsn);
 		ReorderBufferSaveTXNSnapshot(rb, txn, snapshot_now, command_id);
 	}
+
+	/* All changes must be deallocated */
+	Assert(txn->size == 0);
 }
 
 /*
