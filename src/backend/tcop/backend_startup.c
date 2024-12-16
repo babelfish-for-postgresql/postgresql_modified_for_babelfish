@@ -253,15 +253,14 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionCon
 	RegisterTimeout(STARTUP_PACKET_TIMEOUT, StartupPacketTimeoutHandler);
 	enable_timeout_after(STARTUP_PACKET_TIMEOUT, AuthenticationTimeout * 1000);
 
-	/* Handle direct SSL handshake for non-TDS connections */
-	if (!port->is_tds_conn)
-	status = ProcessSSLStartup(port);
+	/* Handle protocol-specific SSL handshake */
+	status = port->protocol_config->fn_ssl_handshake(port);
 
 	/*
 	 * Receive the startup packet (which might turn out to be a cancel request
 	 * packet).
 	 */
-	if (port->is_tds_conn || status == STATUS_OK)
+	if (status == STATUS_OK)
 		status = (port->protocol_config->fn_start)(port);
 
 	/*
@@ -888,4 +887,13 @@ static void
 StartupPacketTimeoutHandler(void)
 {
 	_exit(1);
+}
+
+/*
+ * Wrapper for ProcessSSLStartup to handle direct SSL handshake
+ */
+int
+WrapperProcessSSLStartup(Port *port)
+{
+    return ProcessSSLStartup(port);
 }
