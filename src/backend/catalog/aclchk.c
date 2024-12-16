@@ -173,7 +173,7 @@ static void recordExtensionInitPrivWorker(Oid objoid, Oid classoid, int objsubid
 
 tsql_has_linked_srv_permissions_hook_type tsql_has_linked_srv_permissions_hook = NULL;
 bbf_execute_grantstmt_as_dbsecadmin_hook_type bbf_execute_grantstmt_as_dbsecadmin_hook = NULL;
-pltsql_check_store_init_privs_flag_hook_type pltsql_check_store_init_privs_flag_hook = NULL;
+pltsql_allow_storing_init_privs_hook_type pltsql_allow_storing_init_privs_hook = NULL;
 /*
  * If is_grant is true, adds the given privileges for the list of
  * grantees to the existing old_acl.  If is_grant is false, the
@@ -4705,7 +4705,7 @@ recordExtensionInitPriv(Oid objoid, Oid classoid, int objsubid, Acl *new_acl)
 	if (!creating_extension && !binary_upgrade_record_init_privs)
 		return;
 
-	if (pltsql_check_store_init_privs_flag_hook && ((*pltsql_check_store_init_privs_flag_hook)(objoid, classoid, objsubid)))
+	if (pltsql_allow_storing_init_privs_hook && !((*pltsql_allow_storing_init_privs_hook)(objoid, classoid, objsubid)))
 		return;
 
 	recordExtensionInitPrivWorker(objoid, classoid, objsubid, new_acl);
