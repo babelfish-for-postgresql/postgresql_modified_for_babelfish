@@ -708,7 +708,7 @@ RemoveTypeById(Oid typeOid)
  *		Registers a new domain.
  */
 ObjectAddress
-DefineDomain(CreateDomainStmt *stmt)
+DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
 {
 	char	   *domainName;
 	char	   *domainArrayName;
@@ -777,7 +777,7 @@ DefineDomain(CreateDomainStmt *stmt)
 	/*
 	 * Look up the base type.
 	 */
-	typeTup = typenameType(NULL, stmt->typeName, &basetypeMod);
+	typeTup = typenameType(pstate, stmt->typeName, &basetypeMod);
 	baseType = (Form_pg_type) GETSTRUCT(typeTup);
 	basetypeoid = baseType->oid;
 	if (sql_dialect == SQL_DIALECT_TSQL && check_or_set_default_typmod_hook)
@@ -801,7 +801,8 @@ DefineDomain(CreateDomainStmt *stmt)
 		ereport(ERROR,
 				(errcode(ERRCODE_DATATYPE_MISMATCH),
 				 errmsg("\"%s\" is not a valid base type for a domain",
-						TypeNameToString(stmt->typeName))));
+						TypeNameToString(stmt->typeName)),
+				 parser_errposition(pstate, stmt->typeName->location)));
 
 	aclresult = object_aclcheck(TypeRelationId, basetypeoid, GetUserId(), ACL_USAGE);
 	if (aclresult != ACLCHECK_OK)
@@ -827,7 +828,8 @@ DefineDomain(CreateDomainStmt *stmt)
 		ereport(ERROR,
 				(errcode(ERRCODE_DATATYPE_MISMATCH),
 				 errmsg("collations are not supported by type %s",
-						format_type_be(basetypeoid))));
+						format_type_be(basetypeoid)),
+				 parser_errposition(pstate, stmt->typeName->location)));
 
 	/* passed by value */
 	byValue = baseType->typbyval;
@@ -904,17 +906,14 @@ DefineDomain(CreateDomainStmt *stmt)
 				 */
 				if (saw_default)
 					ereport(ERROR,
-							(errcode(ERRCODE_SYNTAX_ERROR),
-							 errmsg("multiple default expressions")));
+							errcode(ERRCODE_SYNTAX_ERROR),
+							errmsg("multiple default expressions"),
+							parser_errposition(pstate, constr->location));
 				saw_default = true;
 
 				if (constr->raw_expr)
 				{
-					ParseState *pstate;
 					Node	   *defaultExpr;
-
-					/* Create a dummy ParseState for transformExpr */
-					pstate = make_parsestate(NULL);
 
 					/*
 					 * Cook the constr->raw_expr into an expression. Note:
@@ -967,12 +966,14 @@ DefineDomain(CreateDomainStmt *stmt)
 			case CONSTR_NOTNULL:
 				if (nullDefined && !typNotNull)
 					ereport(ERROR,
-							(errcode(ERRCODE_SYNTAX_ERROR),
-							 errmsg("conflicting NULL/NOT NULL constraints")));
+							errcode(ERRCODE_SYNTAX_ERROR),
+							errmsg("conflicting NULL/NOT NULL constraints"),
+							parser_errposition(pstate, constr->location));
 				if (constr->is_no_inherit)
 					ereport(ERROR,
 							errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-							errmsg("not-null constraints for domains cannot be marked NO INHERIT"));
+							errmsg("not-null constraints for domains cannot be marked NO INHERIT"),
+							parser_errposition(pstate, constr->location));
 				typNotNull = true;
 				nullDefined = true;
 				break;
@@ -980,8 +981,9 @@ DefineDomain(CreateDomainStmt *stmt)
 			case CONSTR_NULL:
 				if (nullDefined && typNotNull)
 					ereport(ERROR,
-							(errcode(ERRCODE_SYNTAX_ERROR),
-							 errmsg("conflicting NULL/NOT NULL constraints")));
+							errcode(ERRCODE_SYNTAX_ERROR),
+							errmsg("conflicting NULL/NOT NULL constraints"),
+							parser_errposition(pstate, constr->location));
 				typNotNull = false;
 				nullDefined = true;
 				break;
@@ -996,8 +998,10 @@ DefineDomain(CreateDomainStmt *stmt)
 				 */
 				if (constr->is_no_inherit)
 					ereport(ERROR,
-							(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-							 errmsg("check constraints for domains cannot be marked NO INHERIT")));
+							errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+							errmsg("check constraints for domains cannot be marked NO INHERIT"),
+							parser_errposition(pstate, constr->location));
+
 				break;
 
 				/*
@@ -1005,26 +1009,30 @@ DefineDomain(CreateDomainStmt *stmt)
 				 */
 			case CONSTR_UNIQUE:
 				ereport(ERROR,
-						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("unique constraints not possible for domains")));
+						errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("unique constraints not possible for domains"),
+						parser_errposition(pstate, constr->location));
 				break;
 
 			case CONSTR_PRIMARY:
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("primary key constraints not possible for domains")));
+						 errmsg("primary key constraints not possible for domains"),
+						 parser_errposition(pstate, constr->location)));
 				break;
 
 			case CONSTR_EXCLUSION:
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("exclusion constraints not possible for domains")));
+						 errmsg("exclusion constraints not possible for domains"),
+						 parser_errposition(pstate, constr->location)));
 				break;
 
 			case CONSTR_FOREIGN:
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("foreign key constraints not possible for domains")));
+						 errmsg("foreign key constraints not possible for domains"),
+						 parser_errposition(pstate, constr->location)));
 				break;
 
 			case CONSTR_ATTR_DEFERRABLE:
@@ -1033,14 +1041,16 @@ DefineDomain(CreateDomainStmt *stmt)
 			case CONSTR_ATTR_IMMEDIATE:
 				ereport(ERROR,
 						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-						 errmsg("specifying constraint deferrability not supported for domains")));
+						 errmsg("specifying constraint deferrability not supported for domains"),
+						 parser_errposition(pstate, constr->location)));
 				break;
 
 			case CONSTR_GENERATED:
 			case CONSTR_IDENTITY:
 				ereport(ERROR,
 						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-						 errmsg("specifying GENERATED not supported for domains")));
+						 errmsg("specifying GENERATED not supported for domains"),
+						 parser_errposition(pstate, constr->location)));
 				break;
 
 				/* no default, to let compiler warn about missing case */
