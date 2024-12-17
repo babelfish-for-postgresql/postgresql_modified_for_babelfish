@@ -171,7 +171,7 @@ static void recordExtensionInitPrivWorker(Oid objoid, Oid classoid, int objsubid
 
 tsql_has_linked_srv_permissions_hook_type tsql_has_linked_srv_permissions_hook = NULL;
 bbf_execute_grantstmt_as_dbsecadmin_hook_type bbf_execute_grantstmt_as_dbsecadmin_hook = NULL;
-
+pltsql_allow_storing_init_privs_hook_type pltsql_allow_storing_init_privs_hook = NULL;
 /*
  * If is_grant is true, adds the given privileges for the list of
  * grantees to the existing old_acl.  If is_grant is false, the
@@ -4687,6 +4687,9 @@ recordExtensionInitPriv(Oid objoid, Oid classoid, int objsubid, Acl *new_acl)
 	if (!creating_extension && !binary_upgrade_record_init_privs)
 		return;
 
+	if (pltsql_allow_storing_init_privs_hook && !((*pltsql_allow_storing_init_privs_hook)(objoid, classoid, objsubid)))
+		return;
+
 	recordExtensionInitPrivWorker(objoid, classoid, objsubid, new_acl);
 }
 
@@ -5021,32 +5024,6 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 	 * Generate new ACL.  Grantor of rights is always the same as the owner.
 	 */
 	if (old_acl != NULL)
-	{
-		Oid sysadminOid;
-		Acl *temp_acl;
-		const char *babelfish_db_name;
-
-		/*
-		 * For babelfish database, grantor will be sysadmin instead of object owner.
-		 */
-		if (bbf_get_sysadmin_oid_hook &&
-			classid == DatabaseRelationId &&
-			(babelfish_db_name = GetConfigOption("babelfishpg_tsql.database_name", true, false)) &&
-			objid == get_database_oid(babelfish_db_name, true) &&
-			is_member_of_role(GetUserId(), sysadminOid = (*bbf_get_sysadmin_oid_hook)()))
-		{
-
-			temp_acl = merge_acl_with_grant(old_acl,
-									   false,	/* is_grant */
-									   false,	/* grant_option */
-									   DROP_RESTRICT,
-									   list_make1_oid(roleid),
-									   ACLITEM_ALL_PRIV_BITS,
-									   sysadminOid,
-									   ownerId);
-			old_acl = temp_acl;
-		}
-
 		new_acl = merge_acl_with_grant(old_acl,
 									   false,	/* is_grant */
 									   false,	/* grant_option */
@@ -5055,7 +5032,6 @@ RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 									   ACLITEM_ALL_PRIV_BITS,
 									   ownerId,
 									   ownerId);
-	}
 	else
 		new_acl = NULL;			/* this case shouldn't happen, probably */
 
