@@ -805,11 +805,12 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					{
 						Form_pg_class classForm = (Form_pg_class) GETSTRUCT(tup);
 
-						Assert(!classForm->relisshared);
-						Assert(classForm->relpersistence == RELPERSISTENCE_TEMP);
-						Assert(!classForm->relhastriggers);
-						Assert(!classForm->relrowsecurity);
-						Assert(!classForm->relispartition);
+						if ((classForm->relisshared) ||
+							(classForm->relpersistence != RELPERSISTENCE_TEMP) ||
+							(classForm->relhastriggers) ||
+							(classForm->relrowsecurity) ||
+							(classForm->relispartition))
+							elog(ERROR, "Invalid pg_class ENR entry.");
 					}
 				}
 				break;
@@ -832,8 +833,13 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 								 * When adding entries to pg_depend, do an additional sanity check
 								 * to verify we aren't creating links to non-ENR catalogs.
 								 */
-								if (op == ENR_OP_ADD && (!IsENRRelationOid(tf1->classid, true) || !IsENRRelationOid(tf1->refclassid, true)))
-									elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->classid);
+								if (op == ENR_OP_ADD)
+								{
+									if (!IsENRRelationOid(tf1->classid, true))
+										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->classid);
+									else if (!IsENRRelationOid(tf1->refclassid, true))
+										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->refclassid);
+								}
 
 								break;
 							}
@@ -863,9 +869,13 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 								 * When adding entries to pg_shdepend, do an additional check
 								 * to verify we aren't creating links to non-ENR catalogs.
 								 */
-								if (op == ENR_OP_ADD && (!IsENRRelationOid(tf1->classid, true) || !IsENRRelationOid(tf1->refclassid, true)))
-									elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->classid);
-
+								if (op == ENR_OP_ADD)
+								{
+									if (!IsENRRelationOid(tf1->classid, true))
+										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->classid);
+									else if (!IsENRRelationOid(tf1->refclassid, true))
+										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->refclassid);
+								}
 								break;
 							}
 						}
@@ -884,7 +894,8 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					{
 						Form_pg_index indexForm = (Form_pg_index) GETSTRUCT(tup);
 
-						Assert(!indexForm->indisreplident);
+						if(indexForm->indisreplident)
+							elog(ERROR, "Invalid pg_index ENR entry.");
 					}
 				}
 				break;
