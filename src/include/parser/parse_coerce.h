@@ -114,6 +114,11 @@ typedef CoercionPathType (*find_coercion_pathway_hook_type) (Oid sourceTypeId,
 typedef bool (*determine_datatype_precedence_hook_type) (Oid typeId1, Oid typeId2);
 
 /*
+ * Hook interface to determine if a data type is a base type in T-SQL
+ */
+typedef bool (*is_tsql_base_datatype_hook_type) (Oid typeId);
+
+/*
  * T-SQL has different rules for string literal datatype coercions
  */
 typedef Node *(*coerce_string_literal_hook_type) (Oid targetTypeId,
