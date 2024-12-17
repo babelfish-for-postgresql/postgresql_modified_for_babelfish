@@ -803,7 +803,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					 * This helps ensure that we don't have any dependencies pointing to
 					 * non-ENR catalogs.
 					 */
-					if ((op == ENR_OP_ADD || op == ENR_OP_DROP) && HeapTupleIsValid(tup))
+					if ((op == ENR_OP_ADD || op == ENR_OP_UPDATE) && HeapTupleIsValid(tup))
 					{
 						Form_pg_class classForm = (Form_pg_class) GETSTRUCT(tup);
 
@@ -892,7 +892,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					lc = list_head(enr->md.cattups[ENR_CATTUP_INDEX]);
 					ret = true;
 
-					if ((op == ENR_OP_ADD || op == ENR_OP_DROP) && HeapTupleIsValid(tup))
+					if ((op == ENR_OP_ADD || op == ENR_OP_UPDATE) && HeapTupleIsValid(tup))
 					{
 						Form_pg_index indexForm = (Form_pg_index) GETSTRUCT(tup);
 
