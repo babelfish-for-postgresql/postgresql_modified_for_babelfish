@@ -52,6 +52,8 @@
 #include "utils/queryenvironment.h"
 #include "utils/rel.h"
 
+#define NUM_ENR_CATALOGS 11
+
 pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook = NULL;
 
 /*
@@ -72,7 +74,7 @@ struct QueryEnvironment
  * These are the pg catalogs which we are placing in
  * ENR. We cannot mix any entries in non-ENR (ie on disk) catalogs.
  */
-static Oid ENRCatalogOids[11] =
+static Oid ENRCatalogOids[NUM_ENR_CATALOGS] =
 {
 	RelationRelationId,			/* pg_class */
 	TypeRelationId, 			/* pg_type */
@@ -98,7 +100,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 static void ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOperationType op, HeapTuple tup, bool in_enr_rollback);
 static void ENRDeleteUncommittedTupleData(SubTransactionId subid, EphemeralNamedRelation enr);
 static void ENRRollbackUncommittedTuple(QueryEnvironment *queryEnv, ENRUncommittedTuple uncommitted_tup);
-static bool IsENRRelationOid(Oid reloid, bool extended);
+static bool IsCatalogOidENR(Oid reloid, bool extended);
 static EphemeralNamedRelation find_enr(Form_pg_depend entry);
 
 QueryEnvironment *
@@ -352,13 +354,13 @@ ENRMetadataGetTupDesc(EphemeralNamedRelationMetadata enrmd)
 }
 
 /* Simple check to see if the provided OID is the OID of an ENR'd catalog. */
-static bool IsENRRelationOid(Oid reloid, bool extended)
+static bool IsCatalogOidENR(Oid reloid, bool extended)
 {
 	/* This should always be a catalog relation we're checking. */
 	if (!IsCatalogRelationOid(reloid))
 		return false;
 
-	for (int i = 0; i < 11; i++)
+	for (int i = 0; i < NUM_ENR_CATALOGS; i++)
 	{
 		if (reloid == ENRCatalogOids[i])
 			return true;
@@ -417,7 +419,7 @@ bool ENRGetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 			return false;
 	}
 
-	if (!IsENRRelationOid(reloid, false))
+	if (!IsCatalogOidENR(reloid, false))
 		return false;
 
 	switch (nkeys) {
@@ -835,9 +837,9 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 								 */
 								if (op == ENR_OP_ADD)
 								{
-									if (!IsENRRelationOid(tf1->classid, true))
+									if (!IsCatalogOidENR(tf1->classid, true))
 										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->classid);
-									else if (!IsENRRelationOid(tf1->refclassid, true))
+									else if (!IsCatalogOidENR(tf1->refclassid, true))
 										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->refclassid);
 								}
 
@@ -871,9 +873,9 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 								 */
 								if (op == ENR_OP_ADD)
 								{
-									if (!IsENRRelationOid(tf1->classid, true))
+									if (!IsCatalogOidENR(tf1->classid, true))
 										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->classid);
-									else if (!IsENRRelationOid(tf1->refclassid, true))
+									else if (!IsCatalogOidENR(tf1->refclassid, true))
 										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->refclassid);
 								}
 								break;
