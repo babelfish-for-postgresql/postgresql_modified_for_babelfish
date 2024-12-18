@@ -707,7 +707,7 @@ tsql_openjson_with_columnize(Jsonb *jb, char *col_info)
 		if (token)
 		{
 			token = strtok(NULL, ")");
-			if (token)
+			if (token && atoi(token) > 0)
 				col_size = atoi(token);
 		}
 	}
