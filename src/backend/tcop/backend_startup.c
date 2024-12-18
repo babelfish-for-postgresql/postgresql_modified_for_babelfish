@@ -253,8 +253,8 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionCon
 	RegisterTimeout(STARTUP_PACKET_TIMEOUT, StartupPacketTimeoutHandler);
 	enable_timeout_after(STARTUP_PACKET_TIMEOUT, AuthenticationTimeout * 1000);
 
-	/* Handle protocol-specific SSL handshake */
-	status = port->protocol_config->fn_ssl_handshake(port);
+	/* Handle protocol-specific direct SSL handshake */
+	status = port->protocol_config->fn_direct_ssl_handshake(port);
 
 	/*
 	 * Receive the startup packet (which might turn out to be a cancel request
