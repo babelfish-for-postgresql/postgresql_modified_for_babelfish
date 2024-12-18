@@ -1869,7 +1869,7 @@ typedef struct BitmapHeapScanState
 	TIDBitmap  *tbm;
 	Buffer		pvmbuffer;
 	BitmapHeapScanInstrumentation stats;
-	TBMIterator *prefetch_iterator;
+	TBMPrivateIterator *prefetch_iterator;
 	int			prefetch_pages;
 	int			prefetch_target;
 	int			prefetch_maximum;
