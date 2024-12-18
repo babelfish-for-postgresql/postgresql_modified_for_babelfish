@@ -117,6 +117,9 @@ typedef struct ProtocolExtensionConfig {
 	void	(*fn_printtup_destroy)(DestReceiver *self);
 	int		(*fn_process_command)(void);
 	void	(*fn_report_param_status)(const char *name, char *val);
+
+	/* function pointer for handling direct SSL handshake */
+	int		(*fn_direct_ssl_handshake)(struct Port *port);
 } ProtocolExtensionConfig;
 
 /*
