@@ -248,7 +248,7 @@ ProtocolExtensionConfig default_protocol_config = {
 	NULL, NULL, NULL, NULL,		/* use libpq defaults for printtup*() */
 	NULL,
 	libpq_report_param_status,
-	libpq_ssl_handshake
+	libpq_direct_ssl_handshake
 };
 
 /* still more option variables */
@@ -1513,9 +1513,9 @@ libpq_end_command(QueryCompletion *qc, CommandDest dest)
 }
 
 int
-libpq_ssl_handshake(struct Port *port)
+libpq_direct_ssl_handshake(struct Port *port)
 {
-	return WrapperProcessSSLStartup(port);
+	return ProcessSSLStartup(port);
 }
 
 /*

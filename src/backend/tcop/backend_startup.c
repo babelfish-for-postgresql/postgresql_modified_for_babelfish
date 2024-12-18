@@ -42,7 +42,7 @@
 bool		Trace_connection_negotiation = false;
 static void BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionConfig *protocol_config);
 int	ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done);
-static int	ProcessSSLStartup(Port *port);
+int	ProcessSSLStartup(Port *port);
 static void SendNegotiateProtocolVersion(List *unrecognized_protocol_options);
 static void process_startup_packet_die(SIGNAL_ARGS);
 static void StartupPacketTimeoutHandler(void);
@@ -359,7 +359,7 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionCon
  * This happens before the startup packet so we are careful not to actually
  * read any bytes from the stream if it's not a direct SSL connection.
  */
-static int
+int
 ProcessSSLStartup(Port *port)
 {
 	int			firstbyte;
@@ -887,13 +887,4 @@ static void
 StartupPacketTimeoutHandler(void)
 {
 	_exit(1);
-}
-
-/*
- * Wrapper for ProcessSSLStartup to handle direct SSL handshake
- */
-int
-WrapperProcessSSLStartup(Port *port)
-{
-    return ProcessSSLStartup(port);
 }
