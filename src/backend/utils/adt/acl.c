@@ -5014,6 +5014,7 @@ roles_is_member_of(Oid roleid, enum RoleRecurseType type,
 	List	   *new_cached_roles;
 	MemoryContext oldctx;
 	bloom_filter *bf = NULL;
+	bool		found_admin_role = false;
 
 	Assert(OidIsValid(admin_of) == PointerIsValid(admin_role));
 	if (admin_role != NULL)
@@ -5061,6 +5062,9 @@ roles_is_member_of(Oid roleid, enum RoleRecurseType type,
 		CatCList   *memlist;
 		int			i;
 
+		if (found_admin_role)
+			break;
+		
 		/* Find roles that memberid is directly a member of */
 		memlist = SearchSysCacheList1(AUTHMEMMEMROLE,
 									  ObjectIdGetDatum(memberid));
@@ -5076,7 +5080,11 @@ roles_is_member_of(Oid roleid, enum RoleRecurseType type,
 			 */
 			if (otherid == admin_of && form->admin_option &&
 				OidIsValid(admin_of) && !OidIsValid(*admin_role))
-				*admin_role = memberid;
+				{
+					*admin_role = memberid;
+					found_admin_role = true;
+					break;
+				}
 
 			/* If we're supposed to ignore non-heritable grants, do so. */
 			if (type == ROLERECURSE_PRIVS && !form->inherit_option)
