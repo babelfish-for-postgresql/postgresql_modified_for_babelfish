@@ -32,6 +32,9 @@
 #include "catalog/catalog.h"
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
+#include "catalog/pg_authid.h"
+#include "catalog/pg_collation.h"
+#include "catalog/pg_opclass.h"
 #include "catalog/pg_constraint.h"
 #include "catalog/pg_statistic.h"
 #include "catalog/pg_statistic_ext.h"
@@ -49,6 +52,8 @@
 #include "utils/queryenvironment.h"
 #include "utils/rel.h"
 
+#define NUM_ENR_CATALOGS 11
+
 pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook = NULL;
 
 /*
@@ -63,6 +68,27 @@ struct QueryEnvironment
 	MemoryContext	memctx;
 };
 
+/*
+ * This list must match ENRCatalogTupleType in queryenvironment.h.
+ *
+ * These are the pg catalogs which we are placing in
+ * ENR. We cannot mix any entries in non-ENR (ie on disk) catalogs.
+ */
+static Oid ENRCatalogOids[NUM_ENR_CATALOGS] =
+{
+	RelationRelationId,			/* pg_class */
+	TypeRelationId, 			/* pg_type */
+	AttributeRelationId,		/* pg_attribute */
+	ConstraintRelationId,		/* pg_constraint */
+	StatisticRelationId,		/* pg_statistic */
+	StatisticExtRelationId,		/* pg_statistic_ext */
+	DependRelationId,			/* pg_depend */
+	SharedDependRelationId,		/* pg_shdepend */
+	IndexRelationId,			/* pg_index */
+	SequenceRelationId,			/* pg_sequence */
+	AttrDefaultRelationId		/* pg_attrdef */
+};
+
 struct QueryEnvironment topLevelQueryEnvData;
 struct QueryEnvironment *topLevelQueryEnv = &topLevelQueryEnvData;
 struct QueryEnvironment *currentQueryEnv = NULL;
@@ -74,6 +100,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 static void ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, ENRTupleOperationType op, HeapTuple tup, bool in_enr_rollback);
 static void ENRDeleteUncommittedTupleData(SubTransactionId subid, EphemeralNamedRelation enr);
 static void ENRRollbackUncommittedTuple(QueryEnvironment *queryEnv, ENRUncommittedTuple uncommitted_tup);
+static bool IsCatalogOidENR(Oid reloid, bool extended);
 static EphemeralNamedRelation find_enr(Form_pg_depend entry);
 
 QueryEnvironment *
@@ -326,6 +353,37 @@ ENRMetadataGetTupDesc(EphemeralNamedRelationMetadata enrmd)
 	return tupdesc;
 }
 
+/* Simple check to see if the provided OID is the OID of an ENR'd catalog. */
+static bool IsCatalogOidENR(Oid reloid, bool extended)
+{
+	/* This should always be a catalog relation we're checking. */
+	if (!IsCatalogRelationOid(reloid))
+		return false;
+
+	for (int i = 0; i < NUM_ENR_CATALOGS; i++)
+	{
+		if (reloid == ENRCatalogOids[i])
+			return true;
+	}
+
+	/* 
+	 * These are catalogs that aren't in ENR but can be dependencies of 
+	 * temp tables.
+	 * 
+	 * There could be some potential for misuse here, involving creating
+	 * and dropping collations or roles in while having temp tables
+	 * that depend on them on a different session.
+	 */
+	if (extended)
+	{
+		if (reloid == CollationRelationId
+		 || reloid == AuthIdRelationId
+		 || reloid == OperatorClassRelationId)
+			return true;
+	}
+	return false;
+}
+
 /*
  * Get the starting tuple (or more precisely, a ListCell that contains the tuple)
  * for systable scan functions based on the given keys.
@@ -361,17 +419,7 @@ bool ENRGetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 			return false;
 	}
 
-	if (reloid != RelationRelationId &&
-		reloid != TypeRelationId &&
-		reloid != AttributeRelationId &&
-		reloid != ConstraintRelationId &&
-		reloid != StatisticRelationId &&
-		reloid != StatisticExtRelationId &&
-		reloid != DependRelationId &&
-		reloid != SharedDependRelationId &&
-		reloid != IndexRelationId &&
-		reloid != SequenceRelationId &&
-		reloid != AttrDefaultRelationId)
+	if (!IsCatalogOidENR(reloid, false))
 		return false;
 
 	switch (nkeys) {
@@ -748,6 +796,24 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					list_ptr = &enr->md.cattups[ENR_CATTUP_CLASS];
 					lc = list_head(enr->md.cattups[ENR_CATTUP_CLASS]);
 					ret = true;
+
+					/*
+					 * All of the below asserts should hold true for TSQL temp tables.
+					 *
+					 * This helps ensure that we don't have any dependencies pointing to
+					 * non-ENR catalogs.
+					 */
+					if ((op == ENR_OP_ADD || op == ENR_OP_UPDATE) && HeapTupleIsValid(tup))
+					{
+						Form_pg_class classForm = (Form_pg_class) GETSTRUCT(tup);
+
+						if ((classForm->relisshared) ||
+							(classForm->relpersistence != RELPERSISTENCE_TEMP) ||
+							(classForm->relhastriggers) ||
+							(classForm->relrowsecurity) ||
+							(classForm->relispartition))
+							elog(ERROR, "Invalid pg_class ENR entry.");
+					}
 				}
 				break;
 			case DependRelationId:
@@ -764,6 +830,19 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 								tf1->objid == tf2->objid &&
 								tf1->objsubid == tf2->objsubid) {
 								lc = curlc;
+
+								/*
+								 * When adding entries to pg_depend, do an additional sanity check
+								 * to verify we aren't creating links to non-ENR catalogs.
+								 */
+								if (op == ENR_OP_ADD)
+								{
+									if (!IsCatalogOidENR(tf1->classid, true))
+										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->classid);
+									else if (!IsCatalogOidENR(tf1->refclassid, true))
+										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->refclassid);
+								}
+
 								break;
 							}
 						}
@@ -787,6 +866,18 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 								tf1->objid == tf2->objid &&
 								tf1->objsubid == tf2->objsubid) {
 								lc = curlc;
+
+								/*
+								 * When adding entries to pg_shdepend, do an additional check
+								 * to verify we aren't creating links to non-ENR catalogs.
+								 */
+								if (op == ENR_OP_ADD)
+								{
+									if (!IsCatalogOidENR(tf1->classid, true))
+										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->classid);
+									else if (!IsCatalogOidENR(tf1->refclassid, true))
+										elog(ERROR, "Unexpected catalog OID %d referenced in ENR.", tf1->refclassid);
+								}
 								break;
 							}
 						}
@@ -800,6 +891,14 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					list_ptr = &enr->md.cattups[ENR_CATTUP_INDEX];
 					lc = list_head(enr->md.cattups[ENR_CATTUP_INDEX]);
 					ret = true;
+
+					if ((op == ENR_OP_ADD || op == ENR_OP_UPDATE) && HeapTupleIsValid(tup))
+					{
+						Form_pg_index indexForm = (Form_pg_index) GETSTRUCT(tup);
+
+						if(indexForm->indisreplident)
+							elog(ERROR, "Invalid pg_index ENR entry.");
+					}
 				}
 				break;
 			case TypeRelationId:
@@ -962,14 +1061,14 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					break;
 				case ENR_OP_UPDATE:
 					/*
-					* Invalidate the tuple before updating / removing it from the List.
-					* Consider the case when we remove the tuple and cache invalidation
-					* failed, then error handling would try to remove it again but would
-					* crash because entry is gone from the List but we could still find it in the syscache.
-					* If we failed to drop because we failed to invalidate, then subsequent
-					* creation of the same table would fail saying the tuple exists already
-					* which is much better than crashing.
-					*/
+					 * Invalidate the tuple before updating / removing it from the List.
+					 * Consider the case when we remove the tuple and cache invalidation
+					 * failed, then error handling would try to remove it again but would
+					 * crash because entry is gone from the List but we could still find it in the syscache.
+					 * If we failed to drop because we failed to invalidate, then subsequent
+					 * creation of the same table would fail saying the tuple exists already
+					 * which is much better than crashing.
+					 */
 					oldtup = lfirst(lc);
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, oldtup, in_enr_rollback);
