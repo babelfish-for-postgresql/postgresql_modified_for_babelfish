@@ -273,6 +273,7 @@ pgstat_report_vacuum(Oid tableoid, bool shared,
 	 * VACUUM command has processed all tables and committed.
 	 */
 	pgstat_flush_io(false);
+	pgstat_flush_backend(false);
 }
 
 /*
@@ -359,6 +360,7 @@ pgstat_report_analyze(Relation rel,
 
 	/* see pgstat_report_vacuum() */
 	pgstat_flush_io(false);
+	pgstat_flush_backend(false);
 }
 
 /*
