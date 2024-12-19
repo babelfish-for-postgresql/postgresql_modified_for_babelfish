@@ -2059,11 +2059,10 @@ funcname_signature_string(const char *funcname, int nargs,
 	int			numposargs;
 	ListCell   *lc;
 	int			i;
-	const char *ptr;
 
 	initStringInfo(&argbuf);
 
-	if (sql_dialect == SQL_DIALECT_TSQL && remove_db_name_in_schema_hook && ptr) {
+	if (sql_dialect == SQL_DIALECT_TSQL && remove_db_name_in_schema_hook) {
 		funcname = (*remove_db_name_in_schema_hook)(funcname);
 	}
 
