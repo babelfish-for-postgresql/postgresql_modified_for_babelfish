@@ -5076,7 +5076,18 @@ roles_is_member_of(Oid roleid, enum RoleRecurseType type,
 			 */
 			if (otherid == admin_of && form->admin_option &&
 				OidIsValid(admin_of) && !OidIsValid(*admin_role))
-				*admin_role = memberid;
+				{
+					*admin_role = memberid;
+
+					/* 
+					 * Need not to iterate through all the members 
+					 * if admin_role is found.
+					 */
+					if (sql_dialect == SQL_DIALECT_TSQL)
+					{
+						return NULL;
+					}
+				}
 
 			/* If we're supposed to ignore non-heritable grants, do so. */
 			if (type == ROLERECURSE_PRIVS && !form->inherit_option)
