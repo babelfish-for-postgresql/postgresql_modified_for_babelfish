@@ -958,9 +958,9 @@ CopyGetAttnums(TupleDesc tupDesc, Relation rel, List *attnamelist)
 
 		for (i = 0; i < attr_count; i++)
 		{
-			if (TupleDescAttr(tupDesc, i)->attisdropped)
-				continue;
-			if (TupleDescAttr(tupDesc, i)->attgenerated)
+			CompactAttribute *attr = TupleDescCompactAttr(tupDesc, i);
+
+			if (attr->attisdropped || attr->attgenerated)
 				continue;
 			/* Skip TSQL ROWVERSION/TIMESTAMP column if it exists */
 			if (is_tsql_rowversion_or_timestamp_datatype_hook &&

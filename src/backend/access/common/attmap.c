@@ -140,7 +140,7 @@ build_attrmap_by_position(TupleDesc indesc,
 	/* Check for unused input columns */
 	for (; j < indesc->natts; j++)
 	{
-		if (TupleDescAttr(indesc, j)->attisdropped)
+		if (TupleDescCompactAttr(indesc, j)->attisdropped)
 			continue;
 		nincols++;
 		same = false;			/* we'll complain below */
@@ -304,8 +304,8 @@ check_attrmap_match(TupleDesc indesc,
 
 	for (i = 0; i < attrMap->maplen; i++)
 	{
-		Form_pg_attribute inatt = TupleDescAttr(indesc, i);
-		Form_pg_attribute outatt = TupleDescAttr(outdesc, i);
+		CompactAttribute *inatt = TupleDescCompactAttr(indesc, i);
+		CompactAttribute *outatt;
 
 		/*
 		 * If the input column has a missing attribute, we need a conversion.
@@ -324,6 +324,8 @@ check_attrmap_match(TupleDesc indesc,
 
 		if (attrMap->attnums[i] == (i + 1))
 			continue;
+
+		outatt = TupleDescCompactAttr(outdesc, i);
 
 		/*
 		 * If it's a dropped column and the corresponding input column is also
