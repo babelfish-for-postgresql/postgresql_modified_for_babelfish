@@ -5081,9 +5081,10 @@ roles_is_member_of(Oid roleid, enum RoleRecurseType type,
 
 					/* 
 					 * Need not to iterate through all the members 
-					 * if admin_role is found.
+					 * if roleid is bbf_role_admin and admin_role is found.
 					 */
-					if (sql_dialect == SQL_DIALECT_TSQL)
+					if (sql_dialect == SQL_DIALECT_TSQL &&
+						get_bbf_admin_oid_hook  && roleid == (*get_bbf_admin_oid_hook)())
 					{
 						return NULL;
 					}
