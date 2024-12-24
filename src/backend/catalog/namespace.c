@@ -216,6 +216,7 @@ char *SYS_NAMESPACE_NAME = "sys";
 
 relname_lookup_hook_type relname_lookup_hook = NULL;
 match_pltsql_func_call_hook_type match_pltsql_func_call_hook = NULL;
+remove_db_name_in_schema_hook_type remove_db_name_in_schema_hook = NULL;
 
 
 /* Local functions */
@@ -3633,10 +3634,16 @@ get_namespace_oid(const char *nspname, bool missing_ok)
 	oid = GetSysCacheOid1(NAMESPACENAME, Anum_pg_namespace_oid,
 						  CStringGetDatum(nspname));
 	if (!OidIsValid(oid) && !missing_ok)
+	{
+		if (sql_dialect == SQL_DIALECT_TSQL && remove_db_name_in_schema_hook)
+		{
+			nspname = (*remove_db_name_in_schema_hook)(nspname);
+		} 
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_SCHEMA),
 				 errmsg("schema \"%s\" does not exist", nspname)));
 
+	} 
 	return oid;
 }
 
