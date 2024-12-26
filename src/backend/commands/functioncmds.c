@@ -81,7 +81,7 @@ write_stored_proc_probin_hook_type write_stored_proc_probin_hook = NULL;
 
 /*
  *	 Examine the RETURNS clause of the CREATE FUNCTION statement
- *	 and return information about it as *prorettype_p and *returnsSet.
+ *	 and return information about it as *prorettype_p and *returnsSet_p.
  *
  * This is more complex than the average typename lookup because we want to
  * allow a shell type to be used, or even created if the specified return type
