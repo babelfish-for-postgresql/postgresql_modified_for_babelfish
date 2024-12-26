@@ -89,7 +89,7 @@ typedef bool (*match_pltsql_func_call_hook_type) (HeapTuple proctup, int nargs, 
 												  bool *use_defaults, bool *any_special,
 												  bool *variadic, Oid *va_elem_type);
 extern PGDLLEXPORT match_pltsql_func_call_hook_type match_pltsql_func_call_hook;
-typedef const char * (*remove_db_name_in_schema_hook_type) (const char *schema_name);
+typedef const char * (*remove_db_name_in_schema_hook_type) (const char *schema_name, const char *object_type);
 extern PGDLLEXPORT remove_db_name_in_schema_hook_type remove_db_name_in_schema_hook;
 
 #define RangeVarGetRelid(relation, lockmode, missing_ok) \

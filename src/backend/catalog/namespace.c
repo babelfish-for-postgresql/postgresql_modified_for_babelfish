@@ -3188,7 +3188,7 @@ get_namespace_oid(const char *nspname, bool missing_ok)
 	{
 		if (sql_dialect == SQL_DIALECT_TSQL && remove_db_name_in_schema_hook)
 		{
-			nspname = (*remove_db_name_in_schema_hook)(nspname);
+			nspname = (*remove_db_name_in_schema_hook)(nspname, "sch");
 		} 
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_SCHEMA),

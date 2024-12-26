@@ -1455,7 +1455,7 @@ parserOpenTable(ParseState *pstate, const RangeVar *relation, int lockmode)
 		if (relation->schemaname)
 		{
 			if (sql_dialect == SQL_DIALECT_TSQL && remove_db_name_in_schema_hook){
-				const char *schema_name = (*remove_db_name_in_schema_hook)(relation->schemaname);
+				const char *schema_name = (*remove_db_name_in_schema_hook)(relation->schemaname, "sch");
 				ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_TABLE),
 					 errmsg("relation \"%s.%s\" does not exist",
