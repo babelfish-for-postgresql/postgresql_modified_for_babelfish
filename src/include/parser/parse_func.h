@@ -79,6 +79,8 @@ typedef FuncCandidateList (*func_select_candidate_hook_type) (List *names, List 
 typedef void (*make_fn_arguments_from_stored_proc_probin_hook_type)(ParseState *pstate,List *fargs,Oid *actual_arg_types,Oid *declared_arg_types,Oid funcid);
 extern PGDLLEXPORT make_fn_arguments_from_stored_proc_probin_hook_type make_fn_arguments_from_stored_proc_probin_hook;
 typedef void (*report_proc_not_found_error_hook_type) (List *names, List *fargs, List *argnames, Oid *input_typeids, int nargs, ParseState *pstate, int location, bool proc_call);
-extern PGDLLEXPORT report_proc_not_found_error_hook_type report_proc_not_found_error_hook;
+extern PGDLLIMPORT report_proc_not_found_error_hook_type report_proc_not_found_error_hook;
+typedef const char * (*remove_db_name_in_schema_hook_type) (const char *schema_name, const char *object_type);
+extern PGDLLIMPORT remove_db_name_in_schema_hook_type remove_db_name_in_schema_hook;
 
 #endif							/* PARSE_FUNC_H */

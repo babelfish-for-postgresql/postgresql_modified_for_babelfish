@@ -89,7 +89,10 @@ typedef bool (*match_pltsql_func_call_hook_type) (HeapTuple proctup, int nargs, 
 												  List **defaults, bool expand_defaults, bool expand_variadic,
 												  bool *use_defaults, bool *any_special,
 												  bool *variadic, Oid *va_elem_type);
-extern PGDLLEXPORT match_pltsql_func_call_hook_type match_pltsql_func_call_hook;
+
+extern PGDLLIMPORT match_pltsql_func_call_hook_type match_pltsql_func_call_hook;
+typedef const char * (*remove_db_name_in_schema_hook_type) (const char *schema_name, const char *object_type);
+extern PGDLLIMPORT remove_db_name_in_schema_hook_type remove_db_name_in_schema_hook;
 
 typedef bool (*is_bbf_tds_connection_hook_type) ();
 extern PGDLLEXPORT is_bbf_tds_connection_hook_type is_bbf_tds_connection_hook;
