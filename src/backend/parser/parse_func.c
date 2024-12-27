@@ -2062,6 +2062,10 @@ funcname_signature_string(const char *funcname, int nargs,
 
 	initStringInfo(&argbuf);
 
+	if (sql_dialect == SQL_DIALECT_TSQL && remove_db_name_in_schema_hook) {
+		funcname = (*remove_db_name_in_schema_hook)(funcname, "func");
+	}
+
 	appendStringInfo(&argbuf, "%s(", funcname);
 
 	numposargs = nargs - list_length(argnames);
