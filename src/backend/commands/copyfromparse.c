@@ -1090,8 +1090,6 @@ NextCopyFrom(CopyFromState cstate, ExprContext *econtext,
 	if (fill_missing_values_in_copyfrom_hook)
 		fill_missing_values_in_copyfrom_hook(cstate->rel, values, nulls);
 
-	pfree(cstate->defaults);
-
 	return true;
 }
 
