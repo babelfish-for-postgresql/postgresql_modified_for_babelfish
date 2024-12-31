@@ -134,6 +134,7 @@ bbf_get_sysadmin_oid_hook_type bbf_get_sysadmin_oid_hook = NULL;
 get_bbf_admin_oid_hook_type get_bbf_admin_oid_hook = NULL;
 pltsql_get_object_owner_hook_type pltsql_get_object_owner_hook = NULL;
 is_bbf_db_ddladmin_operation_hook_type is_bbf_db_ddladmin_operation_hook = NULL;
+has_bbf_role_direct_membership_with_admin_true_hook_type has_bbf_role_direct_membership_with_admin_true_hook = NULL;
 
 
 /*
@@ -5076,19 +5077,7 @@ roles_is_member_of(Oid roleid, enum RoleRecurseType type,
 			 */
 			if (otherid == admin_of && form->admin_option &&
 				OidIsValid(admin_of) && !OidIsValid(*admin_role))
-				{
-					*admin_role = memberid;
-
-					/* 
-					 * Need not to iterate through all the members 
-					 * if roleid is bbf_role_admin and admin_role is found.
-					 */
-					if (sql_dialect == SQL_DIALECT_TSQL &&
-						get_bbf_admin_oid_hook  && roleid == (*get_bbf_admin_oid_hook)())
-					{
-						return NULL;
-					}
-				}
+				*admin_role = memberid;
 
 			/* If we're supposed to ignore non-heritable grants, do so. */
 			if (type == ROLERECURSE_PRIVS && !form->inherit_option)
@@ -5289,6 +5278,19 @@ is_admin_of_role(Oid member, Oid role)
 	/* By policy, a role cannot have WITH ADMIN OPTION on itself. */
 	if (member == role)
 		return false;
+
+	/*
+	 * Check if the given member is bbf_role_admin.
+         * If the member has the privilege to grant a given role through direct membership,
+         * returns the member with admin option set to true.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL 
+		&& get_bbf_admin_oid_hook && member == (*get_bbf_admin_oid_hook)()
+			&& (has_bbf_role_direct_membership_with_admin_true_hook) 
+				&& (*has_bbf_role_direct_membership_with_admin_true_hook)(role))
+	{
+		return member;
+	}
 
 	(void) roles_is_member_of(member, ROLERECURSE_MEMBERS, role, &admin_role);
 	return OidIsValid(admin_role);
