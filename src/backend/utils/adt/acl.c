@@ -134,7 +134,7 @@ bbf_get_sysadmin_oid_hook_type bbf_get_sysadmin_oid_hook = NULL;
 get_bbf_admin_oid_hook_type get_bbf_admin_oid_hook = NULL;
 pltsql_get_object_owner_hook_type pltsql_get_object_owner_hook = NULL;
 is_bbf_db_ddladmin_operation_hook_type is_bbf_db_ddladmin_operation_hook = NULL;
-has_bbf_role_direct_membership_with_admin_true_hook_type has_bbf_role_direct_membership_with_admin_true_hook = NULL;
+bbf_check_member_has_direct_priv_to_grant_role_hook_type bbf_check_member_has_direct_priv_to_grant_role_hook = NULL;
 
 
 /*
@@ -5279,17 +5279,10 @@ is_admin_of_role(Oid member, Oid role)
 	if (member == role)
 		return false;
 
-	/*
-	 * Check if the given member is bbf_role_admin.
-         * If the member has the privilege to grant a given role through direct membership,
-         * returns the member with admin option set to true.
-	 */
-	if (sql_dialect == SQL_DIALECT_TSQL 
-		&& get_bbf_admin_oid_hook && member == (*get_bbf_admin_oid_hook)()
-			&& (has_bbf_role_direct_membership_with_admin_true_hook) 
-				&& (*has_bbf_role_direct_membership_with_admin_true_hook)(role))
+	if ((bbf_check_member_has_direct_priv_to_grant_role_hook) 
+		&& (*bbf_check_member_has_direct_priv_to_grant_role_hook)(member, role))
 	{
-		return member;
+		return true;
 	}
 
 	(void) roles_is_member_of(member, ROLERECURSE_MEMBERS, role, &admin_role);
