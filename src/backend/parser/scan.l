@@ -94,12 +94,6 @@ const uint16 ScanKeywordTokens[] = {
 #define YYSTYPE core_YYSTYPE
 
 /*
- * Set the type of yyextra.  All state variables used by the scanner should
- * be in yyextra, *not* statically allocated.
- */
-#define YY_EXTRA_TYPE core_yy_extra_type *
-
-/*
  * Each call to yylex must set yylloc to the location of the found token
  * (expressed as a byte offset from the start of the input text).
  * When we parse a token that requires multiple lexer rules to process,
@@ -180,6 +174,7 @@ core_yylex_hook_type core_yylex_hook = NULL;
 %option noyyfree
 %option warn
 %option prefix="core_yy"
+%option extra-type="core_yy_extra_type *"
 
 /*
  * OK, here is a short description of lex/flex rules behavior.
