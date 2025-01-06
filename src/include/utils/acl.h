@@ -309,6 +309,9 @@ extern PGDLLEXPORT is_bbf_db_ddladmin_operation_hook_type is_bbf_db_ddladmin_ope
 typedef bool (*pltsql_allow_storing_init_privs_hook_type) (Oid objoid, Oid classoid, int objsubid);
 extern PGDLLEXPORT pltsql_allow_storing_init_privs_hook_type pltsql_allow_storing_init_privs_hook;
 
+typedef bool (*bbf_check_member_has_direct_priv_to_grant_role_hook_type) (Oid, Oid);
+extern PGDLLEXPORT bbf_check_member_has_direct_priv_to_grant_role_hook_type bbf_check_member_has_direct_priv_to_grant_role_hook;
+
 #define IS_BBF_DB_DDLADMIN(namespaceId) \
 	(is_bbf_db_ddladmin_operation_hook &&       \
 	 is_bbf_db_ddladmin_operation_hook(namespaceId))

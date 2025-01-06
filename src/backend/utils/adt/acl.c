@@ -134,6 +134,7 @@ bbf_get_sysadmin_oid_hook_type bbf_get_sysadmin_oid_hook = NULL;
 get_bbf_admin_oid_hook_type get_bbf_admin_oid_hook = NULL;
 pltsql_get_object_owner_hook_type pltsql_get_object_owner_hook = NULL;
 is_bbf_db_ddladmin_operation_hook_type is_bbf_db_ddladmin_operation_hook = NULL;
+bbf_check_member_has_direct_priv_to_grant_role_hook_type bbf_check_member_has_direct_priv_to_grant_role_hook = NULL;
 
 
 /*
@@ -5277,6 +5278,12 @@ is_admin_of_role(Oid member, Oid role)
 	/* By policy, a role cannot have WITH ADMIN OPTION on itself. */
 	if (member == role)
 		return false;
+
+	if ((bbf_check_member_has_direct_priv_to_grant_role_hook) 
+		&& (*bbf_check_member_has_direct_priv_to_grant_role_hook)(member, role))
+	{
+		return true;
+	}
 
 	(void) roles_is_member_of(member, ROLERECURSE_MEMBERS, role, &admin_role);
 	return OidIsValid(admin_role);
