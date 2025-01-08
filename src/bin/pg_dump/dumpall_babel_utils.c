@@ -271,7 +271,7 @@ getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog,
 
 	appendPQExpBuffer(buf,
 					  ") AS db_owner_members "
-					  "JOIN pg_roles pr ON pr.rolname = sys.babelfish_truncate_identifier(db_owner_members.member_role || '_obj') ");
+					  "JOIN pg_roles pr ON pr.rolname = sys.babelfish_truncate_identifier(db_owner_members.member_role || '_bbfobj') ");
 
 	appendPQExpBuffer(buf, "), "
 					  "bbf_roles AS (SELECT rc.* FROM %s rc INNER JOIN bbf_catalog bcat "
@@ -389,7 +389,7 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 
 	appendPQExpBuffer(buf,
 					  ") AS db_owner_members "
-					  "JOIN pg_roles pr ON pr.rolname = sys.babelfish_truncate_identifier(db_owner_members.member_role || '_obj') ");
+					  "JOIN pg_roles pr ON pr.rolname = sys.babelfish_truncate_identifier(db_owner_members.member_role || '_bbfobj') ");
 
 	appendPQExpBuffer(buf, "), "
 					  "bbf_roles AS (SELECT rc.* FROM %s rc INNER JOIN bbf_catalog bcat "
