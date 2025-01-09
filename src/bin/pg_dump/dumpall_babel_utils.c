@@ -35,10 +35,16 @@ typedef enum {
 
 static babelfish_status bbf_status = NONE;
 
-static char default_bbf_roles[] = "('sysadmin', 'bbf_role_admin', "
-								  "'master_dbo', 'master_db_owner', 'master_guest', "
-								  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
-								  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest')";
+static char default_bbf_roles[] = "('sysadmin', 'bbf_role_admin', 'securityadmin', 'dbcreator', "
+                                  "'master_dbo', 'master_db_owner', 'master_guest', "
+                                  "'master_db_accessadmin', 'master_db_securityadmin', 'master_db_ddladmin', "
+                                  "'master_db_datareader', 'master_db_datawriter', "
+                                  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
+                                  "'msdb_db_accessadmin', 'msdb_db_securityadmin', "
+                                  "'msdb_db_datareader', 'msdb_db_datawriter', 'msdb_db_ddladmin', "
+                                  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', "
+                                  "'tempdb_db_accessadmin', 'tempdb_db_securityadmin', "
+                                  "'tempdb_db_datareader', 'tempdb_db_datawriter', 'tempdb_db_ddladmin')";
 
 /*
  * Run a query, return the results, exit program on failure.
@@ -235,6 +241,38 @@ getBabelfishRolesQuery(PGconn *conn, PQExpBuffer buf, char *role_catalog,
 		appendPQExpBuffer(buf, "WHERE database_name = '%s' ", escaped_bbf_db_name);
 		pfree(escaped_bbf_db_name);
 	}
+
+	/* Append roles associated with db_owner members which are not present in bbf catalogs */
+	appendPQExpBuffer(buf,
+					  "UNION "
+					  "SELECT pr.rolname "
+					  "FROM ( "
+					  "SELECT DISTINCT pr.rolname AS member_role "
+					  "FROM sys.babelfish_authid_user_ext ta "
+					  "JOIN pg_roles r ON r.rolname = ta.rolname "
+					  "JOIN pg_auth_members m ON r.oid = m.roleid "
+					  "JOIN pg_roles pr ON pr.oid = m.member "
+					  "WHERE pr.rolname != ta.rolname "
+					  "AND ta.orig_username = 'db_owner' ");
+
+	/* Only dump users of the specific logical database we are currently dumping. */
+	if (bbf_db_name != NULL)
+	{
+		/*
+		 * Get escaped bbf_db_name to handle special characters in it.
+		 * 2*strlen+1 bytes are required for PQescapeString according to the documentation.
+		 */
+		char *escaped_bbf_db_name = pg_malloc(2 * strlen(bbf_db_name) + 1);
+
+		PQescapeString(escaped_bbf_db_name, bbf_db_name, strlen(bbf_db_name));
+		appendPQExpBuffer(buf, "AND ta.database_name = '%s' ", escaped_bbf_db_name);
+		pfree(escaped_bbf_db_name);
+	}
+
+	appendPQExpBuffer(buf,
+					  ") AS db_owner_members "
+					  "JOIN pg_roles pr ON pr.rolname = sys.babelfish_truncate_identifier(db_owner_members.member_role || '_bbfobj') ");
+
 	appendPQExpBuffer(buf, "), "
 					  "bbf_roles AS (SELECT rc.* FROM %s rc INNER JOIN bbf_catalog bcat "
 					  "ON rc.rolname = bcat.rolname) ", role_catalog);
@@ -303,7 +341,9 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 	else
 		appendPQExpBufferStr(buf,
 							 "SELECT 'sysadmin' AS rolname UNION "
-							 "SELECT 'bbf_role_admin' AS rolname UNION ");
+							 "SELECT 'bbf_role_admin' AS rolname UNION "
+							 "SELECT 'securityadmin' AS rolname UNION "
+							 "SELECT 'dbcreator' AS rolname UNION ");
 	appendPQExpBuffer(buf,
 					  "SELECT rolname FROM sys.babelfish_authid_user_ext ");
 	/* Only dump users of the specific logical database we are currently dumping. */
@@ -319,6 +359,38 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 		appendPQExpBuffer(buf, "WHERE database_name = '%s' ", escaped_bbf_db_name);
 		pfree(escaped_bbf_db_name);
 	}
+
+		/* Append roles associated with db_owner members which are not present in bbf catalogs */
+	appendPQExpBuffer(buf,
+					  "UNION "
+					  "SELECT pr.rolname "
+					  "FROM ( "
+					  "SELECT DISTINCT pr.rolname AS member_role "
+					  "FROM sys.babelfish_authid_user_ext ta "
+					  "JOIN pg_roles r ON r.rolname = ta.rolname "
+					  "JOIN pg_auth_members m ON r.oid = m.roleid "
+					  "JOIN pg_roles pr ON pr.oid = m.member "
+					  "WHERE pr.rolname != ta.rolname "
+					  "AND ta.orig_username = 'db_owner' ");
+
+	/* Only dump users of the specific logical database we are currently dumping. */
+	if (bbf_db_name != NULL)
+	{
+		/*
+		 * Get escaped bbf_db_name to handle special characters in it.
+		 * 2*strlen+1 bytes are required for PQescapeString according to the documentation.
+		 */
+		char *escaped_bbf_db_name = pg_malloc(2 * strlen(bbf_db_name) + 1);
+
+		PQescapeString(escaped_bbf_db_name, bbf_db_name, strlen(bbf_db_name));
+		appendPQExpBuffer(buf, "AND ta.database_name = '%s' ", escaped_bbf_db_name);
+		pfree(escaped_bbf_db_name);
+	}
+
+	appendPQExpBuffer(buf,
+					  ") AS db_owner_members "
+					  "JOIN pg_roles pr ON pr.rolname = sys.babelfish_truncate_identifier(db_owner_members.member_role || '_bbfobj') ");
+
 	appendPQExpBuffer(buf, "), "
 					  "bbf_roles AS (SELECT rc.* FROM %s rc INNER JOIN bbf_catalog bcat "
 					  "ON rc.rolname = bcat.rolname) ", role_catalog);
