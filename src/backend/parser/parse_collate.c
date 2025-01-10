@@ -800,7 +800,7 @@ merge_collation_state(Oid collation,
 					  int location2,
 					  assign_collations_context *context)
 {
-	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+	const char *dump_restore;
 	/*
 	 * If the collation strength for this node is different from what's
 	 * already in *context, then this node either dominates or is dominated by
@@ -861,6 +861,7 @@ merge_collation_state(Oid collation,
 			case COLLATE_EXPLICIT:
 				if (collation != context->collation)
 				{
+					dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 					if (dump_restore && strcmp(dump_restore, "on") == 0)
 					{
 						context->collation = collation;
