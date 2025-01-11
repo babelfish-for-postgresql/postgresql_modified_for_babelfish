@@ -4575,6 +4575,7 @@ CheckConstraintFetch(Relation relation)
 			break;
 		}
 
+		check[found].ccenforced = conform->conenforced;
 		check[found].ccvalid = conform->convalidated;
 		check[found].ccnoinherit = conform->connoinherit;
 		check[found].ccname = MemoryContextStrdup(CacheMemoryContext,
