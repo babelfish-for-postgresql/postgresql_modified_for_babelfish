@@ -15853,10 +15853,8 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 					if (print_default)
 					{
 						if (tbinfo->attgenerated[j] == ATTRIBUTE_GENERATED_STORED)
-						{
 							appendPQExpBuffer(q, " GENERATED ALWAYS AS (%s) STORED",
-								tbinfo->attrdefs[j]->adef_expr);
-						}
+												tbinfo->attrdefs[j]->adef_expr);
 						else
 							appendPQExpBuffer(q, " DEFAULT %s",
 											  tbinfo->attrdefs[j]->adef_expr);
