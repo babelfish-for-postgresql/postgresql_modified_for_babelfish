@@ -656,7 +656,7 @@ typeTypeCollation(Type typ)
 
 	if (handle_default_collation_hook)
 	{
-		return (*handle_default_collation_hook)(typ, true);
+		return (*handle_default_collation_hook)(typ);
 	}
 
 	return typtup->typcollation;

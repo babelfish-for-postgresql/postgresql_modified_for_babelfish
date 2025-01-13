@@ -15854,12 +15854,8 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 					{
 						if (tbinfo->attgenerated[j] == ATTRIBUTE_GENERATED_STORED)
 						{
-							if(isBabelfishDatabase(fout))
-								appendPQExpBuffer(q, " GENERATED ALWAYS AS %s STORED",
-									tbinfo->attrdefs[j]->adef_expr);
-							else
-								appendPQExpBuffer(q, " GENERATED ALWAYS AS (%s) STORED",
-									tbinfo->attrdefs[j]->adef_expr);
+							appendPQExpBuffer(q, " GENERATED ALWAYS AS (%s) STORED",
+								tbinfo->attrdefs[j]->adef_expr);
 						}
 						else
 							appendPQExpBuffer(q, " DEFAULT %s",
@@ -15871,7 +15867,6 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 						appendPQExpBufferStr(q, " NOT NULL");
 
 					/* Add collation if not default for the type */
-					// if (OidIsValid(tbinfo->attcollation[j]) && !isBabelfishDatabase(fout))
 					if (OidIsValid(tbinfo->attcollation[j]))
 					{
 						CollInfo   *coll;
