@@ -1723,7 +1723,7 @@ hash_agg_entry_size(int numTrans, Size tupleWidth, Size transitionSpace)
 		transitionChunkSize = 0;
 
 	return
-		TupleHashEntrySize() +
+		sizeof(TupleHashEntryData) +
 		tupleChunkSize +
 		pergroupChunkSize +
 		transitionChunkSize;
@@ -1964,7 +1964,7 @@ hash_agg_update_metrics(AggState *aggstate, bool from_tape, int npartitions)
 	if (aggstate->hash_ngroups_current > 0)
 	{
 		aggstate->hashentrysize =
-			TupleHashEntrySize() +
+			sizeof(TupleHashEntryData) +
 			(hashkey_mem / (double) aggstate->hash_ngroups_current);
 	}
 }
@@ -2065,7 +2065,11 @@ initialize_hash_entry(AggState *aggstate, TupleHashTable hashtable,
 	if (aggstate->numtrans == 0)
 		return;
 
-	pergroup = (AggStatePerGroup) TupleHashEntryGetAdditional(entry);
+	pergroup = (AggStatePerGroup)
+		MemoryContextAlloc(hashtable->tablecxt,
+						   sizeof(AggStatePerGroupData) * aggstate->numtrans);
+
+	entry->additional = pergroup;
 
 	/*
 	 * Initialize aggregates for new tuple group, lookup_hash_entries()
@@ -2129,7 +2133,7 @@ lookup_hash_entries(AggState *aggstate)
 		{
 			if (isnew)
 				initialize_hash_entry(aggstate, hashtable, entry);
-			pergroup[setno] = TupleHashEntryGetAdditional(entry);
+			pergroup[setno] = entry->additional;
 		}
 		else
 		{
@@ -2687,7 +2691,7 @@ agg_refill_hash_table(AggState *aggstate)
 		{
 			if (isnew)
 				initialize_hash_entry(aggstate, perhash->hashtable, entry);
-			aggstate->hash_pergroup[batch->setno] = TupleHashEntryGetAdditional(entry);
+			aggstate->hash_pergroup[batch->setno] = entry->additional;
 			advance_aggregates(aggstate);
 		}
 		else
@@ -2779,7 +2783,7 @@ agg_retrieve_hash_table_in_memory(AggState *aggstate)
 	ExprContext *econtext;
 	AggStatePerAgg peragg;
 	AggStatePerGroup pergroup;
-	TupleHashEntry entry;
+	TupleHashEntryData *entry;
 	TupleTableSlot *firstSlot;
 	TupleTableSlot *result;
 	AggStatePerHash perhash;
@@ -2851,7 +2855,7 @@ agg_retrieve_hash_table_in_memory(AggState *aggstate)
 		 * Transform representative tuple back into one with the right
 		 * columns.
 		 */
-		ExecStoreMinimalTuple(TupleHashEntryGetTuple(entry), hashslot, false);
+		ExecStoreMinimalTuple(entry->firstTuple, hashslot, false);
 		slot_getallattrs(hashslot);
 
 		ExecClearTuple(firstSlot);
@@ -2867,7 +2871,7 @@ agg_retrieve_hash_table_in_memory(AggState *aggstate)
 		}
 		ExecStoreVirtualTuple(firstSlot);
 
-		pergroup = (AggStatePerGroup) TupleHashEntryGetAdditional(entry);
+		pergroup = (AggStatePerGroup) entry->additional;
 
 		/*
 		 * Use the representative input tuple for any references to
