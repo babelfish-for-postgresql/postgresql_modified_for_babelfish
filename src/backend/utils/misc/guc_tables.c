@@ -689,7 +689,6 @@ const char *const config_group_names[] =
 	[RESOURCES_MEM] = gettext_noop("Resource Usage / Memory"),
 	[RESOURCES_DISK] = gettext_noop("Resource Usage / Disk"),
 	[RESOURCES_KERNEL] = gettext_noop("Resource Usage / Kernel Resources"),
-	[RESOURCES_VACUUM_DELAY] = gettext_noop("Resource Usage / Cost-Based Vacuum Delay"),
 	[RESOURCES_BGWRITER] = gettext_noop("Resource Usage / Background Writer"),
 	[RESOURCES_ASYNCHRONOUS] = gettext_noop("Resource Usage / Asynchronous Behavior"),
 	[WAL_SETTINGS] = gettext_noop("Write-Ahead Log / Settings"),
@@ -713,7 +712,9 @@ const char *const config_group_names[] =
 	[PROCESS_TITLE] = gettext_noop("Reporting and Logging / Process Title"),
 	[STATS_MONITORING] = gettext_noop("Statistics / Monitoring"),
 	[STATS_CUMULATIVE] = gettext_noop("Statistics / Cumulative Query and Index Statistics"),
-	[AUTOVACUUM] = gettext_noop("Autovacuum"),
+	[VACUUM_AUTOVACUUM] = gettext_noop("Vacuuming / Automatic Vacuuming"),
+	[VACUUM_COST_DELAY] = gettext_noop("Vacuuming / Cost-Based Vacuum Delay"),
+	[VACUUM_FREEZING] = gettext_noop("Vacuuming / Freezing"),
 	[CLIENT_CONN_STATEMENT] = gettext_noop("Client Connection Defaults / Statement Behavior"),
 	[CLIENT_CONN_LOCALE] = gettext_noop("Client Connection Defaults / Locale and Formatting"),
 	[CLIENT_CONN_PRELOAD] = gettext_noop("Client Connection Defaults / Shared Library Preloading"),
@@ -1517,7 +1518,7 @@ struct config_bool ConfigureNamesBool[] =
 	},
 
 	{
-		{"autovacuum", PGC_SIGHUP, AUTOVACUUM,
+		{"autovacuum", PGC_SIGHUP, VACUUM_AUTOVACUUM,
 			gettext_noop("Starts the autovacuum subprocess."),
 			NULL
 		},
@@ -2601,7 +2602,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"vacuum_cost_page_hit", PGC_USERSET, RESOURCES_VACUUM_DELAY,
+		{"vacuum_cost_page_hit", PGC_USERSET, VACUUM_COST_DELAY,
 			gettext_noop("Vacuum cost for a page found in the buffer cache."),
 			NULL
 		},
@@ -2611,7 +2612,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"vacuum_cost_page_miss", PGC_USERSET, RESOURCES_VACUUM_DELAY,
+		{"vacuum_cost_page_miss", PGC_USERSET, VACUUM_COST_DELAY,
 			gettext_noop("Vacuum cost for a page not found in the buffer cache."),
 			NULL
 		},
@@ -2621,7 +2622,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"vacuum_cost_page_dirty", PGC_USERSET, RESOURCES_VACUUM_DELAY,
+		{"vacuum_cost_page_dirty", PGC_USERSET, VACUUM_COST_DELAY,
 			gettext_noop("Vacuum cost for a page dirtied by vacuum."),
 			NULL
 		},
@@ -2631,7 +2632,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"vacuum_cost_limit", PGC_USERSET, RESOURCES_VACUUM_DELAY,
+		{"vacuum_cost_limit", PGC_USERSET, VACUUM_COST_DELAY,
 			gettext_noop("Vacuum cost amount available before napping."),
 			NULL
 		},
@@ -2641,7 +2642,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"autovacuum_vacuum_cost_limit", PGC_SIGHUP, AUTOVACUUM,
+		{"autovacuum_vacuum_cost_limit", PGC_SIGHUP, VACUUM_AUTOVACUUM,
 			gettext_noop("Vacuum cost amount available before napping, for autovacuum."),
 			NULL
 		},
@@ -2752,7 +2753,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"vacuum_freeze_min_age", PGC_USERSET, CLIENT_CONN_STATEMENT,
+		{"vacuum_freeze_min_age", PGC_USERSET, VACUUM_FREEZING,
 			gettext_noop("Minimum age at which VACUUM should freeze a table row."),
 			NULL
 		},
@@ -2762,7 +2763,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"vacuum_freeze_table_age", PGC_USERSET, CLIENT_CONN_STATEMENT,
+		{"vacuum_freeze_table_age", PGC_USERSET, VACUUM_FREEZING,
 			gettext_noop("Age at which VACUUM should scan whole table to freeze tuples."),
 			NULL
 		},
@@ -2772,7 +2773,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"vacuum_multixact_freeze_min_age", PGC_USERSET, CLIENT_CONN_STATEMENT,
+		{"vacuum_multixact_freeze_min_age", PGC_USERSET, VACUUM_FREEZING,
 			gettext_noop("Minimum age at which VACUUM should freeze a MultiXactId in a table row."),
 			NULL
 		},
@@ -2782,7 +2783,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"vacuum_multixact_freeze_table_age", PGC_USERSET, CLIENT_CONN_STATEMENT,
+		{"vacuum_multixact_freeze_table_age", PGC_USERSET, VACUUM_FREEZING,
 			gettext_noop("Multixact age at which VACUUM should scan whole table to freeze tuples."),
 			NULL
 		},
@@ -2792,7 +2793,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"vacuum_failsafe_age", PGC_USERSET, CLIENT_CONN_STATEMENT,
+		{"vacuum_failsafe_age", PGC_USERSET, VACUUM_FREEZING,
 			gettext_noop("Age at which VACUUM should trigger failsafe to avoid a wraparound outage."),
 			NULL
 		},
@@ -2801,7 +2802,7 @@ struct config_int ConfigureNamesInt[] =
 		NULL, NULL, NULL
 	},
 	{
-		{"vacuum_multixact_failsafe_age", PGC_USERSET, CLIENT_CONN_STATEMENT,
+		{"vacuum_multixact_failsafe_age", PGC_USERSET, VACUUM_FREEZING,
 			gettext_noop("Multixact age at which VACUUM should trigger failsafe to avoid a wraparound outage."),
 			NULL
 		},
@@ -3425,7 +3426,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"autovacuum_naptime", PGC_SIGHUP, AUTOVACUUM,
+		{"autovacuum_naptime", PGC_SIGHUP, VACUUM_AUTOVACUUM,
 			gettext_noop("Time to sleep between autovacuum runs."),
 			NULL,
 			GUC_UNIT_S
@@ -3435,7 +3436,7 @@ struct config_int ConfigureNamesInt[] =
 		NULL, NULL, NULL
 	},
 	{
-		{"autovacuum_vacuum_threshold", PGC_SIGHUP, AUTOVACUUM,
+		{"autovacuum_vacuum_threshold", PGC_SIGHUP, VACUUM_AUTOVACUUM,
 			gettext_noop("Minimum number of tuple updates or deletes prior to vacuum."),
 			NULL
 		},
@@ -3444,7 +3445,7 @@ struct config_int ConfigureNamesInt[] =
 		NULL, NULL, NULL
 	},
 	{
-		{"autovacuum_vacuum_insert_threshold", PGC_SIGHUP, AUTOVACUUM,
+		{"autovacuum_vacuum_insert_threshold", PGC_SIGHUP, VACUUM_AUTOVACUUM,
 			gettext_noop("Minimum number of tuple inserts prior to vacuum, or -1 to disable insert vacuums."),
 			NULL
 		},
@@ -3453,7 +3454,7 @@ struct config_int ConfigureNamesInt[] =
 		NULL, NULL, NULL
 	},
 	{
-		{"autovacuum_analyze_threshold", PGC_SIGHUP, AUTOVACUUM,
+		{"autovacuum_analyze_threshold", PGC_SIGHUP, VACUUM_AUTOVACUUM,
 			gettext_noop("Minimum number of tuple inserts, updates, or deletes prior to analyze."),
 			NULL
 		},
@@ -3463,7 +3464,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 	{
 		/* see varsup.c for why this is PGC_POSTMASTER not PGC_SIGHUP */
-		{"autovacuum_freeze_max_age", PGC_POSTMASTER, AUTOVACUUM,
+		{"autovacuum_freeze_max_age", PGC_POSTMASTER, VACUUM_AUTOVACUUM,
 			gettext_noop("Age at which to autovacuum a table to prevent transaction ID wraparound."),
 			NULL
 		},
@@ -3475,7 +3476,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 	{
 		/* see multixact.c for why this is PGC_POSTMASTER not PGC_SIGHUP */
-		{"autovacuum_multixact_freeze_max_age", PGC_POSTMASTER, AUTOVACUUM,
+		{"autovacuum_multixact_freeze_max_age", PGC_POSTMASTER, VACUUM_AUTOVACUUM,
 			gettext_noop("Multixact age at which to autovacuum a table to prevent multixact wraparound."),
 			NULL
 		},
@@ -3485,7 +3486,7 @@ struct config_int ConfigureNamesInt[] =
 	},
 	{
 		/* see max_connections */
-		{"autovacuum_worker_slots", PGC_POSTMASTER, AUTOVACUUM,
+		{"autovacuum_worker_slots", PGC_POSTMASTER, VACUUM_AUTOVACUUM,
 			gettext_noop("Sets the number of backend slots to allocate for autovacuum workers."),
 			NULL
 		},
@@ -3494,7 +3495,7 @@ struct config_int ConfigureNamesInt[] =
 		NULL, NULL, NULL
 	},
 	{
-		{"autovacuum_max_workers", PGC_SIGHUP, AUTOVACUUM,
+		{"autovacuum_max_workers", PGC_SIGHUP, VACUUM_AUTOVACUUM,
 			gettext_noop("Sets the maximum number of simultaneously running autovacuum worker processes."),
 			NULL
 		},
@@ -3959,7 +3960,7 @@ struct config_real ConfigureNamesReal[] =
 	},
 
 	{
-		{"vacuum_cost_delay", PGC_USERSET, RESOURCES_VACUUM_DELAY,
+		{"vacuum_cost_delay", PGC_USERSET, VACUUM_COST_DELAY,
 			gettext_noop("Vacuum cost delay in milliseconds."),
 			NULL,
 			GUC_UNIT_MS
@@ -3970,7 +3971,7 @@ struct config_real ConfigureNamesReal[] =
 	},
 
 	{
-		{"autovacuum_vacuum_cost_delay", PGC_SIGHUP, AUTOVACUUM,
+		{"autovacuum_vacuum_cost_delay", PGC_SIGHUP, VACUUM_AUTOVACUUM,
 			gettext_noop("Vacuum cost delay in milliseconds, for autovacuum."),
 			NULL,
 			GUC_UNIT_MS
@@ -3981,7 +3982,7 @@ struct config_real ConfigureNamesReal[] =
 	},
 
 	{
-		{"autovacuum_vacuum_scale_factor", PGC_SIGHUP, AUTOVACUUM,
+		{"autovacuum_vacuum_scale_factor", PGC_SIGHUP, VACUUM_AUTOVACUUM,
 			gettext_noop("Number of tuple updates or deletes prior to vacuum as a fraction of reltuples."),
 			NULL
 		},
@@ -3991,7 +3992,7 @@ struct config_real ConfigureNamesReal[] =
 	},
 
 	{
-		{"autovacuum_vacuum_insert_scale_factor", PGC_SIGHUP, AUTOVACUUM,
+		{"autovacuum_vacuum_insert_scale_factor", PGC_SIGHUP, VACUUM_AUTOVACUUM,
 			gettext_noop("Number of tuple inserts prior to vacuum as a fraction of reltuples."),
 			NULL
 		},
@@ -4001,7 +4002,7 @@ struct config_real ConfigureNamesReal[] =
 	},
 
 	{
-		{"autovacuum_analyze_scale_factor", PGC_SIGHUP, AUTOVACUUM,
+		{"autovacuum_analyze_scale_factor", PGC_SIGHUP, VACUUM_AUTOVACUUM,
 			gettext_noop("Number of tuple inserts, updates, or deletes prior to analyze as a fraction of reltuples."),
 			NULL
 		},
