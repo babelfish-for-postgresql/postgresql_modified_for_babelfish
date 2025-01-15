@@ -503,7 +503,7 @@ typedef struct ExprEvalStep
 		/* for EEOP_ROWCOMPARE_FINAL */
 		struct
 		{
-			RowCompareType rctype;
+			CompareType cmptype;
 		}			rowcompare_final;
 
 		/* for EEOP_MINMAX */
