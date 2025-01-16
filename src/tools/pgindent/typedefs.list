@@ -3037,6 +3037,7 @@ TypeCat
 TypeFuncClass
 TypeInfo
 TypeName
+TzAbbrevCache
 U32
 U8
 UChar

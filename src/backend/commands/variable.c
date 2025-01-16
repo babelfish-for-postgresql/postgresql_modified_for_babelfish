@@ -387,6 +387,8 @@ void
 assign_timezone(const char *newval, void *extra)
 {
 	session_timezone = *((pg_tz **) extra);
+	/* datetime.c's cache of timezone abbrevs may now be obsolete */
+	ClearTimeZoneAbbrevCache();
 }
 
 /*
