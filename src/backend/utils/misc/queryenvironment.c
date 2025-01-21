@@ -1783,8 +1783,7 @@ bool IsTsqlTableVariable(Relation relation)
 {
 	return sql_dialect == SQL_DIALECT_TSQL 
 		&& relation
-		&& relation->rd_rel->relpersistence == RELPERSISTENCE_TEMP 
-		&& relation->rd_rel->relname.data 
+		&& relation->rd_rel->relpersistence == RELPERSISTENCE_TEMP  
 		&& strlen(relation->rd_rel->relname.data) >= 1 
 		&& relation->rd_rel->relname.data[0] == '@';
 }
