@@ -599,7 +599,8 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %type <list>	var_list
 %type <str>		ColId ColIdDef ColLabel BareColLabel AS_ColLabel 
 %type <str>		NonReservedWord NonReservedWord_or_Sconst
-%type <str>		var_name type_function_name param_name
+%type <str>		var_name var_cols type_function_name param_name
+/* %type <str>		var_cols type_function_name param_name */
 %type <str>		createdb_opt_name plassign_target
 %type <node>	var_value zone_value
 %type <rolespec> auth_ident RoleSpec opt_granted_by
@@ -1833,6 +1834,11 @@ var_name:	ColId								{ $$ = $1; }
 
 var_list:	var_value								{ $$ = list_make1($1); }
 			| var_list ',' var_value				{ $$ = lappend($1, $3); }
+		;
+
+var_cols:	var_name									{ $$ = $1; }
+			| var_cols ',' var_name					
+				{ $$ = psprintf("%s,%s", $1, $3); }
 		;
 
 var_value:	opt_boolean_or_string
