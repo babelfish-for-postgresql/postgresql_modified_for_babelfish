@@ -10834,6 +10834,11 @@ get_const_collation(Const *constval, deparse_context *context)
 {
 	StringInfo	buf = context->buf;
 
+	const char *babelfish_dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+
+	if (babelfish_dump_restore && strncmp(babelfish_dump_restore, "on", 2) == 0)
+		return;
+
 	if (OidIsValid(constval->constcollid))
 	{
 		Oid			typcollation = get_typcollation(constval->consttype);
