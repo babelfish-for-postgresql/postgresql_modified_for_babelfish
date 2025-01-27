@@ -13503,10 +13503,13 @@ ATPrepAlterColumnType(List **wqueue,
 	AclResult	aclresult;
 	bool		is_expr;
 
+	pstate->p_sourcetext = context->queryString;
+
 	if (rel->rd_rel->reloftype && !recursing)
 		ereport(ERROR,
 				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				 errmsg("cannot alter column type of typed table")));
+				 errmsg("cannot alter column type of typed table"),
+				 parser_errposition(pstate, def->location)));
 
 	/* lookup the attribute so we can check inheritance status */
 	tuple = SearchSysCacheAttName(RelationGetRelid(rel), colName);
@@ -13514,7 +13517,8 @@ ATPrepAlterColumnType(List **wqueue,
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),
 				 errmsg("column \"%s\" of relation \"%s\" does not exist",
-						colName, RelationGetRelationName(rel))));
+						colName, RelationGetRelationName(rel)),
+				 parser_errposition(pstate, def->location)));
 	attTup = (Form_pg_attribute) GETSTRUCT(tuple);
 	attnum = attTup->attnum;
 
@@ -13522,8 +13526,8 @@ ATPrepAlterColumnType(List **wqueue,
 	if (attnum <= 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("cannot alter system column \"%s\"",
-						colName)));
+				 errmsg("cannot alter system column \"%s\"", colName),
+				 parser_errposition(pstate, def->location)));
 
 	/*
 	 * Cannot specify USING when altering type of a generated column, because
@@ -13533,7 +13537,8 @@ ATPrepAlterColumnType(List **wqueue,
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_COLUMN_DEFINITION),
 				 errmsg("cannot specify USING when altering type of generated column"),
-				 errdetail("Column \"%s\" is a generated column.", colName)));
+				 errdetail("Column \"%s\" is a generated column.", colName),
+				 parser_errposition(pstate, def->location)));
 
 	/*
 	 * Don't alter inherited columns.  At outer level, there had better not be
@@ -13543,8 +13548,8 @@ ATPrepAlterColumnType(List **wqueue,
 	if (attTup->attinhcount > 0 && !recursing)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_TABLE_DEFINITION),
-				 errmsg("cannot alter inherited column \"%s\"",
-						colName)));
+				 errmsg("cannot alter inherited column \"%s\"", colName),
+				 parser_errposition(pstate, def->location)));
 
 	/* Don't alter columns used in the partition key */
 	if (has_partition_attrs(rel,
@@ -13553,17 +13558,18 @@ ATPrepAlterColumnType(List **wqueue,
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_TABLE_DEFINITION),
 				 errmsg("cannot alter column \"%s\" because it is part of the partition key of relation \"%s\"",
-						colName, RelationGetRelationName(rel))));
+						colName, RelationGetRelationName(rel)),
+				 parser_errposition(pstate, def->location)));
 
 	/* Look up the target type */
-	typenameTypeIdAndMod(NULL, typeName, &targettype, &targettypmod);
+	typenameTypeIdAndMod(pstate, typeName, &targettype, &targettypmod);
 
 	aclresult = object_aclcheck(TypeRelationId, targettype, GetUserId(), ACL_USAGE);
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error_type(aclresult, targettype);
 
 	/* And the collation */
-	targetcollid = GetColumnDefCollation(NULL, def, targettype);
+	targetcollid = GetColumnDefCollation(pstate, def, targettype);
 
 	if (sql_dialect == SQL_DIALECT_TSQL && check_or_set_default_typmod_hook)
 		(*check_or_set_default_typmod_hook)(typeName, &targettypmod, false);
