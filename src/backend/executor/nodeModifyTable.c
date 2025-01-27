@@ -3895,8 +3895,8 @@ ExecModifyTable(PlanState *pstate)
 	ItemPointer tupleid;
 	/* for INSERT ... EXECUTE */
 	bool 		tsql_insert_exec = node->callStmt != NULL;
-	Tuplestorestate *tss;
-	TupleDesc 	tupdesc;
+	Tuplestorestate *tss = NULL;
+	TupleDesc 	tupdesc = NULL;
 	DestReceiver *dest = NULL;
 
 	CHECK_FOR_INTERRUPTS();
