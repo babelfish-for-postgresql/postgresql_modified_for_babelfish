@@ -217,6 +217,7 @@ char *SYS_NAMESPACE_NAME = "sys";
 relname_lookup_hook_type relname_lookup_hook = NULL;
 match_pltsql_func_call_hook_type match_pltsql_func_call_hook = NULL;
 remove_db_name_in_schema_hook_type remove_db_name_in_schema_hook = NULL;
+is_bbf_tds_connection_hook_type is_bbf_tds_connection_hook = NULL;
 
 
 /* Local functions */
@@ -3968,8 +3969,7 @@ GetSearchPathMatcher(MemoryContext context)
 			result->addTemp = true;
 		else
 		{
-			/* sys comes before pg_catalog when sql_dialect is tsql */
-			if (sql_dialect != SQL_DIALECT_TSQL)
+			if (!is_bbf_tds_connection_hook || is_bbf_tds_connection_hook(false))
 				Assert(linitial_oid(schemas) == PG_CATALOG_NAMESPACE);
 			result->addCatalog = true;
 		}
@@ -4036,8 +4036,7 @@ SearchPathMatchesCurrentEnvironment(SearchPathMatcher *path)
 	/* If path->addCatalog, next item should be pg_catalog. */
 	if (path->addCatalog)
 	{
-		/* If tsql dialect, next item should be sys */
-		if (sql_dialect == SQL_DIALECT_TSQL)
+		if (is_bbf_tds_connection_hook && !is_bbf_tds_connection_hook(false))
 		{
 			if (lc && lfirst_oid(lc) == get_namespace_oid(SYS_NAMESPACE_NAME, true))
 				lc = lnext(activeSearchPath, lc);
@@ -4341,11 +4340,7 @@ finalNamespacePath(List *oidlist, Oid *firstNS)
 	if (!list_member_oid(finalPath, PG_CATALOG_NAMESPACE))
 		finalPath = lcons_oid(PG_CATALOG_NAMESPACE, finalPath);
 
-	/*
-	 * When sql_dialect is tsql, schema sys is used for catalog instead of
-	 * pg_catalog. So, add it to search_path ahead of pg_catalog.
-	 */
-	if (sql_dialect == SQL_DIALECT_TSQL)
+	if (is_bbf_tds_connection_hook && !is_bbf_tds_connection_hook(false))
 	{
 		Oid sys_oid = get_namespace_oid(SYS_NAMESPACE_NAME, true);
 		if (!list_member_oid(finalPath, sys_oid))
@@ -4871,6 +4866,14 @@ assign_search_path(const char *newval, void *extra)
 void
 assign_sql_dialect(int newval, void *extra)
 {
+	/*
+	 * We only append sys to search path implictly for non tds connection
+	 * to babelfish database so no need to invalidate search path or its
+	 * cache for tds connections
+	 */
+	if (is_bbf_tds_connection_hook && is_bbf_tds_connection_hook(false))
+		return;
+
 	baseSearchPathValid = false;
 	searchPathCacheValid = false;
 }
