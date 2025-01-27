@@ -3954,7 +3954,7 @@ ExecModifyTable(PlanState *pstate)
 	bool		tuplock;
 	/* for INSERT ... EXECUTE */
 	bool 		tsql_insert_exec = node->callStmt != NULL;
-	Tuplestorestate *tss;
+	Tuplestorestate *tss = NULL;
 	TupleDesc 	tupdesc;
 	DestReceiver *dest = NULL;
 
