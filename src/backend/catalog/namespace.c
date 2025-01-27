@@ -3969,7 +3969,7 @@ GetSearchPathMatcher(MemoryContext context)
 			result->addTemp = true;
 		else
 		{
-			if (!is_bbf_tds_connection_hook || is_bbf_tds_connection_hook(false))
+			if (!is_bbf_tds_connection_hook || is_bbf_tds_connection_hook() || sql_dialect != SQL_DIALECT_TSQL)
 				Assert(linitial_oid(schemas) == PG_CATALOG_NAMESPACE);
 			result->addCatalog = true;
 		}
@@ -4036,7 +4036,7 @@ SearchPathMatchesCurrentEnvironment(SearchPathMatcher *path)
 	/* If path->addCatalog, next item should be pg_catalog. */
 	if (path->addCatalog)
 	{
-		if (is_bbf_tds_connection_hook && !is_bbf_tds_connection_hook(false))
+		if (is_bbf_tds_connection_hook && !is_bbf_tds_connection_hook() && sql_dialect == SQL_DIALECT_TSQL)
 		{
 			if (lc && lfirst_oid(lc) == get_namespace_oid(SYS_NAMESPACE_NAME, true))
 				lc = lnext(activeSearchPath, lc);
@@ -4340,7 +4340,7 @@ finalNamespacePath(List *oidlist, Oid *firstNS)
 	if (!list_member_oid(finalPath, PG_CATALOG_NAMESPACE))
 		finalPath = lcons_oid(PG_CATALOG_NAMESPACE, finalPath);
 
-	if (is_bbf_tds_connection_hook && !is_bbf_tds_connection_hook(false))
+	if (is_bbf_tds_connection_hook && !is_bbf_tds_connection_hook() && sql_dialect == SQL_DIALECT_TSQL)
 	{
 		Oid sys_oid = get_namespace_oid(SYS_NAMESPACE_NAME, true);
 		if (!list_member_oid(finalPath, sys_oid))
@@ -4871,7 +4871,7 @@ assign_sql_dialect(int newval, void *extra)
 	 * to babelfish database so no need to invalidate search path or its
 	 * cache for tds connections
 	 */
-	if (is_bbf_tds_connection_hook && is_bbf_tds_connection_hook(false))
+	if (is_bbf_tds_connection_hook && is_bbf_tds_connection_hook())
 		return;
 
 	baseSearchPathValid = false;
