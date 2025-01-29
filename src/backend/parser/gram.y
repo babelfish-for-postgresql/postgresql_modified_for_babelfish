@@ -596,11 +596,10 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %type <ival>	Iconst SignedIconst
 %type <str>		Sconst comment_text notify_payload
 %type <str>		RoleId opt_boolean_or_string
-%type <list>	var_list
+%type <list>	var_list opt_var_name_list var_name_list opt_var_name
 %type <str>		ColId ColIdDef ColLabel BareColLabel AS_ColLabel 
 %type <str>		NonReservedWord NonReservedWord_or_Sconst
-%type <str>		var_name var_cols type_function_name param_name
-/* %type <str>		var_cols type_function_name param_name */
+%type <str>		var_name type_function_name param_name
 %type <str>		createdb_opt_name plassign_target
 %type <node>	var_value zone_value
 %type <rolespec> auth_ident RoleSpec opt_granted_by
@@ -1827,6 +1826,18 @@ set_rest_more:	/* Generic SET syntaxes: */
 				}
 		;
 
+opt_var_name_list:	'(' var_name_list ')'						{ $$ = $2; }
+					| /*EMPTY*/									{ $$ = NIL; }
+				;
+
+var_name_list: 	var_name						{ $$ = list_make1($1); }
+			   	| var_name_list ',' var_name
+					{$$ = lappend($1, $3); }
+			;
+
+opt_var_name:	var_name	{ $$ = list_make1($1); }
+			;
+
 var_name:	ColId								{ $$ = $1; }
 			| var_name '.' ColId
 				{ $$ = psprintf("%s.%s", $1, $3); }
@@ -1834,11 +1845,6 @@ var_name:	ColId								{ $$ = $1; }
 
 var_list:	var_value								{ $$ = list_make1($1); }
 			| var_list ',' var_value				{ $$ = lappend($1, $3); }
-		;
-
-var_cols:	var_name									{ $$ = $1; }
-			| var_cols ',' var_name					
-				{ $$ = psprintf("%s,%s", $1, $3); }
 		;
 
 var_value:	opt_boolean_or_string
