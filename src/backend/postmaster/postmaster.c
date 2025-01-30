@@ -247,7 +247,8 @@ ProtocolExtensionConfig default_protocol_config = {
 	libpq_end_command,
 	NULL, NULL, NULL, NULL,		/* use libpq defaults for printtup*() */
 	NULL,
-	libpq_report_param_status
+	libpq_report_param_status,
+	libpq_direct_ssl_handshake
 };
 
 /* still more option variables */
@@ -1511,6 +1512,11 @@ libpq_end_command(QueryCompletion *qc, CommandDest dest)
 	EndCommand(qc, dest, false);
 }
 
+int
+libpq_direct_ssl_handshake(struct Port *port)
+{
+	return ProcessSSLStartup(port);
+}
 
 /*
  * on_proc_exit callback to close server's listen sockets
