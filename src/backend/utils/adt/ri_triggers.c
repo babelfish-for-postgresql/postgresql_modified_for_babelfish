@@ -1602,11 +1602,11 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * register the snapshot, because SPI_execute_snapshot will see to it. We
 	 * need at most one tuple returned, so pass limit = 1.
 	 */
-	spi_result = SPI_execute_snapshot(qplan,
+	RUN_AS_PSQL(spi_result = SPI_execute_snapshot(qplan,
 									  NULL, NULL,
 									  GetLatestSnapshot(),
 									  InvalidSnapshot,
-									  true, false, 1);
+									  true, false, 1));
 
 	/* Check result */
 	if (spi_result != SPI_OK_SELECT)
@@ -1829,7 +1829,7 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * Generate the plan.  We don't need to cache it, and there are no
 	 * arguments to the plan.
 	 */
-	qplan = SPI_prepare(querybuf.data, 0, NULL);
+	RUN_AS_PSQL(qplan = SPI_prepare(querybuf.data, 0, NULL));
 
 	if (qplan == NULL)
 		elog(ERROR, "SPI_prepare returned %s for %s",
@@ -1842,11 +1842,11 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * register the snapshot, because SPI_execute_snapshot will see to it. We
 	 * need at most one tuple returned, so pass limit = 1.
 	 */
-	spi_result = SPI_execute_snapshot(qplan,
+	RUN_AS_PSQL(spi_result = SPI_execute_snapshot(qplan,
 									  NULL, NULL,
 									  GetLatestSnapshot(),
 									  InvalidSnapshot,
-									  true, false, 1);
+									  true, false, 1));
 
 	/* Check result */
 	if (spi_result != SPI_OK_SELECT)
