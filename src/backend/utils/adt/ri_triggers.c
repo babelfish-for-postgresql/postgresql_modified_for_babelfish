@@ -108,21 +108,15 @@ do																											\
 	{																										\
 		qplan;																								\
 	}																										\
-	PG_CATCH();																								\
+	PG_FINALLY();																							\
 	{																										\
 		if (reset_dialect)																					\
 		{																									\
 			sql_dialect = sql_dialect_old;																	\
 			assign_sql_dialect(sql_dialect, newextra);														\
 		}																									\
-		PG_RE_THROW();																						\
 	}																										\
 	PG_END_TRY();																							\
-	if (reset_dialect)																						\
-	{																										\
-		sql_dialect = sql_dialect_old;																		\
-		assign_sql_dialect(sql_dialect, newextra);															\
-	}																										\
 } while (0)
 
 
@@ -424,8 +418,8 @@ RI_FKey_check(TriggerData *trigdata)
 		appendStringInfoString(&querybuf, " FOR KEY SHARE OF x");
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
-							 &qkey, fk_rel, pk_rel));
+		qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
+							 &qkey, fk_rel, pk_rel);
 	}
 
 	/*
@@ -435,11 +429,11 @@ RI_FKey_check(TriggerData *trigdata)
 	 * referenced side.  The reason is that our snapshot must be fresh in
 	 * order for the hack in find_inheritance_children() to work.
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					NULL, newslot,
 					pk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE,
-					SPI_OK_SELECT));
+					SPI_OK_SELECT);
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -555,18 +549,18 @@ ri_Check_Pk_Match(Relation pk_rel, Relation fk_rel,
 		appendStringInfoString(&querybuf, " FOR KEY SHARE OF x");
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
-							 &qkey, fk_rel, pk_rel));
+		qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
+							 &qkey, fk_rel, pk_rel);
 	}
 
 	/*
 	 * We have a plan now. Run it.
 	 */
-	RUN_AS_PSQL(result = ri_PerformCheck(riinfo, &qkey, qplan,
+	result = ri_PerformCheck(riinfo, &qkey, qplan,
 							 fk_rel, pk_rel,
 							 oldslot, NULL,
 							 true,	/* treat like update */
-							 SPI_OK_SELECT));
+							 SPI_OK_SELECT);
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -747,18 +741,18 @@ ri_restrict(TriggerData *trigdata, bool is_no_action)
 		appendStringInfoString(&querybuf, " FOR KEY SHARE OF x");
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
-							 &qkey, fk_rel, pk_rel));
+		qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
+							 &qkey, fk_rel, pk_rel);
 	}
 
 	/*
 	 * We have a plan now. Run it to check for existing references.
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, NULL,
 					true,		/* must detect new rows */
-					SPI_OK_SELECT));
+					SPI_OK_SELECT);
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -852,19 +846,19 @@ RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 		}
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
-							 &qkey, fk_rel, pk_rel));
+		qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
+							 &qkey, fk_rel, pk_rel);
 	}
 
 	/*
 	 * We have a plan now. Build up the arguments from the key values in the
 	 * deleted PK tuple and delete the referencing rows
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, NULL,
 					true,		/* must detect new rows */
-					SPI_OK_DELETE));
+					SPI_OK_DELETE);
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -974,18 +968,18 @@ RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
 		appendBinaryStringInfo(&querybuf, qualbuf.data, qualbuf.len);
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys * 2, queryoids,
-							 &qkey, fk_rel, pk_rel));
+		qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys * 2, queryoids,
+							 &qkey, fk_rel, pk_rel);
 	}
 
 	/*
 	 * We have a plan now. Run it to update the existing references.
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, newslot,
 					true,		/* must detect new rows */
-					SPI_OK_UPDATE));
+					SPI_OK_UPDATE);
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -1206,18 +1200,18 @@ ri_set(TriggerData *trigdata, bool is_set_null, int tgkind)
 		}
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
-							 &qkey, fk_rel, pk_rel));
+		qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
+							 &qkey, fk_rel, pk_rel);
 	}
 
 	/*
 	 * We have a plan now. Run it to update the existing references.
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, NULL,
 					true,		/* must detect new rows */
-					SPI_OK_UPDATE));
+					SPI_OK_UPDATE);
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -2325,7 +2319,7 @@ ri_PlanCheck(const char *querystr, int nargs, Oid *argtypes,
 						   SECURITY_NOFORCE_RLS);
 
 	/* Create the plan */
-	qplan = SPI_prepare(querystr, nargs, argtypes);
+	RUN_AS_PSQL(qplan = SPI_prepare(querystr, nargs, argtypes));
 
 	if (qplan == NULL)
 		elog(ERROR, "SPI_prepare returned %s for %s", SPI_result_code_string(SPI_result), querystr);
@@ -2443,10 +2437,10 @@ ri_PerformCheck(const RI_ConstraintInfo *riinfo,
 						   SECURITY_NOFORCE_RLS);
 
 	/* Finally we can run the query. */
-	spi_result = SPI_execute_snapshot(qplan,
+	RUN_AS_PSQL(spi_result = SPI_execute_snapshot(qplan,
 									  vals, nulls,
 									  test_snapshot, crosscheck_snapshot,
-									  false, false, limit);
+									  false, false, limit));
 
 	/* Restore UID and security context */
 	SetUserIdAndSecContext(save_userid, save_sec_context);
