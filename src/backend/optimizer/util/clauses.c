@@ -2429,12 +2429,17 @@ static Node *
 eval_const_expressions_mutator(Node *node,
 							   eval_const_expressions_context *context)
 {
+	int32 result_typmod = -1;
 
 	/* since this function recurses, it could be driven to stack overflow */
 	check_stack_depth();
 
 	if (node == NULL)
 		return NULL;
+
+	if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook)
+		result_typmod = resolve_numeric_typmod_from_exp_hook(NULL, node);
+
 	switch (nodeTag(node))
 	{
 		case T_Param:
@@ -2625,7 +2630,7 @@ eval_const_expressions_mutator(Node *node,
 				 * as a separate function.
 				 */
 				simple = simplify_function(expr->opfuncid,
-										   expr->opresulttype, -1,
+										   expr->opresulttype, result_typmod,
 										   expr->opcollid,
 										   expr->inputcollid,
 										   &args,
@@ -2729,7 +2734,7 @@ eval_const_expressions_mutator(Node *node,
 					 * out as a separate function.
 					 */
 					simple = simplify_function(expr->opfuncid,
-											   expr->opresulttype, -1,
+											   expr->opresulttype, result_typmod,
 											   expr->opcollid,
 											   expr->inputcollid,
 											   &args,
@@ -2980,7 +2985,7 @@ eval_const_expressions_mutator(Node *node,
 								 &infunc, &intypioparam);
 
 				simple = simplify_function(outfunc,
-										   CSTRINGOID, -1,
+										   CSTRINGOID, result_typmod,
 										   InvalidOid,
 										   InvalidOid,
 										   &args,
@@ -3012,7 +3017,7 @@ eval_const_expressions_mutator(Node *node,
 												true));
 
 					simple = simplify_function(infunc,
-											   expr->resulttype, -1,
+											   expr->resulttype, result_typmod,
 											   expr->resultcollid,
 											   InvalidOid,
 											   &args,
@@ -5055,6 +5060,7 @@ evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 	bool		const_is_null;
 	int16		resultTypLen;
 	bool		resultTypByVal;
+	int32		scale;
 
 	/*
 	 * To use the executor, we need an EState.
@@ -5113,6 +5119,11 @@ evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 	/*
 	 * Make the constant result node.
 	 */
+	if (sql_dialect == SQL_DIALECT_TSQL && result_type == NUMERICOID && result_typmod != -1){
+		scale = (result_typmod - VARHDRSZ) & 0xffff; 
+		const_val = DirectFunctionCall2(numeric_trunc, const_val, Int32GetDatum(scale));
+	}
+
 	return (Expr *) makeConst(result_type, result_typmod, result_collation,
 							  resultTypLen,
 							  const_val, const_is_null,
