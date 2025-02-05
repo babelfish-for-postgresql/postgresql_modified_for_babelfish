@@ -542,7 +542,7 @@ exprTypmod(const Node *expr)
 	}
 
 	if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook){
-		return resolve_numeric_typmod_from_exp_hook(NULL, expr);
+		return resolve_numeric_typmod_from_exp_hook(NULL, (Node *) expr);
 	}
 
 	return -1;
