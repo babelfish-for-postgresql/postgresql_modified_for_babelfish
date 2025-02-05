@@ -762,7 +762,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			d = op->d.func.fn_addr(fcinfo);
 
 			if (sql_dialect == SQL_DIALECT_TSQL && bbf_trunc_numeric_result_hook)
-				d = bbf_trunc_numeric_result_hook(fcinfo->flinfo->fn_expr, d, get_func_rettype(fcinfo->flinfo->fn_oid));
+				d = bbf_trunc_numeric_result_hook(fcinfo->flinfo->fn_expr, d, get_func_rettype(fcinfo->flinfo->fn_oid), -1);
 
 			*op->resvalue = d;
 			*op->resnull = fcinfo->isnull;

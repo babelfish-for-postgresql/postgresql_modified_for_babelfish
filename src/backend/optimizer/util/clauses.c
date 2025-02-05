@@ -2429,12 +2429,12 @@ static Node *
 eval_const_expressions_mutator(Node *node,
 							   eval_const_expressions_context *context)
 {
+
 	/* since this function recurses, it could be driven to stack overflow */
 	check_stack_depth();
 
 	if (node == NULL)
 		return NULL;
-
 	switch (nodeTag(node))
 	{
 		case T_Param:
@@ -2613,7 +2613,7 @@ eval_const_expressions_mutator(Node *node,
 				List	   *args = expr->args;
 				Expr	   *simple;
 				OpExpr	   *newexpr;
-				int32       result_typmod;
+				int32       result_typmod = -1;
 
 				/*
 				 * Need to get OID of underlying function.  Okay to scribble
@@ -2680,7 +2680,7 @@ eval_const_expressions_mutator(Node *node,
 				bool		has_nonconst_input = false;
 				Expr	   *simple;
 				DistinctExpr *newexpr;
-				int32       result_typmod;
+				int32       result_typmod = -1;
 
 				/*
 				 * Reduce constants in the DistinctExpr's arguments.  We know
@@ -2969,7 +2969,7 @@ eval_const_expressions_mutator(Node *node,
 				Oid			intypioparam;
 				Expr	   *simple;
 				CoerceViaIO *newexpr;
-				int32       result_typmod;
+				int32       result_typmod = -1;
 
 				/* Make a List so we can use simplify_function */
 				args = list_make1(expr->arg);
@@ -5067,7 +5067,6 @@ evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 	bool		const_is_null;
 	int16		resultTypLen;
 	bool		resultTypByVal;
-	int32		scale;
 
 	/*
 	 * To use the executor, we need an EState.
@@ -5126,10 +5125,8 @@ evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 	/*
 	 * Make the constant result node.
 	 */
-	if (sql_dialect == SQL_DIALECT_TSQL && result_type == NUMERICOID && result_typmod != -1){
-		scale = (result_typmod - VARHDRSZ) & 0xffff; 
-		const_val = DirectFunctionCall2(numeric_trunc, const_val, Int32GetDatum(scale));
-	}
+	if (sql_dialect == SQL_DIALECT_TSQL && bbf_trunc_numeric_result_hook)
+		const_val = bbf_trunc_numeric_result_hook(NULL, const_val, result_type, result_typmod);
 
 	return (Expr *) makeConst(result_type, result_typmod, result_collation,
 							  resultTypLen,
