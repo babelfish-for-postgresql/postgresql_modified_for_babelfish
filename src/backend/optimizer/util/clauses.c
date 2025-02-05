@@ -2429,16 +2429,11 @@ static Node *
 eval_const_expressions_mutator(Node *node,
 							   eval_const_expressions_context *context)
 {
-	int32 result_typmod = -1;
-
 	/* since this function recurses, it could be driven to stack overflow */
 	check_stack_depth();
 
 	if (node == NULL)
 		return NULL;
-
-	if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook)
-		result_typmod = resolve_numeric_typmod_from_exp_hook(NULL, node);
 
 	switch (nodeTag(node))
 	{
@@ -2618,12 +2613,16 @@ eval_const_expressions_mutator(Node *node,
 				List	   *args = expr->args;
 				Expr	   *simple;
 				OpExpr	   *newexpr;
+				int32       result_typmod;
 
 				/*
 				 * Need to get OID of underlying function.  Okay to scribble
 				 * on input to this extent.
 				 */
 				set_opfuncid(expr);
+
+				if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook && expr->opresulttype == NUMERICOID)
+					result_typmod = resolve_numeric_typmod_from_exp_hook(NULL, node);
 
 				/*
 				 * Code for op/func reduction is pretty bulky, so split it out
@@ -2681,6 +2680,7 @@ eval_const_expressions_mutator(Node *node,
 				bool		has_nonconst_input = false;
 				Expr	   *simple;
 				DistinctExpr *newexpr;
+				int32       result_typmod;
 
 				/*
 				 * Reduce constants in the DistinctExpr's arguments.  We know
@@ -2728,6 +2728,9 @@ eval_const_expressions_mutator(Node *node,
 					 */
 					set_opfuncid((OpExpr *) expr);	/* rely on struct
 													 * equivalence */
+
+					if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook && expr->opresulttype == NUMERICOID)
+						result_typmod = resolve_numeric_typmod_from_exp_hook(NULL, node);
 
 					/*
 					 * Code for op/func reduction is pretty bulky, so split it
@@ -2966,6 +2969,7 @@ eval_const_expressions_mutator(Node *node,
 				Oid			intypioparam;
 				Expr	   *simple;
 				CoerceViaIO *newexpr;
+				int32       result_typmod;
 
 				/* Make a List so we can use simplify_function */
 				args = list_make1(expr->arg);
@@ -2985,7 +2989,7 @@ eval_const_expressions_mutator(Node *node,
 								 &infunc, &intypioparam);
 
 				simple = simplify_function(outfunc,
-										   CSTRINGOID, result_typmod,
+										   CSTRINGOID, -1,
 										   InvalidOid,
 										   InvalidOid,
 										   &args,
@@ -3015,6 +3019,9 @@ eval_const_expressions_mutator(Node *node,
 												Int32GetDatum(-1),
 												false,
 												true));
+
+					if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook && expr->resulttype == NUMERICOID)
+						result_typmod = resolve_numeric_typmod_from_exp_hook(NULL, node);
 
 					simple = simplify_function(infunc,
 											   expr->resulttype, result_typmod,
