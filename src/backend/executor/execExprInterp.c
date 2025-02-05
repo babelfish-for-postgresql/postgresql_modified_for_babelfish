@@ -742,10 +742,6 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 
 			fcinfo->isnull = false;
 			d = op->d.func.fn_addr(fcinfo);
-
-			if (sql_dialect == SQL_DIALECT_TSQL && bbf_trunc_numeric_result_hook)
-				d = bbf_trunc_numeric_result_hook(fcinfo->flinfo->fn_expr, d, get_func_rettype(fcinfo->flinfo->fn_oid));
-
 			*op->resvalue = d;
 			*op->resnull = fcinfo->isnull;
 
