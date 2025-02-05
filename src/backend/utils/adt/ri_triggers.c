@@ -119,6 +119,22 @@ do																											\
 	PG_END_TRY();																							\
 } while (0)
 
+/*
+ * macros for executing the given code block directly if not in TSQL dialect,
+ * or wrapped with RUN_AS_PSQL if in TSQL dialect.
+ */
+#define DIALECT_WRAPPER(code)																				\
+do																											\
+{																											\
+	if (sql_dialect == SQL_DIALECT_TSQL)																	\
+	{																										\
+		RUN_AS_PSQL(code);																					\
+	}																										\
+	else																									\
+	{																										\
+		code;																								\
+	}																										\
+} while (0)
 
 /*
  * RI_ConstraintInfo
@@ -418,7 +434,7 @@ RI_FKey_check(TriggerData *trigdata)
 		appendStringInfoString(&querybuf, " FOR KEY SHARE OF x");
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
+		DIALECT_WRAPPER(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
 							 &qkey, fk_rel, pk_rel));
 	}
 
@@ -429,7 +445,7 @@ RI_FKey_check(TriggerData *trigdata)
 	 * referenced side.  The reason is that our snapshot must be fresh in
 	 * order for the hack in find_inheritance_children() to work.
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	DIALECT_WRAPPER(ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					NULL, newslot,
 					pk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE,
@@ -549,14 +565,14 @@ ri_Check_Pk_Match(Relation pk_rel, Relation fk_rel,
 		appendStringInfoString(&querybuf, " FOR KEY SHARE OF x");
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
+		DIALECT_WRAPPER(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
 							 &qkey, fk_rel, pk_rel));
 	}
 
 	/*
 	 * We have a plan now. Run it.
 	 */
-	RUN_AS_PSQL(result = ri_PerformCheck(riinfo, &qkey, qplan,
+	DIALECT_WRAPPER(result = ri_PerformCheck(riinfo, &qkey, qplan,
 							 fk_rel, pk_rel,
 							 oldslot, NULL,
 							 true,	/* treat like update */
@@ -741,14 +757,14 @@ ri_restrict(TriggerData *trigdata, bool is_no_action)
 		appendStringInfoString(&querybuf, " FOR KEY SHARE OF x");
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
+		DIALECT_WRAPPER(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
 							 &qkey, fk_rel, pk_rel));
 	}
 
 	/*
 	 * We have a plan now. Run it to check for existing references.
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	DIALECT_WRAPPER(ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, NULL,
 					true,		/* must detect new rows */
@@ -846,7 +862,7 @@ RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 		}
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
+		DIALECT_WRAPPER(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
 							 &qkey, fk_rel, pk_rel));
 	}
 
@@ -854,7 +870,7 @@ RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 	 * We have a plan now. Build up the arguments from the key values in the
 	 * deleted PK tuple and delete the referencing rows
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	DIALECT_WRAPPER(ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, NULL,
 					true,		/* must detect new rows */
@@ -968,14 +984,14 @@ RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
 		appendBinaryStringInfo(&querybuf, qualbuf.data, qualbuf.len);
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys * 2, queryoids,
+		DIALECT_WRAPPER(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys * 2, queryoids,
 							 &qkey, fk_rel, pk_rel));
 	}
 
 	/*
 	 * We have a plan now. Run it to update the existing references.
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	DIALECT_WRAPPER(ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, newslot,
 					true,		/* must detect new rows */
@@ -1200,14 +1216,14 @@ ri_set(TriggerData *trigdata, bool is_set_null, int tgkind)
 		}
 
 		/* Prepare and save the plan */
-		RUN_AS_PSQL(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
+		DIALECT_WRAPPER(qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
 							 &qkey, fk_rel, pk_rel));
 	}
 
 	/*
 	 * We have a plan now. Run it to update the existing references.
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	DIALECT_WRAPPER(ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, NULL,
 					true,		/* must detect new rows */
@@ -1583,7 +1599,7 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * Generate the plan.  We don't need to cache it, and there are no
 	 * arguments to the plan.
 	 */
-	RUN_AS_PSQL(qplan = SPI_prepare(querybuf.data, 0, NULL));
+	DIALECT_WRAPPER(qplan = SPI_prepare(querybuf.data, 0, NULL));
 
 	if (qplan == NULL)
 		elog(ERROR, "SPI_prepare returned %s for %s",
@@ -1596,7 +1612,7 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * register the snapshot, because SPI_execute_snapshot will see to it. We
 	 * need at most one tuple returned, so pass limit = 1.
 	 */
-	RUN_AS_PSQL(spi_result = SPI_execute_snapshot(qplan,
+	DIALECT_WRAPPER(spi_result = SPI_execute_snapshot(qplan,
 									  NULL, NULL,
 									  GetLatestSnapshot(),
 									  InvalidSnapshot,
@@ -1823,7 +1839,7 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * Generate the plan.  We don't need to cache it, and there are no
 	 * arguments to the plan.
 	 */
-	RUN_AS_PSQL(qplan = SPI_prepare(querybuf.data, 0, NULL));
+	DIALECT_WRAPPER(qplan = SPI_prepare(querybuf.data, 0, NULL));
 
 	if (qplan == NULL)
 		elog(ERROR, "SPI_prepare returned %s for %s",
@@ -1836,7 +1852,7 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * register the snapshot, because SPI_execute_snapshot will see to it. We
 	 * need at most one tuple returned, so pass limit = 1.
 	 */
-	RUN_AS_PSQL(spi_result = SPI_execute_snapshot(qplan,
+	DIALECT_WRAPPER(spi_result = SPI_execute_snapshot(qplan,
 									  NULL, NULL,
 									  GetLatestSnapshot(),
 									  InvalidSnapshot,
