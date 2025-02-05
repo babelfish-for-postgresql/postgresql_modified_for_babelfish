@@ -96,27 +96,27 @@
 #define RUN_AS_PSQL(qplan)  																				\
 do																											\
 {																											\
-	bool reset_dialect = (sql_dialect == SQL_DIALECT_TSQL);                                         		\
-	int sql_dialect_old = sql_dialect;																		\
-	void *newextra = NULL;																					\
-	if (reset_dialect)																						\
+	if (sql_dialect == SQL_DIALECT_TSQL)																	\
 	{																										\
+		int sql_dialect_old = sql_dialect;																	\
+		void *newextra = NULL;																				\
 		sql_dialect = SQL_DIALECT_PG;																		\
 		assign_sql_dialect(sql_dialect, newextra);															\
-	}																										\
-	PG_TRY();																								\
-	{																										\
-		qplan;																								\
-	}																										\
-	PG_FINALLY();																							\
-	{																										\
-		if (reset_dialect)																					\
+		PG_TRY();																							\
+		{																									\
+			qplan;																							\
+		}																									\
+		PG_FINALLY();																						\
 		{																									\
 			sql_dialect = sql_dialect_old;																	\
 			assign_sql_dialect(sql_dialect, newextra);														\
 		}																									\
+		PG_END_TRY();																						\
 	}																										\
-	PG_END_TRY();																							\
+	else																									\
+	{																										\
+		qplan;																								\
+	}																										\
 } while (0)
 
 
