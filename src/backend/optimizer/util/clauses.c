@@ -2639,7 +2639,7 @@ eval_const_expressions_mutator(Node *node,
 				 */
 				set_opfuncid(expr);
 
-				if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook && expr->opresulttype == NUMERICOID)
+				if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook && getBaseType(expr->opresulttype) == NUMERICOID)
 					result_typmod = resolve_numeric_typmod_from_exp_hook(NULL, node);
 
 				/*
@@ -2747,7 +2747,7 @@ eval_const_expressions_mutator(Node *node,
 					set_opfuncid((OpExpr *) expr);	/* rely on struct
 													 * equivalence */
 
-					if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook && expr->opresulttype == NUMERICOID)
+					if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook && getBaseType(expr->opresulttype) == NUMERICOID)
 						result_typmod = resolve_numeric_typmod_from_exp_hook(NULL, node);
 
 					/*
@@ -3038,7 +3038,7 @@ eval_const_expressions_mutator(Node *node,
 												false,
 												true));
 
-					if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook && expr->resulttype == NUMERICOID)
+					if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook && getBaseType(expr->resulttype) == NUMERICOID)
 						result_typmod = resolve_numeric_typmod_from_exp_hook(NULL, node);
 
 					simple = simplify_function(infunc,
