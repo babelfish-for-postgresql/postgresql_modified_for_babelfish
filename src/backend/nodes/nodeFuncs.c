@@ -511,9 +511,8 @@ exprTypmod(const Node *expr)
 			break;
 	}
 
-	if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook && getBaseType(exprType(expr)) == NUMERICOID){
+	if (sql_dialect == SQL_DIALECT_TSQL && resolve_numeric_typmod_from_exp_hook && getBaseType(exprType(expr)) == NUMERICOID)
 		return resolve_numeric_typmod_from_exp_hook(NULL, (Node *) expr);
-	}
 
 	return -1;
 }
