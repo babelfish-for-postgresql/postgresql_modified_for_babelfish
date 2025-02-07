@@ -54,6 +54,7 @@
 #include "utils/ruleutils.h"
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
+#include "utils/guc_hooks.h"
 
 /*
  * Local definitions
@@ -98,29 +99,27 @@
 #define RUN_AS_PSQL(qplan)  																				\
 do																											\
 {																											\
-	bool reset_dialect = (sql_dialect == SQL_DIALECT_TSQL);                                         \
-	if (reset_dialect)																						\
-		set_config_option("babelfishpg_tsql.sql_dialect", "postgres",										\
-			GUC_CONTEXT_CONFIG,						\
-			PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);												\
-																											\
-	PG_TRY();																								\
+	if (sql_dialect == SQL_DIALECT_TSQL)																	\
+	{																										\
+		int sql_dialect_old = sql_dialect;																	\
+		void *newextra = NULL;																				\
+		sql_dialect = SQL_DIALECT_PG;																		\
+		assign_sql_dialect(sql_dialect, newextra);															\
+		PG_TRY();																							\
+		{																									\
+			qplan;																							\
+		}																									\
+		PG_FINALLY();																						\
+		{																									\
+			sql_dialect = sql_dialect_old;																	\
+			assign_sql_dialect(sql_dialect, newextra);														\
+		}																									\
+		PG_END_TRY();																						\
+	}																										\
+	else																									\
 	{																										\
 		qplan;																								\
 	}																										\
-	PG_CATCH();																								\
-	{																										\
-		if (reset_dialect)																					\
-			set_config_option("babelfishpg_tsql.sql_dialect", "tsql",										\
-							GUC_CONTEXT_CONFIG,		\
-							PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);								\
-		PG_RE_THROW();																						\
-	}																										\
-	PG_END_TRY();																							\
-	if (reset_dialect)																						\
-		set_config_option("babelfishpg_tsql.sql_dialect", "tsql",											\
-						GUC_CONTEXT_CONFIG,			\
-						PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);									\
 } while (0)
 
 
@@ -433,11 +432,11 @@ RI_FKey_check(TriggerData *trigdata)
 	 * referenced side.  The reason is that our snapshot must be fresh in
 	 * order for the hack in find_inheritance_children() to work.
 	 */
-	ri_PerformCheck(riinfo, &qkey, qplan,
+	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					NULL, newslot,
 					pk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE,
-					SPI_OK_SELECT);
+					SPI_OK_SELECT));
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -560,11 +559,11 @@ ri_Check_Pk_Match(Relation pk_rel, Relation fk_rel,
 	/*
 	 * We have a plan now. Run it.
 	 */
-	result = ri_PerformCheck(riinfo, &qkey, qplan,
+	RUN_AS_PSQL(result = ri_PerformCheck(riinfo, &qkey, qplan,
 							 fk_rel, pk_rel,
 							 oldslot, NULL,
 							 true,	/* treat like update */
-							 SPI_OK_SELECT);
+							 SPI_OK_SELECT));
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -752,11 +751,11 @@ ri_restrict(TriggerData *trigdata, bool is_no_action)
 	/*
 	 * We have a plan now. Run it to check for existing references.
 	 */
-	ri_PerformCheck(riinfo, &qkey, qplan,
+	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, NULL,
 					true,		/* must detect new rows */
-					SPI_OK_SELECT);
+					SPI_OK_SELECT));
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -858,11 +857,11 @@ RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 	 * We have a plan now. Build up the arguments from the key values in the
 	 * deleted PK tuple and delete the referencing rows
 	 */
-	ri_PerformCheck(riinfo, &qkey, qplan,
+	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, NULL,
 					true,		/* must detect new rows */
-					SPI_OK_DELETE);
+					SPI_OK_DELETE));
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -979,11 +978,11 @@ RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
 	/*
 	 * We have a plan now. Run it to update the existing references.
 	 */
-	ri_PerformCheck(riinfo, &qkey, qplan,
+	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, newslot,
 					true,		/* must detect new rows */
-					SPI_OK_UPDATE);
+					SPI_OK_UPDATE));
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -1211,11 +1210,11 @@ ri_set(TriggerData *trigdata, bool is_set_null, int tgkind)
 	/*
 	 * We have a plan now. Run it to update the existing references.
 	 */
-	ri_PerformCheck(riinfo, &qkey, qplan,
+	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, NULL,
 					true,		/* must detect new rows */
-					SPI_OK_UPDATE);
+					SPI_OK_UPDATE));
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -1606,11 +1605,11 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * register the snapshot, because SPI_execute_snapshot will see to it. We
 	 * need at most one tuple returned, so pass limit = 1.
 	 */
-	spi_result = SPI_execute_snapshot(qplan,
+	RUN_AS_PSQL(spi_result = SPI_execute_snapshot(qplan,
 									  NULL, NULL,
 									  GetLatestSnapshot(),
 									  InvalidSnapshot,
-									  true, false, 1);
+									  true, false, 1));
 
 	/* Check result */
 	if (spi_result != SPI_OK_SELECT)
@@ -1833,7 +1832,7 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * Generate the plan.  We don't need to cache it, and there are no
 	 * arguments to the plan.
 	 */
-	qplan = SPI_prepare(querybuf.data, 0, NULL);
+	RUN_AS_PSQL(qplan = SPI_prepare(querybuf.data, 0, NULL));
 
 	if (qplan == NULL)
 		elog(ERROR, "SPI_prepare returned %s for %s",
@@ -1846,11 +1845,11 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * register the snapshot, because SPI_execute_snapshot will see to it. We
 	 * need at most one tuple returned, so pass limit = 1.
 	 */
-	spi_result = SPI_execute_snapshot(qplan,
+	RUN_AS_PSQL(spi_result = SPI_execute_snapshot(qplan,
 									  NULL, NULL,
 									  GetLatestSnapshot(),
 									  InvalidSnapshot,
-									  true, false, 1);
+									  true, false, 1));
 
 	/* Check result */
 	if (spi_result != SPI_OK_SELECT)
