@@ -44,6 +44,7 @@
 #include "parser/parse_relation.h"
 #include "partitioning/partdesc.h"
 #include "pgstat.h"
+#include "rewrite/rewriteHandler.h"
 #include "rewrite/rewriteManip.h"
 #include "storage/lmgr.h"
 #include "utils/acl.h"
@@ -109,7 +110,7 @@ static void AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 								  bool is_crosspart_update);
 static void AfterTriggerEnlargeQueryState(void);
 static bool before_stmt_triggers_fired(Oid relid, CmdType cmdType);
-static IOTState instead_stmt_triggers_fired(Oid relid, CmdType cmdType);
+static HeapTuple check_modified_virtual_generated(TupleDesc tupdesc, HeapTuple tuple);
 
 static IOTState instead_stmt_triggers_fired(Oid relid, CmdType cmdType);
 static void set_iot_state(Oid relid, CmdType cmdType, IOTState newState);
@@ -701,7 +702,8 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 					if (TRIGGER_FOR_BEFORE(tgtype) &&
 						var->varattno == 0 &&
 						RelationGetDescr(rel)->constr &&
-						RelationGetDescr(rel)->constr->has_generated_stored)
+						(RelationGetDescr(rel)->constr->has_generated_stored ||
+						 RelationGetDescr(rel)->constr->has_generated_virtual))
 						ereport(ERROR,
 								(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 								 errmsg("BEFORE trigger's WHEN condition cannot reference NEW generated columns"),
@@ -2659,6 +2661,8 @@ ExecBRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
 		}
 		else if (newtuple != oldtuple)
 		{
+			newtuple = check_modified_virtual_generated(RelationGetDescr(relinfo->ri_RelationDesc), newtuple);
+
 			ExecForceStoreHeapTuple(newtuple, slot, false);
 
 			/*
@@ -3307,6 +3311,8 @@ ExecBRUpdateTriggers(EState *estate, EPQState *epqstate,
 		}
 		else if (newtuple != oldtuple)
 		{
+			newtuple = check_modified_virtual_generated(RelationGetDescr(relinfo->ri_RelationDesc), newtuple);
+
 			ExecForceStoreHeapTuple(newtuple, newslot, false);
 
 			/*
@@ -3737,6 +3743,8 @@ TriggerEnabled(EState *estate, ResultRelInfo *relinfo,
 
 			oldContext = MemoryContextSwitchTo(estate->es_query_cxt);
 			tgqual = stringToNode(trigger->tgqual);
+			tgqual = expand_generated_columns_in_expr(tgqual, relinfo->ri_RelationDesc, PRS2_OLD_VARNO);
+			tgqual = expand_generated_columns_in_expr(tgqual, relinfo->ri_RelationDesc, PRS2_NEW_VARNO);
 			/* Change references to OLD and NEW to INNER_VAR and OUTER_VAR */
 			ChangeVarNodes(tgqual, PRS2_OLD_VARNO, INNER_VAR, 0);
 			ChangeVarNodes(tgqual, PRS2_NEW_VARNO, OUTER_VAR, 0);
@@ -7443,4 +7451,38 @@ bool IsCompositeTrigger(Oid fn_oid, List *fn_name)
 
 	}
 	return isComposite;
+}
+
+/*
+ * Check whether a trigger modified a virtual generated column and replace the
+ * value with null if so.
+ *
+ * We need to check this so that we don't end up storing a non-null value in a
+ * virtual generated column.
+ *
+ * We don't need to check for stored generated columns, since those will be
+ * overwritten later anyway.
+ */
+static HeapTuple
+check_modified_virtual_generated(TupleDesc tupdesc, HeapTuple tuple)
+{
+	if (!(tupdesc->constr && tupdesc->constr->has_generated_virtual))
+		return tuple;
+
+	for (int i = 0; i < tupdesc->natts; i++)
+	{
+		if (TupleDescAttr(tupdesc, i)->attgenerated == ATTRIBUTE_GENERATED_VIRTUAL)
+		{
+			if (!heap_attisnull(tuple, i + 1, tupdesc))
+			{
+				int			replCol = i + 1;
+				Datum		replValue = 0;
+				bool		replIsnull = true;
+
+				tuple = heap_modify_tuple_by_cols(tuple, tupdesc, 1, &replCol, &replValue, &replIsnull);
+			}
+		}
+	}
+
+	return tuple;
 }

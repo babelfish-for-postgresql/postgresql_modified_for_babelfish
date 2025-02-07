@@ -47,5 +47,6 @@ extern PGDLLEXPORT walk_view_rule_hook_type walk_view_rule_hook;
 
 typedef void (*handle_target_view_hook_type) (RTEPermissionInfo *new_perminfo, RangeTblEntry *view_rte, Oid view_owner, Oid base_rel_owner);
 extern PGDLLEXPORT handle_target_view_hook_type handle_target_view_hook;
+extern Node *expand_generated_columns_in_expr(Node *node, Relation rel, int rt_index);
 
 #endif							/* REWRITEHANDLER_H */

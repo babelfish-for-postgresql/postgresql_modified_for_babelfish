@@ -1803,6 +1803,7 @@ ExecRelCheck(ResultRelInfo *resultRelInfo,
 				continue;
 
 			checkconstr = stringToNode(check[i].ccbin);
+			checkconstr = (Expr *) expand_generated_columns_in_expr((Node *) checkconstr, rel, 1);
 			resultRelInfo->ri_ConstraintExprs[i] =
 				ExecPrepareExpr(checkconstr, estate);
 		}
@@ -2350,7 +2351,9 @@ ExecBuildSlotValueDescription(Oid reloid,
 
 		if (table_perm || column_perm)
 		{
-			if (slot->tts_isnull[i])
+			if (att->attgenerated == ATTRIBUTE_GENERATED_VIRTUAL)
+				val = "virtual";
+			else if (slot->tts_isnull[i])
 				val = "null";
 			else
 			{

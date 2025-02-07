@@ -2045,6 +2045,8 @@ heapam_relation_needs_toast_table(Relation rel)
 
 		if (att->attisdropped)
 			continue;
+		if (att->attgenerated == ATTRIBUTE_GENERATED_VIRTUAL)
+			continue;
 		data_length = att_align_nominal(data_length, att->attalign);
 		if (att->attlen > 0)
 		{
