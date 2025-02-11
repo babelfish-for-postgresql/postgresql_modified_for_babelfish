@@ -1979,12 +1979,12 @@ LogLogicalInvalidations(void)
 
 		/* perform insertion */
 		XLogBeginInsert();
-		XLogRegisterData((char *) (&xlrec), MinSizeOfXactInvals);
+		XLogRegisterData(&xlrec, MinSizeOfXactInvals);
 		ProcessMessageSubGroupMulti(group, CatCacheMsgs,
-									XLogRegisterData((char *) msgs,
+									XLogRegisterData(msgs,
 													 n * sizeof(SharedInvalidationMessage)));
 		ProcessMessageSubGroupMulti(group, RelCacheMsgs,
-									XLogRegisterData((char *) msgs,
+									XLogRegisterData(msgs,
 													 n * sizeof(SharedInvalidationMessage)));
 		XLogInsert(RM_XACT_ID, XLOG_XACT_INVALIDATIONS);
 	}
