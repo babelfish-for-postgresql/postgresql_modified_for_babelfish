@@ -2805,6 +2805,7 @@ SubscriptionRelState
 SummarizerReadLocalXLogPrivate
 SupportRequestCost
 SupportRequestIndexCondition
+SupportRequestModifyInPlace
 SupportRequestOptimizeWindowClause
 SupportRequestRows
 SupportRequestSelectivity
