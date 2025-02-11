@@ -263,6 +263,7 @@
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/optimizer.h"
+#include "parser/parser.h"
 #include "parser/parse_agg.h"
 #include "parser/parse_coerce.h"
 #include "utils/acl.h"
@@ -1118,6 +1119,8 @@ finalize_aggregate(AggState *aggstate,
 			Datum		result;
 
 			result = FunctionCallInvoke(fcinfo);
+            if (sql_dialect == SQL_DIALECT_TSQL && bbf_trunc_numeric_result_hook)
+                result = bbf_trunc_numeric_result_hook((Node *) peragg->aggref, result, peragg->aggref->aggtype, -1);
 			*resultIsNull = fcinfo->isnull;
 			*resultVal = MakeExpandedObjectReadOnly(result,
 													fcinfo->isnull,
