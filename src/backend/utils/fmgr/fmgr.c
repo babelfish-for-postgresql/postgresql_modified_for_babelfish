@@ -688,7 +688,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	ListCell   *lc1,
 			   *lc2,
 			   *lc3;
-	volatile int save_nestlevel;
+	int			save_nestlevel;
 	PgStat_FunctionCallUsage fcusage;
 	Oid			pltsql_lang_oid, pltsql_validator_oid;
 	bool		set_sql_dialect;
