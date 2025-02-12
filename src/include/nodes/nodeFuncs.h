@@ -224,6 +224,6 @@ typedef int32 (*coalesce_typmod_hook_type) (const CoalesceExpr *cexpr);
 extern PGDLLEXPORT coalesce_typmod_hook_type coalesce_typmod_hook;
 
 typedef int32 (*resolve_numeric_typmod_from_exp_hook_type)(Plan *plan, Node *expr);
-extern PGDLLEXPORT resolve_numeric_typmod_from_exp_hook_type resolve_numeric_typmod_from_exp_hook;
+extern PGDLLIMPORT resolve_numeric_typmod_from_exp_hook_type resolve_numeric_typmod_from_exp_hook;
 
 #endif							/* NODEFUNCS_H */
