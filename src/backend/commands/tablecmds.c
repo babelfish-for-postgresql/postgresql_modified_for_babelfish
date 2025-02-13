@@ -5134,11 +5134,20 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
 		case AT_SetRelOptions:	/* SET (...) */
 		case AT_ResetRelOptions:	/* RESET (...) */
 		case AT_ReplaceRelOptions:	/* reset them all, then set just these */
-			ATSimplePermissions(cmd->subtype, rel, ATT_TABLE | ATT_VIEW | ATT_MATVIEW | ATT_INDEX);
+		{
+			const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+
+			/* Allow reloptions on partitioned index in babelfish */
+			if (sql_dialect == SQL_DIALECT_TSQL ||
+				(dump_restore && strcmp(dump_restore, "on") == 0))
+				ATSimplePermissions(cmd->subtype, rel, ATT_TABLE | ATT_VIEW | ATT_MATVIEW | ATT_INDEX | ATT_PARTITIONED_INDEX);
+			else
+				ATSimplePermissions(cmd->subtype, rel, ATT_TABLE | ATT_VIEW | ATT_MATVIEW | ATT_INDEX);
 			/* This command never recurses */
 			/* No command-specific prep needed */
 			pass = AT_PASS_MISC;
 			break;
+		}
 		case AT_AddInherit:		/* INHERIT */
 			ATSimplePermissions(cmd->subtype, rel, ATT_TABLE | ATT_FOREIGN_TABLE);
 			/* This command never recurses */
@@ -19381,6 +19390,7 @@ DetachPartitionFinalize(Relation rel, Relation partRel, bool concurrent,
 	HeapTuple	tuple,
 				newtuple;
 	Relation	trigrel = NULL;
+	List	   *fkoids = NIL;
 
 	if (concurrent)
 	{
@@ -19401,6 +19411,23 @@ DetachPartitionFinalize(Relation rel, Relation partRel, bool concurrent,
 	fks = copyObject(RelationGetFKeyList(partRel));
 	if (fks != NIL)
 		trigrel = table_open(TriggerRelationId, RowExclusiveLock);
+
+	/*
+	 * It's possible that the partition being detached has a foreign key that
+	 * references a partitioned table.  When that happens, there are multiple
+	 * pg_constraint rows for the partition: one points to the partitioned
+	 * table itself, while the others point to each of its partitions.  Only
+	 * the topmost one is to be considered here; the child constraints must be
+	 * left alone, because conceptually those aren't coming from our parent
+	 * partitioned table, but from this partition itself.
+	 *
+	 * We implement this by collecting all the constraint OIDs in a first scan
+	 * of the FK array, and skipping in the loop below those constraints whose
+	 * parents are listed here.
+	 */
+	foreach_node(ForeignKeyCacheInfo, fk, fks)
+		fkoids = lappend_oid(fkoids, fk->conoid);
+
 	foreach(cell, fks)
 	{
 		ForeignKeyCacheInfo *fk = lfirst(cell);
@@ -19414,9 +19441,13 @@ DetachPartitionFinalize(Relation rel, Relation partRel, bool concurrent,
 			elog(ERROR, "cache lookup failed for constraint %u", fk->conoid);
 		conform = (Form_pg_constraint) GETSTRUCT(contup);
 
-		/* consider only the inherited foreign keys */
+		/*
+		 * Consider only inherited foreign keys, and only if their parents
+		 * aren't in the list.
+		 */
 		if (conform->contype != CONSTRAINT_FOREIGN ||
-			!OidIsValid(conform->conparentid))
+			!OidIsValid(conform->conparentid) ||
+			list_member_oid(fkoids, conform->conparentid))
 		{
 			ReleaseSysCache(contup);
 			continue;
