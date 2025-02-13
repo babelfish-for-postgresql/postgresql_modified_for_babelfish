@@ -1439,6 +1439,12 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 
 	qry->commandType = CMD_SELECT;
 
+	/* Unpack and process TSQL UNPIVOT nodes in stmt->fromClause, if present */
+	if(transform_unpivot_clause_hook)
+	{
+		(*transform_unpivot_clause_hook)(pstate, stmt);
+	}
+
 	/* process the WITH clause independently of all else */
 	if (stmt->withClause && ( sql_dialect == SQL_DIALECT_PG || transform_pivot_clause_hook == NULL || !stmt->isPivot))
 	{
@@ -1464,11 +1470,6 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 	if (stmt->isPivot && transform_pivot_clause_hook)
 	{
 		(*transform_pivot_clause_hook)(pstate, stmt);
-	}
-
-	if(transform_unpivot_clause_hook)
-	{
-		(*transform_unpivot_clause_hook)(pstate, stmt);
 	}
 
 	/* process the FROM clause */
