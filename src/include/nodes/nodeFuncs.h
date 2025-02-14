@@ -223,7 +223,7 @@ extern bool planstate_tree_walker_impl(struct PlanState *planstate,
 typedef int32 (*coalesce_typmod_hook_type) (const CoalesceExpr *cexpr);
 extern PGDLLEXPORT coalesce_typmod_hook_type coalesce_typmod_hook;
 
-typedef int32 (*resolve_numeric_typmod_from_exp_hook_type)(Plan *plan, Node *expr);
-extern PGDLLIMPORT resolve_numeric_typmod_from_exp_hook_type resolve_numeric_typmod_from_exp_hook;
+typedef int32 (*pltsql_exprTypmod_hook_type)(Plan *plan, Node *expr);
+extern PGDLLIMPORT pltsql_exprTypmod_hook_type pltsql_exprTypmod_hook;
 
 #endif							/* NODEFUNCS_H */
