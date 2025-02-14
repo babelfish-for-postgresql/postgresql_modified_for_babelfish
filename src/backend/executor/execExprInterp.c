@@ -102,7 +102,7 @@
  */
 #if defined(EEO_USE_COMPUTED_GOTO)
 
-/* BBF Hook to truncate result to correct scale, when resulttype is numeric */
+/* pltsql Hook to truncate result to correct scale, when resulttype is numeric */
 pltsql_trunc_numeric_result_hook_type pltsql_trunc_numeric_result_hook = NULL;
 
 /* struct for jump target -> opcode lookup table */
@@ -754,6 +754,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			NullableDatum *args = fcinfo->args;
 			int			nargs = op->d.func.nargs;
 			Datum		d;
+			Oid         func_result_type = InvalidOid;
 
 			/* strict function, so check for NULL args */
 			for (int argno = 0; argno < nargs; argno++)
@@ -768,7 +769,11 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			d = op->d.func.fn_addr(fcinfo);
 
 			if (sql_dialect == SQL_DIALECT_TSQL && pltsql_trunc_numeric_result_hook)
-				d = pltsql_trunc_numeric_result_hook(fcinfo->flinfo->fn_expr, d, get_func_rettype(fcinfo->flinfo->fn_oid), -1);
+			{
+				func_result_type = get_func_rettype(fcinfo->flinfo->fn_oid);
+				if (getBaseType(func_result_type) == NUMERICOID)
+					d = pltsql_trunc_numeric_result_hook(fcinfo->flinfo->fn_expr, d, func_result_type, -1);
+			}
 
 			*op->resvalue = d;
 			*op->resnull = fcinfo->isnull;
