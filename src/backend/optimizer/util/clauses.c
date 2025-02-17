@@ -5123,7 +5123,7 @@ evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 	FreeExecutorState(estate);
 
 	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_trunc_numeric_result_hook && getBaseType(result_type) == NUMERICOID)
-		const_val = pltsql_trunc_numeric_result_hook(NULL, const_val, result_type, result_typmod);
+		const_val = pltsql_trunc_numeric_result_hook(NULL, NULL, const_val, result_type, result_typmod);
 
 	/*
 	 * Make the constant result node.

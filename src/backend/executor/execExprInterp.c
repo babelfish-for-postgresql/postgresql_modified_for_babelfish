@@ -766,7 +766,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			{
 				func_result_type = get_func_rettype(fcinfo->flinfo->fn_oid);
 				if (getBaseType(func_result_type) == NUMERICOID)
-					d = pltsql_trunc_numeric_result_hook(fcinfo->flinfo->fn_expr, d, func_result_type, -1);
+					d = pltsql_trunc_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, func_result_type, -1);
 			}
 
 			*op->resvalue = d;

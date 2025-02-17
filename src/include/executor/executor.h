@@ -102,7 +102,7 @@ extern PGDLLEXPORT TriggerRecuresiveCheck_hook_type TriggerRecuresiveCheck_hook;
 typedef bool (*bbfViewHasInsteadofTrigger_hook_type) (Relation view, CmdType event);
 extern PGDLLIMPORT bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook;
 
-typedef Datum (*pltsql_trunc_numeric_result_hook_type) (Node *fn_expr, Datum result, Oid result_type, int32 result_typmod);
+typedef Datum (*pltsql_trunc_numeric_result_hook_type) (Plan *plan, Node *fn_expr, Datum result, Oid result_type, int32 result_typmod);
 extern PGDLLIMPORT pltsql_trunc_numeric_result_hook_type pltsql_trunc_numeric_result_hook;
 
 typedef bool (*check_rowcount_hook_type) (int es_processed);
