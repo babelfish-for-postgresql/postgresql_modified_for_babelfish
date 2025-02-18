@@ -32,8 +32,13 @@
 #include "executor/execdebug.h"
 #include "executor/nodeSeqscan.h"
 #include "utils/rel.h"
+#include "parser/parser.h"
 
 static TupleTableSlot *SeqNext(SeqScanState *node);
+
+/* pltsql Hook to truncate result to correct scale, when resulttype is numeric */
+pltsql_ExecInitResultTypeTL_hook_type pltsql_ExecInitResultTypeTL_hook = NULL;
+
 
 /* ----------------------------------------------------------------
  *						Scan Support
@@ -162,7 +167,10 @@ ExecInitSeqScan(SeqScan *node, EState *estate, int eflags)
 	/*
 	 * Initialize result type and projection.
 	 */
-	ExecInitResultTypeTL(&scanstate->ss.ps);
+	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_ExecInitResultTypeTL_hook)
+		pltsql_ExecInitResultTypeTL_hook(&scanstate->ss.ps);
+	else
+		ExecInitResultTypeTL(&scanstate->ss.ps);
 	ExecAssignScanProjectionInfo(&scanstate->ss);
 
 	/*
