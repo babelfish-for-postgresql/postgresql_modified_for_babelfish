@@ -87,6 +87,8 @@ const TupleTableSlotOps TTSOpsHeapTuple;
 const TupleTableSlotOps TTSOpsMinimalTuple;
 const TupleTableSlotOps TTSOpsBufferHeapTuple;
 
+/* pltsql Hook to truncate result to correct scale, when resulttype is numeric */
+pltsql_ExecInitResultTypeTL_hook_type pltsql_ExecInitResultTypeTL_hook = NULL;
 
 /*
  * TupleTableSlotOps implementations.
