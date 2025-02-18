@@ -105,6 +105,9 @@ extern PGDLLIMPORT bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigg
 typedef Datum (*pltsql_trunc_numeric_result_hook_type) (Plan *plan, Node *fn_expr, Datum result, Oid result_type, int32 result_typmod);
 extern PGDLLIMPORT pltsql_trunc_numeric_result_hook_type pltsql_trunc_numeric_result_hook;
 
+typedef void (*pltsql_ExecInitResultTypeTL_hook_type) (PlanState *planstate);
+extern PGDLLIMPORT pltsql_ExecInitResultTypeTL_hook_type pltsql_ExecInitResultTypeTL_hook;
+
 typedef bool (*check_rowcount_hook_type) (int es_processed);
 extern PGDLLEXPORT check_rowcount_hook_type check_rowcount_hook;
 

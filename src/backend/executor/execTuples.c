@@ -69,6 +69,7 @@
 #include "utils/expandeddatum.h"
 #include "utils/lsyscache.h"
 #include "utils/typcache.h"
+#include "parser/parser.h"
 
 static TupleDesc ExecTypeFromTLInternal(List *targetList,
 										bool skipjunk);
@@ -1886,7 +1887,10 @@ void
 ExecInitResultTupleSlotTL(PlanState *planstate,
 						  const TupleTableSlotOps *tts_ops)
 {
-	ExecInitResultTypeTL(planstate);
+	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_ExecInitResultTypeTL_hook)
+		pltsql_ExecInitResultTypeTL_hook(planstate);
+	else
+		ExecInitResultTypeTL(planstate);
 	ExecInitResultSlot(planstate, tts_ops);
 }
 
