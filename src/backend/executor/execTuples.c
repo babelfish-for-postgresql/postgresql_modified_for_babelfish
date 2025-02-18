@@ -1756,9 +1756,14 @@ ExecFetchSlotHeapTupleDatum(TupleTableSlot *slot)
 void
 ExecInitResultTypeTL(PlanState *planstate)
 {
-	TupleDesc	tupDesc = ExecTypeFromTL(planstate->plan->targetlist);
+	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_ExecInitResultTypeTL_hook)
+		pltsql_ExecInitResultTypeTL_hook(planstate);
+	else
+	{
+		TupleDesc	tupDesc = ExecTypeFromTL(planstate->plan->targetlist);
 
-	planstate->ps_ResultTupleDesc = tupDesc;
+		planstate->ps_ResultTupleDesc = tupDesc;
+	}
 }
 
 /* --------------------------------
@@ -1801,10 +1806,7 @@ void
 ExecInitResultTupleSlotTL(PlanState *planstate,
 						  const TupleTableSlotOps *tts_ops)
 {
-	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_ExecInitResultTypeTL_hook)
-		pltsql_ExecInitResultTypeTL_hook(planstate);
-	else
-		ExecInitResultTypeTL(planstate);
+	ExecInitResultTypeTL(planstate);
 	ExecInitResultSlot(planstate, tts_ops);
 }
 
