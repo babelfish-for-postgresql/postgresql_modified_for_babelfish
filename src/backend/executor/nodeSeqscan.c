@@ -167,10 +167,7 @@ ExecInitSeqScan(SeqScan *node, EState *estate, int eflags)
 	/*
 	 * Initialize result type and projection.
 	 */
-	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_ExecInitResultTypeTL_hook)
-		pltsql_ExecInitResultTypeTL_hook(&scanstate->ss.ps);
-	else
-		ExecInitResultTypeTL(&scanstate->ss.ps);
+	ExecInitResultTypeTL(&scanstate->ss.ps);
 	ExecAssignScanProjectionInfo(&scanstate->ss);
 
 	/*
