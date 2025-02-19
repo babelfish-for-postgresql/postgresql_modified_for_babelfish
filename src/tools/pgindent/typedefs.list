@@ -2691,6 +2691,7 @@ SkipPages
 SlabBlock
 SlabContext
 SlabSlot
+SlotInvalidationCauseMap
 SlotNumber
 SlotSyncCtxStruct
 SlruCtl

@@ -177,6 +177,8 @@ extern void assign_wal_sync_method(int new_wal_sync_method, void *extra);
 extern bool check_synchronized_standby_slots(char **newval, void **extra,
 											 GucSource source);
 extern void assign_synchronized_standby_slots(const char *newval, void *extra);
+extern bool check_idle_replication_slot_timeout(int *newval, void **extra,
+												GucSource source);
 
 /* Babelfish-specific hook for updating GUCs */
 typedef void (*guc_newval_hook_type) (const char *guc, bool boolVal, const char *strVal, int intVal);
