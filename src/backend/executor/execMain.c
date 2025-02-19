@@ -65,6 +65,7 @@
 /* Hooks for plugins to get control in ExecutorStart/Run/Finish/End */
 ExecutorStart_hook_type ExecutorStart_hook = NULL;
 ExecutorRun_hook_type ExecutorRun_hook = NULL;
+ExecutePlan_hook_type ExecutePlan_hook = NULL;
 ExecutorFinish_hook_type ExecutorFinish_hook = NULL;
 ExecutorEnd_hook_type ExecutorEnd_hook = NULL;
 
@@ -1638,6 +1639,17 @@ ExecutePlan(QueryDesc *queryDesc,
 	else
 		use_parallel_mode = queryDesc->plannedstmt->parallelModeNeeded;
 	queryDesc->already_executed = true;
+
+	/*
+	 * we also want to adjust numberTuples with babelfishpg_tsql.rowcount
+	 * if we are inside TSQL dialect.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL &&
+		queryDesc->operation == CMD_SELECT &&
+		ExecutePlan_hook)
+	{
+		(*ExecutePlan_hook) (queryDesc, use_parallel_mode, &numberTuples);
+	}
 
 	estate->es_use_parallel_mode = use_parallel_mode;
 	if (use_parallel_mode)

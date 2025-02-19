@@ -82,6 +82,12 @@ typedef void (*ExecutorRun_hook_type) (QueryDesc *queryDesc,
 									   bool execute_once);
 extern PGDLLEXPORT ExecutorRun_hook_type ExecutorRun_hook;
 
+/* Hook for plugins to get control in ExecutePlan() */
+typedef void (*ExecutePlan_hook_type) (QueryDesc *queryDesc,
+									   bool use_parallel_mode,
+									   uint64 *numberTuples);
+extern PGDLLEXPORT ExecutePlan_hook_type ExecutePlan_hook;
+
 /* Hook for plugins to get control in ExecutorFinish() */
 typedef void (*ExecutorFinish_hook_type) (QueryDesc *queryDesc);
 extern PGDLLEXPORT ExecutorFinish_hook_type ExecutorFinish_hook;
