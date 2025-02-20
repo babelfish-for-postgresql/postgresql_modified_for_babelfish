@@ -2404,6 +2404,7 @@ RelMapFile
 RelMapping
 RelOptInfo
 RelOptKind
+RelStatsInfo
 RelToCheck
 RelToCluster
 RelabelType
