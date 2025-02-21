@@ -40,7 +40,7 @@ typedef struct BackendStartupData
 	ProtocolExtensionConfig *protocol_config; /* this will be used during backend initialization */
 } BackendStartupData;
 
-extern void BackendMain(char *startup_data, size_t startup_data_len) pg_attribute_noreturn();
+extern void BackendMain(const void *startup_data, size_t startup_data_len) pg_attribute_noreturn();
 extern int	ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done);
 extern int	ProcessSSLStartup(Port *port);
 

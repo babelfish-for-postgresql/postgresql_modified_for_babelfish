@@ -3693,7 +3693,7 @@ BackendStartup(ClientSocket *client_sock, ProtocolExtensionConfig *protocol_conf
 	bn->bgworker_notify = false;
 
 	pid = postmaster_child_launch(bn->bkend_type, bn->child_slot,
-								  (char *) &startup_data, sizeof(startup_data),
+								  &startup_data, sizeof(startup_data),
 								  client_sock);
 	if (pid < 0)
 	{
@@ -4256,7 +4256,7 @@ StartBackgroundWorker(RegisteredBgWorker *rw)
 							 rw->rw_worker.bgw_name)));
 
 	worker_pid = postmaster_child_launch(B_BG_WORKER, bn->child_slot,
-										 (char *) &rw->rw_worker, sizeof(BackgroundWorker), NULL);
+										 &rw->rw_worker, sizeof(BackgroundWorker), NULL);
 	if (worker_pid == -1)
 	{
 		/* in postmaster, fork failed ... */
