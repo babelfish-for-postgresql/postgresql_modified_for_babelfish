@@ -151,7 +151,7 @@ static int	socket_flush_if_writable(void);
 static bool socket_is_send_pending(void);
 static int	socket_putmessage(char msgtype, const char *s, size_t len);
 static void socket_putmessage_noblock(char msgtype, const char *s, size_t len);
-static inline int internal_putbytes(const char *s, size_t len);
+static inline int internal_putbytes(const void *b, size_t len);
 static inline int internal_flush(void);
 static pg_noinline int internal_flush_buffer(const char *buf, size_t *start,
 											 size_t *end);
@@ -1061,8 +1061,9 @@ pq_getbyte_if_available(unsigned char *c)
  * --------------------------------
  */
 int
-pq_getbytes(char *s, size_t len)
+pq_getbytes(void *b, size_t len)
 {
+	char	   *s = b;
 	size_t		amount;
 
 	Assert(PqCommReadingMsg || IsNonLibpqClient);
@@ -1210,7 +1211,7 @@ pq_getmessage(StringInfo s, int maxlen)
 	resetStringInfo(s);
 
 	/* Read message length word */
-	if (pq_getbytes((char *) &len, 4) == EOF)
+	if (pq_getbytes(&len, 4) == EOF)
 	{
 		ereport(COMMERROR,
 				(errcode(ERRCODE_PROTOCOL_VIOLATION),
@@ -1275,8 +1276,10 @@ pq_getmessage(StringInfo s, int maxlen)
 
 
 static inline int
-internal_putbytes(const char *s, size_t len)
+internal_putbytes(const void *b, size_t len)
 {
+	const char *s = b;
+
 	while (len > 0)
 	{
 		/* If buffer is full, then flush it out */
@@ -1500,7 +1503,7 @@ socket_putmessage(char msgtype, const char *s, size_t len)
 		goto fail;
 
 	n32 = pg_hton32((uint32) (len + 4));
-	if (internal_putbytes((char *) &n32, 4))
+	if (internal_putbytes(&n32, 4))
 		goto fail;
 
 	if (internal_putbytes(s, len))
