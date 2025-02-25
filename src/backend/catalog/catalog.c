@@ -548,7 +548,7 @@ RelFileNumber
 GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 {
 	RelFileLocatorBackend rlocator;
-	char	   *rpath;
+	RelPathStr	rpath;
 	bool		collides;
 	ProcNumber	procNumber;
 	int			tries = 0;
@@ -623,7 +623,7 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 		/* Check for existing file of same name */
 		rpath = relpath(rlocator, MAIN_FORKNUM);
 
-		if (access(rpath, F_OK) == 0)
+		if (access(rpath.str, F_OK) == 0)
 		{
 			/* definite collision */
 			collides = true;
@@ -644,7 +644,6 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 			ereport(ERROR,
 				(errmsg("Unable to allocate oid for temp table. Drop some temporary tables or start a new session.")));
 
-		pfree(rpath);
 		tries++;
 	} while (collides);
 

@@ -2411,6 +2411,7 @@ RelMapFile
 RelMapping
 RelOptInfo
 RelOptKind
+RelPathStr
 RelStatsInfo
 RelToCheck
 RelToCluster
