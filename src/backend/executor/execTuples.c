@@ -88,7 +88,7 @@ const TupleTableSlotOps TTSOpsMinimalTuple;
 const TupleTableSlotOps TTSOpsBufferHeapTuple;
 
 /* pltsql hook to initialize result type */
-pltsql_ExecInitResultTypeTL_hook_type pltsql_ExecInitResultTypeTL_hook = NULL;
+pltsql_ExecUpdateResultTypeTL_hook_type pltsql_ExecUpdateResultTypeTL_hook = NULL;
 
 /*
  * TupleTableSlotOps implementations.
@@ -1844,14 +1844,12 @@ ExecFetchSlotHeapTupleDatum(TupleTableSlot *slot)
 void
 ExecInitResultTypeTL(PlanState *planstate)
 {
-	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_ExecInitResultTypeTL_hook)
-		pltsql_ExecInitResultTypeTL_hook(planstate);
-	else
-	{
-		TupleDesc	tupDesc = ExecTypeFromTL(planstate->plan->targetlist);
+	TupleDesc	tupDesc = ExecTypeFromTL(planstate->plan->targetlist);
 
-		planstate->ps_ResultTupleDesc = tupDesc;
-	}
+	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_ExecUpdateResultTypeTL_hook)
+		pltsql_ExecUpdateResultTypeTL_hook(planstate, tupDesc);
+
+	planstate->ps_ResultTupleDesc = tupDesc;
 }
 
 /* --------------------------------

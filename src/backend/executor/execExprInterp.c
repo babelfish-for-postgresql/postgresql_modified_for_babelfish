@@ -103,7 +103,7 @@
 #if defined(EEO_USE_COMPUTED_GOTO)
 
 /* pltsql Hook to truncate result to correct scale, when resulttype is numeric */
-pltsql_trunc_numeric_result_hook_type pltsql_trunc_numeric_result_hook = NULL;
+trunc_numeric_result_hook_type trunc_numeric_result_hook = NULL;
 
 /* struct for jump target -> opcode lookup table */
 typedef struct ExprEvalOpLookup
@@ -768,15 +768,15 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			fcinfo->isnull = false;
 			d = op->d.func.fn_addr(fcinfo);
 
-			if (sql_dialect == SQL_DIALECT_TSQL && pltsql_trunc_numeric_result_hook)
+			*op->resvalue = d;
+			*op->resnull = fcinfo->isnull;
+
+			if (sql_dialect == SQL_DIALECT_TSQL && trunc_numeric_result_hook && !(*op->resnull))
 			{
 				func_result_type = get_func_rettype(fcinfo->flinfo->fn_oid);
 				if (getBaseType(func_result_type) == NUMERICOID)
-					d = pltsql_trunc_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, func_result_type, -1);
+					*op->resvalue = trunc_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, func_result_type, -1);
 			}
-
-			*op->resvalue = d;
-			*op->resnull = fcinfo->isnull;
 
 	strictfail:
 			EEO_NEXT();

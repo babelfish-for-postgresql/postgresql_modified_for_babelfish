@@ -1118,9 +1118,18 @@ finalize_aggregate(AggState *aggstate,
 			Datum		result;
 
 			result = FunctionCallInvoke(fcinfo);
-            if (sql_dialect == SQL_DIALECT_TSQL && pltsql_trunc_numeric_result_hook && getBaseType(peragg->aggref->aggtype) == NUMERICOID)
-                result = pltsql_trunc_numeric_result_hook(aggstate->ss.ps.plan, (Node *) peragg->aggref, result, peragg->aggref->aggtype, -1);
 			*resultIsNull = fcinfo->isnull;
+			if (sql_dialect == SQL_DIALECT_TSQL &&
+				trunc_numeric_result_hook &&
+				!(*resultIsNull) &&
+				getBaseType(peragg->aggref->aggtype) == NUMERICOID)
+			{
+			    result = trunc_numeric_result_hook(aggstate->ss.ps.plan, 
+													(Node *) peragg->aggref, 
+													result, 
+													peragg->aggref->aggtype, 
+													-1);
+			}
 			*resultVal = MakeExpandedObjectReadOnly(result,
 													fcinfo->isnull,
 													peragg->resulttypeLen);
