@@ -57,6 +57,7 @@
 #include "common/int.h"
 #include "dump_babel_utils.h"
 #include "common/relpath.h"
+#include "common/shortest_dec.h"
 #include "compress_io.h"
 #include "dumputils.h"
 #include "fe_utils/option_utils.h"
@@ -525,6 +526,9 @@ main(int argc, char **argv)
 	pg_logging_init(argv[0]);
 	pg_logging_set_level(PG_LOG_WARNING);
 	set_pglocale_pgservice(argv[0], PG_TEXTDOMAIN("pg_dump"));
+
+	/* ensure that locale does not affect floating point interpretation */
+	setlocale(LC_NUMERIC, "C");
 
 	/*
 	 * Initialize what we need for parallel execution, especially for thread
@@ -6890,7 +6894,8 @@ getFuncs(Archive *fout)
  *
  */
 static RelStatsInfo *
-getRelationStatistics(Archive *fout, DumpableObject *rel, char relkind)
+getRelationStatistics(Archive *fout, DumpableObject *rel, int32 relpages,
+					  float reltuples, int32 relallvisible, char relkind)
 {
 	if (!fout->dopt->dumpStatistics)
 		return NULL;
@@ -6915,6 +6920,9 @@ getRelationStatistics(Archive *fout, DumpableObject *rel, char relkind)
 		dobj->components |= DUMP_COMPONENT_STATISTICS;
 		dobj->name = pg_strdup(rel->name);
 		dobj->namespace = rel->namespace;
+		info->relpages = relpages;
+		info->reltuples = reltuples;
+		info->relallvisible = relallvisible;
 		info->relkind = relkind;
 		info->postponed_def = false;
 
@@ -6950,6 +6958,8 @@ getTables(Archive *fout, int *numTables)
 	int			i_relhasindex;
 	int			i_relhasrules;
 	int			i_relpages;
+	int			i_reltuples;
+	int			i_relallvisible;
 	int			i_toastpages;
 	int			i_owning_tab;
 	int			i_owning_col;
@@ -7000,7 +7010,7 @@ getTables(Archive *fout, int *numTables)
 						 "c.relowner, "
 						 "c.relchecks, "
 						 "c.relhasindex, c.relhasrules, c.relpages, "
-						 "c.relhastriggers, "
+						 "c.reltuples, c.relallvisible, c.relhastriggers, "
 						 "c.relpersistence, "
 						 "c.reloftype, "
 						 "c.relacl, "
@@ -7164,6 +7174,8 @@ getTables(Archive *fout, int *numTables)
 	i_relhasindex = PQfnumber(res, "relhasindex");
 	i_relhasrules = PQfnumber(res, "relhasrules");
 	i_relpages = PQfnumber(res, "relpages");
+	i_reltuples = PQfnumber(res, "reltuples");
+	i_relallvisible = PQfnumber(res, "relallvisible");
 	i_toastpages = PQfnumber(res, "toastpages");
 	i_owning_tab = PQfnumber(res, "owning_tab");
 	i_owning_col = PQfnumber(res, "owning_col");
@@ -7210,6 +7222,9 @@ getTables(Archive *fout, int *numTables)
 
 	for (i = 0; i < ntups; i++)
 	{
+		float		reltuples = strtof(PQgetvalue(res, i, i_reltuples), NULL);
+		int32		relallvisible = atoi(PQgetvalue(res, i, i_relallvisible));
+
 		tblinfo[i].dobj.objType = DO_TABLE;
 		tblinfo[i].dobj.catId.tableoid = atooid(PQgetvalue(res, i, i_reltableoid));
 		tblinfo[i].dobj.catId.oid = atooid(PQgetvalue(res, i, i_reloid));
@@ -7311,7 +7326,8 @@ getTables(Archive *fout, int *numTables)
 
 		/* Add statistics */
 		if (tblinfo[i].interesting)
-			getRelationStatistics(fout, &tblinfo[i].dobj, tblinfo[i].relkind);
+			getRelationStatistics(fout, &tblinfo[i].dobj, tblinfo[i].relpages,
+								  reltuples, relallvisible, tblinfo[i].relkind);
 
 		/*
 		 * Read-lock target tables to make sure they aren't DROPPED or altered
@@ -7577,6 +7593,9 @@ getIndexes(Archive *fout, TableInfo tblinfo[], int numTables)
 				i_oid,
 				i_indrelid,
 				i_indexname,
+				i_relpages,
+				i_reltuples,
+				i_relallvisible,
 				i_parentidx,
 				i_indexdef,
 				i_indnkeyatts,
@@ -7630,6 +7649,7 @@ getIndexes(Archive *fout, TableInfo tblinfo[], int numTables)
 	appendPQExpBufferStr(query,
 						 "SELECT t.tableoid, t.oid, i.indrelid, "
 						 "t.relname AS indexname, "
+						 "t.relpages, t.reltuples, t.relallvisible, "
 						 "pg_catalog.pg_get_indexdef(i.indexrelid) AS indexdef, "
 						 "i.indkey, i.indisclustered, "
 						 "c.contype, c.conname, "
@@ -7737,6 +7757,9 @@ getIndexes(Archive *fout, TableInfo tblinfo[], int numTables)
 	i_oid = PQfnumber(res, "oid");
 	i_indrelid = PQfnumber(res, "indrelid");
 	i_indexname = PQfnumber(res, "indexname");
+	i_relpages = PQfnumber(res, "relpages");
+	i_reltuples = PQfnumber(res, "reltuples");
+	i_relallvisible = PQfnumber(res, "relallvisible");
 	i_parentidx = PQfnumber(res, "parentidx");
 	i_indexdef = PQfnumber(res, "indexdef");
 	i_indnkeyatts = PQfnumber(res, "indnkeyatts");
@@ -7803,6 +7826,9 @@ getIndexes(Archive *fout, TableInfo tblinfo[], int numTables)
 			char		contype;
 			char		indexkind;
 			RelStatsInfo *relstats;
+			int32		relpages = atoi(PQgetvalue(res, j, i_relpages));
+			float		reltuples = strtof(PQgetvalue(res, j, i_reltuples), NULL);
+			int32		relallvisible = atoi(PQgetvalue(res, j, i_relallvisible));
 
 			indxinfo[j].dobj.objType = DO_INDEX;
 			indxinfo[j].dobj.catId.tableoid = atooid(PQgetvalue(res, j, i_tableoid));
@@ -7837,7 +7863,8 @@ getIndexes(Archive *fout, TableInfo tblinfo[], int numTables)
 				indexkind = RELKIND_PARTITIONED_INDEX;
 
 			contype = *(PQgetvalue(res, j, i_contype));
-			relstats = getRelationStatistics(fout, &indxinfo[j].dobj, indexkind);
+			relstats = getRelationStatistics(fout, &indxinfo[j].dobj, relpages,
+											 reltuples, relallvisible, indexkind);
 
 			if (contype == 'p' || contype == 'u' || contype == 'x')
 			{
@@ -10468,18 +10495,6 @@ dumpComment(Archive *fout, const char *type,
 }
 
 /*
- * Tabular description of the parameters to pg_restore_relation_stats()
- * param_name, param_type
- */
-static const char *rel_stats_arginfo[][2] = {
-	{"relation", "regclass"},
-	{"version", "integer"},
-	{"relpages", "integer"},
-	{"reltuples", "real"},
-	{"relallvisible", "integer"},
-};
-
-/*
  * Tabular description of the parameters to pg_restore_attribute_stats()
  * param_name, param_type
  */
@@ -10504,30 +10519,6 @@ static const char *att_stats_arginfo[][2] = {
 };
 
 /*
- * getRelStatsExportQuery --
- *
- * Generate a query that will fetch all relation (e.g. pg_class)
- * stats for a given relation.
- */
-static void
-getRelStatsExportQuery(PQExpBuffer query, Archive *fout,
-					   const char *schemaname, const char *relname)
-{
-	resetPQExpBuffer(query);
-	appendPQExpBufferStr(query,
-						 "SELECT c.oid::regclass AS relation, "
-						 "current_setting('server_version_num') AS version, "
-						 "c.relpages, c.reltuples, c.relallvisible "
-						 "FROM pg_class c "
-						 "JOIN pg_namespace n "
-						 "ON n.oid = c.relnamespace "
-						 "WHERE n.nspname = ");
-	appendStringLiteralAH(query, schemaname, fout);
-	appendPQExpBufferStr(query, " AND c.relname = ");
-	appendStringLiteralAH(query, relname, fout);
-}
-
-/*
  * getAttStatsExportQuery --
  *
  * Generate a query that will fetch all attribute (e.g. pg_statistic)
@@ -10538,21 +10529,22 @@ getAttStatsExportQuery(PQExpBuffer query, Archive *fout,
 					   const char *schemaname, const char *relname)
 {
 	resetPQExpBuffer(query);
-	appendPQExpBufferStr(query,
-						 "SELECT c.oid::regclass AS relation, "
-						 "s.attname,"
-						 "s.inherited,"
-						 "current_setting('server_version_num') AS version, "
-						 "s.null_frac,"
-						 "s.avg_width,"
-						 "s.n_distinct,"
-						 "s.most_common_vals,"
-						 "s.most_common_freqs,"
-						 "s.histogram_bounds,"
-						 "s.correlation,"
-						 "s.most_common_elems,"
-						 "s.most_common_elem_freqs,"
-						 "s.elem_count_histogram,");
+	appendPQExpBuffer(query,
+					  "SELECT c.oid::regclass AS relation, "
+					  "s.attname,"
+					  "s.inherited,"
+					  "'%u'::integer AS version, "
+					  "s.null_frac,"
+					  "s.avg_width,"
+					  "s.n_distinct,"
+					  "s.most_common_vals,"
+					  "s.most_common_freqs,"
+					  "s.histogram_bounds,"
+					  "s.correlation,"
+					  "s.most_common_elems,"
+					  "s.most_common_elem_freqs,"
+					  "s.elem_count_histogram,",
+					  fout->remoteVersion);
 
 	if (fout->remoteVersion >= 170000)
 		appendPQExpBufferStr(query,
@@ -10605,34 +10597,21 @@ appendNamedArgument(PQExpBuffer out, Archive *fout, const char *argname,
  * Append a formatted pg_restore_relation_stats statement.
  */
 static void
-appendRelStatsImport(PQExpBuffer out, Archive *fout, PGresult *res)
+appendRelStatsImport(PQExpBuffer out, Archive *fout, const RelStatsInfo *rsinfo)
 {
-	const char *sep = "";
+	const char *qualname = fmtQualifiedId(rsinfo->dobj.namespace->dobj.name, rsinfo->dobj.name);
+	char		reltuples_str[FLOAT_SHORTEST_DECIMAL_LEN];
 
-	if (PQntuples(res) == 0)
-		return;
+	float_to_shortest_decimal_buf(rsinfo->reltuples, reltuples_str);
 
 	appendPQExpBufferStr(out, "SELECT * FROM pg_catalog.pg_restore_relation_stats(\n");
-
-	for (int argno = 0; argno < lengthof(rel_stats_arginfo); argno++)
-	{
-		const char *argname = rel_stats_arginfo[argno][0];
-		const char *argtype = rel_stats_arginfo[argno][1];
-		int			fieldno = PQfnumber(res, argname);
-
-		if (fieldno < 0)
-			pg_fatal("relation stats export query missing field '%s'",
-					 argname);
-
-		if (PQgetisnull(res, 0, fieldno))
-			continue;
-
-		appendPQExpBufferStr(out, sep);
-		appendNamedArgument(out, fout, argname, PQgetvalue(res, 0, fieldno), argtype);
-
-		sep = ",\n";
-	}
-	appendPQExpBufferStr(out, "\n);\n");
+	appendPQExpBuffer(out, "\t'relation', '%s'::regclass,\n", qualname);
+	appendPQExpBuffer(out, "\t'version', '%u'::integer,\n",
+					  fout->remoteVersion);
+	appendPQExpBuffer(out, "\t'relpages', '%d'::integer,\n", rsinfo->relpages);
+	appendPQExpBuffer(out, "\t'reltuples', '%s'::real,\n", reltuples_str);
+	appendPQExpBuffer(out, "\t'relallvisible', '%d'::integer\n);\n",
+					  rsinfo->relallvisible);
 }
 
 /*
@@ -10727,15 +10706,11 @@ dumpRelationStats(Archive *fout, const RelStatsInfo *rsinfo)
 	tag = createPQExpBuffer();
 	appendPQExpBufferStr(tag, fmtId(dobj->name));
 
-	query = createPQExpBuffer();
 	out = createPQExpBuffer();
 
-	getRelStatsExportQuery(query, fout, dobj->namespace->dobj.name,
-						   dobj->name);
-	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
-	appendRelStatsImport(out, fout, res);
-	PQclear(res);
+	appendRelStatsImport(out, fout, rsinfo);
 
+	query = createPQExpBuffer();
 	getAttStatsExportQuery(query, fout, dobj->namespace->dobj.name,
 						   dobj->name);
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
