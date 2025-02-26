@@ -3969,7 +3969,6 @@ GetSearchPathMatcher(MemoryContext context)
 			result->addTemp = true;
 		else
 		{
-			if (!is_bbf_tds_connection_hook || is_bbf_tds_connection_hook() || sql_dialect != SQL_DIALECT_TSQL)
 			if (!(is_bbf_tds_connection_hook && !is_bbf_tds_connection_hook() && sql_dialect == SQL_DIALECT_TSQL))
 				Assert(linitial_oid(schemas) == PG_CATALOG_NAMESPACE);
 			result->addCatalog = true;
