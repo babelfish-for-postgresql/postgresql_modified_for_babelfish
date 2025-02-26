@@ -91,6 +91,9 @@ typedef bool (*match_pltsql_func_call_hook_type) (HeapTuple proctup, int nargs, 
 												  bool *variadic, Oid *va_elem_type);
 extern PGDLLEXPORT match_pltsql_func_call_hook_type match_pltsql_func_call_hook;
 
+typedef bool (*is_bbf_tds_connection_hook_type) ();
+extern PGDLLEXPORT is_bbf_tds_connection_hook_type is_bbf_tds_connection_hook;
+
 #define RangeVarGetRelid(relation, lockmode, missing_ok) \
 	RangeVarGetRelidExtended(relation, lockmode, \
 							 (missing_ok) ? RVR_MISSING_OK : 0, NULL, NULL)
