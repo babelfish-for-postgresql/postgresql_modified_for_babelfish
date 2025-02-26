@@ -4787,7 +4787,8 @@ check_search_path(char **newval, void **extra, GucSource source)
 	bool		use_cache = (SearchPathCacheContext != NULL);
 
 	/* quick exit for babelfish when setting search path in fmgr_security_definer */
-	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_check_search_path == false)
+	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_check_search_path == false &&
+		is_bbf_tds_connection_hook && is_bbf_tds_connection_hook())
 	{
 		pltsql_check_search_path = true;
 		return true;
