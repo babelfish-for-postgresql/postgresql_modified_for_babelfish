@@ -854,11 +854,11 @@ RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 	 * We have a plan now. Build up the arguments from the key values in the
 	 * deleted PK tuple and delete the referencing rows
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, NULL,
 					true,		/* must detect new rows */
-					SPI_OK_DELETE));
+					SPI_OK_DELETE);
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -975,11 +975,11 @@ RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
 	/*
 	 * We have a plan now. Run it to update the existing references.
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, newslot,
 					true,		/* must detect new rows */
-					SPI_OK_UPDATE));
+					SPI_OK_UPDATE);
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -1207,11 +1207,11 @@ ri_set(TriggerData *trigdata, bool is_set_null, int tgkind)
 	/*
 	 * We have a plan now. Run it to update the existing references.
 	 */
-	RUN_AS_PSQL(ri_PerformCheck(riinfo, &qkey, qplan,
+	ri_PerformCheck(riinfo, &qkey, qplan,
 					fk_rel, pk_rel,
 					oldslot, NULL,
 					true,		/* must detect new rows */
-					SPI_OK_UPDATE));
+					SPI_OK_UPDATE);
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");

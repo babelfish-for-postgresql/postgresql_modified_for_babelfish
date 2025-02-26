@@ -5293,7 +5293,7 @@ MakeTransitionCaptureState(TriggerDesc *trigdesc, Oid relid, CmdType cmdType)
 	 * delete statment as well, so we'll init both old and new transition tables
 	 * for Tsql dialect
 	 * */
-	if (check_pltsql_support_tsql_transactions_hook && (*check_pltsql_support_tsql_transactions_hook)() && (need_old_del || need_new_ins))
+	if (sql_dialect == SQL_DIALECT_TSQL && (need_old_del || need_new_ins))
 	{
 		need_new_ins = true;
 		need_old_del = true;
