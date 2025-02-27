@@ -35,7 +35,7 @@ static bool planstate_walk_members(PlanState **planstates, int nplans,
 								   void *context);
 
 coalesce_typmod_hook_type coalesce_typmod_hook = NULL;
-pltsql_exprTypmod_hook_type pltsql_exprTypmod_hook = NULL;
+exprTypmod_hook_type exprTypmod_hook = NULL;
 
 /*
  *	exprType -
@@ -541,8 +541,8 @@ exprTypmod(const Node *expr)
 			break;
 	}
 
-	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_exprTypmod_hook)
-		return pltsql_exprTypmod_hook(NULL, (Node *) expr);
+	if (exprTypmod_hook)
+		return exprTypmod_hook(NULL, (Node *) expr);
 
 	return -1;
 }

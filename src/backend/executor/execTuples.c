@@ -69,7 +69,6 @@
 #include "utils/expandeddatum.h"
 #include "utils/lsyscache.h"
 #include "utils/typcache.h"
-#include "parser/parser.h"
 
 static TupleDesc ExecTypeFromTLInternal(List *targetList,
 										bool skipjunk);
@@ -87,8 +86,8 @@ const TupleTableSlotOps TTSOpsHeapTuple;
 const TupleTableSlotOps TTSOpsMinimalTuple;
 const TupleTableSlotOps TTSOpsBufferHeapTuple;
 
-/* pltsql hook to initialize result type */
-pltsql_ExecUpdateResultTypeTL_hook_type pltsql_ExecUpdateResultTypeTL_hook = NULL;
+/* Hook to update typmod of all the entries of a previously initialized tuple descriptor */
+ExecUpdateResultTypeTL_hook_type ExecUpdateResultTypeTL_hook = NULL;
 
 /*
  * TupleTableSlotOps implementations.
@@ -1846,8 +1845,8 @@ ExecInitResultTypeTL(PlanState *planstate)
 {
 	TupleDesc	tupDesc = ExecTypeFromTL(planstate->plan->targetlist);
 
-	if (sql_dialect == SQL_DIALECT_TSQL && pltsql_ExecUpdateResultTypeTL_hook)
-		pltsql_ExecUpdateResultTypeTL_hook(planstate, tupDesc);
+	if (ExecUpdateResultTypeTL_hook)
+		ExecUpdateResultTypeTL_hook(planstate, tupDesc);
 
 	planstate->ps_ResultTupleDesc = tupDesc;
 }

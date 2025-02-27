@@ -262,7 +262,6 @@
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/optimizer.h"
-#include "parser/parser.h"
 #include "parser/parse_agg.h"
 #include "parser/parse_coerce.h"
 #include "utils/acl.h"
@@ -1119,14 +1118,12 @@ finalize_aggregate(AggState *aggstate,
 
 			result = FunctionCallInvoke(fcinfo);
 			*resultIsNull = fcinfo->isnull;
-			if (sql_dialect == SQL_DIALECT_TSQL &&
-				trunc_numeric_result_hook &&
-				!(*resultIsNull) &&
-				getBaseType(peragg->aggref->aggtype) == NUMERICOID)
+			if (trunc_numeric_result_hook)
 			{
 			    result = trunc_numeric_result_hook(aggstate->ss.ps.plan, 
 													(Node *) peragg->aggref, 
 													result, 
+													*resultIsNull, 
 													peragg->aggref->aggtype, 
 													-1);
 			}

@@ -2639,8 +2639,8 @@ eval_const_expressions_mutator(Node *node,
 				 */
 				set_opfuncid(expr);
 
-				if (sql_dialect == SQL_DIALECT_TSQL && pltsql_exprTypmod_hook)
-					result_typmod = pltsql_exprTypmod_hook(NULL, node);
+				if (exprTypmod_hook)
+					result_typmod = exprTypmod_hook(NULL, node);
 
 				/*
 				 * Code for op/func reduction is pretty bulky, so split it out
@@ -2747,8 +2747,8 @@ eval_const_expressions_mutator(Node *node,
 					set_opfuncid((OpExpr *) expr);	/* rely on struct
 													 * equivalence */
 
-					if (sql_dialect == SQL_DIALECT_TSQL && pltsql_exprTypmod_hook)
-						result_typmod = pltsql_exprTypmod_hook(NULL, node);
+					if (exprTypmod_hook)
+						result_typmod = exprTypmod_hook(NULL, node);
 
 					/*
 					 * Code for op/func reduction is pretty bulky, so split it
@@ -3038,8 +3038,8 @@ eval_const_expressions_mutator(Node *node,
 												false,
 												true));
 
-					if (sql_dialect == SQL_DIALECT_TSQL && pltsql_exprTypmod_hook)
-						result_typmod = pltsql_exprTypmod_hook(NULL, node);
+					if (exprTypmod_hook)
+						result_typmod = exprTypmod_hook(NULL, node);
 
 					simple = simplify_function(infunc,
 											   expr->resulttype, result_typmod,
@@ -5140,13 +5140,8 @@ evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 	/* Release all the junk we just created */
 	FreeExecutorState(estate);
 
-	if (sql_dialect == SQL_DIALECT_TSQL &&
-		trunc_numeric_result_hook &&
-		!const_is_null &&
-		getBaseType(result_type) == NUMERICOID)
-	{
-		const_val = trunc_numeric_result_hook(NULL, NULL, const_val, result_type, result_typmod);
-	}
+	if (trunc_numeric_result_hook)
+		const_val = trunc_numeric_result_hook(NULL, NULL, const_val, const_is_null, result_type, result_typmod);
 
 	/*
 	 * Make the constant result node.

@@ -66,7 +66,6 @@
 #include "nodes/miscnodes.h"
 #include "nodes/nodeFuncs.h"
 #include "pgstat.h"
-#include "parser/parser.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/date.h"
@@ -102,7 +101,7 @@
  */
 #if defined(EEO_USE_COMPUTED_GOTO)
 
-/* pltsql Hook to truncate result to correct scale, when resulttype is numeric */
+/* Hook to truncate result to correct scale, when resulttype is numeric */
 trunc_numeric_result_hook_type trunc_numeric_result_hook = NULL;
 
 /* struct for jump target -> opcode lookup table */
@@ -754,7 +753,6 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			NullableDatum *args = fcinfo->args;
 			int			nargs = op->d.func.nargs;
 			Datum		d;
-			Oid         func_result_type = InvalidOid;
 
 			/* strict function, so check for NULL args */
 			for (int argno = 0; argno < nargs; argno++)
@@ -767,16 +765,11 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			}
 			fcinfo->isnull = false;
 			d = op->d.func.fn_addr(fcinfo);
-
 			*op->resvalue = d;
 			*op->resnull = fcinfo->isnull;
 
-			if (sql_dialect == SQL_DIALECT_TSQL && trunc_numeric_result_hook && !(*op->resnull))
-			{
-				func_result_type = get_func_rettype(fcinfo->flinfo->fn_oid);
-				if (getBaseType(func_result_type) == NUMERICOID)
-					*op->resvalue = trunc_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, func_result_type, -1);
-			}
+			if (trunc_numeric_result_hook)
+				*op->resvalue = trunc_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
 
 	strictfail:
 			EEO_NEXT();
