@@ -768,7 +768,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			*op->resvalue = d;
 			*op->resnull = fcinfo->isnull;
 
-			if (trunc_numeric_result_hook)
+			if (trunc_numeric_result_hook && fcinfo->flinfo != NULL)
 				*op->resvalue = trunc_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
 
 	strictfail:

@@ -1120,12 +1120,13 @@ finalize_aggregate(AggState *aggstate,
 			*resultIsNull = fcinfo->isnull;
 			if (trunc_numeric_result_hook)
 			{
-			    result = trunc_numeric_result_hook(aggstate->ss.ps.plan, 
-													(Node *) peragg->aggref, 
-													result, 
-													*resultIsNull, 
-													peragg->aggref->aggtype, 
-													-1);
+				if (peragg->aggref != NULL)
+					result = trunc_numeric_result_hook(aggstate->ss.ps.plan, 
+														(Node *) peragg->aggref, 
+														result, 
+														*resultIsNull, 
+														peragg->aggref->aggtype, 
+														-1);
 			}
 			*resultVal = MakeExpandedObjectReadOnly(result,
 													fcinfo->isnull,
