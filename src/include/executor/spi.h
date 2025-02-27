@@ -214,4 +214,7 @@ extern bool SPI_inside_nonatomic_context(void);
 
 extern PGDLLEXPORT void SPI_setCurrentInternalTxnMode(bool mode);
 extern int  SPI_get_depth(void);
+
+typedef bool (*ri_FetchPreparedPlan_hook_type) (SPIPlanPtr plan);
+extern PGDLLIMPORT ri_FetchPreparedPlan_hook_type ri_FetchPreparedPlan_hook;
 #endif							/* SPI_H */
