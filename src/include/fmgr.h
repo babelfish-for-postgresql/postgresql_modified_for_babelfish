@@ -797,13 +797,10 @@ typedef void (*non_tsql_proc_entry_hook_type) (int, int);
 
 typedef void (*get_func_language_oids_hook_type)(Oid *, Oid *);
 
-typedef char *(*set_local_schema_for_func_hook_type) (Oid proc_nsp_oid);
-
 extern PGDLLIMPORT needs_fmgr_hook_type needs_fmgr_hook;
 extern PGDLLIMPORT fmgr_hook_type fmgr_hook;
 extern PGDLLEXPORT non_tsql_proc_entry_hook_type non_tsql_proc_entry_hook;
 extern PGDLLEXPORT get_func_language_oids_hook_type get_func_language_oids_hook;
-extern PGDLLEXPORT set_local_schema_for_func_hook_type set_local_schema_for_func_hook;
 extern bool pltsql_check_search_path;
 
 #define FmgrHookIsNeeded(fn_oid)							\
