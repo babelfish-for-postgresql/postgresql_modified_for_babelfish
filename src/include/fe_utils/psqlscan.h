@@ -90,5 +90,7 @@ extern bool psql_scan_in_quote(PsqlScanState state);
 extern void psql_scan_setup_ex(PsqlScanState state,
 				const char *line, int line_len,
 							int encoding, bool std_strings, bool tsql);
+extern void psql_scan_get_location(PsqlScanState state,
+								   int *lineno, int *offset);
 
 #endif							/* PSQLSCAN_H */
