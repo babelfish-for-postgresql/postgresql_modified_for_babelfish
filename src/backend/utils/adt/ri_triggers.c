@@ -265,7 +265,7 @@ static void ri_ReportViolation(const RI_ConstraintInfo *riinfo,
 
 
 /* pltsql Hook to truncate result to correct scale, when resulttype is numeric */
-ri_FetchPreparedPlan_hook_type ri_FetchPreparedPlan_hook = NULL;
+validateCachedPlanSearchPath_hook_type validateCachedPlanSearchPath_hook = NULL;
 
 /*
  * RI_FKey_check -
@@ -2780,7 +2780,7 @@ ri_FetchPreparedPlan(RI_QueryKey *key)
 	 * locked both FK and PK rels.
 	 */
 	plan = entry->plan;
-	if (plan && SPI_plan_is_valid(plan) && (!ri_FetchPreparedPlan_hook || (*ri_FetchPreparedPlan_hook)(plan)))
+	if (plan && SPI_plan_is_valid(plan) && (!validateCachedPlanSearchPath_hook || (*validateCachedPlanSearchPath_hook)(plan)))
 		return plan;
 
 	/*
