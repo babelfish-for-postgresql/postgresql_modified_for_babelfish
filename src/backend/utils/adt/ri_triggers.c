@@ -2780,7 +2780,7 @@ ri_FetchPreparedPlan(RI_QueryKey *key)
 	 * locked both FK and PK rels.
 	 */
 	plan = entry->plan;
-	if (plan && SPI_plan_is_valid(plan) && ri_FetchPreparedPlan_hook && (*ri_FetchPreparedPlan_hook)(plan))
+	if (plan && SPI_plan_is_valid(plan) && (!ri_FetchPreparedPlan_hook || (*ri_FetchPreparedPlan_hook)(plan)))
 		return plan;
 
 	/*
