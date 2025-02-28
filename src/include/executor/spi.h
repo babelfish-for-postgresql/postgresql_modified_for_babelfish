@@ -208,4 +208,7 @@ extern bool SPI_inside_nonatomic_context(void);
 
 extern PGDLLEXPORT void SPI_setCurrentInternalTxnMode(bool mode);
 extern int  SPI_get_depth(void);
+
+typedef bool (*validateCachedPlanSearchPath_hook_type) (SPIPlanPtr plan);
+extern PGDLLIMPORT validateCachedPlanSearchPath_hook_type validateCachedPlanSearchPath_hook;
 #endif							/* SPI_H */
