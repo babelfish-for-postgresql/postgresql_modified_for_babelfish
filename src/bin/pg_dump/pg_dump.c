@@ -10574,7 +10574,6 @@ dumpRelationStats(Archive *fout, const RelStatsInfo *rsinfo)
 	PGresult   *res;
 	PQExpBuffer query;
 	PQExpBuffer out;
-	PQExpBuffer tag;
 	DumpId	   *deps = NULL;
 	int			ndeps = 0;
 	char	   *qualified_name;
@@ -10605,9 +10604,6 @@ dumpRelationStats(Archive *fout, const RelStatsInfo *rsinfo)
 		deps = dobj->dependencies;
 		ndeps = dobj->nDeps;
 	}
-
-	tag = createPQExpBuffer();
-	appendPQExpBufferStr(tag, fmtId(dobj->name));
 
 	query = createPQExpBuffer();
 	if (!fout->is_prepared[PREPQUERY_GETATTRIBUTESTATS])
@@ -10779,7 +10775,7 @@ dumpRelationStats(Archive *fout, const RelStatsInfo *rsinfo)
 	PQclear(res);
 
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
-				 ARCHIVE_OPTS(.tag = tag->data,
+				 ARCHIVE_OPTS(.tag = dobj->name,
 							  .namespace = dobj->namespace->dobj.name,
 							  .description = "STATISTICS DATA",
 							  .section = rsinfo->postponed_def ?
@@ -10791,7 +10787,6 @@ dumpRelationStats(Archive *fout, const RelStatsInfo *rsinfo)
 	free(qualified_name);
 	destroyPQExpBuffer(out);
 	destroyPQExpBuffer(query);
-	destroyPQExpBuffer(tag);
 }
 
 /*
