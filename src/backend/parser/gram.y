@@ -2789,8 +2789,14 @@ alter_table_cmd:
 			| ENABLE_P TRIGGER ALL
 				{
 					AlterTableCmd *n = makeNode(AlterTableCmd);
-
-					n->subtype = AT_EnableTrigAll;
+					if(sql_dialect == SQL_DIALECT_TSQL)
+					{
+						n->subtype = AT_EnableTrigUser;
+					}
+					else
+					{
+						n->subtype = AT_EnableTrigAll;
+					}
 					$$ = (Node *) n;
 				}
 			/* ALTER TABLE <name> ENABLE TRIGGER USER */
@@ -2815,7 +2821,14 @@ alter_table_cmd:
 				{
 					AlterTableCmd *n = makeNode(AlterTableCmd);
 
-					n->subtype = AT_DisableTrigAll;
+					if(sql_dialect == SQL_DIALECT_TSQL)
+					{
+						n->subtype = AT_DisableTrigUser;
+					}
+					else
+					{
+						n->subtype = AT_DisableTrigAll;
+					}
 					$$ = (Node *) n;
 				}
 			/* ALTER TABLE <name> DISABLE TRIGGER USER */
