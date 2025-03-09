@@ -102,7 +102,7 @@
 #if defined(EEO_USE_COMPUTED_GOTO)
 
 /* Hook to truncate result to correct scale, when resulttype is numeric */
-trunc_numeric_result_hook_type trunc_numeric_result_hook = NULL;
+adjust_numeric_result_hook_type adjust_numeric_result_hook = NULL;
 
 /* struct for jump target -> opcode lookup table */
 typedef struct ExprEvalOpLookup
@@ -744,8 +744,8 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			*op->resvalue = d;
 			*op->resnull = fcinfo->isnull;
 
-			if (trunc_numeric_result_hook && fcinfo->flinfo != NULL)
-				*op->resvalue = trunc_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
+			if (adjust_numeric_result_hook && fcinfo->flinfo != NULL)
+				*op->resvalue = adjust_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
 
 			EEO_NEXT();
 		}
@@ -771,8 +771,8 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			*op->resvalue = d;
 			*op->resnull = fcinfo->isnull;
 
-			if (trunc_numeric_result_hook && fcinfo->flinfo != NULL)
-				*op->resvalue = trunc_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
+			if (adjust_numeric_result_hook && fcinfo->flinfo != NULL)
+				*op->resvalue = adjust_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
 
 	strictfail:
 			EEO_NEXT();

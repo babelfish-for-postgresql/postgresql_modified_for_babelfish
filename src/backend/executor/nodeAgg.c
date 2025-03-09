@@ -1118,10 +1118,10 @@ finalize_aggregate(AggState *aggstate,
 
 			result = FunctionCallInvoke(fcinfo);
 			*resultIsNull = fcinfo->isnull;
-			if (trunc_numeric_result_hook)
+			if (adjust_numeric_result_hook)
 			{
 				if (peragg->aggref != NULL)
-					result = trunc_numeric_result_hook(aggstate->ss.ps.plan, 
+					result = adjust_numeric_result_hook(aggstate->ss.ps.plan, 
 														(Node *) peragg->aggref, 
 														result, 
 														*resultIsNull, 
