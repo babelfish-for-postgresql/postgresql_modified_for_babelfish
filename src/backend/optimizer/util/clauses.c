@@ -5141,7 +5141,7 @@ evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 	FreeExecutorState(estate);
 
 	if (adjust_numeric_result_hook)
-		const_val = adjust_numeric_result_hook(NULL, expr, const_val, const_is_null, result_type, result_typmod);
+		const_val = adjust_numeric_result_hook(NULL, (Node *) expr, const_val, const_is_null, result_type, result_typmod);
 
 	/*
 	 * Make the constant result node.
