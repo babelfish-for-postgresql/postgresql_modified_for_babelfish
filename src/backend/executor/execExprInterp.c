@@ -745,7 +745,12 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			*op->resnull = fcinfo->isnull;
 
 			if (adjust_numeric_result_hook && fcinfo->flinfo != NULL)
-				*op->resvalue = adjust_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
+			{
+				if (state->parent != NULL)
+					*op->resvalue = adjust_numeric_result_hook(state->parent->plan, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
+				else
+					*op->resvalue = adjust_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
+			}
 
 			EEO_NEXT();
 		}
@@ -772,7 +777,13 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			*op->resnull = fcinfo->isnull;
 
 			if (adjust_numeric_result_hook && fcinfo->flinfo != NULL)
-				*op->resvalue = adjust_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
+			{
+				if (state->parent != NULL)
+					*op->resvalue = adjust_numeric_result_hook(state->parent->plan, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
+				else
+					*op->resvalue = adjust_numeric_result_hook(NULL, fcinfo->flinfo->fn_expr, d, *op->resnull, InvalidOid, -1);
+			}
+				
 
 	strictfail:
 			EEO_NEXT();
