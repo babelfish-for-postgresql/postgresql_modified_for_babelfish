@@ -8,7 +8,7 @@
  *	using ExecInitExpr() et al.  This converts the tree into a flat array
  *	of ExprEvalSteps, which may be thought of as instructions in a program.
  *	At runtime, we'll execute steps, starting with the first, until we reach
- *	an EEOP_DONE opcode.
+ *	an EEOP_DONE_{RETURN|NO_RETURN} opcode.
  *
  *	This file contains the "compilation" logic.  It is independent of the
  *	specific execution technology we use (switch statement, computed goto,
@@ -164,7 +164,7 @@ ExecInitExpr(Expr *node, PlanState *parent)
 	ExecInitExprRec(node, state, &state->resvalue, &state->resnull);
 
 	/* Finally, append a DONE step */
-	scratch.opcode = EEOP_DONE;
+	scratch.opcode = EEOP_DONE_RETURN;
 	ExprEvalPushStep(state, &scratch);
 
 	ExecReadyExpr(state);
@@ -201,7 +201,7 @@ ExecInitExprWithParams(Expr *node, ParamListInfo ext_params)
 	ExecInitExprRec(node, state, &state->resvalue, &state->resnull);
 
 	/* Finally, append a DONE step */
-	scratch.opcode = EEOP_DONE;
+	scratch.opcode = EEOP_DONE_RETURN;
 	ExprEvalPushStep(state, &scratch);
 
 	ExecReadyExpr(state);
@@ -293,7 +293,7 @@ ExecInitQual(List *qual, PlanState *parent)
 	 * have yielded TRUE, and since its result is stored in the desired output
 	 * location, we're done.
 	 */
-	scratch.opcode = EEOP_DONE;
+	scratch.opcode = EEOP_DONE_RETURN;
 	ExprEvalPushStep(state, &scratch);
 
 	ExecReadyExpr(state);
@@ -505,7 +505,7 @@ ExecBuildProjectionInfo(List *targetList,
 		}
 	}
 
-	scratch.opcode = EEOP_DONE;
+	scratch.opcode = EEOP_DONE_NO_RETURN;
 	ExprEvalPushStep(state, &scratch);
 
 	ExecReadyExpr(state);
@@ -744,7 +744,7 @@ ExecBuildUpdateProjection(List *targetList,
 		}
 	}
 
-	scratch.opcode = EEOP_DONE;
+	scratch.opcode = EEOP_DONE_NO_RETURN;
 	ExprEvalPushStep(state, &scratch);
 
 	ExecReadyExpr(state);
@@ -1716,7 +1716,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
 				else
 				{
 					/* Not trivial, so append a DONE step */
-					scratch.opcode = EEOP_DONE;
+					scratch.opcode = EEOP_DONE_RETURN;
 					ExprEvalPushStep(elemstate, &scratch);
 					/* and ready the subexpression */
 					ExecReadyExpr(elemstate);
@@ -3996,7 +3996,7 @@ ExecBuildAggTrans(AggState *aggstate, AggStatePerPhase phase,
 
 	scratch.resvalue = NULL;
 	scratch.resnull = NULL;
-	scratch.opcode = EEOP_DONE;
+	scratch.opcode = EEOP_DONE_NO_RETURN;
 	ExprEvalPushStep(state, &scratch);
 
 	ExecReadyExpr(state);
@@ -4263,7 +4263,7 @@ ExecBuildHash32FromAttrs(TupleDesc desc, const TupleTableSlotOps *ops,
 
 	scratch.resvalue = NULL;
 	scratch.resnull = NULL;
-	scratch.opcode = EEOP_DONE;
+	scratch.opcode = EEOP_DONE_RETURN;
 	ExprEvalPushStep(state, &scratch);
 
 	ExecReadyExpr(state);
@@ -4436,7 +4436,7 @@ ExecBuildHash32Expr(TupleDesc desc, const TupleTableSlotOps *ops,
 
 	scratch.resvalue = NULL;
 	scratch.resnull = NULL;
-	scratch.opcode = EEOP_DONE;
+	scratch.opcode = EEOP_DONE_RETURN;
 	ExprEvalPushStep(state, &scratch);
 
 	ExecReadyExpr(state);
@@ -4591,7 +4591,7 @@ ExecBuildGroupingEqual(TupleDesc ldesc, TupleDesc rdesc,
 
 	scratch.resvalue = NULL;
 	scratch.resnull = NULL;
-	scratch.opcode = EEOP_DONE;
+	scratch.opcode = EEOP_DONE_RETURN;
 	ExprEvalPushStep(state, &scratch);
 
 	ExecReadyExpr(state);
@@ -4727,7 +4727,7 @@ ExecBuildParamSetEqual(TupleDesc desc,
 
 	scratch.resvalue = NULL;
 	scratch.resnull = NULL;
-	scratch.opcode = EEOP_DONE;
+	scratch.opcode = EEOP_DONE_RETURN;
 	ExprEvalPushStep(state, &scratch);
 
 	ExecReadyExpr(state);
