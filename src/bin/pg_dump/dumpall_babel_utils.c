@@ -397,8 +397,10 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 
 	appendPQExpBufferStr(buf, "SELECT ur.rolname AS role, "
 						 "um.rolname AS member, "
-						 "ug.oid AS grantorid, "
 						 "ug.rolname AS grantor, "
+						 "a.roleid AS roleid, "
+						 "a.member AS memberid, "
+						 "a.grantor AS grantorid, "
 						 "a.admin_option");
 
 	if (dump_grant_options)
@@ -407,8 +409,8 @@ getBabelfishRoleMembershipQuery(PGconn *conn, PQExpBuffer buf,
 	appendPQExpBuffer(buf, " FROM pg_auth_members a "
 						 "INNER JOIN bbf_roles ur on ur.oid = a.roleid "
 						 "INNER JOIN bbf_roles um on um.oid = a.member "
-						 "LEFT JOIN bbf_roles ug on ug.oid = a.grantor "
+						 "LEFT JOIN %s ug on ug.oid = a.grantor "
 						 "WHERE NOT (ur.rolname ~ '^pg_' AND um.rolname ~ '^pg_') "
 						 "AND NOT (ur.rolname IN %s AND um.rolname IN %s) "
-						 "ORDER BY 1,2,4", default_bbf_roles, default_bbf_roles);
+						 "ORDER BY 1,2,3", role_catalog, default_bbf_roles, default_bbf_roles);
 }
