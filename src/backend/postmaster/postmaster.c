@@ -455,7 +455,6 @@ static void LogChildExit(int lev, const char *procname,
 static void PostmasterStateMachine(void);
 static void UpdatePMState(PMState newState);
 
-void ExitPostmaster(int status) pg_attribute_noreturn();
 static int	ServerLoop(void);
 static int	BackendStartup(ClientSocket *client_sock, ProtocolExtensionConfig *protocol_config);
 static void report_fork_failure_to_client(ClientSocket *client_sock, int errnum);

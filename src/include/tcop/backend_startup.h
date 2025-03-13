@@ -118,7 +118,7 @@ typedef struct ConnectionTiming
 	TimestampTz auth_end;
 } ConnectionTiming;
 
-extern void BackendMain(const void *startup_data, size_t startup_data_len) pg_attribute_noreturn();
+pg_noreturn extern void BackendMain(const void *startup_data, size_t startup_data_len);
 extern int	ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done);
 extern int	ProcessSSLStartup(Port *port);
 

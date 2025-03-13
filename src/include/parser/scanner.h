@@ -145,7 +145,7 @@ extern void setup_scanner_errposition_callback(ScannerCallbackState *scbstate,
 											   core_yyscan_t yyscanner,
 											   int location);
 extern void cancel_scanner_errposition_callback(ScannerCallbackState *scbstate);
-extern void scanner_yyerror(const char *message, core_yyscan_t yyscanner) pg_attribute_noreturn();
+pg_noreturn extern void scanner_yyerror(const char *message, core_yyscan_t yyscanner);
 
 typedef int (*core_yylex_hook_type) (core_YYSTYPE * yylval_param,YYLTYPE * yylloc_param ,core_yyscan_t yyscanner);
 extern PGDLLEXPORT core_yylex_hook_type core_yylex_hook;
