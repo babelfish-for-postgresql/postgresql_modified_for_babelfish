@@ -90,6 +90,9 @@ pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook =
 /* Hook to transform TSQL pivot clause in select stmt */
 transform_pivot_clause_hook_type transform_pivot_clause_hook = NULL;
 
+/* Hook to transform TSQL unpivot clauses in select stmt */
+transform_unpivot_clause_hook_type transform_unpivot_clause_hook = NULL;
+
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
 static Query *transformInsertStmt(ParseState *pstate, InsertStmt *stmt);
@@ -1437,6 +1440,12 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 	ListCell   *l;
 
 	qry->commandType = CMD_SELECT;
+
+	/* Unpack and process TSQL UNPIVOT nodes in stmt->fromClause, if present */
+	if(transform_unpivot_clause_hook)
+	{
+		(*transform_unpivot_clause_hook)(pstate, stmt);
+	}
 
 	/* process the WITH clause independently of all else */
 	if (stmt->withClause && ( sql_dialect == SQL_DIALECT_PG || transform_pivot_clause_hook == NULL || !stmt->isPivot))
