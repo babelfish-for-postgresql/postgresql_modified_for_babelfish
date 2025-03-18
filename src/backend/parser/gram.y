@@ -11085,6 +11085,7 @@ ViewStmt: CREATE OptTemp VIEW qualified_name opt_column_list opt_reloptions
 					n->replace = false;
 					n->options = $6;
 					n->withCheckOption = $9;
+					n->createOrAlter = false;
 					$$ = (Node *) n;
 				}
 		| CREATE OR REPLACE OptTemp VIEW qualified_name opt_column_list opt_reloptions
@@ -11099,6 +11100,7 @@ ViewStmt: CREATE OptTemp VIEW qualified_name opt_column_list opt_reloptions
 					n->replace = true;
 					n->options = $8;
 					n->withCheckOption = $11;
+					n->createOrAlter = false;
 					$$ = (Node *) n;
 				}
 		| CREATE OptTemp RECURSIVE VIEW qualified_name '(' columnList ')' opt_reloptions
@@ -11118,6 +11120,7 @@ ViewStmt: CREATE OptTemp VIEW qualified_name opt_column_list opt_reloptions
 								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 								 errmsg("WITH CHECK OPTION not supported on recursive views"),
 								 parser_errposition(@12)));
+					n->createOrAlter = false;
 					$$ = (Node *) n;
 				}
 		| CREATE OR REPLACE OptTemp RECURSIVE VIEW qualified_name '(' columnList ')' opt_reloptions
@@ -11137,6 +11140,7 @@ ViewStmt: CREATE OptTemp VIEW qualified_name opt_column_list opt_reloptions
 								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 								 errmsg("WITH CHECK OPTION not supported on recursive views"),
 								 parser_errposition(@14)));
+					n->createOrAlter = false;
 					$$ = (Node *) n;
 				}
 		;
