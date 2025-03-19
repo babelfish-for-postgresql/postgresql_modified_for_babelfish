@@ -3782,6 +3782,9 @@ typedef struct ViewStmt
 	bool		replace;		/* replace an existing view? */
 	List	   *options;		/* options from WITH clause */
 	ViewCheckOption withCheckOption;	/* WITH CHECK OPTION */
+	bool        createOrAlter;  /* is query 'create view' or 'create or alter view' or 'alter view' */
+                                /* flag is set in gram-tsql-rule.y and gram.y */
+
 } ViewStmt;
 
 /* ----------------------
