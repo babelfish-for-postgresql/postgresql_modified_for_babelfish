@@ -35,6 +35,7 @@ static bool planstate_walk_members(PlanState **planstates, int nplans,
 								   void *context);
 
 coalesce_typmod_hook_type coalesce_typmod_hook = NULL;
+exprTypmod_hook_type exprTypmod_hook = NULL;
 
 /*
  *	exprType -
@@ -539,6 +540,10 @@ exprTypmod(const Node *expr)
 		default:
 			break;
 	}
+
+	if (exprTypmod_hook)
+		return exprTypmod_hook(NULL, (Node *) expr);
+
 	return -1;
 }
 

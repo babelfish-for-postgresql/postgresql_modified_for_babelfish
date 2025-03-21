@@ -2631,6 +2631,7 @@ eval_const_expressions_mutator(Node *node,
 				List	   *args = expr->args;
 				Expr	   *simple;
 				OpExpr	   *newexpr;
+				int32       result_typmod = -1;
 
 				/*
 				 * Need to get OID of underlying function.  Okay to scribble
@@ -2638,12 +2639,15 @@ eval_const_expressions_mutator(Node *node,
 				 */
 				set_opfuncid(expr);
 
+				if (exprTypmod_hook)
+					result_typmod = exprTypmod_hook(NULL, node);
+
 				/*
 				 * Code for op/func reduction is pretty bulky, so split it out
 				 * as a separate function.
 				 */
 				simple = simplify_function(expr->opfuncid,
-										   expr->opresulttype, -1,
+										   expr->opresulttype, result_typmod,
 										   expr->opcollid,
 										   expr->inputcollid,
 										   &args,
@@ -2694,6 +2698,7 @@ eval_const_expressions_mutator(Node *node,
 				bool		has_nonconst_input = false;
 				Expr	   *simple;
 				DistinctExpr *newexpr;
+				int32       result_typmod = -1;
 
 				/*
 				 * Reduce constants in the DistinctExpr's arguments.  We know
@@ -2742,12 +2747,15 @@ eval_const_expressions_mutator(Node *node,
 					set_opfuncid((OpExpr *) expr);	/* rely on struct
 													 * equivalence */
 
+					if (exprTypmod_hook)
+						result_typmod = exprTypmod_hook(NULL, node);
+
 					/*
 					 * Code for op/func reduction is pretty bulky, so split it
 					 * out as a separate function.
 					 */
 					simple = simplify_function(expr->opfuncid,
-											   expr->opresulttype, -1,
+											   expr->opresulttype, result_typmod,
 											   expr->opcollid,
 											   expr->inputcollid,
 											   &args,
@@ -2967,6 +2975,7 @@ eval_const_expressions_mutator(Node *node,
 				Oid			intypioparam;
 				Expr	   *simple;
 				CoerceViaIO *newexpr;
+				int32       result_typmod = -1;
 
 				/* Make a List so we can use simplify_function */
 				args = list_make1(expr->arg);
@@ -3017,8 +3026,11 @@ eval_const_expressions_mutator(Node *node,
 												false,
 												true));
 
+					if (exprTypmod_hook)
+						result_typmod = exprTypmod_hook(NULL, node);
+
 					simple = simplify_function(infunc,
-											   expr->resulttype, -1,
+											   expr->resulttype, result_typmod,
 											   expr->resultcollid,
 											   InvalidOid,
 											   &args,
@@ -5115,6 +5127,9 @@ evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 
 	/* Release all the junk we just created */
 	FreeExecutorState(estate);
+
+	if (adjust_numeric_result_hook)
+		const_val = adjust_numeric_result_hook(NULL, (Node *) expr, const_val, const_is_null, result_type, result_typmod);
 
 	/*
 	 * Make the constant result node.

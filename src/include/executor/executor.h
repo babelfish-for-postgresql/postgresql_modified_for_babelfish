@@ -102,6 +102,12 @@ extern PGDLLEXPORT TriggerRecuresiveCheck_hook_type TriggerRecuresiveCheck_hook;
 typedef bool (*bbfViewHasInsteadofTrigger_hook_type) (Relation view, CmdType event);
 extern PGDLLIMPORT bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook;
 
+typedef Datum (*adjust_numeric_result_hook_type) (Plan *plan, Node *expr, Datum result, bool result_isnull, Oid result_type, int32 result_typmod);
+extern PGDLLIMPORT adjust_numeric_result_hook_type adjust_numeric_result_hook;
+
+typedef void (*ExecUpdateResultTypeTL_hook_type) (PlanState *planstate, TupleDesc desc);
+extern PGDLLIMPORT ExecUpdateResultTypeTL_hook_type ExecUpdateResultTypeTL_hook;
+
 typedef bool (*check_rowcount_hook_type) (int es_processed);
 extern PGDLLEXPORT check_rowcount_hook_type check_rowcount_hook;
 
