@@ -14,6 +14,7 @@
 #define NODEFUNCS_H
 
 #include "nodes/parsenodes.h"
+#include "nodes/plannodes.h"
 
 struct PlanState;				/* avoid including execnodes.h too */
 
@@ -221,5 +222,8 @@ extern bool planstate_tree_walker_impl(struct PlanState *planstate,
 
 typedef int32 (*coalesce_typmod_hook_type) (const CoalesceExpr *cexpr);
 extern PGDLLEXPORT coalesce_typmod_hook_type coalesce_typmod_hook;
+
+typedef int32 (*exprTypmod_hook_type)(Plan *plan, Node *expr);
+extern PGDLLIMPORT exprTypmod_hook_type exprTypmod_hook;
 
 #endif							/* NODEFUNCS_H */
