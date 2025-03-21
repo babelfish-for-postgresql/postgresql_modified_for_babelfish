@@ -85,6 +85,8 @@ const TupleTableSlotOps TTSOpsHeapTuple;
 const TupleTableSlotOps TTSOpsMinimalTuple;
 const TupleTableSlotOps TTSOpsBufferHeapTuple;
 
+/* Hook to update typmod of all the entries of a previously initialized tuple descriptor */
+ExecUpdateResultTypeTL_hook_type ExecUpdateResultTypeTL_hook = NULL;
 
 /*
  * TupleTableSlotOps implementations.
@@ -1755,6 +1757,9 @@ void
 ExecInitResultTypeTL(PlanState *planstate)
 {
 	TupleDesc	tupDesc = ExecTypeFromTL(planstate->plan->targetlist);
+
+	if (ExecUpdateResultTypeTL_hook)
+		ExecUpdateResultTypeTL_hook(planstate, tupDesc);
 
 	planstate->ps_ResultTupleDesc = tupDesc;
 }

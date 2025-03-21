@@ -1108,6 +1108,16 @@ finalize_aggregate(AggState *aggstate,
 		{
 			*resultVal = FunctionCallInvoke(fcinfo);
 			*resultIsNull = fcinfo->isnull;
+			if (adjust_numeric_result_hook)
+			{
+				if (peragg->aggref != NULL)
+					*resultVal = adjust_numeric_result_hook(aggstate->ss.ps.plan, 
+														(Node *) peragg->aggref, 
+														*resultVal, 
+														*resultIsNull, 
+														peragg->aggref->aggtype, 
+														-1);
+			}
 		}
 		aggstate->curperagg = NULL;
 	}
