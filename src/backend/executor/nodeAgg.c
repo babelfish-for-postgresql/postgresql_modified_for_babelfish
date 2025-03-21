@@ -1119,6 +1119,16 @@ finalize_aggregate(AggState *aggstate,
 
 			result = FunctionCallInvoke(fcinfo);
 			*resultIsNull = fcinfo->isnull;
+			if (adjust_numeric_result_hook)
+			{
+				if (peragg->aggref != NULL)
+					result = adjust_numeric_result_hook(aggstate->ss.ps.plan, 
+														(Node *) peragg->aggref, 
+														result, 
+														*resultIsNull, 
+														peragg->aggref->aggtype, 
+														-1);
+			}
 			*resultVal = MakeExpandedObjectReadOnly(result,
 													fcinfo->isnull,
 													peragg->resulttypeLen);
