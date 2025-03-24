@@ -4903,10 +4903,15 @@ MakeTransitionCaptureState(TriggerDesc *trigdesc, Oid relid, CmdType cmdType)
 	 * delete statment as well, so we'll init both old and new transition tables
 	 * for Tsql dialect
 	 * */
-	if (sql_dialect == SQL_DIALECT_TSQL && 
-		(need_old_upd || need_new_upd || need_old_del || need_new_ins))
+	if (sql_dialect == SQL_DIALECT_TSQL && (need_old_del || need_new_ins))
 	{
-		need_old_upd = need_new_upd = need_old_del = need_new_ins = true;
+		need_new_ins = true;
+		need_old_del = true;
+		/*
+		 * FIXME: setting need_new_upd to true seems to be working currently
+		 * but we need to investigate these flags and fix the implementation.
+		 */
+		need_new_upd = true;
 	}
 
 	if (!need_old_upd && !need_new_upd && !need_new_ins && !need_old_del)
