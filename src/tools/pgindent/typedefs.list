@@ -4279,3 +4279,4 @@ z_streamp
 zic_t
 ExplainExtensionOption
 ExplainOptionHandler
+overexplain_options
