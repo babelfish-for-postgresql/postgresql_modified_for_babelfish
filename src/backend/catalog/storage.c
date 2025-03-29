@@ -28,6 +28,7 @@
 #include "catalog/storage_xlog.h"
 #include "miscadmin.h"
 #include "parser/parser.h"      /* sql_dialect */
+#include "pgstat.h"
 #include "storage/bulk_write.h"
 #include "storage/freespace.h"
 #include "storage/proc.h"
@@ -535,6 +536,8 @@ RelationCopyStorage(SMgrRelation src, SMgrRelation dst,
 	for (blkno = 0; blkno < nblocks; blkno++)
 	{
 		BulkWriteBuffer buf;
+		bool		checksum_failure;
+		bool		verified;
 
 		/* If we got a cancel signal during the copy of the data, quit */
 		CHECK_FOR_INTERRUPTS();
@@ -542,8 +545,17 @@ RelationCopyStorage(SMgrRelation src, SMgrRelation dst,
 		buf = smgr_bulk_get_buf(bulkstate);
 		smgrread(src, forkNum, blkno, (Page) buf);
 
-		if (!PageIsVerifiedExtended((Page) buf, blkno,
-									PIV_LOG_WARNING | PIV_REPORT_STAT))
+		verified = PageIsVerified((Page) buf, blkno, PIV_LOG_WARNING,
+								  &checksum_failure);
+
+		if (checksum_failure)
+		{
+			RelFileLocatorBackend rloc = src->smgr_rlocator;
+
+			pgstat_report_checksum_failures_in_db(rloc.locator.dbOid, 1);
+		}
+
+		if (!verified)
 		{
 			/*
 			 * For paranoia's sake, capture the file path before invoking the
