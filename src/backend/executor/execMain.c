@@ -848,6 +848,9 @@ InitPlan(QueryDesc *queryDesc, int eflags)
 	ListCell   *l;
 	int			i;
 
+	/*
+	 * Do permissions checks
+	 */
 	ExecCheckPermissions(rangeTable, plannedstmt->permInfos, true);
 
 	/*
