@@ -578,6 +578,7 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
 {
 	ListCell   *l;
 	bool		result = true;
+	Bitmapset	*temprelids = NULL;
 
 #ifdef USE_ASSERT_CHECKING
 	Bitmapset  *indexset = NULL;
@@ -586,6 +587,10 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
 	foreach(l, rangeTable)
 	{
 		RangeTblEntry *rte = lfirst_node(RangeTblEntry, l);
+
+		/* TODO: Add explaination */
+		if (IsBabelfishParallelWorker() && rte->relpersistence == RELPERSISTENCE_TEMP)
+			temprelids = bms_add_member(temprelids, rte->relid);
 
 		if (rte->perminfoindex != 0)
 		{
@@ -615,6 +620,10 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
 		RTEPermissionInfo *perminfo = lfirst_node(RTEPermissionInfo, l);
 
 		Assert(OidIsValid(perminfo->relid));
+
+		if (IsBabelfishParallelWorker() && bms_is_member(perminfo->relid, temprelids))
+			continue;
+
 		result = ExecCheckOneRelPerms(perminfo);
 		if (!result)
 		{
@@ -839,11 +848,7 @@ InitPlan(QueryDesc *queryDesc, int eflags)
 	ListCell   *l;
 	int			i;
 
-	/*
-	 * Do permissions checks if not Babelfish parallel worker
-	 */
-	if (!IsBabelfishParallelWorker())
-		ExecCheckPermissions(rangeTable, plannedstmt->permInfos, true);
+	ExecCheckPermissions(rangeTable, plannedstmt->permInfos, true);
 
 	/*
 	 * initialize the node's execution state

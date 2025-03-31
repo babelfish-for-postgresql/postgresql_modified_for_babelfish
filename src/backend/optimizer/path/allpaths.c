@@ -41,6 +41,7 @@
 #include "optimizer/plancat.h"
 #include "optimizer/planner.h"
 #include "optimizer/tlist.h"
+#include "parser/parser.h"
 #include "parser/parse_clause.h"
 #include "parser/parsetree.h"
 #include "partitioning/partbounds.h"
@@ -617,7 +618,21 @@ set_rel_consider_parallel(PlannerInfo *root, RelOptInfo *rel,
 			 * for now, bail out if we see a temporary table.
 			 */
 			if (get_rel_persistence(rte->relid) == RELPERSISTENCE_TEMP)
+			{
+				/* 
+				 * Babelfish Temp tables are created under ENRs which is not
+				 * shared with other backend (with parallel workwer for example).
+				 * Here, we are marking rte->relpersistence = RELPERSISTENCE_TEMP
+				 * for Babelfish temp table so that we can avoid rechecking the
+				 * permission check of Babelfish temp table on Parallel worker.
+				 * This is safe because scanning of temp table won't be done
+				 * under parallel worker. And we have to wait til all the
+				 * optimisation and rewriting is done.
+				 */
+				if (sql_dialect == SQL_DIALECT_TSQL)
+					rte->relpersistence = RELPERSISTENCE_TEMP;
 				return;
+			}
 
 			/*
 			 * Table sampling can be pushed down to workers if the sample

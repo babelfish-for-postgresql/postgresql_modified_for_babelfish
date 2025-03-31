@@ -358,6 +358,7 @@ _readRangeTblEntry(void)
 			READ_OID_FIELD(relid);
 			READ_BOOL_FIELD(inh);
 			READ_CHAR_FIELD(relkind);
+			READ_CHAR_FIELD(relpersistence);
 			READ_INT_FIELD(rellockmode);
 			READ_UINT_FIELD(perminfoindex);
 			READ_NODE_FIELD(tablesample);

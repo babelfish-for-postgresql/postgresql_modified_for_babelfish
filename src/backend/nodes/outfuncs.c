@@ -507,6 +507,7 @@ _outRangeTblEntry(StringInfo str, const RangeTblEntry *node)
 			WRITE_OID_FIELD(relid);
 			WRITE_BOOL_FIELD(inh);
 			WRITE_CHAR_FIELD(relkind);
+			WRITE_CHAR_FIELD(relpersistence);
 			WRITE_INT_FIELD(rellockmode);
 			WRITE_UINT_FIELD(perminfoindex);
 			WRITE_NODE_FIELD(tablesample);

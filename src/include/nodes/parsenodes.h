@@ -1100,6 +1100,8 @@ typedef struct RangeTblEntry
 	bool		inh;
 	/* relation kind (see pg_class.relkind) */
 	char		relkind pg_node_attr(query_jumble_ignore);
+	/* relation kind (see pg_class.relpersistence) */
+	char		relpersistence pg_node_attr(query_jumble_ignore);
 	/* lock level that query requires on the rel */
 	int			rellockmode pg_node_attr(query_jumble_ignore);
 	/* index of RTEPermissionInfo entry, or 0 */

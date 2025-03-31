@@ -1539,6 +1539,7 @@ addRangeTableEntry(ParseState *pstate,
 	rte->relid = RelationGetRelid(rel);
 	rte->inh = inh;
 	rte->relkind = rel->rd_rel->relkind;
+	rte->relpersistence = rel->rd_rel->relpersistence;
 	rte->rellockmode = lockmode;
 
 	/*
