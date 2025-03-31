@@ -1297,6 +1297,7 @@ typedef struct RTEPermissionInfo
 	Bitmapset  *selectedCols;	/* columns needing SELECT permission */
 	Bitmapset  *insertedCols;	/* columns needing INSERT permission */
 	Bitmapset  *updatedCols;	/* columns needing UPDATE permission */
+	bool		permChecked;	/* Permission check is done for given relid? */
 } RTEPermissionInfo;
 
 /*

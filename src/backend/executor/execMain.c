@@ -614,6 +614,9 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
 	{
 		RTEPermissionInfo *perminfo = lfirst_node(RTEPermissionInfo, l);
 
+		if (IsBabelfishParallelWorker() && perminfo->permChecked)
+			continue;
+
 		Assert(OidIsValid(perminfo->relid));
 		result = ExecCheckOneRelPerms(perminfo);
 		if (!result)
@@ -624,6 +627,7 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
 							   get_rel_name(perminfo->relid));
 			return false;
 		}
+		perminfo->permChecked = (sql_dialect == SQL_DIALECT_TSQL);
 	}
 
 	if (ExecutorCheckPerms_hook)
@@ -840,10 +844,9 @@ InitPlan(QueryDesc *queryDesc, int eflags)
 	int			i;
 
 	/*
-	 * Do permissions checks if not Babelfish parallel worker
+	 * Do permissions checks
 	 */
-	if (!IsBabelfishParallelWorker())
-		ExecCheckPermissions(rangeTable, plannedstmt->permInfos, true);
+	ExecCheckPermissions(rangeTable, plannedstmt->permInfos, true);
 
 	/*
 	 * initialize the node's execution state
