@@ -62,6 +62,8 @@
 #include "utils/snapmgr.h"
 
 
+Bitmapset *tempRelids = NULL;
+
 /* Hooks for plugins to get control in ExecutorStart/Run/Finish/End */
 ExecutorStart_hook_type ExecutorStart_hook = NULL;
 ExecutorRun_hook_type ExecutorRun_hook = NULL;
@@ -615,6 +617,10 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
 		RTEPermissionInfo *perminfo = lfirst_node(RTEPermissionInfo, l);
 
 		Assert(OidIsValid(perminfo->relid));
+
+		if (IsBabelfishParallelWorker() && bms_is_member(perminfo->relid, tempRelids))
+			continue;
+
 		result = ExecCheckOneRelPerms(perminfo);
 		if (!result)
 		{
@@ -840,10 +846,9 @@ InitPlan(QueryDesc *queryDesc, int eflags)
 	int			i;
 
 	/*
-	 * Do permissions checks if not Babelfish parallel worker
+	 * Do permissions checks
 	 */
-	if (!IsBabelfishParallelWorker())
-		ExecCheckPermissions(rangeTable, plannedstmt->permInfos, true);
+	ExecCheckPermissions(rangeTable, plannedstmt->permInfos, true);
 
 	/*
 	 * initialize the node's execution state

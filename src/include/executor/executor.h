@@ -691,4 +691,6 @@ extern ResultRelInfo *ExecLookupResultRelByOid(ModifyTableState *node,
 											   bool missing_ok,
 											   bool update_cache);
 
+extern Bitmapset *tempRelids;
+
 #endif							/* EXECUTOR_H  */

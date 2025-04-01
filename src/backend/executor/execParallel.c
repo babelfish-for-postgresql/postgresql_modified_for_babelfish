@@ -65,6 +65,8 @@
 #define PARALLEL_KEY_JIT_INSTRUMENTATION UINT64CONST(0xE000000000000009)
 #define PARALLEL_KEY_WAL_USAGE			UINT64CONST(0xE00000000000000A)
 
+#define PARALLEL_KEY_TEMP_RELIDS		UINT64CONST(0xE00000000000000B)
+
 #define PARALLEL_TUPLE_QUEUE_SIZE		65536
 
 /*
@@ -608,6 +610,23 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 	Size		dsa_minsize = dsa_minimum_size();
 	char	   *query_string;
 	int			query_len;
+	ListCell	*lc;
+	char	   *temp_relids_str = NULL;
+	char	   *temp_relids_space;
+	Bitmapset	*temp_relids = NULL;
+
+	/* Put this under BBF extension and have dialect check */
+	foreach(lc, estate->es_range_table)
+	{
+		RangeTblEntry *rte = (RangeTblEntry *) lfirst(lc);
+		if (rte->rtekind == RTE_RELATION &&
+			OidIsValid(rte->relid) && 
+			 get_rel_persistence(rte->relid) == 't')
+		{
+			temp_relids = bms_add_member(temp_relids, rte->relid);
+		}
+	}
+	temp_relids_str = bmsToString(temp_relids);
 
 	/*
 	 * Force any initplan outputs that we're going to pass to workers to be
@@ -676,6 +695,12 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 	 */
 	shm_toc_estimate_chunk(&pcxt->estimator,
 						   mul_size(sizeof(WalUsage), pcxt->nworkers));
+	shm_toc_estimate_keys(&pcxt->estimator, 1);
+
+	/*
+	 * Babelfish extra context
+	 */
+	shm_toc_estimate_chunk(&pcxt->estimator, strlen(temp_relids_str) + 1);
 	shm_toc_estimate_keys(&pcxt->estimator, 1);
 
 	/* Estimate space for tuple queues. */
@@ -772,6 +797,11 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 									  mul_size(sizeof(WalUsage), pcxt->nworkers));
 	shm_toc_insert(pcxt->toc, PARALLEL_KEY_WAL_USAGE, walusage_space);
 	pei->wal_usage = walusage_space;
+
+	/* TODO: Move all this to extension. */
+	temp_relids_space = shm_toc_allocate(pcxt->toc, strlen(temp_relids_str) + 1);
+	memcpy(temp_relids_space, temp_relids_str, strlen(temp_relids_str) + 1);
+	shm_toc_insert(pcxt->toc, PARALLEL_KEY_TEMP_RELIDS, temp_relids_space);
 
 	/* Set up the tuple queues that the workers will write into. */
 	pei->tqueue = ExecParallelSetupTupleQueues(pcxt, false);
@@ -1410,6 +1440,7 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 	void	   *area_space;
 	dsa_area   *area;
 	ParallelWorkerContext pwcxt;
+	char	   *temp_relids_str;
 
 	/* Get fixed-size state. */
 	fpes = shm_toc_lookup(toc, PARALLEL_KEY_EXECUTOR_FIXED, false);
@@ -1431,6 +1462,8 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 
 	/* Attach to the dynamic shared memory area. */
 	area_space = shm_toc_lookup(toc, PARALLEL_KEY_DSA, false);
+	temp_relids_str = shm_toc_lookup(toc, PARALLEL_KEY_TEMP_RELIDS, false);
+	tempRelids = (Bitmapset *) stringToNode(temp_relids_str);
 	area = dsa_attach_in_place(area_space, seg);
 
 	/* Start up the executor */
