@@ -7028,6 +7028,8 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 				if (!missingIsNull)
 				{
 					StoreAttrMissingVal(rel, attribute.attnum, missingval);
+					/* Make the additional catalog change visible */
+					CommandCounterIncrement();
 					has_missing = true;
 				}
 				FreeExecutorState(estate);
