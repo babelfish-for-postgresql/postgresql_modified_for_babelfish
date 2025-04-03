@@ -62,8 +62,6 @@
 #include "utils/snapmgr.h"
 
 
-Bitmapset *tempRelids = NULL;
-
 /* Hooks for plugins to get control in ExecutorStart/Run/Finish/End */
 ExecutorStart_hook_type ExecutorStart_hook = NULL;
 ExecutorRun_hook_type ExecutorRun_hook = NULL;

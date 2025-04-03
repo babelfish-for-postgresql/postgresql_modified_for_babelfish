@@ -686,6 +686,12 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 						   mul_size(PARALLEL_TUPLE_QUEUE_SIZE, pcxt->nworkers));
 	shm_toc_estimate_keys(&pcxt->estimator, 1);
 
+	/* Give extension a chance to share additional details */
+	if (ExecInitParallelPlan_hook)
+	{
+		(*ExecInitParallelPlan_hook)(estate, pcxt, true);
+	}
+
 	/*
 	 * Give parallel-aware nodes a chance to add to the estimates, and get a
 	 * count of how many PlanState nodes there are.
@@ -1442,7 +1448,7 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 	area_space = shm_toc_lookup(toc, PARALLEL_KEY_DSA, false);
 	area = dsa_attach_in_place(area_space, seg);
 
-	if (ParallelQueryMain_hook)
+	if (IsBabelfishParallelWorker() && ParallelQueryMain_hook)
 	{
 		(*ParallelQueryMain_hook)(toc);
 	}
