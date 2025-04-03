@@ -111,6 +111,9 @@ extern PGDLLIMPORT ExecUpdateResultTypeTL_hook_type ExecUpdateResultTypeTL_hook;
 typedef bool (*check_rowcount_hook_type) (int es_processed);
 extern PGDLLEXPORT check_rowcount_hook_type check_rowcount_hook;
 
+typedef bool (*skip_ExecutorCheckPerms_hook_type) (Oid relid);
+extern PGDLLEXPORT skip_ExecutorCheckPerms_hook_type skip_ExecutorCheckPerms_hook;
+
 /*
  * prototypes from functions in execAmi.c
  */
@@ -690,7 +693,5 @@ extern ResultRelInfo *ExecLookupResultRelByOid(ModifyTableState *node,
 											   Oid resultoid,
 											   bool missing_ok,
 											   bool update_cache);
-
-extern Bitmapset *tempRelids;
 
 #endif							/* EXECUTOR_H  */

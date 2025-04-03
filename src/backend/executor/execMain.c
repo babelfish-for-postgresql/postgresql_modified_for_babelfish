@@ -72,6 +72,8 @@ ExecutorEnd_hook_type ExecutorEnd_hook = NULL;
 
 TriggerRecuresiveCheck_hook_type TriggerRecuresiveCheck_hook = NULL;
 check_rowcount_hook_type check_rowcount_hook = NULL;
+skip_ExecutorCheckPerms_hook_type skip_ExecutorCheckPerms_hook = NULL;
+
 /* Hook for plugin to get control in ExecCheckPermissions() */
 ExecutorCheckPerms_hook_type ExecutorCheckPerms_hook = NULL;
 
@@ -618,7 +620,13 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
 
 		Assert(OidIsValid(perminfo->relid));
 
-		if (IsBabelfishParallelWorker() && bms_is_member(perminfo->relid, tempRelids))
+		/* 
+		 * Babelfish specific logic - skip permission check for temp table
+		 * under parallel worker
+		 */
+		if (IsBabelfishParallelWorker() &&
+			skip_ExecutorCheckPerms_hook &&
+			(*skip_ExecutorCheckPerms_hook)(perminfo->relid))
 			continue;
 
 		result = ExecCheckOneRelPerms(perminfo);

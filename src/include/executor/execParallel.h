@@ -48,4 +48,10 @@ extern void ExecParallelReinitialize(PlanState *planstate,
 
 extern void ParallelQueryMain(dsm_segment *seg, shm_toc *toc);
 
+typedef void (*ParallelQueryMain_hook_type)(shm_toc *toc);
+extern PGDLLIMPORT ParallelQueryMain_hook_type ParallelQueryMain_hook;
+
+typedef void (*ExecInitParallelPlan_hook_type)(EState *estate, ParallelContext *pcxt, bool estimate);
+extern PGDLLIMPORT ExecInitParallelPlan_hook_type ExecInitParallelPlan_hook;
+
 #endif							/* EXECPARALLEL_H */
