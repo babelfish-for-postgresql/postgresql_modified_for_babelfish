@@ -2755,6 +2755,8 @@ SimpleStringListCell
 SingleBoundSortItem
 Size
 SkipPages
+SkipSupport
+SkipSupportData
 SlabBlock
 SlabContext
 SlabSlot
