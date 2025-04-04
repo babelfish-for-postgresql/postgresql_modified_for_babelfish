@@ -70,7 +70,7 @@ ExecutorEnd_hook_type ExecutorEnd_hook = NULL;
 
 TriggerRecuresiveCheck_hook_type TriggerRecuresiveCheck_hook = NULL;
 check_rowcount_hook_type check_rowcount_hook = NULL;
-skip_ExecutorCheckPerms_hook_type skip_ExecutorCheckPerms_hook = NULL;
+ExecCheckOneRelPerms_hook_type ExecCheckOneRelPerms_hook = NULL;
 
 /* Hook for plugin to get control in ExecCheckPermissions() */
 ExecutorCheckPerms_hook_type ExecutorCheckPerms_hook = NULL;
@@ -86,6 +86,7 @@ static void ExecutePlan(QueryDesc *queryDesc,
 						uint64 numberTuples,
 						ScanDirection direction,
 						DestReceiver *dest);
+static bool ExecCheckOneRelPerms(RTEPermissionInfo *perminfo);
 static bool ExecCheckPermissionsModified(Oid relOid, Oid userid,
 										 Bitmapset *modifiedCols,
 										 AclMode requiredPerms);
@@ -616,16 +617,6 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
 		RTEPermissionInfo *perminfo = lfirst_node(RTEPermissionInfo, l);
 
 		Assert(OidIsValid(perminfo->relid));
-
-		/* 
-		 * Babelfish specific logic - skip permission check for temp table
-		 * under parallel worker
-		 */
-		if (IsBabelfishParallelWorker() &&
-			skip_ExecutorCheckPerms_hook &&
-			(*skip_ExecutorCheckPerms_hook)(perminfo->relid))
-			continue;
-
 		result = ExecCheckOneRelPerms(perminfo);
 		if (!result)
 		{
@@ -647,7 +638,7 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
  * ExecCheckOneRelPerms
  *		Check access permissions for a single relation.
  */
-bool
+static bool
 ExecCheckOneRelPerms(RTEPermissionInfo *perminfo)
 {
 	AclMode		requiredPerms;
@@ -658,6 +649,17 @@ ExecCheckOneRelPerms(RTEPermissionInfo *perminfo)
 
 	requiredPerms = perminfo->requiredPerms;
 	Assert(requiredPerms != 0);
+
+	/* 
+	 * Some extension may want to avoid permission check for some special
+	 * cases. For example, Babelfish temp table is implemented using ENR
+	 * which is not shared with parallel worker and parallel operations
+	 * are not allowed for temp table in Postgres. So give extension a
+	 * chance to skip permission check for such use cases.
+	 */
+	if (ExecCheckOneRelPerms_hook &&
+		(*ExecCheckOneRelPerms_hook)(perminfo))
+		return true;
 
 	/*
 	 * userid to check as: current user unless we have a setuid indication.
@@ -3055,4 +3057,13 @@ EvalPlanQualEnd(EPQState *epqstate)
 	epqstate->relsubs_rowmark = NULL;
 	epqstate->relsubs_done = NULL;
 	epqstate->relsubs_blocked = NULL;
+}
+
+/*
+ * ExecCheckOneRelPerms_wrapper - wrapper around ExecCheckOneRelPerms
+ */
+bool
+ExecCheckOneRelPerms_wrapper(RTEPermissionInfo *perminfo)
+{
+	return ExecCheckOneRelPerms(perminfo);
 }
