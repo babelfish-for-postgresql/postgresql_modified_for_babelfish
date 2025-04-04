@@ -657,7 +657,8 @@ ExecCheckOneRelPerms(RTEPermissionInfo *perminfo)
 	 * are not allowed for temp table in Postgres. So give extension a
 	 * chance to skip permission check for such use cases.
 	 */
-	if (ExecCheckOneRelPerms_hook &&
+	if (IsBabelfishParallelWorker() &&
+		ExecCheckOneRelPerms_hook &&
 		(*ExecCheckOneRelPerms_hook)(perminfo))
 		return true;
 
