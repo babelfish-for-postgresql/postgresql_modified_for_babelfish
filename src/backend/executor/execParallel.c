@@ -686,7 +686,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 						   mul_size(PARALLEL_TUPLE_QUEUE_SIZE, pcxt->nworkers));
 	shm_toc_estimate_keys(&pcxt->estimator, 1);
 
-	/* Give extension a chance to share additional details */
+	/* Let extension estimate a dynamic shared memory needed to communicate additional context */
 	if (ExecInitParallelPlan_hook)
 	{
 		(*ExecInitParallelPlan_hook)(estate, pcxt, true);
@@ -782,7 +782,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 	shm_toc_insert(pcxt->toc, PARALLEL_KEY_WAL_USAGE, walusage_space);
 	pei->wal_usage = walusage_space;
 
-	/* Give extension a chance to share additional details */
+	/* Give extension a chance to share additional context */
 	if (ExecInitParallelPlan_hook)
 	{
 		(*ExecInitParallelPlan_hook)(estate, pcxt,false);
@@ -1448,7 +1448,8 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 	area_space = shm_toc_lookup(toc, PARALLEL_KEY_DSA, false);
 	area = dsa_attach_in_place(area_space, seg);
 
-	if (IsBabelfishParallelWorker() && ParallelQueryMain_hook)
+	/* Give extension chance to retrieve additional context shared by leader node */
+	if (ParallelQueryMain_hook)
 	{
 		(*ParallelQueryMain_hook)(toc);
 	}
