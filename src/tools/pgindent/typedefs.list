@@ -1795,11 +1795,11 @@ OnConflictAction
 OnConflictClause
 OnConflictExpr
 OnConflictSetState
-OpBtreeInterpretation
 OpClassCacheEnt
 OpExpr
 OpFamilyMember
 OpFamilyOpFuncGroup
+OpIndexInterpretation
 OpclassInfo
 Operator
 OperatorElement
