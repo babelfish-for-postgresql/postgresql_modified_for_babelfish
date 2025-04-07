@@ -184,6 +184,8 @@ typedef struct Port
 	char	   *remote_port;	/* text rep of remote port */
 
 	ProtocolExtensionConfig *protocol_config;	/* wire protocol functions */
+	/* local_host is filled only if needed (see log_status_format) */
+	char		local_host[64]; /* ip addr of local socket for client conn */
 
 	/*
 	 * Information that needs to be saved from the startup packet and passed
