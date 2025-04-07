@@ -1835,6 +1835,7 @@ makeRangeConstructors(const char *name, Oid namespace,
 								 PointerGetDatum(NULL), /* parameterNames */
 								 NIL,	/* parameterDefaults */
 								 PointerGetDatum(NULL), /* trftypes */
+								 NIL,	/* trfoids */
 								 PointerGetDatum(NULL), /* proconfig */
 								 InvalidOid,	/* prosupport */
 								 1.0,	/* procost */
@@ -1900,6 +1901,7 @@ makeMultirangeConstructors(const char *name, Oid namespace,
 							 PointerGetDatum(NULL), /* parameterNames */
 							 NIL,	/* parameterDefaults */
 							 PointerGetDatum(NULL), /* trftypes */
+							 NIL,	/* trfoids */
 							 PointerGetDatum(NULL), /* proconfig */
 							 InvalidOid,	/* prosupport */
 							 1.0,	/* procost */
@@ -1944,6 +1946,7 @@ makeMultirangeConstructors(const char *name, Oid namespace,
 							 PointerGetDatum(NULL), /* parameterNames */
 							 NIL,	/* parameterDefaults */
 							 PointerGetDatum(NULL), /* trftypes */
+							 NIL,	/* trfoids */
 							 PointerGetDatum(NULL), /* proconfig */
 							 InvalidOid,	/* prosupport */
 							 1.0,	/* procost */
@@ -1982,6 +1985,7 @@ makeMultirangeConstructors(const char *name, Oid namespace,
 							 PointerGetDatum(NULL), /* parameterNames */
 							 NIL,	/* parameterDefaults */
 							 PointerGetDatum(NULL), /* trftypes */
+							 NIL,	/* trfoids */
 							 PointerGetDatum(NULL), /* proconfig */
 							 InvalidOid,	/* prosupport */
 							 1.0,	/* procost */
