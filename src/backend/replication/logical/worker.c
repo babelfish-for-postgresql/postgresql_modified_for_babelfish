@@ -2462,7 +2462,7 @@ apply_handle_insert(StringInfo s)
 	{
 		ResultRelInfo *relinfo = edata->targetRelInfo;
 
-		ExecOpenIndices(relinfo, true);
+		ExecOpenIndices(relinfo, false);
 		apply_handle_insert_internal(edata, relinfo, remoteslot);
 		ExecCloseIndices(relinfo);
 	}
@@ -2694,7 +2694,7 @@ apply_handle_update_internal(ApplyExecutionData *edata,
 	MemoryContext oldctx;
 
 	EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1, NIL);
-	ExecOpenIndices(relinfo, true);
+	ExecOpenIndices(relinfo, false);
 
 	found = FindReplTupleInLocalRel(edata, localrel,
 									&relmapentry->remoterel,
