@@ -651,11 +651,11 @@ ExecCheckOneRelPerms(RTEPermissionInfo *perminfo)
 	Assert(requiredPerms != 0);
 
 	/* 
-	 * Some extension may want to avoid permission check for some special
-	 * cases. For example, Babelfish temp table is implemented using ENR
-	 * which is not shared with parallel worker and parallel operations
-	 * are not allowed for temp table in Postgres. So give extension a
-	 * chance to skip permission check for such use cases.
+	 * Babelfish specific logic - Babelfish temp table is implemented
+	 * using ENR which is not shared with parallel worker and parallel
+	 * operations are not allowed for temp table in Postgres. Babelfish
+	 * can skip permission check for such use cases under parallel worker
+	 * using this hook.
 	 */
 	if (IsBabelfishParallelWorker() &&
 		ExecCheckOneRelPerms_hook &&
