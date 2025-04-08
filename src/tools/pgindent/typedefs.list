@@ -805,6 +805,7 @@ FieldSelect
 FieldStore
 File
 FileBackupMethod
+FileCopyMethod
 FileFdwExecutionState
 FileFdwPlanState
 FileNameMap
