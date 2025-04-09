@@ -658,8 +658,8 @@ ExecCheckOneRelPerms(RTEPermissionInfo *perminfo)
 	 * using this hook.
 	 * Note - This hook must not be used outside of Babelfish parallel worker
 	 */
-	if (IsBabelfishParallelWorker() &&
-		ExecCheckOneRelPerms_hook &&
+	if (ExecCheckOneRelPerms_hook &&
+		IsBabelfishParallelWorker() &&
 		(*ExecCheckOneRelPerms_hook)(perminfo))
 		return true;
 

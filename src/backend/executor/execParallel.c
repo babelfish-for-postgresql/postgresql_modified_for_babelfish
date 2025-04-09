@@ -688,9 +688,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 
 	/* Let extension estimate a dynamic shared memory needed to communicate additional context */
 	if (ExecInitParallelPlan_hook)
-	{
 		(*ExecInitParallelPlan_hook)(estate, pcxt, true);
-	}
 
 	/*
 	 * Give parallel-aware nodes a chance to add to the estimates, and get a
