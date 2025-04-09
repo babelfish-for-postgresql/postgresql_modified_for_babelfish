@@ -656,6 +656,7 @@ ExecCheckOneRelPerms(RTEPermissionInfo *perminfo)
 	 * operations are not allowed for temp table in Postgres. Babelfish
 	 * can skip permission check for such use cases under parallel worker
 	 * using this hook.
+	 * Note - This hook must not be used outside of Babelfish parallel worker
 	 */
 	if (IsBabelfishParallelWorker() &&
 		ExecCheckOneRelPerms_hook &&
