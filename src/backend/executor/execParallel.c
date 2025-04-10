@@ -124,6 +124,9 @@ typedef struct ExecParallelInitializeDSMContext
 	int			nnodes;
 } ExecParallelInitializeDSMContext;
 
+ExecInitParallelPlan_hook_type ExecInitParallelPlan_hook = NULL;
+ParallelQueryMain_hook_type ParallelQueryMain_hook = NULL;
+
 /* Helper functions that run in the parallel leader. */
 static char *ExecSerializePlan(Plan *plan, EState *estate);
 static bool ExecParallelEstimate(PlanState *planstate,
@@ -685,6 +688,10 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 						   mul_size(PARALLEL_TUPLE_QUEUE_SIZE, pcxt->nworkers));
 	shm_toc_estimate_keys(&pcxt->estimator, 1);
 
+	/* Let extension estimate a dynamic shared memory needed to communicate additional context */
+	if (ExecInitParallelPlan_hook)
+		(*ExecInitParallelPlan_hook)(estate, pcxt, true);
+
 	/*
 	 * Give parallel-aware nodes a chance to add to the estimates, and get a
 	 * count of how many PlanState nodes there are.
@@ -767,6 +774,12 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 									  mul_size(sizeof(WalUsage), pcxt->nworkers));
 	shm_toc_insert(pcxt->toc, PARALLEL_KEY_WAL_USAGE, walusage_space);
 	pei->wal_usage = walusage_space;
+
+	/* Give extension a chance to share additional context */
+	if (ExecInitParallelPlan_hook)
+	{
+		(*ExecInitParallelPlan_hook)(estate, pcxt,false);
+	}
 
 	/* Set up the tuple queues that the workers will write into. */
 	pei->tqueue = ExecParallelSetupTupleQueues(pcxt, false);
@@ -1427,6 +1440,12 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 	/* Attach to the dynamic shared memory area. */
 	area_space = shm_toc_lookup(toc, PARALLEL_KEY_DSA, false);
 	area = dsa_attach_in_place(area_space, seg);
+
+	/* Give extension chance to retrieve additional context shared by leader node */
+	if (ParallelQueryMain_hook)
+	{
+		(*ParallelQueryMain_hook)(toc);
+	}
 
 	/* Start up the executor */
 	queryDesc->plannedstmt->jitFlags = fpes->jit_flags;
