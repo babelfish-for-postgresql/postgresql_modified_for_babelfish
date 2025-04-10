@@ -239,7 +239,7 @@ logicalrep_get_attrs_str(LogicalRepRelation *remoterel, Bitmapset *atts)
 	{
 		attcnt++;
 		if (attcnt > 1)
-			appendStringInfo(&attsbuf, _(", "));
+			appendStringInfoString(&attsbuf, _(", "));
 
 		appendStringInfo(&attsbuf, _("\"%s\""), remoterel->attnames[i]);
 	}
