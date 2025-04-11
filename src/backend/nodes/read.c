@@ -22,6 +22,7 @@
 #include <ctype.h>
 
 #include "common/string.h"
+#include "nodes/bitmapset.h"
 #include "nodes/pg_list.h"
 #include "nodes/readfuncs.h"
 #include "nodes/value.h"
@@ -477,4 +478,21 @@ nodeRead(const char *token, int tok_len)
 	}
 
 	return (void *) result;
+}
+
+/*
+ * Helper function for Babelfish to build Bitmapset from string.
+ */
+Bitmapset *
+stringToBms(const char *str)
+{
+	Bitmapset *ret;
+	const char *save_strtok;
+
+	save_strtok = pg_strtok_ptr;
+	pg_strtok_ptr = str;		/* point pg_strtok at the string to read */
+
+	ret = readBitmapset();
+	pg_strtok_ptr = save_strtok;
+	return ret;
 }
