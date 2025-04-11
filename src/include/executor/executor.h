@@ -99,6 +99,9 @@ extern PGDLLIMPORT ExecUpdateResultTypeTL_hook_type ExecUpdateResultTypeTL_hook;
 typedef bool (*check_rowcount_hook_type) (int es_processed);
 extern PGDLLIMPORT check_rowcount_hook_type check_rowcount_hook;
 
+typedef bool (*ExecCheckRTEPerms_hook_type) (RangeTblEntry *rte);
+extern PGDLLEXPORT ExecCheckRTEPerms_hook_type ExecCheckRTEPerms_hook;
+
 /*
  * prototypes from functions in execAmi.c
  */
@@ -212,6 +215,7 @@ extern void standard_ExecutorEnd(QueryDesc *queryDesc);
 extern void ExecutorRewind(QueryDesc *queryDesc);
 extern bool ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation);
 extern void CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation);
+extern bool ExecCheckRTEPerms_wrapper(RangeTblEntry *rte);
 extern void InitResultRelInfo(ResultRelInfo *resultRelInfo,
 							  Relation resultRelationDesc,
 							  Index resultRelationIndex,
