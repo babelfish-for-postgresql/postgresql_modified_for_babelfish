@@ -87,9 +87,6 @@ extern PGDLLIMPORT ExecutorCheckPerms_hook_type ExecutorCheckPerms_hook;
 typedef bool (*TriggerRecuresiveCheck_hook_type) (ResultRelInfo *resultRelInfo);
 extern PGDLLIMPORT TriggerRecuresiveCheck_hook_type TriggerRecuresiveCheck_hook;
 
-typedef bool (*ExecCheckRTEPerms_hook_type) (RangeTblEntry *rte);
-extern PGDLLEXPORT ExecCheckRTEPerms_hook_type ExecCheckRTEPerms_hook;
-
 /*
  * prototypes from functions in execAmi.c
  */
@@ -203,7 +200,6 @@ extern void standard_ExecutorEnd(QueryDesc *queryDesc);
 extern void ExecutorRewind(QueryDesc *queryDesc);
 extern bool ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation);
 extern void CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation);
-extern bool ExecCheckRTEPerms_wrapper(RangeTblEntry *rte);
 extern void InitResultRelInfo(ResultRelInfo *resultRelInfo,
 							  Relation resultRelationDesc,
 							  Index resultRelationIndex,
