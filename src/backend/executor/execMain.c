@@ -79,6 +79,9 @@ TriggerRecuresiveCheck_hook_type TriggerRecuresiveCheck_hook = NULL;
 /* Hook for plugin to get control in ExecCheckRTPerms() */
 ExecutorCheckPerms_hook_type ExecutorCheckPerms_hook = NULL;
 
+/* Hook for plugin to get control in ExecCheckRTEPerms() */
+ExecCheckRTEPerms_hook_type ExecCheckRTEPerms_hook = NULL;
+
 /* decls for local routines only used within this module */
 static void InitPlan(QueryDesc *queryDesc, int eflags);
 static void CheckValidRowMarkRel(Relation rel, RowMarkType markType);
@@ -618,6 +621,19 @@ ExecCheckRTEPerms(RangeTblEntry *rte)
 
 	relOid = rte->relid;
 
+	/* 
+	 * Babelfish specific logic - Babelfish temp table is implemented
+	 * using ENR which is not shared with parallel worker and parallel
+	 * operations are not allowed for temp table in Postgres. Babelfish
+	 * can skip permission check for such use cases under parallel worker
+	 * using this hook.
+	 * Note - This hook must not be used outside of Babelfish parallel worker
+	 */
+	if (ExecCheckRTEPerms_hook &&
+		IsBabelfishParallelWorker() &&
+		(*ExecCheckRTEPerms_hook)(rte))
+		return true;
+
 	/*
 	 * userid to check as: current user unless we have a setuid indication.
 	 *
@@ -810,10 +826,9 @@ InitPlan(QueryDesc *queryDesc, int eflags)
 	int			i;
 
 	/*
-	 * Do permissions checks if not Babelfish parallel worker
+	 * Do permissions checks
 	 */
-	if (!IsBabelfishParallelWorker())
-		ExecCheckRTPerms(rangeTable, true);
+	ExecCheckRTPerms(rangeTable, true);
 
 	/*
 	 * initialize the node's execution state
@@ -2943,4 +2958,13 @@ EvalPlanQualEnd(EPQState *epqstate)
 	epqstate->relsubs_rowmark = NULL;
 	epqstate->relsubs_done = NULL;
 	epqstate->epqExtra->relsubs_blocked = NULL;
+}
+
+/*
+ * ExecCheckRTEPerms_wrapper - wrapper around ExecCheckRTEPerms
+ */
+bool
+ExecCheckRTEPerms_wrapper(RangeTblEntry *rte)
+{
+	return ExecCheckRTEPerms(rte);
 }
