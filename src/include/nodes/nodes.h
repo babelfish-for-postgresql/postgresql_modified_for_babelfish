@@ -654,6 +654,7 @@ extern bool *readBoolCols(int numCols);
 extern int *readIntCols(int numCols);
 extern Oid *readOidCols(int numCols);
 extern int16 *readAttrNumberCols(int numCols);
+extern struct Bitmapset *stringToBms(const char *str);
 
 /*
  * nodes/copyfuncs.c
