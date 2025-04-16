@@ -9836,7 +9836,7 @@ determineNotNullFlags(Archive *fout, PGresult *res, int r,
 		{
 			*invalidnotnulloids = createPQExpBuffer();
 			appendPQExpBufferChar(*invalidnotnulloids, '{');
-			appendPQExpBuffer(*invalidnotnulloids, "%s", constroid);
+			appendPQExpBufferStr(*invalidnotnulloids, constroid);
 		}
 		else
 			appendPQExpBuffer(*invalidnotnulloids, ",%s", constroid);
@@ -11063,7 +11063,7 @@ dumpRelationStats_dumper(Archive *fout, const void *userArg, const TocEntry *te)
 		 */
 		if (rsinfo->nindAttNames == 0)
 		{
-			appendPQExpBuffer(out, ",\n\t'attname', ");
+			appendPQExpBufferStr(out, ",\n\t'attname', ");
 			appendStringLiteralAH(out, attname, fout);
 		}
 		else
