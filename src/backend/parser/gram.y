@@ -17687,7 +17687,7 @@ ColIdDef:	IDENT
 					/* Now downcase the colname if in the TSQL dialect and the default
 					 * collation is case-insensitive.
 					 */
-					  $$ = downcaseIfTsqlAndCaseInsensitive($1);
+					  $$ = $1;
 				  }
 			| unreserved_keyword
 				  {
@@ -17697,7 +17697,7 @@ ColIdDef:	IDENT
 					  /* Now downcase the colname in the TSQL dialect if the database collation
 					   * is case-sensitive.
 					   */
-					  $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1));
+					  $$ = pstrdup($1);
 				  }
 			| col_name_keyword
 				  {
@@ -17707,7 +17707,7 @@ ColIdDef:	IDENT
 					  /* Now downcase the colname in the TSQL dialect if the database collation
 					   * is case-sensitive.
 					   */
-					  $$ = downcaseIfTsqlAndCaseInsensitive(pstrdup($1));
+					  $$ = pstrdup($1);
 				  }
 		;
 
