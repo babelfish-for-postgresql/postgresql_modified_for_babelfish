@@ -797,9 +797,7 @@ coerce_to_domain(Node *arg, Oid baseTypeId, int32 baseTypeMod, Oid typeId,
 		 strcmp(type_name, "nchar") == 0 ||
 		 strcmp(type_name, "varbinary") == 0 ||
 		 strcmp(type_name, "binary") == 0 ||
-		 strcmp(type_name, "decimal") == 0 ||
-		 strcmp(type_name, "money") == 0 ||
-		 strcmp(type_name, "smallmoney") == 0))
+		 strcmp(type_name, "decimal") == 0))
 		result->resulttypmod = baseTypeMod;
 
 	return (Node *) result;
