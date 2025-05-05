@@ -337,11 +337,14 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 {
 	int32		result;
 	Oid			typmodin;
+	Oid 		typbasetype;
 	Datum	   *datums;
 	int			n;
 	ListCell   *l;
 	ArrayType  *arrtypmod;
 	ParseCallbackState pcbstate;
+	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+	HeapTuple	tup;
 
 	/* Return prespecified typmod if no typmod expressions */
 	if (typeName->typmods == NIL)
@@ -360,6 +363,16 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 				 parser_errposition(pstate, typeName->location)));
 
 	typmodin = ((Form_pg_type) GETSTRUCT(typ))->typmodin;
+	typbasetype = ((Form_pg_type) GETSTRUCT(typ))->typbasetype;
+
+	if (dump_restore && (strcmp(dump_restore, "on") == 0) && !typmodin && typbasetype)
+	{
+		tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typbasetype));
+		if (!HeapTupleIsValid(tup)) /* should not happen */
+			elog(ERROR, "cache lookup failed for type %u", typbasetype);
+		typmodin = ((Form_pg_type) GETSTRUCT((Type)tup))->typmodin;
+		ReleaseSysCache(tup);
+	}
 
 	if (typmodin == InvalidOid)
 		ereport(ERROR,
