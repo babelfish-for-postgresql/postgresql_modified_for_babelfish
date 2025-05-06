@@ -368,10 +368,10 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 	typmodin = ((Form_pg_type) GETSTRUCT(typ))->typmodin;
 	typeoid = ((Form_pg_type) GETSTRUCT(typ))->oid;
 	typbasetype = ((Form_pg_type) GETSTRUCT(typ))->typbasetype;
-	basetypeid = getBaseType(typeoid);
 
 	if (dump_restore && (strcmp(dump_restore, "on") == 0) && !typmodin && typbasetype)
 	{
+		basetypeid = getBaseType(typeoid);
 		tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(basetypeid));
 		if (!HeapTupleIsValid(tup)) /* should not happen */
 			elog(ERROR, "cache lookup failed for type %u", basetypeid);
