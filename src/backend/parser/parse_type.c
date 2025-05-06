@@ -339,6 +339,8 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 	int32		result;
 	Oid			typmodin;
 	Oid 		typbasetype;
+	Oid 		basetypeid;
+	Oid 		typeoid;
 	Datum	   *datums;
 	int			n;
 	ListCell   *l;
@@ -364,13 +366,15 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 				 parser_errposition(pstate, typeName->location)));
 
 	typmodin = ((Form_pg_type) GETSTRUCT(typ))->typmodin;
+	typeoid = ((Form_pg_type) GETSTRUCT(typ))->oid;
 	typbasetype = ((Form_pg_type) GETSTRUCT(typ))->typbasetype;
+	basetypeid = getBaseType(typeoid);
 
 	if (dump_restore && (strcmp(dump_restore, "on") == 0) && !typmodin && typbasetype)
 	{
-		tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typbasetype));
+		tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(basetypeid));
 		if (!HeapTupleIsValid(tup)) /* should not happen */
-			elog(ERROR, "cache lookup failed for type %u", typbasetype);
+			elog(ERROR, "cache lookup failed for type %u", basetypeid);
 		typmodin = ((Form_pg_type) GETSTRUCT((Type)tup))->typmodin;
 		ReleaseSysCache(tup);
 	}
