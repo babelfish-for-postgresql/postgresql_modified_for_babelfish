@@ -302,14 +302,6 @@ exprTypmod(const Node *expr)
 {
 	if (!expr)
 		return -1;
-	if (exprTypmod_hook)
-	{
-		int32 typmod = exprTypmod_hook(NULL, (Node *) expr);
-		if (typmod != -1)
-		{
-			return typmod;
-		}
-	}
 
 	switch (nodeTag(expr))
 	{
@@ -548,6 +540,9 @@ exprTypmod(const Node *expr)
 		default:
 			break;
 	}
+
+	if (exprTypmod_hook)
+		return exprTypmod_hook(NULL, (Node *) expr);
 
 	return -1;
 }
