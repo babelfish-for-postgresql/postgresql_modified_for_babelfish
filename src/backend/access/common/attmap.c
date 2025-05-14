@@ -306,6 +306,12 @@ check_attrmap_match(TupleDesc indesc,
 	{
 		CompactAttribute *inatt = TupleDescCompactAttr(indesc, i);
 		CompactAttribute *outatt;
+		/*
+		 * APG needs member variable atttypid, and hence we need to get the entire form data
+		 * and not just the compact attributes
+		 */
+		Form_pg_attribute inatt_form_attributes = TupleDescAttr(indesc, i);
+		Form_pg_attribute outatt_form_attributes = TupleDescAttr(outdesc, i);
 
 		/*
 		 * If the input column has a missing attribute, we need a conversion.
@@ -318,15 +324,14 @@ check_attrmap_match(TupleDesc indesc,
 		 */
 		if (((called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook()) 
 				|| (called_for_tsql_itvf_func_hook && called_for_tsql_itvf_func_hook()))
-		 	&& (inatt->atttypid != outatt->atttypid ||
-			inatt->atttypmod != outatt->atttypmod))
+		 	&& (inatt_form_attributes->atttypid != outatt_form_attributes->atttypid ||
+			inatt_form_attributes->atttypmod != outatt_form_attributes->atttypmod))
 			return false;
 
 		if (attrMap->attnums[i] == (i + 1))
 			continue;
 
 		outatt = TupleDescCompactAttr(outdesc, i);
-
 		/*
 		 * If it's a dropped column and the corresponding input column is also
 		 * dropped, we don't need a conversion.  However, attlen and
