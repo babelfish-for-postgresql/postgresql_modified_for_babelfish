@@ -1771,7 +1771,13 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric\"" : "sys.int2_numeric") != 0 &&
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2\"" : "sys.numeric_int2") != 0 &&
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric\"" : "sys.int8_numeric") != 0 &&
-		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8\"" : "sys.numeric_int8") != 0)
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8\"" : "sys.numeric_int8") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric_ops\"" : "sys.int2_numeric_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2_ops\"" : "sys.numeric_int2_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int4_numeric_ops\"" : "sys.int4_numeric_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int4_ops\"" : "sys.numeric_int4_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric_ops\"" : "sys.int8_numeric_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8_ops\"" : "sys.numeric_int8_ops") != 0)
 		return;
 
 	query = createPQExpBuffer();
@@ -1800,7 +1806,7 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 	}
 
 	if (strcasecmp(opfnamespace, "\"pg_catalog\"") != 0 ||
-		strcasecmp(opfname, "integer_ops") != 0)
+		(strcasecmp(opfname, "integer_ops") != 0 && strcasecmp(opfname, "numeric_ops") != 0))
 	{
 		PQclear(res);
 		return;
@@ -1808,7 +1814,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 
 	PQclear(res);
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int_numeric\"" : "sys.int_numeric") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int_numeric\"" : "sys.int_numeric") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int4_numeric_ops\"" : "sys.int4_numeric_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (int4, numeric) ,\n	"
@@ -1825,7 +1832,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"FUNCTION 1 sys.int4_numeric_cmp(int4, numeric) ";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int\"" : "sys.numeric_int") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int\"" : "sys.numeric_int") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int4_ops\"" : "sys.numeric_int4_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (numeric, int4) ,\n	"
@@ -1842,7 +1850,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"FUNCTION 1 sys.numeric_int4_cmp(numeric, int4) ";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric\"" : "sys.int2_numeric") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric\"" : "sys.int2_numeric") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric_ops\"" : "sys.int2_numeric_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 			"OPERATOR 1 \"sys\".< (int2, numeric) ,\n	"
@@ -1859,7 +1868,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 			"FUNCTION 1 sys.int2_numeric_cmp(int2, numeric) ";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2\"" : "sys.numeric_int2") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2\"" : "sys.numeric_int2") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2_ops\"" : "sys.numeric_int2_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (numeric, int2) ,\n	"
@@ -1876,7 +1886,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"FUNCTION 1 sys.numeric_int2_cmp(numeric, int2)	";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric\"" : "sys.int8_numeric") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric\"" : "sys.int8_numeric") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric_ops\"" : "sys.int8_numeric_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (int8, numeric) ,\n	"
@@ -1893,7 +1904,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"FUNCTION 1 sys.int8_numeric_cmp(int8, numeric) ";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8\"" : "sys.numeric_int8") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8\"" : "sys.numeric_int8") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8_ops\"" : "sys.numeric_int8_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (numeric, int8) ,\n	"
