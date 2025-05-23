@@ -1675,10 +1675,6 @@ MemoryContextCounters
 MemoryContextData
 MemoryContextMethodID
 MemoryContextMethods
-MemoryStatsBackendState
-MemoryStatsContextId
-MemoryStatsCtl
-MemoryStatsEntry
 MemoryStatsPrintFunc
 MergeAction
 MergeActionState
