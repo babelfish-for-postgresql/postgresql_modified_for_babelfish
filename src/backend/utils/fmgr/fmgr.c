@@ -213,12 +213,6 @@ fmgr_info_cxt_security(Oid functionId, FmgrInfo *finfo, MemoryContext mcxt,
 	if (!ignore_security &&
 		(procedureStruct->prosecdef ||
 		 !heap_attisnull(procedureTuple, Anum_pg_proc_proconfig, NULL) ||
-		 /*
-		  * If babelfishpg_tsql extension is installed, set proconfig of functions
-		  * to have sql_dialect be either postgres or tsql according to
-		  * their language.
-		  */
-		 (get_func_language_oids_hook != NULL) ||
 		 FmgrHookIsNeeded(functionId)))
 	{
 		finfo->fn_addr = fmgr_security_definer;
