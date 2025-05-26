@@ -369,7 +369,7 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 	typeoid = ((Form_pg_type) GETSTRUCT(typ))->oid;
 	typbasetype = ((Form_pg_type) GETSTRUCT(typ))->typbasetype;
 
-	if (dump_restore && (strcmp(dump_restore, "on") == 0) && !typmodin && typbasetype)
+	if (dump_restore && (strcmp(dump_restore, "on") == 0) && !OidIsValid(typmodin) && OidIsValid(typbasetype))
 	{
 		basetypeid = getBaseType(typeoid);
 		tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(basetypeid));
