@@ -159,6 +159,15 @@ extern void icu_validate_locale(const char *loc_str);
 extern char *icu_language_tag(const char *loc_str, int elevel);
 extern void report_newlocale_failure(const char *localename);
 
+/*
+* In APG Babelfish needs the following functions
+*/
+#ifdef USE_ICU
+extern int32_t icu_to_uchar(UChar **buff_uchar, const char *buff, size_t nbytes);
+extern size_t icu_from_uchar(char *dest, size_t destsize,
+							 const UChar *buff_uchar, int32_t len_uchar);
+#endif
+
 /* These functions convert from/to libc's wchar_t, *not* pg_wchar_t */
 extern size_t wchar2char(char *to, const wchar_t *from, size_t tolen,
 						 pg_locale_t locale);

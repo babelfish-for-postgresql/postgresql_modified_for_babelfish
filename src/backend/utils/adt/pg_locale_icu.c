@@ -100,10 +100,6 @@ static size_t uchar_length(UConverter *converter,
 static int32_t uchar_convert(UConverter *converter,
 							 UChar *dest, int32_t destlen,
 							 const char *src, int32_t srclen);
-static int32_t icu_to_uchar(UChar **buff_uchar, const char *buff,
-							size_t nbytes);
-static size_t icu_from_uchar(char *dest, size_t destsize,
-							 const UChar *buff_uchar, int32_t len_uchar);
 static void icu_set_collation_attributes(UCollator *collator, const char *loc,
 										 UErrorCode *status);
 static int32_t icu_convert_case(ICU_Convert_Func func, pg_locale_t mylocale,
@@ -598,7 +594,7 @@ get_collation_actual_version_icu(const char *collcollate)
  * The result string is nul-terminated, though most callers rely on the
  * result length instead.
  */
-static int32_t
+int32_t
 icu_to_uchar(UChar **buff_uchar, const char *buff, size_t nbytes)
 {
 	int32_t		len_uchar;
@@ -625,7 +621,7 @@ icu_to_uchar(UChar **buff_uchar, const char *buff, size_t nbytes)
  *
  * The result string is nul-terminated.
  */
-static size_t
+size_t
 icu_from_uchar(char *dest, size_t destsize, const UChar *buff_uchar, int32_t len_uchar)
 {
 	UErrorCode	status;
