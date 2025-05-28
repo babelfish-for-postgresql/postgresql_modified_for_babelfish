@@ -72,4 +72,11 @@ extern PGDLLEXPORT validate_var_datatype_scale_hook_type validate_var_datatype_s
 typedef Oid (*handle_default_collation_hook_type) (Type typ, bool handle_pg_type);
 extern PGDLLEXPORT handle_default_collation_hook_type handle_default_collation_hook;
 
+/*
+ * Hook to find the typmodin for domains like smallmoney/money
+ * and UDTs created on them, in case of dump_restore.
+ */
+typedef void (*handle_basetype_typmodin_hook_type) (Type typ, Oid *typmodin);
+extern PGDLLEXPORT handle_basetype_typmodin_hook_type handle_basetype_typmodin_hook;
+
 #endif							/* PARSE_TYPE_H */
