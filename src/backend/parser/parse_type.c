@@ -33,7 +33,7 @@ static int32 typenameTypeMod(ParseState *pstate, const TypeName *typeName,
 check_or_set_default_typmod_hook_type check_or_set_default_typmod_hook = NULL;
 validate_var_datatype_scale_hook_type validate_var_datatype_scale_hook = NULL;
 handle_default_collation_hook_type handle_default_collation_hook = NULL;
-handle_basetype_typmodin_hook_type handle_basetype_typmodin_hook = NULL;
+get_domain_typmodin_hook_type get_domain_typmodin_hook = NULL;
 
 /*
  * LookupTypeName
@@ -362,9 +362,12 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 
 	typmodin = ((Form_pg_type) GETSTRUCT(typ))->typmodin;
 
-	/* Handle the typmodin for domains like smallmoney/money and UDTs on them. */
-	if (handle_basetype_typmodin_hook)
-		(*handle_basetype_typmodin_hook)(typ, &typmodin);
+	/*
+	 * Find the OID of domain's typmodin function, which is same as its basetype's typmodin OID,
+	 * for domains like smallmoney/money and their UDTs during restore.
+	 */
+	if (get_domain_typmodin_hook)
+		typmodin = (*get_domain_typmodin_hook)(typ);
 
 	if (typmodin == InvalidOid)
 		ereport(ERROR,

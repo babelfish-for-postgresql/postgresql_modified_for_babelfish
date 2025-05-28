@@ -73,10 +73,11 @@ typedef Oid (*handle_default_collation_hook_type) (Type typ, bool handle_pg_type
 extern PGDLLEXPORT handle_default_collation_hook_type handle_default_collation_hook;
 
 /*
- * Hook to find the typmodin for domains like smallmoney/money
- * and UDTs created on them, in case of dump_restore.
+ * Hook to find oid of typmodin function for a given domain tuple which is essentially same as
+ * the oid of it's basetype's typmodin function. This is only used during restore to handle domains
+ * like smallmoney/money and UDTs created on them.
  */
-typedef void (*handle_basetype_typmodin_hook_type) (Type typ, Oid *typmodin);
-extern PGDLLEXPORT handle_basetype_typmodin_hook_type handle_basetype_typmodin_hook;
+typedef Oid (*get_domain_typmodin_hook_type) (Type typ);
+extern PGDLLEXPORT get_domain_typmodin_hook_type get_domain_typmodin_hook;
 
 #endif							/* PARSE_TYPE_H */
