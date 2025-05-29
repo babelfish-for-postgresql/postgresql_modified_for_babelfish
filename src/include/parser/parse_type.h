@@ -78,6 +78,6 @@ extern PGDLLEXPORT handle_default_collation_hook_type handle_default_collation_h
  * like smallmoney/money and UDTs created on them.
  */
 typedef Oid (*get_domain_typmodin_hook_type) (Type typ);
-extern PGDLLEXPORT get_domain_typmodin_hook_type get_domain_typmodin_hook;
+extern PGDLLIMPORT get_domain_typmodin_hook_type get_domain_typmodin_hook;
 
 #endif							/* PARSE_TYPE_H */
