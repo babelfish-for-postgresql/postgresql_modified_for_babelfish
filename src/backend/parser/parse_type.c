@@ -363,8 +363,7 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 	typmodin = ((Form_pg_type) GETSTRUCT(typ))->typmodin;
 
 	/*
-	 * Find the OID of domain's typmodin function, which is same as its basetype's typmodin OID,
-	 * for domains like smallmoney/money and their UDTs during restore.
+	 * Find the OID of domain's typmodin function, which is same as its basetype's typmodin OID.
 	 */
 	if (get_domain_typmodin_hook)
 		typmodin = (*get_domain_typmodin_hook)(typ);
