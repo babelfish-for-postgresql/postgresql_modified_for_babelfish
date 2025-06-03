@@ -21,6 +21,7 @@
 #include "access/htup_details.h"
 #include "catalog/objectaccess.h"
 #include "catalog/pg_proc.h"
+#include "executor/execExpr.h"
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
@@ -701,7 +702,10 @@ init_sexpr(Oid foid, Oid input_collation, Expr *node,
 	size_t		numargs = list_length(sexpr->args);
 
 	/* Check permission to call function */
-	aclresult = object_aclcheck(ProcedureRelationId, foid, GetUserId(), ACL_EXECUTE);
+	if (ExecFuncProc_AclCheck_hook)
+		aclresult = ExecFuncProc_AclCheck_hook(foid);
+	else
+		aclresult = object_aclcheck(ProcedureRelationId, foid, GetUserId(), ACL_EXECUTE);
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_FUNCTION, get_func_name(foid));
 	InvokeFunctionExecuteHook(foid);
