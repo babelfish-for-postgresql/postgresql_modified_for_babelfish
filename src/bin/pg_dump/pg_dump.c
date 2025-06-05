@@ -15903,18 +15903,18 @@ createViewAsClause(Archive *fout, const TableInfo *tbinfo)
 	if (len == 0)
 	{
 		/* 
-         * Handle broken views (with empty definitions)
-         * Instead of failing, create a dummy SELECT that preserves the structure
-         */
-        PQclear(res);
-        destroyPQExpBuffer(query);
-        
-        /* Use createDummyViewAsClause to generate a compatible structure */
-        PQExpBuffer dummyResult = createDummyViewAsClause(fout, tbinfo);
-        appendPQExpBuffer(result, "%s", dummyResult->data);
-        destroyPQExpBuffer(dummyResult);
-        
-        return result;
+		 * Handle broken views (with empty definitions)
+		 * Instead of failing, create a dummy SELECT that preserves the structure
+		 */
+		PQclear(res);
+		destroyPQExpBuffer(query);
+		
+		/* Use createDummyViewAsClause to generate a compatible structure */
+		PQExpBuffer dummyResult = createDummyViewAsClause(fout, tbinfo);
+		appendPQExpBuffer(result, "%s", dummyResult->data);
+		destroyPQExpBuffer(dummyResult);
+		
+		return result;
 	}
 
 	/* Strip off the trailing semicolon so that other things may follow. */
