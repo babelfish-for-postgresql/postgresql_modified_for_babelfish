@@ -38,4 +38,8 @@ extern void error_view_not_updatable(Relation view,
 									 List *mergeActionList,
 									 const char *detail);
 
+/* View repair hook */
+typedef bool (*view_repair_hook_type) (Query *parsetree);
+extern PGDLLEXPORT view_repair_hook_type view_repair_hook;									 
+
 #endif							/* REWRITEHANDLER_H */
