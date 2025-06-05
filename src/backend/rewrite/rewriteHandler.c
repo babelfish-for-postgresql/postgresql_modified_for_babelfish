@@ -47,6 +47,7 @@
 #include "utils/rel.h"
 
 bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook = NULL; /** BBF Hook to check Instead Of trigger on View */
+view_repair_hook_type view_repair_hook = NULL;
 
 /* We use a list of these to detect recursion in RewriteQuery */
 typedef struct rewrite_event
@@ -4403,7 +4404,6 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length)
 	return rewritten;
 }
 
-
 /*
  * QueryRewrite -
  *	  Primary entry point to the query rewriter.
@@ -4430,6 +4430,14 @@ QueryRewrite(Query *parsetree)
 	Assert(parsetree->querySource == QSRC_ORIGINAL);
 	Assert(parsetree->canSetTag);
 
+	/*
+     * Step 0 (Babelfish extension)
+     *
+     * If this is a view with broken rules, try to repair it
+     * using the definition from babelfish_view_def
+     */
+    if (view_repair_hook)
+        (*view_repair_hook)(parsetree);
 	/*
 	 * Step 1
 	 *

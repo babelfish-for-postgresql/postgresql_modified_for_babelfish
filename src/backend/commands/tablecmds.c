@@ -138,6 +138,7 @@ InvokePreDropColumnHook_type InvokePreDropColumnHook = NULL;
 check_extended_attoptions_hook_type check_extended_attoptions_hook = NULL;
 find_attr_by_name_from_column_def_list_hook_type
 	find_attr_by_name_from_column_def_list_hook = NULL;
+view_dependency_hook_type view_dependency_hook = NULL;
 
 /*
  * State information for ALTER TABLE
@@ -1675,6 +1676,20 @@ RemoveRelations(DropStmt *drop)
 		if (object_access_hook && drop->removeType == OBJECT_TABLE)
 		{
 			InvokeObjectDropHook(RelationRelationId,relOid,0);
+		}
+
+		/* Check for strong views and handle weak views */
+		if ((drop->removeType == OBJECT_TABLE || drop->removeType == OBJECT_VIEW) && view_dependency_hook)
+		{
+			Relation depRel = table_open(DependRelationId, AccessShareLock);
+			
+			if (!(*view_dependency_hook)(&obj, depRel, NULL))
+			{
+				table_close(depRel, AccessShareLock);
+				continue;
+			}
+			
+			table_close(depRel, AccessShareLock);
 		}
 	}
 

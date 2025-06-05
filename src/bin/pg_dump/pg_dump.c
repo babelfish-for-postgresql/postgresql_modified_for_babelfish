@@ -15822,52 +15822,6 @@ dumpTable(Archive *fout, const TableInfo *tbinfo)
 	free(namecopy);
 }
 
-/*
- * Create the AS clause for a view or materialized view. The semicolon is
- * stripped because a materialized view must add a WITH NO DATA clause.
- *
- * This returns a new buffer which must be freed by the caller.
- */
-static PQExpBuffer
-createViewAsClause(Archive *fout, const TableInfo *tbinfo)
-{
-	PQExpBuffer query = createPQExpBuffer();
-	PQExpBuffer result = createPQExpBuffer();
-	PGresult   *res;
-	int			len;
-
-	/* Fetch the view definition */
-	appendPQExpBuffer(query,
-					  "SELECT pg_catalog.pg_get_viewdef('%u'::pg_catalog.oid) AS viewdef",
-					  tbinfo->dobj.catId.oid);
-
-	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
-
-	if (PQntuples(res) != 1)
-	{
-		if (PQntuples(res) < 1)
-			pg_fatal("query to obtain definition of view \"%s\" returned no data",
-					 tbinfo->dobj.name);
-		else
-			pg_fatal("query to obtain definition of view \"%s\" returned more than one definition",
-					 tbinfo->dobj.name);
-	}
-
-	len = PQgetlength(res, 0, 0);
-
-	if (len == 0)
-		pg_fatal("definition of view \"%s\" appears to be empty (length zero)",
-				 tbinfo->dobj.name);
-
-	/* Strip off the trailing semicolon so that other things may follow. */
-	Assert(PQgetvalue(res, 0, 0)[len - 1] == ';');
-	appendBinaryPQExpBuffer(result, PQgetvalue(res, 0, 0), len - 1);
-
-	PQclear(res);
-	destroyPQExpBuffer(query);
-
-	return result;
-}
 
 /*
  * Create a dummy AS clause for a view.  This is used when the real view
@@ -15909,6 +15863,66 @@ createDummyViewAsClause(Archive *fout, const TableInfo *tbinfo)
 
 		appendPQExpBuffer(result, " AS %s", fmtId(tbinfo->attnames[j]));
 	}
+
+	return result;
+}
+
+/*
+ * Create the AS clause for a view or materialized view. The semicolon is
+ * stripped because a materialized view must add a WITH NO DATA clause.
+ *
+ * This returns a new buffer which must be freed by the caller.
+ */
+static PQExpBuffer
+createViewAsClause(Archive *fout, const TableInfo *tbinfo)
+{
+	PQExpBuffer query = createPQExpBuffer();
+	PQExpBuffer result = createPQExpBuffer();
+	PGresult   *res;
+	int			len;
+
+	/* Fetch the view definition */
+	appendPQExpBuffer(query,
+					  "SELECT pg_catalog.pg_get_viewdef('%u'::pg_catalog.oid) AS viewdef",
+					  tbinfo->dobj.catId.oid);
+
+	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
+
+	if (PQntuples(res) != 1)
+	{
+		if (PQntuples(res) < 1)
+			pg_fatal("query to obtain definition of view \"%s\" returned no data",
+					 tbinfo->dobj.name);
+		else
+			pg_fatal("query to obtain definition of view \"%s\" returned more than one definition",
+					 tbinfo->dobj.name);
+	}
+
+	len = PQgetlength(res, 0, 0);
+
+	if (len == 0)
+	{
+		/* 
+         * Handle broken views (with empty definitions)
+         * Instead of failing, create a dummy SELECT that preserves the structure
+         */
+        PQclear(res);
+        destroyPQExpBuffer(query);
+        
+        /* Use createDummyViewAsClause to generate a compatible structure */
+        PQExpBuffer dummyResult = createDummyViewAsClause(fout, tbinfo);
+        appendPQExpBuffer(result, "%s", dummyResult->data);
+        destroyPQExpBuffer(dummyResult);
+        
+        return result;
+	}
+
+	/* Strip off the trailing semicolon so that other things may follow. */
+	Assert(PQgetvalue(res, 0, 0)[len - 1] == ';');
+	appendBinaryPQExpBuffer(result, PQgetvalue(res, 0, 0), len - 1);
+
+	PQclear(res);
+	destroyPQExpBuffer(query);
 
 	return result;
 }

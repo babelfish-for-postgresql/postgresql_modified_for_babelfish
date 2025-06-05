@@ -19,9 +19,11 @@
 #include "catalog/dependency.h"
 #include "catalog/namespace.h"
 #include "catalog/objectaddress.h"
+#include "catalog/pg_depend_d.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_proc.h"
 #include "commands/defrem.h"
+#include "commands/tablecmds.h"
 #include "miscadmin.h"
 #include "parser/parser.h"
 #include "parser/parse_type.h"
@@ -131,6 +133,20 @@ RemoveObjects(DropStmt *stmt)
 			table_close(relation, NoLock);
 
 		add_exact_object_address(&address, objects);
+
+		/* Check for strong views and handle weak views */
+		if ((stmt->removeType == OBJECT_FUNCTION) && view_dependency_hook)
+		{
+			Relation depRel = table_open(DependRelationId, AccessShareLock);
+			
+			if (!(*view_dependency_hook)(&address, depRel, NULL))
+			{
+				table_close(depRel, AccessShareLock);
+				continue;
+			}
+			
+			table_close(depRel, AccessShareLock);
+		}
 	}
 
 	/* Here we really delete them. */
