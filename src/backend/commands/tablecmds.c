@@ -1672,7 +1672,7 @@ RemoveRelations(DropStmt *drop)
 		* the trigger - we create it internally, and so the table cannot be dropped
 		* if there is a tsql trigger on it because of the dependency of the function.
 		*/
-		if (object_access_hook && drop->removeType == OBJECT_TABLE)
+		if (object_access_hook && (drop->removeType == OBJECT_TABLE || drop->removeType == OBJECT_VIEW))
 		{
 			InvokeObjectDropHook(RelationRelationId,relOid,0);
 		}
