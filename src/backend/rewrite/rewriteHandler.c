@@ -4436,8 +4436,8 @@ QueryRewrite(Query *parsetree)
      * If this is a view with broken rules, try to repair it
      * using the definition from babelfish_view_def
      */
-    if (view_repair_hook)
-        (*view_repair_hook)(parsetree);
+	if (view_repair_hook)
+		(*view_repair_hook)(parsetree);
 	/*
 	 * Step 1
 	 *
