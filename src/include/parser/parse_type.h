@@ -72,4 +72,11 @@ extern PGDLLEXPORT validate_var_datatype_scale_hook_type validate_var_datatype_s
 typedef Oid (*handle_default_collation_hook_type) (Type typ, bool handle_pg_type);
 extern PGDLLEXPORT handle_default_collation_hook_type handle_default_collation_hook;
 
+/*
+ * Hook to find oid of typmodin function for a given domain which is essentially same as
+ * the oid of it's basetype's typmodin function.
+ */
+typedef Oid (*get_domain_typmodin_hook_type) (Type typ);
+extern PGDLLIMPORT get_domain_typmodin_hook_type get_domain_typmodin_hook;
+
 #endif							/* PARSE_TYPE_H */
