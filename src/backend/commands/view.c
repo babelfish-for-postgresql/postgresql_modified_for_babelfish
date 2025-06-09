@@ -36,6 +36,8 @@ static void checkViewColumns(TupleDesc newdesc, TupleDesc olddesc);
 
 inherit_view_constraints_from_table_hook_type inherit_view_constraints_from_table_hook = NULL;
 
+check_view_dependencies_hook_type check_view_dependencies_hook = NULL;
+
 /*---------------------------------------------------------------------
  * DefineVirtualRelation
  *
@@ -380,6 +382,9 @@ DefineView(ViewStmt *stmt, const char *queryString,
 	rawstmt->stmt_len = stmt_len;
 
 	viewParse = parse_analyze_fixedparams(rawstmt, queryString, NULL, 0, NULL);
+
+	if (check_view_dependencies_hook)
+			(*check_view_dependencies_hook)(viewParse);
 
 	/*
 	 * The grammar should ensure that the result is a single SELECT Query.
