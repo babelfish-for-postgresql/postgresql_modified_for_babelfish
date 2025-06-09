@@ -22,6 +22,7 @@
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/analyze.h"
+#include "parser/parser.h"
 #include "parser/parse_relation.h"
 #include "rewrite/rewriteDefine.h"
 #include "rewrite/rewriteHandler.h"
@@ -383,7 +384,7 @@ DefineView(ViewStmt *stmt, const char *queryString,
 
 	viewParse = parse_analyze_fixedparams(rawstmt, queryString, NULL, 0, NULL);
 
-	if (check_view_dependencies_hook)
+	if (check_view_dependencies_hook && SQL_DIALECT_TSQL)
 			(*check_view_dependencies_hook)(viewParse);
 
 	/*
