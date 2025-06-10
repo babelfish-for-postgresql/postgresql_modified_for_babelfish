@@ -4507,6 +4507,24 @@ raw_expression_tree_walker_impl(Node *node,
 					return true;
 			}
 			break;
+		case T_Openxml_expr:
+			{
+				Openxml_expr *expr = (Openxml_expr *) node;
+
+				if (WALK(expr->tsql_docid))
+					return true;
+				if (WALK(expr->rowexpr))
+					return true;
+				if (WALK(expr->tsql_flag))
+					return true;
+				if (WALK(expr->columns))
+					return true;
+				if (WALK(expr->table_ref))
+					return true;
+				if (WALK(expr->alias))
+					return true;
+			}
+			break;
 		case T_RangeTableFuncCol:
 			{
 				RangeTableFuncCol *rtfc = (RangeTableFuncCol *) node;
