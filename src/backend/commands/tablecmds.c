@@ -1680,16 +1680,9 @@ RemoveRelations(DropStmt *drop)
 
 		/* Check for strong views and handle weak views */
 		if ((drop->removeType == OBJECT_TABLE || drop->removeType == OBJECT_VIEW) && view_dependency_hook)
-		{
-			Relation depRel = table_open(DependRelationId, AccessShareLock);
-			
-			if (!(*view_dependency_hook)(&obj, depRel, NULL))
-			{
-				table_close(depRel, AccessShareLock);
+		{			
+			if (!(*view_dependency_hook)(&obj, NULL, NULL))
 				continue;
-			}
-			
-			table_close(depRel, AccessShareLock);
 		}
 	}
 

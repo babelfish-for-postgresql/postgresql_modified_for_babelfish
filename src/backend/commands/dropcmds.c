@@ -136,16 +136,9 @@ RemoveObjects(DropStmt *stmt)
 
 		/* Check for strong views and handle weak views */
 		if ((stmt->removeType == OBJECT_FUNCTION) && view_dependency_hook)
-		{
-			Relation depRel = table_open(DependRelationId, AccessShareLock);
-			
-			if (!(*view_dependency_hook)(&address, depRel, NULL))
-			{
-				table_close(depRel, AccessShareLock);
+		{			
+			if (!(*view_dependency_hook)(&address, NULL, NULL))
 				continue;
-			}
-			
-			table_close(depRel, AccessShareLock);
 		}
 	}
 
