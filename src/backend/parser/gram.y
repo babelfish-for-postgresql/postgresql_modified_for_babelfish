@@ -157,7 +157,6 @@ static void base_yyerror(YYLTYPE *yylloc, core_yyscan_t yyscanner,
 static char *downcaseIfTsqlAndCaseInsensitive(char* str);
 static RawStmt *makeRawStmt(Node *stmt, int stmt_location);
 static void updateRawStmtEnd(RawStmt *rs, int end_location);
-static void updatePreparableStmtEnd(Node *n, int end_location);
 static Node *makeColumnRef(char *colname, List *indirection,
 						   int location, core_yyscan_t yyscanner);
 static Node *makeTypeCast(Node *arg, TypeName *typename, int location);
@@ -183,7 +182,7 @@ static void insertSelectOptions(SelectStmt *stmt,
 								SelectLimit *limitClause,
 								WithClause *withClause,
 								core_yyscan_t yyscanner);
-static Node *makeSetOp(SetOperation op, bool all, Node *larg, Node *rarg, int location);
+static Node *makeSetOp(SetOperation op, bool all, Node *larg, Node *rarg);
 static Node *doNegate(Node *n, int location);
 static void doNegateFloat(Float *v);
 static Node *makeAndExpr(Node *lexpr, Node *rexpr, int location);
@@ -3447,7 +3446,6 @@ CopyStmt:	COPY opt_binary qualified_name opt_column_list
 				{
 					CopyStmt *n = makeNode(CopyStmt);
 
-					updatePreparableStmtEnd($3, @4);
 					n->relation = NULL;
 					n->query = $3;
 					n->attlist = NIL;
@@ -12302,7 +12300,6 @@ InsertStmt:
 					$5->onConflictClause = $6;
 					$5->returningClause = $7;
 					$5->withClause = $1;
-					$5->stmt_location = @$;
 					$$ = (Node *) $5;
 				}
 		;
@@ -12494,7 +12491,6 @@ DeleteStmt: opt_with_clause DELETE_P FROM relation_expr_opt_alias
 					n->whereClause = $6;
 					n->returningClause = $7;
 					n->withClause = $1;
-					n->stmt_location = @$;
 					$$ = (Node *) n;
 				}
 		;
@@ -12569,7 +12565,6 @@ UpdateStmt: opt_with_clause UPDATE relation_expr_opt_alias
 					n->whereClause = $7;
 					n->returningClause = $8;
 					n->withClause = $1;
-					n->stmt_location = @$;
 					$$ = (Node *) n;
 				}
 		;
@@ -12648,7 +12643,6 @@ MergeStmt:
 					m->joinCondition = $8;
 					m->mergeWhenClauses = $9;
 					m->returningClause = $10;
-					m->stmt_location = @$;
 
 					$$ = (Node *) m;
 				}
@@ -12889,20 +12883,7 @@ SelectStmt: select_no_parens			%prec UMINUS
 		;
 
 select_with_parens:
-			'(' select_no_parens ')'
-				{
-					SelectStmt *n = (SelectStmt *) $2;
-
-					/*
-					 * As SelectStmt's location starts at the SELECT keyword,
-					 * we need to track the length of the SelectStmt within
-					 * parentheses to be able to extract the relevant part
-					 * of the query.  Without this, the RawStmt's length would
-					 * be used and would include the closing parenthesis.
-					 */
-					n->stmt_len = @3 - @2;
-					$$ = $2;
-				}
+			'(' select_no_parens ')'				{ $$ = $2; }
 			| '(' select_with_parens ')'			{ $$ = $2; }
 		;
 
@@ -13024,7 +13005,6 @@ simple_select:
 					n->groupDistinct = ($7)->distinct;
 					n->havingClause = $8;
 					n->windowClause = $9;
-					n->stmt_location = @1;
 					$$ = (Node *) n;
 				}
 			| SELECT distinct_clause target_list
@@ -13042,7 +13022,6 @@ simple_select:
 					n->groupDistinct = ($7)->distinct;
 					n->havingClause = $8;
 					n->windowClause = $9;
-					n->stmt_location = @1;
 					$$ = (Node *) n;
 				}
 			| values_clause							{ $$ = $1; }
@@ -13064,20 +13043,19 @@ simple_select:
 
 					n->targetList = list_make1(rt);
 					n->fromClause = list_make1($2);
-					n->stmt_location = @1;
 					$$ = (Node *) n;
 				}
 			| select_clause UNION set_quantifier select_clause
 				{
-					$$ = makeSetOp(SETOP_UNION, $3 == SET_QUANTIFIER_ALL, $1, $4, @1);
+					$$ = makeSetOp(SETOP_UNION, $3 == SET_QUANTIFIER_ALL, $1, $4);
 				}
 			| select_clause INTERSECT set_quantifier select_clause
 				{
-					$$ = makeSetOp(SETOP_INTERSECT, $3 == SET_QUANTIFIER_ALL, $1, $4, @1);
+					$$ = makeSetOp(SETOP_INTERSECT, $3 == SET_QUANTIFIER_ALL, $1, $4);
 				}
 			| select_clause EXCEPT set_quantifier select_clause
 				{
-					$$ = makeSetOp(SETOP_EXCEPT, $3 == SET_QUANTIFIER_ALL, $1, $4, @1);
+					$$ = makeSetOp(SETOP_EXCEPT, $3 == SET_QUANTIFIER_ALL, $1, $4);
 				}
 		;
 
@@ -13661,7 +13639,6 @@ values_clause:
 				{
 					SelectStmt *n = makeNode(SelectStmt);
 
-					n->stmt_location = @1;
 					n->valuesLists = list_make1($3);
 					$$ = (Node *) n;
 				}
@@ -19008,47 +18985,6 @@ updateRawStmtEnd(RawStmt *rs, int end_location)
 	rs->stmt_len = end_location - rs->stmt_location;
 }
 
-/*
- * Adjust a PreparableStmt to reflect that it doesn't run to the end of the
- * string.
- */
-static void
-updatePreparableStmtEnd(Node *n, int end_location)
-{
-	if (IsA(n, SelectStmt))
-	{
-		SelectStmt *stmt = (SelectStmt *) n;
-
-		stmt->stmt_len = end_location - stmt->stmt_location;
-	}
-	else if (IsA(n, InsertStmt))
-	{
-		InsertStmt *stmt = (InsertStmt *) n;
-
-		stmt->stmt_len = end_location - stmt->stmt_location;
-	}
-	else if (IsA(n, UpdateStmt))
-	{
-		UpdateStmt *stmt = (UpdateStmt *) n;
-
-		stmt->stmt_len = end_location - stmt->stmt_location;
-	}
-	else if (IsA(n, DeleteStmt))
-	{
-		DeleteStmt *stmt = (DeleteStmt *) n;
-
-		stmt->stmt_len = end_location - stmt->stmt_location;
-	}
-	else if (IsA(n, MergeStmt))
-	{
-		MergeStmt  *stmt = (MergeStmt *) n;
-
-		stmt->stmt_len = end_location - stmt->stmt_location;
-	}
-	else
-		elog(ERROR, "unexpected node type %d", (int) n->type);
-}
-
 static Node *
 makeColumnRef(char *colname, List *indirection,
 			  int location, core_yyscan_t yyscanner)
@@ -19457,14 +19393,11 @@ insertSelectOptions(SelectStmt *stmt,
 					 errmsg("multiple WITH clauses not allowed"),
 					 parser_errposition(exprLocation((Node *) withClause))));
 		stmt->withClause = withClause;
-
-		/* Update SelectStmt's location to the start of the WITH clause */
-		stmt->stmt_location = withClause->location;
 	}
 }
 
 static Node *
-makeSetOp(SetOperation op, bool all, Node *larg, Node *rarg, int location)
+makeSetOp(SetOperation op, bool all, Node *larg, Node *rarg)
 {
 	SelectStmt *n = makeNode(SelectStmt);
 
@@ -19472,7 +19405,6 @@ makeSetOp(SetOperation op, bool all, Node *larg, Node *rarg, int location)
 	n->all = all;
 	n->larg = (SelectStmt *) larg;
 	n->rarg = (SelectStmt *) rarg;
-	n->stmt_location = location;
 	return (Node *) n;
 }
 
