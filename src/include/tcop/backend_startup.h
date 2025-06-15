@@ -87,7 +87,7 @@ typedef enum LogConnectionOption
 		LOG_CONNECTION_AUTHENTICATION |
 		LOG_CONNECTION_AUTHORIZATION |
 		LOG_CONNECTION_SETUP_DURATIONS,
-} LogConnectionOption;
+}			LogConnectionOption;
 
 /*
  * A collection of timings of various stages of connection establishment and
