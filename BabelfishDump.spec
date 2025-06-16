@@ -26,7 +26,7 @@
 
 Name: BabelfishDump
 Summary: Postgresql dump utilities modified for Babelfish
-Version: 17.2
+Version: 17.5
 Release: 1%{?dist}%{?_trivial}%{?_buildid}
 License: PostgreSQL
 Url: https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish
@@ -151,31 +151,31 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
-* Wed Dec 11 2024 Sharu Goel <goelshar@amazon.com> - 17.2-1
+* Wed Dec 11 2024 Sharu Goel <goelshar@amazon.com> - 17.5-1
 - Add support to dump linked roles associated with members of db_owner role
 
-* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.2-1
+* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.5-1
 - Handle dump logic for babelfish db_ddladmin fixed database role
 
-* Wed Dec 11 2024 Harsh Lunagariya <lunharsh@amazon.com> - 17.2-1
+* Wed Dec 11 2024 Harsh Lunagariya <lunharsh@amazon.com> - 17.5-1
 - Handle dump logic for babelfish db_securityadmin fixed database role
 
-* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.2-1
+* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.5-1
 - Handle dump logic for babelfish db_creator fixed server role
 
-* Wed Dec 11 2024 Shalini Lohia <lshalini@amazon.com> - 17.2-1
+* Wed Dec 11 2024 Shalini Lohia <lshalini@amazon.com> - 17.5-1
 - Handle dump logic for babelfish db_datareader/db_datawriter fixed database roles
 
-* Wed Dec 11 2024 Tanzeel Khan <tzlkhan@amazon.com> - 17.2-1
+* Wed Dec 11 2024 Tanzeel Khan <tzlkhan@amazon.com> - 17.5-1
 - Handle dump logic for babelfish db_accessadmin fixed database role
 
-* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.2-1
+* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.5-1
 - Handle dump logic for babelfish securityadmin fixed server role
 
-* Tue Nov 19 2024 Rishabh Tanwar <ritanwar@amazon.com> - 17.2-1
+* Tue Nov 19 2024 Rishabh Tanwar <ritanwar@amazon.com> - 17.5-1
 - Enable babelfishpg_tsql.dump_restore GUC while restoring roles
 
-* Thu Oct 3 2024 Tanzeel Khan <tzlkhan@amazon.com> - 17.2-1
+* Thu Oct 3 2024 Tanzeel Khan <tzlkhan@amazon.com> - 17.5-1
 - Dump physical database aclprivs for fixed database roles
 
 * Mon Aug 5 2024 Masahiko Sawada <msawada@postgresql.com> - 16.4-1
