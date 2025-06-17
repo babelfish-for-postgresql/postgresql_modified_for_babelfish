@@ -344,7 +344,7 @@ static void setupDumpWorker(Archive *AH);
 static TableInfo *getRootTableInfo(const TableInfo *tbinfo);
 static bool forcePartitionRootLoad(const TableInfo *tbinfo);
 static void read_dump_filters(const char *filename, DumpOptions *dopt);
-
+static PQExpBuffer createDummyViewAsClause(Archive *fout, const TableInfo *tbinfo);
 
 int
 main(int argc, char **argv)
@@ -15823,50 +15823,6 @@ dumpTable(Archive *fout, const TableInfo *tbinfo)
 }
 
 /*
- * Create a dummy AS clause for a view.  This is used when the real view
- * definition has to be postponed because of circular dependencies.
- * We must duplicate the view's external properties -- column names and types
- * (including collation) -- so that it works for subsequent references.
- *
- * This returns a new buffer which must be freed by the caller.
- */
-static PQExpBuffer
-createDummyViewAsClause(Archive *fout, const TableInfo *tbinfo)
-{
-	PQExpBuffer result = createPQExpBuffer();
-	int			j;
-
-	appendPQExpBufferStr(result, "SELECT");
-
-	for (j = 0; j < tbinfo->numatts; j++)
-	{
-		if (j > 0)
-			appendPQExpBufferChar(result, ',');
-		appendPQExpBufferStr(result, "\n    ");
-
-		appendPQExpBuffer(result, "NULL::%s", tbinfo->atttypnames[j]);
-
-		/*
-		 * Must add collation if not default for the type, because CREATE OR
-		 * REPLACE VIEW won't change it
-		 */
-		if (OidIsValid(tbinfo->attcollation[j]))
-		{
-			CollInfo   *coll;
-
-			coll = findCollationByOid(tbinfo->attcollation[j]);
-			if (coll)
-				appendPQExpBuffer(result, " COLLATE %s",
-								  fmtQualifiedDumpable(coll));
-		}
-
-		appendPQExpBuffer(result, " AS %s", fmtId(tbinfo->attnames[j]));
-	}
-
-	return result;
-}
-
-/*
  * Create the AS clause for a view or materialized view. The semicolon is
  * stripped because a materialized view must add a WITH NO DATA clause.
  *
@@ -15920,6 +15876,50 @@ createViewAsClause(Archive *fout, const TableInfo *tbinfo)
 
 	PQclear(res);
 	destroyPQExpBuffer(query);
+
+	return result;
+}
+
+/*
+ * Create a dummy AS clause for a view.  This is used when the real view
+ * definition has to be postponed because of circular dependencies.
+ * We must duplicate the view's external properties -- column names and types
+ * (including collation) -- so that it works for subsequent references.
+ *
+ * This returns a new buffer which must be freed by the caller.
+ */
+static PQExpBuffer
+createDummyViewAsClause(Archive *fout, const TableInfo *tbinfo)
+{
+	PQExpBuffer result = createPQExpBuffer();
+	int			j;
+
+	appendPQExpBufferStr(result, "SELECT");
+
+	for (j = 0; j < tbinfo->numatts; j++)
+	{
+		if (j > 0)
+			appendPQExpBufferChar(result, ',');
+		appendPQExpBufferStr(result, "\n    ");
+
+		appendPQExpBuffer(result, "NULL::%s", tbinfo->atttypnames[j]);
+
+		/*
+		 * Must add collation if not default for the type, because CREATE OR
+		 * REPLACE VIEW won't change it
+		 */
+		if (OidIsValid(tbinfo->attcollation[j]))
+		{
+			CollInfo   *coll;
+
+			coll = findCollationByOid(tbinfo->attcollation[j]);
+			if (coll)
+				appendPQExpBuffer(result, " COLLATE %s",
+								  fmtQualifiedDumpable(coll));
+		}
+
+		appendPQExpBuffer(result, " AS %s", fmtId(tbinfo->attnames[j]));
+	}
 
 	return result;
 }
