@@ -19,7 +19,6 @@
 #include "catalog/dependency.h"
 #include "catalog/namespace.h"
 #include "catalog/objectaddress.h"
-#include "catalog/pg_depend_d.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_proc.h"
 #include "commands/defrem.h"

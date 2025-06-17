@@ -15877,7 +15877,6 @@ createViewAsClause(Archive *fout, const TableInfo *tbinfo)
 {
 	PQExpBuffer query = createPQExpBuffer();
 	PQExpBuffer result = createPQExpBuffer();
-	PQExpBuffer dummyResult = createPQExpBuffer();
 	PGresult   *res;
 	int			len;
 
@@ -15910,9 +15909,7 @@ createViewAsClause(Archive *fout, const TableInfo *tbinfo)
 		destroyPQExpBuffer(query);
 		
 		/* Use createDummyViewAsClause to generate a compatible structure */
-		dummyResult = createDummyViewAsClause(fout, tbinfo);
-		appendPQExpBuffer(result, "%s", dummyResult->data);
-		destroyPQExpBuffer(dummyResult);
+		result = createDummyViewAsClause(fout, tbinfo);
 		
 		return result;
 	}
