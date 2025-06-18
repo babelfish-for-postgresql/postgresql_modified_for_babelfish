@@ -39,7 +39,7 @@ extern void error_view_not_updatable(Relation view,
 									 const char *detail);
 
 /* View repair hook */
-typedef bool (*view_repair_hook_type) (Query *parsetree);
-extern PGDLLEXPORT view_repair_hook_type view_repair_hook;									 
+typedef bool (*pre_QueryRewrite_hook_type) (Query *parsetree);
+extern PGDLLEXPORT pre_QueryRewrite_hook_type pre_QueryRewrite_hook;									 
 
 #endif							/* REWRITEHANDLER_H */

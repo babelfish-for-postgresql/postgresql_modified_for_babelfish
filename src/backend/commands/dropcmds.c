@@ -18,6 +18,7 @@
 #include "access/xact.h"
 #include "catalog/dependency.h"
 #include "catalog/namespace.h"
+#include "catalog/objectaccess.h"
 #include "catalog/objectaddress.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_proc.h"
@@ -133,11 +134,9 @@ RemoveObjects(DropStmt *stmt)
 
 		add_exact_object_address(&address, objects);
 
-		/* Check for strong views and handle weak views */
-		if ((stmt->removeType == OBJECT_FUNCTION) && view_dependency_hook)
-		{			
-			if (!(*view_dependency_hook)(&address, NULL, NULL))
-				continue;
+		if (object_access_hook && (stmt->removeType == OBJECT_FUNCTION))
+		{
+			InvokeObjectDropHook(ProcedureRelationId,address.objectId,0);
 		}
 	}
 

@@ -384,8 +384,6 @@ DefineView(ViewStmt *stmt, const char *queryString,
 
 	viewParse = parse_analyze_fixedparams(rawstmt, queryString, NULL, 0, NULL);
 
-	if (check_view_dependencies_hook)
-			(*check_view_dependencies_hook)(viewParse);
 
 	/*
 	 * The grammar should ensure that the result is a single SELECT Query.
