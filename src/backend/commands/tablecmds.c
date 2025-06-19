@@ -138,7 +138,6 @@ InvokePreDropColumnHook_type InvokePreDropColumnHook = NULL;
 check_extended_attoptions_hook_type check_extended_attoptions_hook = NULL;
 find_attr_by_name_from_column_def_list_hook_type
 	find_attr_by_name_from_column_def_list_hook = NULL;
-view_dependency_hook_type view_dependency_hook = NULL;
 
 /*
  * State information for ALTER TABLE
