@@ -666,22 +666,6 @@ typedef struct RangeTableFunc
 	ParseLoc	location;		/* token location, or -1 if unknown */
 } RangeTableFunc;
 
-/* 
- * Openxml_expr - Custom node for OPENXML function in T-SQL
- * This structure represents the OPENXML function call in T-SQL syntax
- */
-typedef struct Openxml_expr
-{
-    NodeTag     type;
-    Node       *tsql_docid;     /* Document ID */
-    Node       *rowexpr;        /* XPath expression for row selection */
-    Node       *tsql_flag;      /* Flag controlling XPath generation */
-    List       *columns;        /* List of column definitions */
-    RangeVar   *table_ref;      /* Reference to a table for WITH TABLE syntax */
-    Alias      *alias;          /* Table alias & optional column aliases */
-    ParseLoc    location;       /* Token location, or -1 if unknown */
-} Openxml_expr;
-
 /*
  * RangeTableFuncCol - one column in a RangeTableFunc->columns
  *

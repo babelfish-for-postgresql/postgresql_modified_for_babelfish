@@ -62,10 +62,7 @@ extern PGDLLEXPORT optimize_explicit_cast_hook_type optimize_explicit_cast_hook;
 /* functions in parse_jsontable.c */
 extern ParseNamespaceItem *transformJsonTable(ParseState *pstate, JsonTable *jt);
 
-/* Hook for custom FROM clause item transformation */
-typedef Node* (*transformFromClauseItem_hook_type)(ParseState *pstate, Node *n,ParseNamespaceItem **top_nsitem,List **namespace);
-extern PGDLLIMPORT transformFromClauseItem_hook_type transformFromClauseItem_hook;
+typedef void (*pre_transform_openxml_columns_hook_type) (ParseState *pstate, RangeTableFunc *rtf);
+extern PGDLLEXPORT pre_transform_openxml_columns_hook_type pre_transform_openxml_columns_hook;
 
-/*  */
-extern ParseNamespaceItem *bbf_transformRangeTableFunc(ParseState *pstate, RangeTableFunc *rtf);
 #endif							/* PARSE_CLAUSE_H */

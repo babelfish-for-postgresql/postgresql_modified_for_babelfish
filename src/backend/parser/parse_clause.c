@@ -55,7 +55,8 @@ tle_name_comparison_hook_type  tle_name_comparison_hook = NULL;
 sortby_nulls_hook_type  sortby_nulls_hook = NULL;
 
 optimize_explicit_cast_hook_type optimize_explicit_cast_hook = NULL;
-transformFromClauseItem_hook_type transformFromClauseItem_hook = NULL;
+
+pre_transform_openxml_columns_hook_type pre_transform_openxml_columns_hook = NULL;
 
 static int	extractRemainingColumns(ParseState *pstate,
 									ParseNamespaceColumn *src_nscolumns,
@@ -712,6 +713,9 @@ transformRangeTableFunc(ParseState *pstate, RangeTableFunc *rtf)
 	constructName = "XMLTABLE";
 	docType = XMLOID;
 
+	if (pre_transform_openxml_columns_hook)
+		pre_transform_openxml_columns_hook(pstate, rtf);
+
 	/*
 	 * We make lateral_only names of this level visible, whether or not the
 	 * RangeTableFunc is explicitly marked LATERAL.  This is needed for SQL
@@ -909,13 +913,6 @@ transformRangeTableFunc(ParseState *pstate, RangeTableFunc *rtf)
 										  tf, rtf->alias, is_lateral, true);
 }
 
-/* Wrapper function that calls the static transformRangeTableFunc function */
-ParseNamespaceItem *
-bbf_transformRangeTableFunc(ParseState *pstate, RangeTableFunc *rtf)
-{
-    return transformRangeTableFunc(pstate, rtf);
-}
-
 /*
  * transformRangeTableSample --- transform a TABLESAMPLE clause
  *
@@ -1075,20 +1072,6 @@ transformFromClauseItem(ParseState *pstate, Node *n,
 {
 	/* Guard against stack overflow due to overly deep subtree */
 	check_stack_depth();
-
-	/*
-    * Call the transformFromClauseItem hook if one is registered.
-    * If the hook returns a non-NULL value, use that as the result and skip
-    * the standard transformation process. Otherwise, continue with normal
-    * transformation.
-    */
-	if (transformFromClauseItem_hook)
-	{
-		Node *result;
-		result = transformFromClauseItem_hook(pstate, n, top_nsitem, namespace);
-		if (result != NULL)
-			return result;
-	}
 
 	if (IsA(n, RangeVar))
 	{
