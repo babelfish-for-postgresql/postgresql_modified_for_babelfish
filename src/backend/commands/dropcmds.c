@@ -134,7 +134,7 @@ RemoveObjects(DropStmt *stmt)
 
 		add_exact_object_address(&address, objects);
 
-		if (object_access_hook && (stmt->removeType == OBJECT_FUNCTION))
+		if (object_access_hook && (stmt->removeType == OBJECT_FUNCTION) && sql_dialect == SQL_DIALECT_TSQL)
 		{
 			InvokeObjectDropHook(ProcedureRelationId,address.objectId,0);
 		}
