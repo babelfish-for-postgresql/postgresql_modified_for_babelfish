@@ -136,7 +136,7 @@ RemoveObjects(DropStmt *stmt)
 
 		if (object_access_hook && (stmt->removeType == OBJECT_FUNCTION) && sql_dialect == SQL_DIALECT_TSQL)
 		{
-			InvokeObjectDropHook(ProcedureRelationId,address.objectId,0);
+			InvokeObjectDropHook(ProcedureRelationId,address.objectId,-1);
 		}
 	}
 
