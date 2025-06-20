@@ -713,6 +713,10 @@ transformRangeTableFunc(ParseState *pstate, RangeTableFunc *rtf)
 	constructName = "XMLTABLE";
 	docType = XMLOID;
 
+	/*
+	 * Hook to allow extensions to pre-process OPENXML column definitions
+	 * before standard XMLTABLE transformation.
+	 */
 	if (pre_transform_openxml_columns_hook)
 		pre_transform_openxml_columns_hook(pstate, rtf);
 
