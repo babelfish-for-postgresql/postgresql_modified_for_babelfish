@@ -15856,19 +15856,8 @@ createViewAsClause(Archive *fout, const TableInfo *tbinfo)
 	len = PQgetlength(res, 0, 0);
 
 	if (len == 0)
-	{
-		/* 
-		 * Handle broken views (with empty definitions)
-		 * Instead of failing, create a dummy SELECT that preserves the structure
-		 */
-		PQclear(res);
-		destroyPQExpBuffer(query);
-		
-		/* Use createDummyViewAsClause to generate a compatible structure */
-		result = createDummyViewAsClause(fout, tbinfo);
-		
-		return result;
-	}
+		pg_fatal("definition of view \"%s\" appears to be empty (length zero)",
+				 tbinfo->dobj.name);
 
 	/* Strip off the trailing semicolon so that other things may follow. */
 	Assert(PQgetvalue(res, 0, 0)[len - 1] == ';');
