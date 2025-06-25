@@ -122,8 +122,4 @@ typedef int (*find_attr_by_name_from_column_def_list_hook_type) (
 extern PGDLLEXPORT find_attr_by_name_from_column_def_list_hook_type
 	find_attr_by_name_from_column_def_list_hook;
 
-/* Hook for handling view dependencies during table drops */
-typedef bool (*view_dependency_hook_type) (const ObjectAddress *droppedObject, Relation depRel, ViewStmt *viewstmt);
-extern PGDLLIMPORT view_dependency_hook_type view_dependency_hook;
-
 #endif							/* TABLECMDS_H */

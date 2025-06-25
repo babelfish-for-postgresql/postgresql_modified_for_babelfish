@@ -344,7 +344,6 @@ static void setupDumpWorker(Archive *AH);
 static TableInfo *getRootTableInfo(const TableInfo *tbinfo);
 static bool forcePartitionRootLoad(const TableInfo *tbinfo);
 static void read_dump_filters(const char *filename, DumpOptions *dopt);
-static PQExpBuffer createDummyViewAsClause(Archive *fout, const TableInfo *tbinfo);
 
 int
 main(int argc, char **argv)
