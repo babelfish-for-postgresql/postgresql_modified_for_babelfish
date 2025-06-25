@@ -717,7 +717,7 @@ transformRangeTableFunc(ParseState *pstate, RangeTableFunc *rtf)
 	 * Hook to allow extensions to pre-process OPENXML column definitions
 	 * before standard XMLTABLE transformation.
 	 */
-	if (pre_transform_openxml_columns_hook)
+	if (pre_transform_openxml_columns_hook && tf->functype == TFT_XMLTABLE)
 		pre_transform_openxml_columns_hook(pstate, rtf);
 
 	/*

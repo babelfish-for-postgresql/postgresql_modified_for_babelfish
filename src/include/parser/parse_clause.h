@@ -64,6 +64,6 @@ extern ParseNamespaceItem *transformJsonTable(ParseState *pstate, JsonTable *jt)
 
 /* Hook for preprocessing OPENXML column definitions before XMLTABLE transformation */
 typedef void (*pre_transform_openxml_columns_hook_type) (ParseState *pstate, RangeTableFunc *rtf);
-extern PGDLLEXPORT pre_transform_openxml_columns_hook_type pre_transform_openxml_columns_hook;
+extern PGDLLIMPORT pre_transform_openxml_columns_hook_type pre_transform_openxml_columns_hook;
 
 #endif							/* PARSE_CLAUSE_H */
