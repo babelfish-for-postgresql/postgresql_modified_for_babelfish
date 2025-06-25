@@ -139,6 +139,8 @@ static void CreateDirAndVersionFile(char *dbpath, Oid dbid, Oid tsid,
 static void CreateDatabaseUsingFileCopy(Oid src_dboid, Oid dst_dboid,
 										Oid src_tsid, Oid dst_tsid);
 static void recovery_create_dbdir(char *path, bool only_tblspc);
+static bool is_babelfish_ownership_enabled(ArrayType *array);
+static bool has_babelfish_restriction(Oid target_db_id);
 
 /*
  * Create a new database using the WAL_LOG strategy.
@@ -1627,6 +1629,109 @@ createdb_failure_callback(int code, Datum arg)
 	remove_dbtablespaces(fparms->dest_dboid);
 }
 
+/*
+ * This function controls if babelfishpg_tsql.enable_ownership_structure
+ * was set. If so it will return true otherwise return false.
+ */
+static bool
+is_babelfish_ownership_enabled(ArrayType *options_array)
+{
+	int option_index;
+	static const char *target_option_name = "babelfishpg_tsql.enable_ownership_structure";
+	int target_option_name_len = strlen(target_option_name);
+	bool ownership_enabled = false;
+
+	for (option_index = 1; option_index <= ARR_DIMS(options_array)[0]; option_index++)
+	{
+		Datum option_datum;
+		bool is_option_null = false;
+		char *option_text = NULL;
+		char *parsed_option_name = NULL;
+		char *parsed_option_value = NULL;
+
+		option_datum = array_ref(options_array, 1, &option_index,
+								 -1 /* varlenarray */,
+								 -1 /* TEXT's typlen */,
+								 false /* TEXT's typbyval */,
+								 TYPALIGN_INT /* TEXT's typalign */,
+								 &is_option_null);
+
+		if (is_option_null)
+			continue;
+
+		option_text = TextDatumGetCString(option_datum);
+
+		ParseLongOption(option_text, &parsed_option_name, &parsed_option_value);
+		if (strncmp(parsed_option_name, target_option_name, target_option_name_len) == 0 &&
+			strncmp(parsed_option_value, "true", 4) == 0)
+		{
+			pfree(parsed_option_name);
+			pfree(parsed_option_value);
+			pfree(option_text);
+			ownership_enabled = true;
+			break;
+		}
+
+		pfree(parsed_option_name);
+		pfree(parsed_option_value);
+		pfree(option_text);
+	}
+
+	return ownership_enabled;
+}
+
+/*
+* This function will check if database to be removed is Babelfish exclusive one.
+* If so it will check whether some preconditions were fullfilled or not.
+*/
+static bool
+has_babelfish_restriction(Oid target_db_id) 
+{
+	Relation relsetting;
+	ScanKeyData scankey[2];
+	SysScanDesc scan;
+	HeapTuple tuple;
+	bool has_bbf_md;
+
+	has_bbf_md = false;
+
+	relsetting = table_open(DbRoleSettingRelationId, AccessShareLock);
+
+	ScanKeyInit(&scankey[0],
+				Anum_pg_db_role_setting_setdatabase,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(target_db_id));
+	ScanKeyInit(&scankey[1],
+				Anum_pg_db_role_setting_setrole,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(InvalidOid));
+
+	scan = systable_beginscan(relsetting, DbRoleSettingDatidRolidIndexId,
+								true, NULL, 2, scankey);
+	tuple = systable_getnext(scan);
+	if (HeapTupleIsValid(tuple))
+	{
+		bool isnull;
+		Datum datum;
+		ArrayType *configs = NULL;
+
+		datum = heap_getattr(tuple, Anum_pg_db_role_setting_setconfig,
+								RelationGetDescr(relsetting), &isnull);
+		if (!isnull)
+			configs = DatumGetArrayTypeP(datum);
+
+		if (configs && is_babelfish_ownership_enabled(configs))
+			has_bbf_md = true;
+	}
+	systable_endscan(scan);
+	table_close(relsetting, AccessShareLock);
+
+	if (has_bbf_md)
+		return true;
+
+	return false;
+}
+
 
 /*
  * DROP DATABASE
@@ -1646,6 +1751,8 @@ dropdb(const char *dbname, bool missing_ok, bool force)
 	int			nslots,
 				nslots_active;
 	int			nsubscriptions;
+	const char *babelfish_db_name;
+	Oid babelfish_db_oid = InvalidOid;
 
 	/*
 	 * Look up the target database's OID, and get exclusive lock on it. We
@@ -1674,6 +1781,22 @@ dropdb(const char *dbname, bool missing_ok, bool force)
 							dbname)));
 			return;
 		}
+	}
+	
+	babelfish_db_name = GetConfigOption("babelfishpg_tsql.database_name", true, false);
+	if (babelfish_db_name)
+		babelfish_db_oid = get_database_oid(babelfish_db_name, true);
+	
+	/*
+	* Check if a database to be deleted is Babelfish's exclusive database.
+	* If so check sys.remove_babelfish() was called otherwise don't permit to run
+	*/
+	if (babelfish_db_oid != InvalidOid && babelfish_db_oid == db_id && has_babelfish_restriction(db_id))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_IN_USE),
+					errmsg("Cannot drop Babelfish database directly."),
+					errhint("Please call \"sys.remove_babelfish()\" before executing \"DROP DATABASE\".")));
 	}
 
 	/*
