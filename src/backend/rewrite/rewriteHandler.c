@@ -4430,14 +4430,8 @@ QueryRewrite(Query *parsetree)
 	Assert(parsetree->querySource == QSRC_ORIGINAL);
 	Assert(parsetree->canSetTag);
 
-	/*
-     * Step 0 (Babelfish extension)
-     *
-     * If this is a view with broken rules, try to repair it
-     * using the definition from babelfish_view_def
-     */
 	if (pre_QueryRewrite_hook)
-		(*pre_QueryRewrite_hook)(parsetree);
+		(*pre_QueryRewrite_hook) (parsetree);
 	/*
 	 * Step 1
 	 *

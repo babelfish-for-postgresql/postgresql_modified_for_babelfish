@@ -45,7 +45,7 @@ inherit_view_constraints_from_table_hook_type inherit_view_constraints_from_tabl
  * EventTriggerAlterTableStart must have been called already.
  *---------------------------------------------------------------------
  */
-ObjectAddress
+static ObjectAddress
 DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 					  List *options, Query *viewParse)
 {
@@ -524,4 +524,14 @@ StoreViewQuery(Oid viewOid, Query *viewParse, bool replace)
 	 * Now create the rules associated with the view.
 	 */
 	DefineViewRules(viewOid, viewParse, replace);
+}
+
+/*
+ * Wrapper function for DefineVirtualRelation used by Babelfish view repair
+ */
+ObjectAddress
+bbf_define_virtual_relation(RangeVar *relation, List *tlist, bool replace,
+							List *options, Query *viewParse)
+{
+    return DefineVirtualRelation(relation, tlist, replace, options, viewParse);
 }
