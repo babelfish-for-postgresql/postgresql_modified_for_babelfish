@@ -4404,6 +4404,7 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length)
 	return rewritten;
 }
 
+
 /*
  * QueryRewrite -
  *	  Primary entry point to the query rewriter.
