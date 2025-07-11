@@ -530,3 +530,13 @@ StoreViewQuery(Oid viewOid, Query *viewParse, bool replace)
 	 */
 	DefineViewRules(viewOid, viewParse, replace);
 }
+
+/*
+ * Wrapper function for DefineVirtualRelation used by Babelfish view repair
+ */
+ObjectAddress
+bbf_define_virtual_relation(RangeVar *relation, List *tlist, bool replace,
+							List *options, Query *viewParse)
+{
+    return DefineVirtualRelation(relation, tlist, replace, options, viewParse);
+}

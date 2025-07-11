@@ -32,4 +32,8 @@ extern int	relation_is_updatable(Oid reloid,
 								  bool include_triggers,
 								  Bitmapset *include_cols);
 
+/* View repair hook */
+typedef bool (*pre_QueryRewrite_hook_type) (Query *parsetree);
+extern PGDLLEXPORT pre_QueryRewrite_hook_type pre_QueryRewrite_hook;									 
+
 #endif							/* REWRITEHANDLER_H */
