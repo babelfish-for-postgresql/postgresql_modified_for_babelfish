@@ -48,6 +48,7 @@
 #include "utils/rel.h"
 
 bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook = NULL; /** BBF Hook to check Instead Of trigger on View */
+pre_QueryRewrite_hook_type pre_QueryRewrite_hook = NULL;
 
 /* We use a list of these to detect recursion in RewriteQuery */
 typedef struct rewrite_event
@@ -4271,6 +4272,8 @@ QueryRewrite(Query *parsetree)
 	Assert(parsetree->querySource == QSRC_ORIGINAL);
 	Assert(parsetree->canSetTag);
 
+	if (pre_QueryRewrite_hook)
+		(*pre_QueryRewrite_hook) (parsetree);
 	/*
 	 * Step 1
 	 *
