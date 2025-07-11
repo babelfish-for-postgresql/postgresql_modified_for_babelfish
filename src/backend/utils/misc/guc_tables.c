@@ -2971,7 +2971,7 @@ struct config_int ConfigureNamesInt[] =
 		},
 		&max_slot_wal_keep_size_mb,
 		-1, -1, MAX_KILOBYTES,
-		check_max_slot_wal_keep_size, NULL, NULL
+		NULL, NULL, NULL
 	},
 
 	{
