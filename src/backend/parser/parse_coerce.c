@@ -487,7 +487,11 @@ coerce_type(ParseState *pstate, Node *node,
 		}
 		else
 		{
-			int32		baseTypeMod;
+			int32		baseTypeMod,
+					typmod = -1;
+
+			if (exprTypmod_hook && typmod == -1)
+					typmod = (*exprTypmod_hook)(NULL, node);
 
 			/*
 			 * targetTypeMod is allowed for a domain only if enable_domain_typmod
@@ -511,10 +515,6 @@ coerce_type(ParseState *pstate, Node *node,
 									  false);
 			if (result == node)
 			{
-				int32	typmod = -1;
-
-				if (exprTypmod_hook && typmod == -1)
-					typmod = (*exprTypmod_hook)(NULL, node);
 				/*
 				 * XXX could we label result with exprTypmod(node) instead of
 				 * default -1 typmod, to save a possible length-coercion
