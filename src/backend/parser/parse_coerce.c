@@ -488,9 +488,9 @@ coerce_type(ParseState *pstate, Node *node,
 		else
 		{
 			int32		baseTypeMod,
-					typmod = -1;
+						typmod = -1;
 
-			if (exprTypmod_hook && typmod == -1)
+			if (exprTypmod_hook)
 					typmod = (*exprTypmod_hook)(NULL, node);
 
 			/*
