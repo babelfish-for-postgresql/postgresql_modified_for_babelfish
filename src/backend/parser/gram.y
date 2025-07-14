@@ -14559,7 +14559,7 @@ Numeric:	INT_P
 				{
 					if (sql_dialect == SQL_DIALECT_TSQL)
 					{
-						$$ = makeTypeName("decimal");
+						$$ = SystemTypeName("numeric");
 						$$->typmods = $2;
 						$$->location = @1;
 						if (validate_numeric_typmods_hook)
@@ -14578,7 +14578,7 @@ Numeric:	INT_P
 				{
 					if (sql_dialect == SQL_DIALECT_TSQL)
 					{
-						$$ = makeTypeName("decimal");
+						$$ = SystemTypeName("numeric");
 						$$->typmods = $2;
 						$$->location = @1;
 						if (validate_numeric_typmods_hook)
