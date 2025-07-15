@@ -1777,7 +1777,9 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int4_numeric_ops\"" : "sys.int4_numeric_ops") != 0 &&
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int4_ops\"" : "sys.numeric_int4_ops") != 0 &&
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric_ops\"" : "sys.int8_numeric_ops") != 0 &&
-		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8_ops\"" : "sys.numeric_int8_ops") != 0)
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8_ops\"" : "sys.numeric_int8_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_fixeddecimal_cmp_ops\"" : "sys.numeric_fixeddecimal_cmp_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"fixeddecimal_numeric_cmp_ops\"" : "sys.fixeddecimal_numeric_cmp_ops") != 0)
 		return;
 
 	query = createPQExpBuffer();
@@ -1920,6 +1922,40 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"OPERATOR 4 sys.>= (numeric, int8) ,\n	"
 				"OPERATOR 5 sys.> (numeric, int8) ,\n	"
 				"FUNCTION 1 sys.numeric_int8_cmp(numeric, int8) ";
+	}
+
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_fixeddecimal_cmp_ops\"" : "sys.numeric_fixeddecimal_cmp_ops") == 0)
+	{
+		str = quote_all_identifiers ?
+				"OPERATOR 1 \"sys\".< (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 2 \"sys\".<= (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 3 \"sys\".= (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 4 \"sys\".>= (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 5 \"sys\".> (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"FUNCTION 1 \"sys\".\"numeric_fixeddecimal_cmp\"(numeric, \"sys\".\"fixeddecimal\") " :
+				"OPERATOR 1 sys.< (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 2 sys.<= (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 3 sys.= (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 4 sys.>= (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 5 sys.> (numeric, sys.fixeddecimal) ,\n	"
+				"FUNCTION 1 sys.numeric_fixeddecimal_cmp(numeric, sys.fixeddecimal) ";
+	}
+
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"fixeddecimal_numeric_cmp_ops\"" : "sys.fixeddecimal_numeric_cmp_ops") == 0)
+	{
+		str = quote_all_identifiers ?
+				"OPERATOR 1 \"sys\".< (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 2 \"sys\".<= (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 3 \"sys\".= (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 4 \"sys\".>= (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 5 \"sys\".> (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"FUNCTION 1 \"sys\".\"fixeddecimal_numeric_cmp\"(\"sys\".\"fixeddecimal\", numeric) " :
+				"OPERATOR 1 sys.< (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 2 sys.<= (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 3 sys.= (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 4 sys.>= (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 5 sys.> (sys.fixeddecimal, numeric) ,\n	"
+				"FUNCTION 1 sys.fixeddecimal_numeric_cmp(sys.fixeddecimal, numeric) ";
 	}
 
 	if(str != NULL)
