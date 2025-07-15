@@ -19,11 +19,13 @@
 #include "access/xact.h"
 #include "catalog/dependency.h"
 #include "catalog/namespace.h"
+#include "catalog/objectaccess.h"
 #include "catalog/objectaddress.h"
 #include "catalog/pg_class.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_proc.h"
 #include "commands/defrem.h"
+#include "commands/tablecmds.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "parser/parser.h"
@@ -136,6 +138,11 @@ RemoveObjects(DropStmt *stmt)
 			table_close(relation, NoLock);
 
 		add_exact_object_address(&address, objects);
+
+		if (object_access_hook && (stmt->removeType == OBJECT_FUNCTION) && sql_dialect == SQL_DIALECT_TSQL)
+		{
+			InvokeObjectDropHook(ProcedureRelationId, address.objectId, -1);
+		}
 	}
 
 	/* Here we really delete them. */

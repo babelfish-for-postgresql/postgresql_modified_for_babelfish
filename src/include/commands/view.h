@@ -27,4 +27,8 @@ extern PGDLLEXPORT store_view_definition_hook_type	store_view_definition_hook;
 
 typedef void (*inherit_view_constraints_from_table_hook_type) (ColumnDef  *col, Oid tableOid, AttrNumber colId);
 extern PGDLLEXPORT inherit_view_constraints_from_table_hook_type inherit_view_constraints_from_table_hook;
+
+extern ObjectAddress bbf_define_virtual_relation(RangeVar *relation, List *tlist, bool replace,
+												 List *options, Query *viewParse);
+
 #endif							/* VIEW_H */
