@@ -1778,8 +1778,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int4_ops\"" : "sys.numeric_int4_ops") != 0 &&
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric_ops\"" : "sys.int8_numeric_ops") != 0 &&
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8_ops\"" : "sys.numeric_int8_ops") != 0 &&
-		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_fixeddecimal_ops\"" : "sys.numeric_fixeddecimal_ops") != 0 &&
-		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"fixeddecimal_numeric_ops\"" : "sys.fixeddecimal_numeric_ops") != 0)
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_fixeddecimal_cmp_ops\"" : "sys.numeric_fixeddecimal_cmp_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"fixeddecimal_numeric_cmp_ops\"" : "sys.fixeddecimal_numeric_cmp_ops") != 0)
 		return;
 
 	query = createPQExpBuffer();
@@ -1924,7 +1924,7 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"FUNCTION 1 sys.numeric_int8_cmp(numeric, int8) ";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_fixeddecimal_ops\"" : "sys.numeric_fixeddecimal_ops") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_fixeddecimal_cmp_ops\"" : "sys.numeric_fixeddecimal_cmp_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (numeric, \"sys\".\"fixeddecimal\") ,\n	"
@@ -1941,7 +1941,7 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"FUNCTION 1 sys.numeric_fixeddecimal_cmp(numeric, sys.fixeddecimal) ";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"fixeddecimal_numeric_ops\"" : "sys.fixeddecimal_numeric_ops") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"fixeddecimal_numeric_cmp_ops\"" : "sys.fixeddecimal_numeric_cmp_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (\"sys\".\"fixeddecimal\", numeric) ,\n	"
