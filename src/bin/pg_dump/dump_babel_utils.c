@@ -1927,35 +1927,35 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_fixeddecimal_ops\"" : "sys.numeric_fixeddecimal_ops") == 0)
 	{
 		str = quote_all_identifiers ?
-				"OPERATOR 1 \"sys\".< (numeric, fixeddecimal) ,\n	"
-				"OPERATOR 2 \"sys\".<= (numeric, fixeddecimal) ,\n	"
-				"OPERATOR 3 \"sys\".= (numeric, fixeddecimal) ,\n	"
-				"OPERATOR 4 \"sys\".>= (numeric, fixeddecimal) ,\n	"
-				"OPERATOR 5 \"sys\".> (numeric, fixeddecimal) ,\n	"
-				"FUNCTION 1 \"sys\".\"numeric_fixeddecimal_cmp\"(numeric, fixeddecimal) " :
-				"OPERATOR 1 sys.< (numeric, fixeddecimal) ,\n	"
-				"OPERATOR 2 sys.<= (numeric, fixeddecimal) ,\n	"
-				"OPERATOR 3 sys.= (numeric, fixeddecimal) ,\n	"
-				"OPERATOR 4 sys.>= (numeric, fixeddecimal) ,\n	"
-				"OPERATOR 5 sys.> (numeric, fixeddecimal) ,\n	"
-				"FUNCTION 1 sys.numeric_fixeddecimal_cmp(numeric, fixeddecimal) ";
+				"OPERATOR 1 \"sys\".< (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 2 \"sys\".<= (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 3 \"sys\".= (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 4 \"sys\".>= (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 5 \"sys\".> (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"FUNCTION 1 \"sys\".\"numeric_fixeddecimal_cmp\"(numeric, \"sys\".\"fixeddecimal\") " :
+				"OPERATOR 1 sys.< (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 2 sys.<= (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 3 sys.= (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 4 sys.>= (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 5 sys.> (numeric, sys.fixeddecimal) ,\n	"
+				"FUNCTION 1 sys.numeric_fixeddecimal_cmp(numeric, sys.fixeddecimal) ";
 	}
 
 	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"fixeddecimal_numeric_ops\"" : "sys.fixeddecimal_numeric_ops") == 0)
 	{
 		str = quote_all_identifiers ?
-				"OPERATOR 1 \"sys\".< (fixeddecimal, numeric) ,\n	"
-				"OPERATOR 2 \"sys\".<= (fixeddecimal, numeric) ,\n	"
-				"OPERATOR 3 \"sys\".= (fixeddecimal, numeric) ,\n	"
-				"OPERATOR 4 \"sys\".>= (fixeddecimal, numeric) ,\n	"
-				"OPERATOR 5 \"sys\".> (fixeddecimal, numeric) ,\n	"
-				"FUNCTION 1 \"sys\".\"fixeddecimal_numeric_cmp\"(fixeddecimal, numeric) " :
-				"OPERATOR 1 sys.< (fixeddecimal, numeric) ,\n	"
-				"OPERATOR 2 sys.<= (fixeddecimal, numeric) ,\n	"
-				"OPERATOR 3 sys.= (fixeddecimal, numeric) ,\n	"
-				"OPERATOR 4 sys.>= (fixeddecimal, numeric) ,\n	"
-				"OPERATOR 5 sys.> (fixeddecimal, numeric) ,\n	"
-				"FUNCTION 1 sys.fixeddecimal_numeric_cmp(fixeddecimal, numeric) ";
+				"OPERATOR 1 \"sys\".< (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 2 \"sys\".<= (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 3 \"sys\".= (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 4 \"sys\".>= (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 5 \"sys\".> (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"FUNCTION 1 \"sys\".\"fixeddecimal_numeric_cmp\"(\"sys\".\"fixeddecimal\", numeric) " :
+				"OPERATOR 1 sys.< (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 2 sys.<= (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 3 sys.= (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 4 sys.>= (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 5 sys.> (sys.fixeddecimal, numeric) ,\n	"
+				"FUNCTION 1 sys.fixeddecimal_numeric_cmp(sys.fixeddecimal, numeric) ";
 	}
 
 	if(str != NULL)
