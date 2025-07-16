@@ -640,7 +640,7 @@ main(int argc, char *argv[])
 
 	dumpBabelRestoreChecks(OPF, conn, binary_upgrade);
 
-	if (!data_only)
+	if (!data_only && !statistics_only && !no_schema)
 	{
 		/*
 		 * If asked to --clean, do that first.  We can avoid detailed
