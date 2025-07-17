@@ -403,15 +403,6 @@ bool ENRGetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 
 	Oid reloid = RelationGetRelid(rel);
 
-	/*
-	* If this is called from a non-tds port 
-	* we should return false right away
-	*/
-	if (MyProcPort && !MyProcPort->is_tds_conn)
-	{
-		return false;
-	}
-
 	if (sql_dialect != SQL_DIALECT_TSQL)
 	{
 		/*
