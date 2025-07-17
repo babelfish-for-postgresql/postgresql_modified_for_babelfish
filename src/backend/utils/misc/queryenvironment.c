@@ -51,6 +51,8 @@
 #include "utils/syscache.h"
 #include "utils/queryenvironment.h"
 #include "utils/rel.h"
+#include "miscadmin.h"
+#include "libpq/libpq-be.h"
 
 #define NUM_ENR_CATALOGS 11
 
@@ -400,6 +402,15 @@ bool ENRGetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 	Oid pltsql_validator_oid = InvalidOid;
 
 	Oid reloid = RelationGetRelid(rel);
+
+	/*
+	* If this is called from a non-tds port 
+	* we should return false right away
+	*/
+	if (MyProcPort && !MyProcPort->is_tds_conn)
+	{
+		return false;
+	}
 
 	if (sql_dialect != SQL_DIALECT_TSQL)
 	{

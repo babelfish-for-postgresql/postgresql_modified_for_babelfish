@@ -227,6 +227,7 @@ RelationDropStorage(Relation rel)
 	 */
 	if (IsTsqlTableVariable(rel))
 	{
+		Assert(rel->rd_backend != INVALID_PROC_NUMBER);
 		pending = (PendingRelDelete *)
 		MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
 		pending->rlocator = rel->rd_locator;
