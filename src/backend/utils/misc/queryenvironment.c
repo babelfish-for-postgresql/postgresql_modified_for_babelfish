@@ -1781,11 +1781,22 @@ bool SIMessageIsForTempTable(const SharedInvalidationMessage *msg)
 /* Simple wrapper for Table Variable checks */
 bool IsTsqlTableVariable(Relation relation)
 {
-	return sql_dialect == SQL_DIALECT_TSQL 
+	bool isTableVariable = sql_dialect == SQL_DIALECT_TSQL 
 		&& relation
 		&& relation->rd_rel->relpersistence == RELPERSISTENCE_TEMP 
 		&& strlen(relation->rd_rel->relname.data) >= 1 
 		&& relation->rd_rel->relname.data[0] == '@';
+	
+	if (isTableVariable && relation->rd_backend == INVALID_PROC_NUMBER)
+	{
+		/* logging the relation */
+		elog(WARNING, "rd_id = %d, rd_backend = %d, oid = %d, relfilenode = %d, relname = %s, relnamespace = %d", 
+			relation->rd_id, relation->rd_backend, relation->rd_rel->oid, relation->rd_rel->relfilenode, relation->rd_rel->relname.data, relation->rd_rel->relnamespace);
+		/* proceeding to kill the backend as continuing from this point might lead to deletion of unintended rels */
+		elog(FATAL, "Table variable has an invalid backend id which might lead the engine to think this is a permanent relation.");
+	}
+
+	return isTableVariable;
 }
 
 /* Simple wrapper for Temp Table checks */

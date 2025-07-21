@@ -227,14 +227,6 @@ RelationDropStorage(Relation rel)
 	 */
 	if (IsTsqlTableVariable(rel))
 	{
-		if (rel->rd_backend == INVALID_PROC_NUMBER)
-		{
-			/* logging the relation */
-			elog(WARNING, "rd_id = %d, rd_backend = %d, oid = %d, relfilenode = %d, relname = %s, relnamespace = %d", 
-				rel->rd_id, rel->rd_backend, rel->rd_rel->oid, rel->rd_rel->relfilenode, rel->rd_rel->relname.data, rel->rd_rel->relnamespace);
-			/* proceeding to kill the backend as continuing from this point might lead to deletion of unintended rels */
-			elog(FATAL, "Invalid relation found while dropping a tsql table variable.");
-		}
 		pending = (PendingRelDelete *)
 		MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
 		pending->rlocator = rel->rd_locator;
