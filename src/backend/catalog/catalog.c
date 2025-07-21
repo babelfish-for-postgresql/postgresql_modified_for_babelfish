@@ -601,8 +601,11 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 		{
 			/* Temp tables use temp OID logic */
 			if (use_bbf_oid_buffer)
+			{
 				rlocator.locator.relNumber = GetNewTempOidWithIndex_hook(pg_class, ClassOidIndexId,
 													Anum_pg_class_oid);
+				elog(DEBUG1, "New OID generated from the temp oid buffer: %u for backend with id: %d and with pg_class", rlocator.locator.relNumber, procNumber);
+			}
 			else
 				rlocator.locator.relNumber = GetNewOidWithIndex(pg_class, ClassOidIndexId,
 															Anum_pg_class_oid);
@@ -611,7 +614,10 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 		{
 			/* Temp tables use temp OID logic */
 			if (use_bbf_oid_buffer)
+			{
 				rlocator.locator.relNumber = GetNewTempObjectId_hook();
+				elog(DEBUG1, "New OID generated from the temp oid buffer: %u for backend with id: %d and without pg_class", rlocator.locator.relNumber, procNumber);
+			}
 			else
 				rlocator.locator.relNumber = GetNewObjectId();
 		}

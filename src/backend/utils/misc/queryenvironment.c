@@ -1787,7 +1787,7 @@ bool IsTsqlTableVariable(Relation relation)
 		&& strlen(relation->rd_rel->relname.data) >= 1 
 		&& relation->rd_rel->relname.data[0] == '@';
 	
-	if (isTableVariable && relation->rd_backend == INVALID_PROC_NUMBER)
+	if (unlikely(isTableVariable && relation->rd_backend == INVALID_PROC_NUMBER))
 	{
 		/* logging the relation */
 		elog(WARNING, "rd_id = %d, rd_backend = %d, oid = %d, relfilenode = %d, relname = %s, relnamespace = %d", 
