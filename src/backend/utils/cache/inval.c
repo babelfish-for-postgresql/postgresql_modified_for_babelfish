@@ -461,6 +461,12 @@ AddRelcacheInvalidationMessage(InvalidationMsgsGroup *group,
 	msg.rc.dbId = dbId;
 	msg.rc.relId = relId;
 	msg.rc.local_only = (pltsql_get_tsql_enr_from_oid_hook && (*pltsql_get_tsql_enr_from_oid_hook)(relId));
+
+	if (!msg.rc.local_only && GetENRTempTableWithOid(relId))
+	{
+		elog(WARNING, "Relcache invalidation message sent to all backends even though the relation is ENR; relId: %u", relId);
+	}
+
 	/* check AddCatcacheInvalidationMessage() for an explanation */
 	VALGRIND_MAKE_MEM_DEFINED(&msg, sizeof(msg));
 
