@@ -1890,6 +1890,13 @@ selectDumpableProcLang(ProcLangInfo *plang, Archive *fout)
 static void
 selectDumpableAccessMethod(AccessMethodInfo *method, Archive *fout)
 {
+	/* see getAccessMethods() comment about v9.6. */
+	if (fout->remoteVersion < 90600)
+	{
+		method->dobj.dump = DUMP_COMPONENT_NONE;
+		return;
+	}
+
 	if (checkExtensionMembership(&method->dobj, fout))
 		return;					/* extension membership overrides all else */
 
@@ -5571,6 +5578,8 @@ getOperators(Archive *fout, int *numOprs)
 	int			i_oprnamespace;
 	int			i_oprowner;
 	int			i_oprkind;
+	int			i_oprleft;
+	int			i_oprright;
 	int			i_oprcode;
 
 	/*
@@ -5582,6 +5591,8 @@ getOperators(Archive *fout, int *numOprs)
 					  "oprnamespace, "
 					  "oprowner, "
 					  "oprkind, "
+					  "oprleft, "
+					  "oprright, "
 					  "oprcode::oid AS oprcode "
 					  "FROM pg_operator");
 
@@ -5598,6 +5609,8 @@ getOperators(Archive *fout, int *numOprs)
 	i_oprnamespace = PQfnumber(res, "oprnamespace");
 	i_oprowner = PQfnumber(res, "oprowner");
 	i_oprkind = PQfnumber(res, "oprkind");
+	i_oprleft = PQfnumber(res, "oprleft");
+	i_oprright = PQfnumber(res, "oprright");
 	i_oprcode = PQfnumber(res, "oprcode");
 
 	for (i = 0; i < ntups; i++)
@@ -5611,6 +5624,8 @@ getOperators(Archive *fout, int *numOprs)
 			findNamespace(atooid(PQgetvalue(res, i, i_oprnamespace)));
 		oprinfo[i].rolname = getRoleName(PQgetvalue(res, i, i_oprowner));
 		oprinfo[i].oprkind = (PQgetvalue(res, i, i_oprkind))[0];
+		oprinfo[i].oprleft = atooid(PQgetvalue(res, i, i_oprleft));
+		oprinfo[i].oprright = atooid(PQgetvalue(res, i, i_oprright));
 		oprinfo[i].oprcode = atooid(PQgetvalue(res, i, i_oprcode));
 
 		/* Decide whether we want to dump it */
@@ -5644,6 +5659,7 @@ getCollations(Archive *fout, int *numCollations)
 	int			i_collname;
 	int			i_collnamespace;
 	int			i_collowner;
+	int			i_collencoding;
 
 	query = createPQExpBuffer();
 
@@ -5654,7 +5670,8 @@ getCollations(Archive *fout, int *numCollations)
 
 	appendPQExpBuffer(query, "SELECT tableoid, oid, collname, "
 					  "collnamespace, "
-					  "collowner "
+					  "collowner, "
+					  "collencoding "
 					  "FROM pg_collation");
 
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
@@ -5669,6 +5686,7 @@ getCollations(Archive *fout, int *numCollations)
 	i_collname = PQfnumber(res, "collname");
 	i_collnamespace = PQfnumber(res, "collnamespace");
 	i_collowner = PQfnumber(res, "collowner");
+	i_collencoding = PQfnumber(res, "collencoding");
 
 	for (i = 0; i < ntups; i++)
 	{
@@ -5680,6 +5698,7 @@ getCollations(Archive *fout, int *numCollations)
 		collinfo[i].dobj.namespace =
 			findNamespace(atooid(PQgetvalue(res, i, i_collnamespace)));
 		collinfo[i].rolname = getRoleName(PQgetvalue(res, i, i_collowner));
+		collinfo[i].collencoding = atoi(PQgetvalue(res, i, i_collencoding));
 
 		/* Decide whether we want to dump it */
 		selectDumpableObject(&(collinfo[i].dobj), fout);
@@ -5781,19 +5800,28 @@ getAccessMethods(Archive *fout, int *numAccessMethods)
 	int			i_amhandler;
 	int			i_amtype;
 
-	/* Before 9.6, there are no user-defined access methods */
-	if (fout->remoteVersion < 90600)
-	{
-		*numAccessMethods = 0;
-		return NULL;
-	}
-
 	query = createPQExpBuffer();
 
-	/* Select all access methods from pg_am table */
-	appendPQExpBufferStr(query, "SELECT tableoid, oid, amname, amtype, "
-						 "amhandler::pg_catalog.regproc AS amhandler "
-						 "FROM pg_am");
+	/*
+	 * Select all access methods from pg_am table.  v9.6 introduced CREATE
+	 * ACCESS METHOD, so earlier versions usually have only built-in access
+	 * methods.  v9.6 also changed the access method API, replacing dozens of
+	 * pg_am columns with amhandler.  Even if a user created an access method
+	 * by "INSERT INTO pg_am", we have no way to translate pre-v9.6 pg_am
+	 * columns to a v9.6+ CREATE ACCESS METHOD.  Hence, before v9.6, read
+	 * pg_am just to facilitate findAccessMethodByOid() providing the
+	 * OID-to-name mapping.
+	 */
+	appendPQExpBufferStr(query, "SELECT tableoid, oid, amname, ");
+	if (fout->remoteVersion >= 90600)
+		appendPQExpBufferStr(query,
+							 "amtype, "
+							 "amhandler::pg_catalog.regproc AS amhandler ");
+	else
+		appendPQExpBufferStr(query,
+							 "'i'::pg_catalog.\"char\" AS amtype, "
+							 "'-'::pg_catalog.regproc AS amhandler ");
+	appendPQExpBufferStr(query, "FROM pg_am");
 
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
@@ -5848,6 +5876,7 @@ getOpclasses(Archive *fout, int *numOpclasses)
 	OpclassInfo *opcinfo;
 	int			i_tableoid;
 	int			i_oid;
+	int			i_opcmethod;
 	int			i_opcname;
 	int			i_opcnamespace;
 	int			i_opcowner;
@@ -5857,7 +5886,7 @@ getOpclasses(Archive *fout, int *numOpclasses)
 	 * system-defined opclasses at dump-out time.
 	 */
 
-	appendPQExpBuffer(query, "SELECT tableoid, oid, opcname, "
+	appendPQExpBuffer(query, "SELECT tableoid, oid, opcmethod, opcname, "
 					  "opcnamespace, "
 					  "opcowner "
 					  "FROM pg_opclass");
@@ -5871,6 +5900,7 @@ getOpclasses(Archive *fout, int *numOpclasses)
 
 	i_tableoid = PQfnumber(res, "tableoid");
 	i_oid = PQfnumber(res, "oid");
+	i_opcmethod = PQfnumber(res, "opcmethod");
 	i_opcname = PQfnumber(res, "opcname");
 	i_opcnamespace = PQfnumber(res, "opcnamespace");
 	i_opcowner = PQfnumber(res, "opcowner");
@@ -5884,6 +5914,7 @@ getOpclasses(Archive *fout, int *numOpclasses)
 		opcinfo[i].dobj.name = pg_strdup(PQgetvalue(res, i, i_opcname));
 		opcinfo[i].dobj.namespace =
 			findNamespace(atooid(PQgetvalue(res, i, i_opcnamespace)));
+		opcinfo[i].opcmethod = atooid(PQgetvalue(res, i, i_opcmethod));
 		opcinfo[i].rolname = getRoleName(PQgetvalue(res, i, i_opcowner));
 
 		/* Decide whether we want to dump it */
@@ -5914,6 +5945,7 @@ getOpfamilies(Archive *fout, int *numOpfamilies)
 	OpfamilyInfo *opfinfo;
 	int			i_tableoid;
 	int			i_oid;
+	int			i_opfmethod;
 	int			i_opfname;
 	int			i_opfnamespace;
 	int			i_opfowner;
@@ -5925,7 +5957,7 @@ getOpfamilies(Archive *fout, int *numOpfamilies)
 	 * system-defined opfamilies at dump-out time.
 	 */
 
-	appendPQExpBuffer(query, "SELECT tableoid, oid, opfname, "
+	appendPQExpBuffer(query, "SELECT tableoid, oid, opfmethod, opfname, "
 					  "opfnamespace, "
 					  "opfowner "
 					  "FROM pg_opfamily");
@@ -5940,6 +5972,7 @@ getOpfamilies(Archive *fout, int *numOpfamilies)
 	i_tableoid = PQfnumber(res, "tableoid");
 	i_oid = PQfnumber(res, "oid");
 	i_opfname = PQfnumber(res, "opfname");
+	i_opfmethod = PQfnumber(res, "opfmethod");
 	i_opfnamespace = PQfnumber(res, "opfnamespace");
 	i_opfowner = PQfnumber(res, "opfowner");
 
@@ -5952,6 +5985,7 @@ getOpfamilies(Archive *fout, int *numOpfamilies)
 		opfinfo[i].dobj.name = pg_strdup(PQgetvalue(res, i, i_opfname));
 		opfinfo[i].dobj.namespace =
 			findNamespace(atooid(PQgetvalue(res, i, i_opfnamespace)));
+		opfinfo[i].opfmethod = atooid(PQgetvalue(res, i, i_opfmethod));
 		opfinfo[i].rolname = getRoleName(PQgetvalue(res, i, i_opfowner));
 
 		/* Decide whether we want to dump it */
