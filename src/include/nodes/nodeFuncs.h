@@ -226,4 +226,7 @@ extern PGDLLEXPORT coalesce_typmod_hook_type coalesce_typmod_hook;
 typedef int32 (*exprTypmod_hook_type)(Plan *plan, Node *expr);
 extern PGDLLIMPORT exprTypmod_hook_type exprTypmod_hook;
 
+typedef void (*numeric_overflow_error_hook_type)(Const *con, Oid rtype, int32 rtypmod);
+extern PGDLLIMPORT numeric_overflow_error_hook_type numeric_overflow_error_hook;
+
 #endif							/* NODEFUNCS_H */

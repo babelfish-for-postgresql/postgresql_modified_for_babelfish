@@ -36,6 +36,7 @@ static bool planstate_walk_members(PlanState **planstates, int nplans,
 
 coalesce_typmod_hook_type coalesce_typmod_hook = NULL;
 exprTypmod_hook_type exprTypmod_hook = NULL;
+numeric_overflow_error_hook_type numeric_overflow_error_hook = NULL;
 
 /*
  *	exprType -
@@ -657,6 +658,10 @@ applyRelabelType(Node *arg, Oid rtype, int32 rtypmod, Oid rcollid,
 		if (!overwrite_ok)
 			con = copyObject(con);
 		con->consttype = rtype;
+		
+		if (numeric_overflow_error_hook)
+			numeric_overflow_error_hook(con, rtype, rtypmod);
+
 		con->consttypmod = rtypmod;
 		con->constcollid = rcollid;
 		/* We keep the Const's original location. */
