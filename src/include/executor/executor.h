@@ -114,6 +114,9 @@ extern PGDLLEXPORT check_rowcount_hook_type check_rowcount_hook;
 typedef bool (*ExecCheckOneRelPerms_hook_type) (RTEPermissionInfo *perminfo);
 extern PGDLLEXPORT ExecCheckOneRelPerms_hook_type ExecCheckOneRelPerms_hook;
 
+typedef void (*walk_view_rule_hook_type) (Query *rule_action, Oid view_owner);
+extern PGDLLEXPORT walk_view_rule_hook_type walk_view_rule_hook;
+
 /*
  * prototypes from functions in execAmi.c
  */

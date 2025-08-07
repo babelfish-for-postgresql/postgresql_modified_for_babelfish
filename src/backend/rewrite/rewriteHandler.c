@@ -48,6 +48,7 @@
 
 bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook = NULL; /** BBF Hook to check Instead Of trigger on View */
 pre_QueryRewrite_hook_type pre_QueryRewrite_hook = NULL;
+walk_view_rule_hook_type walk_view_rule_hook = NULL;
 
 /* We use a list of these to detect recursion in RewriteQuery */
 typedef struct rewrite_event
@@ -1812,6 +1813,9 @@ ApplyRetrieveRule(Query *parsetree,
 	rule_action = copyObject(linitial(rule->actions));
 
 	AcquireRewriteLocks(rule_action, true, (rc != NULL));
+
+	if (walk_view_rule_hook)
+		walk_view_rule_hook(rule_action, relation->rd_rel->relowner);
 
 	/*
 	 * If FOR [KEY] UPDATE/SHARE of view, mark all the contained tables as

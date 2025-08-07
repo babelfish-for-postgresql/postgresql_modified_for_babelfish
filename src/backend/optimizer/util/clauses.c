@@ -2623,6 +2623,8 @@ eval_const_expressions_mutator(Node *node,
 				newexpr->inputcollid = expr->inputcollid;
 				newexpr->args = args;
 				newexpr->location = expr->location;
+				newexpr->parentOwnerId = expr->parentOwnerId;
+				newexpr->insideView = expr->insideView;
 				return (Node *) newexpr;
 			}
 		case T_OpExpr:
