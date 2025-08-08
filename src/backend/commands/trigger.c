@@ -2263,6 +2263,8 @@ FindTriggerIncompatibleWithInheritance(TriggerDesc *trigdesc)
 		{
 			Trigger    *trigger = &trigdesc->triggers[i];
 
+			if (!TRIGGER_FOR_ROW(trigger->tgtype))
+				continue;
 			if (trigger->tgoldtable != NULL || trigger->tgnewtable != NULL)
 				return trigger->tgname;
 		}
