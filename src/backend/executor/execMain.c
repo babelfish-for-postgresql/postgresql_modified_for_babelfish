@@ -95,7 +95,6 @@ static void ExecutePlan(QueryDesc *queryDesc,
 						uint64 numberTuples,
 						ScanDirection direction,
 						DestReceiver *dest);
-static bool ExecCheckRTEPerms(RangeTblEntry *rte);
 static bool ExecCheckRTEPermsModified(Oid relOid, Oid userid,
 									  Bitmapset *modifiedCols,
 									  AclMode requiredPerms);
@@ -598,7 +597,7 @@ ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)
  * ExecCheckRTEPerms
  *		Check access permissions for a single RTE.
  */
-static bool
+bool
 ExecCheckRTEPerms(RangeTblEntry *rte)
 {
 	AclMode		requiredPerms;
