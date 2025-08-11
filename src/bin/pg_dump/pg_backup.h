@@ -158,6 +158,7 @@ typedef struct _restoreOptions
 	int			sequence_data;	/* dump sequence data even in schema-only mode */
 	int			binary_upgrade;
 	bool		babelfish_db; /* is this a Babelfish database? */
+	char	   *restrict_key;
 } RestoreOptions;
 
 typedef struct _dumpOptions
@@ -204,6 +205,8 @@ typedef struct _dumpOptions
 
 	int			sequence_data;	/* dump sequence data even in schema-only mode */
 	int			do_nothing;
+
+	char	   *restrict_key;
 } DumpOptions;
 
 /*
