@@ -93,6 +93,9 @@ transform_pivot_clause_hook_type transform_pivot_clause_hook = NULL;
 /* Hook to transform TSQL unpivot clauses in select stmt */
 transform_unpivot_clause_hook_type transform_unpivot_clause_hook = NULL;
 
+/* Hook to transform query if percent operator is present */
+transform_percent_clause_hook_type transform_percent_clause_hook = NULL;
+
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
 static Query *transformInsertStmt(ParseState *pstate, InsertStmt *stmt);
@@ -1440,6 +1443,12 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 	ListCell   *l;
 
 	qry->commandType = CMD_SELECT;
+
+	/* Transform query if percent Operator is present with Top Clause */
+	if(transform_percent_clause_hook)
+	{
+		(*transform_percent_clause_hook)(pstate, stmt);
+	}
 
 	/* Unpack and process TSQL UNPIVOT nodes in stmt->fromClause, if present */
 	if(transform_unpivot_clause_hook)

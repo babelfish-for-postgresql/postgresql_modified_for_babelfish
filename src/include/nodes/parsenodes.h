@@ -2177,7 +2177,22 @@ typedef struct SelectStmt
 	List		*value_col_strlist;
 	ColumnRef	*pivotCol;
 	Node		*aggFunc;
+
+	/* These field is used to */
+	bool isPercent pg_node_attr(query_jumble_ignore); 
 } SelectStmt;
+
+/*
+ * This node is used in gram-tsql-rule.y to store limitCount and Percent op information.
+ * Furthuremore, through this node, we are updating limitCount and isPercent( Added for supporing tsql Percent Op) fields
+ * in SelectStmt, UpdateStmt, DeleteStmt
+ */
+typedef struct TopClause
+{
+    NodeTag   type;           /* type tag */
+    Node     *limitCount;     /* expression for the limit count/percent */
+    bool      isPercent;      /* true if PERCENT specified */
+} TopClause;
 
 
 /* ----------------------
