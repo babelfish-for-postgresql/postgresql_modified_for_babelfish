@@ -2182,6 +2182,18 @@ typedef struct SelectStmt
 	bool isPercent;
 } SelectStmt;
 
+/*
+ * This node is used in gram-tsql-rule.y to store limitCount and Percent op information.
+ * Furthuremore, through this node, we are updating limitCount and isPercent( Added for supporing tsql Percent Op) fields
+ * in SelectStmt, UpdateStmt, DeleteStmt
+ */
+typedef struct TopClause
+{
+    NodeTag   type;           /* type tag */
+    Node     *limitCount;     /* expression for the limit count/percent */
+    bool      isPercent;      /* true if PERCENT specified */
+} TopClause;
+
 
 /*
  * This node is used in gram-tsql-rule.y to store limitCount and Percent op information.
