@@ -2053,6 +2053,7 @@ typedef struct InsertStmt
 	OverridingKind override;	/* OVERRIDING clause */
 	Node	   *execStmt; 		/* for INSERT ... EXECUTE */
 	Node       *limitCount;		/* used by INSERT TOP in T-SQL*/
+	bool        isPercent pg_node_attr(equal_ignore); /* Used with UPDATE TOP N PERCENT in T-SQL*/
 } InsertStmt;
 
 /* ----------------------
@@ -2068,6 +2069,7 @@ typedef struct DeleteStmt
 	List	   *returningList;	/* list of expressions to return */
 	WithClause *withClause;		/* WITH clause */
 	Node	   *limitCount;		/* used with DELETE TOP in T-SQL */
+	bool        isPercent pg_node_attr(equal_ignore); /* Used with UPDATE TOP N PERCENT in T-SQL*/
 } DeleteStmt;
 
 /* ----------------------
@@ -2084,6 +2086,7 @@ typedef struct UpdateStmt
 	List	   *returningList;	/* list of expressions to return */
 	WithClause *withClause;		/* WITH clause */
 	Node	   *limitCount;		/* used with UPDATE TOP in T-SQL */
+	bool        isPercent pg_node_attr(equal_ignore); /* Used with UPDATE TOP N PERCENT in T-SQL*/
 } UpdateStmt;
 
 /* ----------------------
@@ -2178,8 +2181,8 @@ typedef struct SelectStmt
 	ColumnRef	*pivotCol;
 	Node		*aggFunc;
 
-	/* These field is used to */
-	bool isPercent pg_node_attr(query_jumble_ignore); 
+	/* These field is used only with tsql_top clause - top N [PERCENT][WITH TIES]*/
+	bool isPercent pg_node_attr(equal_ignore);
 } SelectStmt;
 
 /*
