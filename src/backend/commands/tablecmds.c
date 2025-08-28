@@ -9604,17 +9604,40 @@ ATPrepAddPrimaryKey(List **wqueue, Relation rel, AlterTableCmd *cmd,
 	Constraint *pkconstr;
 	List	   *children = NIL;
 	bool		got_children = false;
+	ListCell	*lc;
 
 	pkconstr = castNode(Constraint, cmd->def);
 	if (pkconstr->contype != CONSTR_PRIMARY)
 		return;
 
 	/* Verify that columns are not-null, or request that they be made so */
-	foreach_node(String, column, pkconstr->keys)
+	foreach(lc, pkconstr->keys)
 	{
 		AlterTableCmd *newcmd;
 		Constraint *nnconstr;
 		HeapTuple	tuple;
+		String		*column;
+
+		if (sql_dialect == SQL_DIALECT_TSQL)
+		{
+			/*
+			 * In Babelfish, pkconstr->keys might contain IndexElem in order to
+			 * support ADD PRIMARY KEY (col ASC|DESC)
+			 */
+			if (nodeTag(lfirst(lc)) == T_IndexElem)
+			{
+				IndexElem * i = (IndexElem *) lfirst(lc);
+				column = makeString(i->name);
+			}
+			else
+			{
+				column = lfirst_node(String, lc);
+			}
+		}
+		else
+		{
+			column = lfirst_node(String, lc);
+		}
 
 		/*
 		 * First check if a suitable constraint exists.  If it does, we don't
