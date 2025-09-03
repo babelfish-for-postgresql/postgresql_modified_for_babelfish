@@ -4579,7 +4579,7 @@ update_relispartition(Oid relationId, bool newval)
 	HeapTuple	tup;
 	Relation	classRel;
 	ItemPointerData otid;
-	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relationId, ENR_TSQL_TEMP));
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(relationId));
 
 	classRel = table_open(RelationRelationId, RowExclusiveLock);
 	if (is_enr)
@@ -4592,6 +4592,10 @@ update_relispartition(Oid relationId, bool newval)
 	Assert(((Form_pg_class) GETSTRUCT(tup))->relispartition != newval);
 	((Form_pg_class) GETSTRUCT(tup))->relispartition = newval;
 	CatalogTupleUpdate(classRel, &otid, tup);
+	/* 
+	 * ENR relations being backend-local are not locked 
+	 * and hence don't need to be unlocked 
+	 */
 	if (!is_enr)
 		UnlockTuple(classRel, &otid, InplaceUpdateTupleLock);
 	heap_freetuple(tup);

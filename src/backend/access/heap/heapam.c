@@ -45,6 +45,7 @@
 #include "commands/vacuum.h"
 #include "pgstat.h"
 #include "port/pg_bitutils.h"
+#include "parser/parser.h"
 #include "storage/lmgr.h"
 #include "storage/predicate.h"
 #include "storage/procarray.h"
@@ -6491,7 +6492,7 @@ heap_inplace_update_and_unlock(Relation relation,
 							   HeapTuple oldtup, HeapTuple tuple,
 							   Buffer buffer)
 {
-	HeapTupleHeader htup = oldtup->t_data;
+	HeapTupleHeader htup;
 	uint32		oldlen;
 	uint32		newlen;
 	char	   *dst;
@@ -6515,6 +6516,7 @@ heap_inplace_update_and_unlock(Relation relation,
 	if (ENRUpdateTuple(relation, tuple))
 		return;
 
+	htup = oldtup->t_data;
 	Assert(ItemPointerEquals(&oldtup->t_self, &tuple->t_self));
 	oldlen = oldtup->t_len - htup->t_hoff;
 	newlen = tuple->t_len - tuple->t_data->t_hoff;

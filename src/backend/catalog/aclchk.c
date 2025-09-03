@@ -1814,7 +1814,7 @@ ExecGrant_Relation(InternalGrant *istmt)
 		Oid			ownerId;
 		HeapTuple	tuple;
 		ListCell   *cell_colprivs;
-		bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relOid, ENR_TSQL_TEMP));
+		bool 		is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(relOid));
 
 		if (is_enr)
 			tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relOid));
@@ -2164,9 +2164,13 @@ ExecGrant_common(InternalGrant *istmt, Oid classid, AclMode default_privs,
 		int			nnewmembers;
 		Oid		   *oldmembers;
 		Oid		   *newmembers;
-		bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, objectid, ENR_TSQL_TEMP));
+		bool 		is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(objectid));
 
 
+		/*
+		 * Exclude objects ENR that are not backed by storage since the logic in
+		 * SearchSysCacheLocked1 to lock tuples does not apply.
+		 */
 		if (is_enr)
 			tuple = SearchSysCache1(cacheid, ObjectIdGetDatum(objectid));
 		else

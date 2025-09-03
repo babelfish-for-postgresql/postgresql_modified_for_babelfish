@@ -3782,7 +3782,7 @@ RelationSetNewRelfilenumber(Relation relation, char persistence)
 	MultiXactId minmulti = InvalidMultiXactId;
 	TransactionId freezeXid = InvalidTransactionId;
 	RelFileLocator newrlocator;
-	bool			is_enr = false;
+	bool		   is_enr = false;
 
 	if (!IsBinaryUpgrade)
 	{
@@ -3819,14 +3819,13 @@ RelationSetNewRelfilenumber(Relation relation, char persistence)
 	 * Get a writable copy of the pg_class tuple for the given relation.
 	 */
 	pg_class = table_open(RelationRelationId, RowExclusiveLock);
-
-	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, RelationGetRelid(relation), ENR_TSQL_TEMP));
+	is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(RelationGetRelid(relation)));
 	if (is_enr)
 		tuple = SearchSysCacheCopy1(RELOID,
-									ObjectIdGetDatum(RelationGetRelid(relation)));
+									  ObjectIdGetDatum(RelationGetRelid(relation)));
 	else
 		tuple = SearchSysCacheLockedCopy1(RELOID,
-										  ObjectIdGetDatum(RelationGetRelid(relation)));
+									  ObjectIdGetDatum(RelationGetRelid(relation)));
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "could not find tuple for relation %u",
 			 RelationGetRelid(relation));
@@ -3953,7 +3952,10 @@ RelationSetNewRelfilenumber(Relation relation, char persistence)
 
 		CatalogTupleUpdate(pg_class, &otid, tuple);
 	}
-
+	/* 
+	 * ENR relations being backend-local are not locked 
+	 * and hence don't need to be unlocked 
+	 */
 	if (!is_enr)
 		UnlockTuple(pg_class, &otid, InplaceUpdateTupleLock);
 	heap_freetuple(tuple);

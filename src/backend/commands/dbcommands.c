@@ -54,6 +54,7 @@
 #include "parser/parser.h"
 #include "pgstat.h"
 #include "postmaster/bgwriter.h"
+#include "parser/parser.h"
 #include "replication/slot.h"
 #include "storage/copydir.h"
 #include "storage/fd.h"
@@ -1977,7 +1978,7 @@ RenameDatabase(const char *oldname, const char *newname)
 				 errdetail_busy_db(notherbackends, npreparedxacts)));
 
 	/* rename */
-	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, db_id, ENR_TSQL_TEMP));
+	is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(db_id));
 	if (is_enr)
 		newtup = SearchSysCacheCopy1(DATABASEOID, ObjectIdGetDatum(db_id));
 	else
@@ -1987,6 +1988,10 @@ RenameDatabase(const char *oldname, const char *newname)
 	otid = newtup->t_self;
 	namestrcpy(&(((Form_pg_database) GETSTRUCT(newtup))->datname), newname);
 	CatalogTupleUpdate(rel, &otid, newtup);
+	/* 
+	 * ENR relations being backend-local are not locked 
+	 * and hence don't need to be unlocked 
+	 */
 	if (!is_enr)
 		UnlockTuple(rel, &otid, InplaceUpdateTupleLock);
 

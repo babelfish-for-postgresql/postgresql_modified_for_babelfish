@@ -597,6 +597,7 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
 	foreach(l, rangeTable)
 	{
 		RangeTblEntry *rte = lfirst_node(RangeTblEntry, l);
+		bool 		  is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(rte->relid));
 
 		if (rte->perminfoindex != 0)
 		{
@@ -609,6 +610,22 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
 			Assert(rte->rtekind == RTE_RELATION ||
 				   (rte->rtekind == RTE_SUBQUERY &&
 					rte->relkind == RELKIND_VIEW));
+
+			/*
+			 * Ensure that we have at least an AccessShareLock on relations
+			 * whose permissions need to be checked.
+			 *
+			 * Skip this check in a parallel worker because locks won't be
+			 * taken until ExecInitNode() performs plan initialization.
+			 * 
+			 * Skip this check if this relation is in ENR since we don't hold
+			 * locks for relations in ENRs
+			 * 
+			 * XXX: ExecCheckPermissions() in a parallel worker may be
+			 * redundant with the checks done in the leader process, so this
+			 * should be reviewed to ensure it’s necessary.
+			 */
+			Assert(IsParallelWorker() || is_enr || CheckRelationOidLockedByMe(rte->relid, AccessShareLock, true));
 
 			(void) getRTEPermissionInfo(rteperminfos, rte);
 			/* Many-to-one mapping not allowed */

@@ -3819,15 +3819,14 @@ SetRelationTableSpace(Relation rel,
 	ItemPointerData otid;
 	Form_pg_class rd_rel;
 	Oid			reloid = RelationGetRelid(rel);
-	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, reloid, ENR_TSQL_TEMP));
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(reloid));
 
 	Assert(CheckRelationTableSpaceMove(rel, newTableSpaceId));
 
 	/* Get a modifiable copy of the relation's pg_class row. */
 	pg_class = table_open(RelationRelationId, RowExclusiveLock);
-
 	if (is_enr)
-			tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(reloid));
+		tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(reloid));
 	else
 		tuple = SearchSysCacheLockedCopy1(RELOID, ObjectIdGetDatum(reloid));
 	if (!HeapTupleIsValid(tuple))
@@ -3841,6 +3840,10 @@ SetRelationTableSpace(Relation rel,
 	if (RelFileNumberIsValid(newRelFilenumber))
 		rd_rel->relfilenode = newRelFilenumber;
 	CatalogTupleUpdate(pg_class, &otid, tuple);
+	/* 
+	 * ENR relations being backend-local are not locked 
+	 * and hence don't need to be unlocked 
+	 */
 	if (!is_enr)
 		UnlockTuple(pg_class, &otid, InplaceUpdateTupleLock);
 
@@ -4344,7 +4347,7 @@ RenameRelationInternal(Oid myrelid, const char *newrelname, bool is_internal, bo
 	HeapTuple	reltup;
 	Form_pg_class relform;
 	Oid			namespaceId;
-	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, myrelid, ENR_TSQL_TEMP));
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(myrelid));
 
 	/*
 	 * Grab a lock on the target relation, which we will NOT release until end
@@ -4396,6 +4399,10 @@ RenameRelationInternal(Oid myrelid, const char *newrelname, bool is_internal, bo
 	namestrcpy(&(relform->relname), newrelname);
 
 	CatalogTupleUpdate(relrelation, &otid, reltup);
+	/* 
+	 * ENR relations being backend-local are not locked 
+	 * and hence don't need to be unlocked 
+	 */
 	if (!is_enr)
 		UnlockTuple(relrelation, &otid, InplaceUpdateTupleLock);
 
@@ -6220,7 +6227,7 @@ ATRewriteTable(AlteredTableInfo *tab, Oid OIDNewHeap)
 	BulkInsertState bistate;
 	int			ti_options;
 	ExprState  *partqualstate = NULL;
-
+	
 	/*
 	 * Open the relation(s).  We have surely already locked the existing
 	 * table.
@@ -6231,8 +6238,11 @@ ATRewriteTable(AlteredTableInfo *tab, Oid OIDNewHeap)
 
 	if (OidIsValid(OIDNewHeap))
 	{
-		Assert(CheckRelationOidLockedByMe(OIDNewHeap, AccessExclusiveLock,
-										  false));
+		/*
+		 * With ENRs, we don't hold locks on relation tuples.
+		 */
+		Assert((sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(OIDNewHeap)) 
+				|| CheckRelationOidLockedByMe(OIDNewHeap, AccessExclusiveLock,false));
 		newrel = table_open(OIDNewHeap, NoLock);
 	}
 	else
@@ -16770,7 +16780,7 @@ ATExecSetRelOptions(Relation rel, List *defList, AlterTableType operation,
 
 	/* Fetch heap tuple */
 	relid = RelationGetRelid(rel);
-	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relid, ENR_TSQL_TEMP));
+	is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(relid));
 	if (is_enr)
 		tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 	else
@@ -19172,13 +19182,13 @@ AlterRelationNamespaceInternal(Relation classRel, Oid relOid,
 	Form_pg_class classForm;
 	ObjectAddress thisobj;
 	bool		already_done = false;
-	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relOid, ENR_TSQL_TEMP));
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(relOid));
 
-	/* no rel lock for relkind=c so use LOCKTAG_TUPLE */
 	if (is_enr)
 		classTup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relOid));
-	else
+	else /* no rel lock for relkind=c so use LOCKTAG_TUPLE */
 		classTup = SearchSysCacheLockedCopy1(RELOID, ObjectIdGetDatum(relOid));
+
 	if (!HeapTupleIsValid(classTup))
 		elog(ERROR, "cache lookup failed for relation %u", relOid);
 	classForm = (Form_pg_class) GETSTRUCT(classTup);
@@ -19212,22 +19222,30 @@ AlterRelationNamespaceInternal(Relation classRel, Oid relOid,
 		classForm->relnamespace = newNspOid;
 
 		CatalogTupleUpdate(classRel, &otid, classTup);
+		/* 
+		 * ENR relations being backend-local are not locked 
+		 * and hence don't need to be unlocked 
+		 */
 		if (!is_enr)
 			UnlockTuple(classRel, &otid, InplaceUpdateTupleLock);
 
-
-		/* Update dependency on schema if caller said so */
 		if (hasDependEntry &&
 			changeDependencyFor(RelationRelationId,
 								relOid,
 								NamespaceRelationId,
-								oldNspOid,
 								newNspOid) != 1)
 			elog(ERROR, "could not change schema dependency for relation \"%s\"",
 				 NameStr(classForm->relname));
 	}
-	else if (!is_enr)
-		UnlockTuple(classRel, &classTup->t_self, InplaceUpdateTupleLock);
+	else
+	{
+		/* 
+		 * ENR relations being backend-local are not locked 
+		 * and hence don't need to be unlocked 
+		 */
+		if (!is_enr)
+			UnlockTuple(classRel, &classTup->t_self, InplaceUpdateTupleLock);
+	}	
 	if (!already_done)
 	{
 		add_exact_object_address(&thisobj, objsMoved);

@@ -1756,7 +1756,7 @@ CacheInvalidateENRHeapTuple(Relation relation,
 								HeapTuple newtuple)
 {
 	CacheInvalidateENRHeapTupleCommon(relation, tuple, newtuple,
-								   PrepareInplaceInvalidationState);
+								   PrepareInvalidationState);
 }
 
 /*

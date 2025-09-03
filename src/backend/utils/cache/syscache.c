@@ -308,7 +308,7 @@ ReleaseSysCache(HeapTuple tuple)
  *
  * The returned tuple may be the subject of an uncommitted update, so this
  * doesn't prevent the "tuple concurrently updated" error.
- * 
+ *
  * Note: For Babelfish, this function should not be used if the target tuple is
  * for an ENR entry, as there is no physical tid for ENR catalog tuples (since ENR
  * entries hold all catalog data internally in their cache). Use SearchSysCache1() instead
