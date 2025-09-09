@@ -2053,7 +2053,7 @@ typedef struct InsertStmt
 	OverridingKind override;	/* OVERRIDING clause */
 	Node	   *execStmt; 		/* for INSERT ... EXECUTE */
 	Node       *limitCount;		/* used by INSERT TOP in T-SQL*/
-	bool        isPercent pg_node_attr(equal_ignore); /* Used with UPDATE TOP N PERCENT in T-SQL*/
+	bool        isPercent pg_node_attr(equal_ignore); /* Used with INSERT TOP N PERCENT in T-SQL*/
 } InsertStmt;
 
 /* ----------------------
@@ -2069,7 +2069,7 @@ typedef struct DeleteStmt
 	List	   *returningList;	/* list of expressions to return */
 	WithClause *withClause;		/* WITH clause */
 	Node	   *limitCount;		/* used with DELETE TOP in T-SQL */
-	bool        isPercent pg_node_attr(equal_ignore); /* Used with UPDATE TOP N PERCENT in T-SQL*/
+	bool        isPercent pg_node_attr(equal_ignore); /* Used with DELETE TOP N PERCENT in T-SQL*/
 } DeleteStmt;
 
 /* ----------------------
@@ -2188,7 +2188,7 @@ typedef struct SelectStmt
 /*
  * This node is used in gram-tsql-rule.y to store limitCount and Percent op information.
  * Furthuremore, through this node, we are updating limitCount and isPercent( Added for supporing tsql Percent Op) fields
- * in SelectStmt, UpdateStmt, DeleteStmt
+ * in SelectStmt, UpdateStmt, DeleteStmt, InsertStmt
  */
 typedef struct TopClause
 {
