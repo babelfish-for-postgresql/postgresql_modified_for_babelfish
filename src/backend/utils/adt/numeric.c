@@ -2911,7 +2911,7 @@ numeric_add_opt_error(Numeric num1, Numeric num2, bool *have_error)
 	init_var(&result);
 	add_var(&arg1, &arg2, &result);
 
-	if (detect_numeric_overflow_hook && result.digits &&
+	if (detect_numeric_overflow_hook && result.digits && result.ndigits > 0 &&
 	    (*detect_numeric_overflow_hook)(result.weight, result.dscale, result.digits[0], DEC_DIGITS))
 		ereport(ERROR,
 				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
