@@ -2053,7 +2053,7 @@ typedef struct InsertStmt
 	OverridingKind override;	/* OVERRIDING clause */
 	Node	   *execStmt; 		/* for INSERT ... EXECUTE */
 	Node       *limitCount;		/* used by INSERT TOP in T-SQL*/
-	bool        isPercent pg_node_attr(equal_ignore); /* Used with INSERT TOP N PERCENT in T-SQL*/
+	bool        isPercent;      /* Used with INSERT TOP N PERCENT in T-SQL*/
 } InsertStmt;
 
 /* ----------------------
@@ -2069,7 +2069,7 @@ typedef struct DeleteStmt
 	List	   *returningList;	/* list of expressions to return */
 	WithClause *withClause;		/* WITH clause */
 	Node	   *limitCount;		/* used with DELETE TOP in T-SQL */
-	bool        isPercent pg_node_attr(equal_ignore); /* Used with DELETE TOP N PERCENT in T-SQL*/
+	bool        isPercent;      /* Used with DELETE TOP N PERCENT in T-SQL*/
 } DeleteStmt;
 
 /* ----------------------
@@ -2086,7 +2086,7 @@ typedef struct UpdateStmt
 	List	   *returningList;	/* list of expressions to return */
 	WithClause *withClause;		/* WITH clause */
 	Node	   *limitCount;		/* used with UPDATE TOP in T-SQL */
-	bool        isPercent pg_node_attr(equal_ignore); /* Used with UPDATE TOP N PERCENT in T-SQL*/
+	bool        isPercent;      /* Used with UPDATE TOP N PERCENT in T-SQL*/
 } UpdateStmt;
 
 /* ----------------------
@@ -2182,7 +2182,7 @@ typedef struct SelectStmt
 	Node		*aggFunc;
 
 	/* These field is used only with tsql_top clause - top N [PERCENT][WITH TIES]*/
-	bool isPercent pg_node_attr(equal_ignore);
+	bool isPercent;
 } SelectStmt;
 
 /*
