@@ -1445,7 +1445,7 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 	qry->commandType = CMD_SELECT;
 
 	/* Transform query if percent Operator is present with Top Clause */
-	if(transform_percent_clause_hook)
+	if(transform_percent_clause_hook && stmt->limitCount != NULL)
 	{
 		(*transform_percent_clause_hook)(pstate, stmt);
 	}
