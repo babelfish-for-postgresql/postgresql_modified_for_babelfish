@@ -2177,6 +2177,9 @@ typedef struct SelectStmt
 	List		*value_col_strlist;
 	ColumnRef	*pivotCol;
 	Node		*aggFunc;
+
+	/* These field is used only with tsql_top clause - top N [PERCENT][WITH TIES]*/
+	bool isPercent;
 } SelectStmt;
 
 
