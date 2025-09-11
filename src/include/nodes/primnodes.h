@@ -768,6 +768,9 @@ typedef struct FuncExpr
 	List	   *args;
 	/* token location, or -1 if unknown */
 	ParseLoc	location;
+	/* For Babelfish Ownership Chaining support */
+	Oid			parentOwnerId pg_node_attr(equal_ignore, query_jumble_ignore, read_write_ignore, read_as(0));
+	int			insideView pg_node_attr(equal_ignore, query_jumble_ignore, read_write_ignore, read_as(0));
 } FuncExpr;
 
 /*

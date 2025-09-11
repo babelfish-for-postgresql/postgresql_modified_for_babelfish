@@ -47,6 +47,8 @@
 
 bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook = NULL; /** BBF Hook to check Instead Of trigger on View */
 pre_QueryRewrite_hook_type pre_QueryRewrite_hook = NULL;
+walk_view_rule_hook_type walk_view_rule_hook = NULL;
+handle_target_view_hook_type handle_target_view_hook = NULL;
 
 /* We use a list of these to detect recursion in RewriteQuery */
 typedef struct rewrite_event
@@ -1820,6 +1822,9 @@ ApplyRetrieveRule(Query *parsetree,
 
 	AcquireRewriteLocks(rule_action, true, (rc != NULL));
 
+	if (walk_view_rule_hook)
+		walk_view_rule_hook(rule_action, relation->rd_rel->relowner);
+
 	/*
 	 * If FOR [KEY] UPDATE/SHARE of view, mark all the contained tables as
 	 * implicit FOR [KEY] UPDATE/SHARE, the same as the parser would have done
@@ -3500,6 +3505,8 @@ rewriteTargetView(Query *parsetree, Relation view)
 	new_rte->securityQuals = view_rte->securityQuals;
 	view_rte->securityQuals = NIL;
 
+	if (handle_target_view_hook)
+		handle_target_view_hook(new_perminfo, view_rte, view->rd_rel->relowner, base_rel->rd_rel->relowner);
 	/*
 	 * Now update all Vars in the outer query that reference the view to
 	 * reference the appropriate column of the base relation instead.
