@@ -3563,8 +3563,12 @@ rewriteTargetView(Query *parsetree, Relation view)
 	view_rte->securityQuals = NIL;
 
 	if (handle_target_view_hook)
+<<<<<<< HEAD
 		handle_target_view_hook(new_perminfo, view_rte);
 
+=======
+		handle_target_view_hook(new_perminfo, view_rte, view->rd_rel->relowner, base_rel->rd_rel->relowner);
+>>>>>>> upstream/BABEL_5_X_DEV__PG_17_X
 	/*
 	 * Now update all Vars in the outer query that reference the view to
 	 * reference the appropriate column of the base relation instead.

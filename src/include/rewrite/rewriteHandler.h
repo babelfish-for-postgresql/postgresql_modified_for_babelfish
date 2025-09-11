@@ -45,7 +45,7 @@ extern PGDLLEXPORT pre_QueryRewrite_hook_type pre_QueryRewrite_hook;
 typedef void (*walk_view_rule_hook_type) (Query *rule_action, Oid view_owner);
 extern PGDLLEXPORT walk_view_rule_hook_type walk_view_rule_hook;
 
-typedef void (*handle_target_view_hook_type) (RTEPermissionInfo *new_perminfo, RangeTblEntry *view_rte);
-extern PGDLLEXPORT handle_target_view_hook_type handle_target_view_hook;							 
+typedef void (*handle_target_view_hook_type) (RTEPermissionInfo *new_perminfo, RangeTblEntry *view_rte, Oid view_owner, Oid base_rel_owner);
+extern PGDLLEXPORT handle_target_view_hook_type handle_target_view_hook;
 
 #endif							/* REWRITEHANDLER_H */
