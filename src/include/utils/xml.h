@@ -19,6 +19,9 @@
 #include "fmgr.h"
 #include "nodes/execnodes.h"
 #include "nodes/primnodes.h"
+#ifdef USE_LIBXML
+#include <libxml/tree.h>
+#endif
 
 typedef struct varlena xmltype;
 
@@ -84,6 +87,16 @@ extern char *escape_xml(const char *str);
 extern char *map_sql_identifier_to_xml_name(const char *ident, bool fully_escaped, bool escape_period);
 extern char *map_xml_name_to_sql_identifier(const char *name);
 extern char *map_sql_value_to_xml_value(Datum value, Oid type, bool xml_escape_strings);
+
+#ifdef USE_LIBXML
+extern xmlDocPtr xml_parse_wrapper(text *data, XmlOptionType xmloption_arg,
+							bool preserve_whitespace, int encoding,
+							XmlOptionType *parsed_xmloptiontype, xmlNodePtr *parsed_nodes,
+							Node *escontext);
+extern xmlChar *pg_xmlCharStrndup_wrapper(const char *str, size_t len);
+extern int parse_xml_decl_wrapper(const xmlChar *str, size_t *lenp,
+						   xmlChar **version, xmlChar **encoding, int *standalone);
+#endif							/* USE_LIBXML */
 
 extern PGDLLIMPORT int xmlbinary;	/* XmlBinaryType, but int for guc enum */
 
