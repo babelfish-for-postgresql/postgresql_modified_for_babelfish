@@ -1297,6 +1297,8 @@ typedef struct RTEPermissionInfo
 	Bitmapset  *selectedCols;	/* columns needing SELECT permission */
 	Bitmapset  *insertedCols;	/* columns needing INSERT permission */
 	Bitmapset  *updatedCols;	/* columns needing UPDATE permission */
+	/* For Babelfish Ownership Chaining support */
+	int			insideView pg_node_attr(equal_ignore, query_jumble_ignore, read_write_ignore, read_as(0));
 } RTEPermissionInfo;
 
 /*
