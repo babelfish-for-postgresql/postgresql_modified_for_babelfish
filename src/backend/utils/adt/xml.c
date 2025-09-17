@@ -232,6 +232,10 @@ const TableFuncRoutine XmlTableRoutine =
 	.DestroyOpaque = XmlTableDestroyOpaque
 };
 
+#ifdef USE_LIBXML
+openxml_set_namespaces_hook_type openxml_set_namespaces_hook = NULL;
+#endif
+
 #define NO_XML_SUPPORT() \
 	ereport(ERROR, \
 			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
@@ -4795,6 +4799,13 @@ XmlTableSetNamespace(TableFuncScanState *state, const char *name, const char *ur
 				 errmsg("DEFAULT namespace is not supported")));
 	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetNamespace");
 
+	/*
+	 * This hook allows TSQL OPENXML to use custom namespace processing particularly
+	 * for docId based namespace retrieval from prepared XML documents.
+	 */
+	if (openxml_set_namespaces_hook)
+        return openxml_set_namespaces_hook(xtCxt->xpathcxt, xtCxt->xmlerrcxt, uri);
+
 	if (xmlXPathRegisterNs(xtCxt->xpathcxt,
 						   pg_xmlCharStrndup(name, strlen(name)),
 						   pg_xmlCharStrndup(uri, strlen(uri))))
@@ -5114,3 +5125,22 @@ XmlTableDestroyOpaque(TableFuncScanState *state)
 	NO_XML_SUPPORT();
 #endif							/* not USE_LIBXML */
 }
+
+#ifdef USE_LIBXML
+xmlDocPtr
+xml_parse_wrapper(text *data, XmlOptionType xmloption_arg,
+		  bool preserve_whitespace, int encoding,
+		  XmlOptionType *parsed_xmloptiontype, xmlNodePtr *parsed_nodes,
+		  Node *escontext)
+{
+	return xml_parse(data, xmloption_arg, preserve_whitespace,
+					encoding, parsed_xmloptiontype, parsed_nodes, escontext);
+}
+
+xmlChar *
+pg_xmlCharStrndup_wrapper(const char *str, size_t len)
+{
+	return pg_xmlCharStrndup(str, len);
+}
+
+#endif							/* USE_LIBXML */
