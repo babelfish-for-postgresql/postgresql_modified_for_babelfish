@@ -4799,10 +4799,7 @@ XmlTableSetNamespace(TableFuncScanState *state, const char *name, const char *ur
 				 errmsg("DEFAULT namespace is not supported")));
 	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetNamespace");
 
-	/*
-	 * This hook allows TSQL OPENXML to use custom namespace processing particularly
-	 * for docId based namespace retrieval from prepared XML documents.
-	 */
+	/* For TSQL OPENXML, following hook will fetch and register namespaces in Xpath context. */
 	if (openxml_set_namespaces_hook)
         return openxml_set_namespaces_hook(xtCxt->xpathcxt, xtCxt->xmlerrcxt, uri);
 
