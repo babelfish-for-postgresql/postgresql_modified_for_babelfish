@@ -69,12 +69,9 @@ typedef void (*transform_pivot_clause_hook_type)(ParseState *pstate, SelectStmt 
 extern PGDLLEXPORT transform_pivot_clause_hook_type transform_pivot_clause_hook;
 
 /* Hook for transform unpivot clause in tsql select stmt */
-typedef void (*transform_unpivot_clause_hook_type)(ParseState *pstate, SelectStmt *stmt);
-extern PGDLLEXPORT transform_unpivot_clause_hook_type transform_unpivot_clause_hook;
+typedef void (*transform_tsql_select_stmt_hook_type)(ParseState *pstate, SelectStmt *stmt);
+extern PGDLLEXPORT transform_tsql_select_stmt_hook_type transform_tsql_select_stmt_hook;
 
-/* Hook to transform query if percent operator is present */
-typedef void (*transform_percent_clause_hook_type)(ParseState *pstate, SelectStmt *stmt);
-extern PGDLLEXPORT transform_percent_clause_hook_type transform_percent_clause_hook;
 
 extern Query *parse_analyze_fixedparams(RawStmt *parseTree, const char *sourceText,
 										const Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);
