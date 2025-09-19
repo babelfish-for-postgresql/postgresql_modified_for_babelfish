@@ -46,7 +46,7 @@ typedef bool (*ExecEvalBoolSubroutine) (ExprState *state,
  * Helpful in cases when permissions need to be checked against
  * a different user instead of current user.
  */
-typedef AclResult (*ExecFuncProc_AclCheck_hook_type) (Oid funcid);
+typedef AclResult (*ExecFuncProc_AclCheck_hook_type) (Oid funcid, Expr *fexpr);
 extern PGDLLIMPORT ExecFuncProc_AclCheck_hook_type ExecFuncProc_AclCheck_hook;
 
 /* ExprEvalSteps that cache a composite type's tupdesc need one of these */

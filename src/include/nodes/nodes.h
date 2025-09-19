@@ -429,6 +429,7 @@ typedef enum LimitOption
 {
 	LIMIT_OPTION_COUNT,			/* FETCH FIRST... ONLY */
 	LIMIT_OPTION_WITH_TIES,		/* FETCH FIRST... WITH TIES */
+	LIMIT_OPTION_PERCENT,		/* FETCH FIRST... PERCENT FOR TSQL */
 } LimitOption;
 
 #endif							/* NODES_H */
