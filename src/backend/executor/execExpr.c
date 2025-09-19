@@ -2639,7 +2639,7 @@ ExecInitFunc(ExprEvalStep *scratch, Expr *node, List *args, Oid funcid,
 
 	/* Check permission to call function */
 	if (ExecFuncProc_AclCheck_hook)
-		aclresult = ExecFuncProc_AclCheck_hook(funcid);
+		aclresult = ExecFuncProc_AclCheck_hook(funcid, node);
 	else
 		aclresult = object_aclcheck(ProcedureRelationId, funcid, GetUserId(), ACL_EXECUTE);
 	if (aclresult != ACLCHECK_OK)

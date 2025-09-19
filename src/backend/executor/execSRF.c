@@ -703,7 +703,7 @@ init_sexpr(Oid foid, Oid input_collation, Expr *node,
 
 	/* Check permission to call function */
 	if (ExecFuncProc_AclCheck_hook)
-		aclresult = ExecFuncProc_AclCheck_hook(foid);
+		aclresult = ExecFuncProc_AclCheck_hook(foid, node);
 	else
 		aclresult = object_aclcheck(ProcedureRelationId, foid, GetUserId(), ACL_EXECUTE);
 	if (aclresult != ACLCHECK_OK)
