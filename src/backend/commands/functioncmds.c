@@ -2349,7 +2349,7 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 	Assert(IsA(fexpr, FuncExpr));
 
 	if (ExecFuncProc_AclCheck_hook)
-		aclresult = ExecFuncProc_AclCheck_hook(fexpr->funcid);
+		aclresult = ExecFuncProc_AclCheck_hook(fexpr->funcid, (Expr *)fexpr);
 	else
 		aclresult = object_aclcheck(ProcedureRelationId, fexpr->funcid, GetUserId(), ACL_EXECUTE);
 	if (aclresult != ACLCHECK_OK)
