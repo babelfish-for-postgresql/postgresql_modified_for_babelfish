@@ -2334,10 +2334,6 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	columns, if they exist. */
 	int			nfields_new = 0;
 
-	/* Temporary allows to access to foreign tables to dump data */
-	if (tbinfo->relkind == RELKIND_FOREIGN_TABLE)
-		set_restrict_relation_kind(fout, "view");
-
 	/*
 	 * If we're going to emit INSERTs with column names, the most efficient
 	 * way to deal with generated columns is to exclude them entirely.  For
