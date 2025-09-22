@@ -95,6 +95,9 @@ extern xmlDocPtr xml_parse_wrapper(text *data, XmlOptionType xmloption_arg,
 							XmlOptionType *parsed_xmloptiontype, xmlNodePtr *parsed_nodes,
 							Node *escontext);
 extern xmlChar *pg_xmlCharStrndup_wrapper(const char *str, size_t len);
+extern int parse_xml_decl_wrapper(const xmlChar *str, size_t *lenp,
+						   xmlChar **version, xmlChar **encoding, int *standalone);
+						   
 /* Hook function type for TSQL OPENXML namespace handling */
 typedef void (*openxml_set_namespaces_hook_type) (xmlXPathContext *xpathctx, PgXmlErrorContext *xmlerrcxt, char *doc_id_str);
 extern PGDLLIMPORT openxml_set_namespaces_hook_type openxml_set_namespaces_hook;

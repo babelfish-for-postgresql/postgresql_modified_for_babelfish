@@ -5140,4 +5140,10 @@ pg_xmlCharStrndup_wrapper(const char *str, size_t len)
 	return pg_xmlCharStrndup(str, len);
 }
 
+int
+parse_xml_decl_wrapper(const xmlChar *str, size_t *lenp,
+						   xmlChar **version, xmlChar **encoding, int *standalone)
+{
+	return parse_xml_decl(str, lenp, version, encoding, standalone);
+}
 #endif							/* USE_LIBXML */

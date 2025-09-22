@@ -90,8 +90,9 @@ pre_transform_setop_sort_clause_hook_type pre_transform_setop_sort_clause_hook =
 /* Hook to transform TSQL pivot clause in select stmt */
 transform_pivot_clause_hook_type transform_pivot_clause_hook = NULL;
 
-/* Hook to transform TSQL unpivot clauses in select stmt */
-transform_unpivot_clause_hook_type transform_unpivot_clause_hook = NULL;
+/* Hook to transform TSQL unpivot, top N percent clauses in select stmt */
+transform_tsql_select_stmt_hook_type transform_tsql_select_stmt_hook = NULL;
+
 
 static Query *transformOptionalSelectInto(ParseState *pstate, Node *parseTree);
 static Query *transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt);
@@ -1441,10 +1442,10 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 
 	qry->commandType = CMD_SELECT;
 
-	/* Unpack and process TSQL UNPIVOT nodes in stmt->fromClause, if present */
-	if(transform_unpivot_clause_hook)
+	/* Unpack and process TSQL UNPIVOT nodes in stmt->fromClause, Process Top N Percent, if present */
+	if(transform_tsql_select_stmt_hook)
 	{
-		(*transform_unpivot_clause_hook)(pstate, stmt);
+		(*transform_tsql_select_stmt_hook)(pstate, stmt);
 	}
 
 	/* process the WITH clause independently of all else */
