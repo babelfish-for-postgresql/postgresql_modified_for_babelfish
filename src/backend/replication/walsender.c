@@ -440,12 +440,10 @@ IdentifySystem(void)
 
 		/* syscache access needs a transaction env. */
 		StartTransactionCommand();
-		/* make dbname live outside TX context */
-		MemoryContextSwitchTo(cur);
 		dbname = get_database_name(MyDatabaseId);
+		/* copy dbname out of TX context */
+		dbname = MemoryContextStrdup(cur, dbname);
 		CommitTransactionCommand();
-		/* CommitTransactionCommand switches to TopMemoryContext */
-		MemoryContextSwitchTo(cur);
 	}
 
 	dest = CreateDestReceiver(DestRemoteSimple);
@@ -1727,7 +1725,7 @@ WalSndUpdateProgress(LogicalDecodingContext *ctx, XLogRecPtr lsn, TransactionId 
 
 /*
  * Wake up the logical walsender processes with logical failover slots if the
- * currently acquired physical slot is specified in standby_slot_names GUC.
+ * currently acquired physical slot is specified in synchronized_standby_slots GUC.
  */
 void
 PhysicalWakeupLogicalWalSnd(void)
@@ -1742,7 +1740,7 @@ PhysicalWakeupLogicalWalSnd(void)
 	if (RecoveryInProgress())
 		return;
 
-	if (SlotExistsInStandbySlotNames(NameStr(MyReplicationSlot->data.name)))
+	if (SlotExistsInSyncStandbySlots(NameStr(MyReplicationSlot->data.name)))
 		ConditionVariableBroadcast(&WalSndCtl->wal_confirm_rcv_cv);
 }
 

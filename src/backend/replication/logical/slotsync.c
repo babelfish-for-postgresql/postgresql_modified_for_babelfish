@@ -103,7 +103,7 @@ typedef struct SlotSyncCtxStruct
 	slock_t		mutex;
 } SlotSyncCtxStruct;
 
-SlotSyncCtxStruct *SlotSyncCtx = NULL;
+static SlotSyncCtxStruct *SlotSyncCtx = NULL;
 
 /* GUC variable */
 bool		sync_replication_slots = false;
@@ -620,8 +620,8 @@ synchronize_one_slot(RemoteSlot *remote_slot, Oid remote_dbid)
 	if (remote_slot->confirmed_lsn > latestFlushPtr)
 	{
 		/*
-		 * Can get here only if GUC 'standby_slot_names' on the primary server
-		 * was not configured correctly.
+		 * Can get here only if GUC 'synchronized_standby_slots' on the
+		 * primary server was not configured correctly.
 		 */
 		ereport(AmLogicalSlotSyncWorkerProcess() ? LOG : ERROR,
 				errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
