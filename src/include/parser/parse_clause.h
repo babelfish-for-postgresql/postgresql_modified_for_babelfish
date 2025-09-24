@@ -62,4 +62,8 @@ extern PGDLLEXPORT optimize_explicit_cast_hook_type optimize_explicit_cast_hook;
 /* functions in parse_jsontable.c */
 extern ParseNamespaceItem *transformJsonTable(ParseState *pstate, JsonTable *jt);
 
+/* Hook for preprocessing OPENXML column definitions before XMLTABLE transformation */
+typedef void (*pre_transform_openxml_columns_hook_type) (ParseState *pstate, RangeTableFunc *rtf);
+extern PGDLLIMPORT pre_transform_openxml_columns_hook_type pre_transform_openxml_columns_hook;
+
 #endif							/* PARSE_CLAUSE_H */
