@@ -232,6 +232,10 @@ const TableFuncRoutine XmlTableRoutine =
 	.DestroyOpaque = XmlTableDestroyOpaque
 };
 
+#ifdef USE_LIBXML
+openxml_set_namespaces_hook_type openxml_set_namespaces_hook = NULL;
+#endif
+
 #define NO_XML_SUPPORT() \
 	ereport(ERROR, \
 			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
@@ -4808,6 +4812,13 @@ XmlTableSetNamespace(TableFuncScanState *state, const char *name, const char *ur
 				 errmsg("DEFAULT namespace is not supported")));
 	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetNamespace");
 
+	/*
+	 * For TSQL OPENXML, following hook will fetch and register namespaces in
+	 * Xpath context.
+	 */
+	if (openxml_set_namespaces_hook)
+		return openxml_set_namespaces_hook(xtCxt->xpathcxt, xtCxt->xmlerrcxt, (char *) uri);
+
 	if (xmlXPathRegisterNs(xtCxt->xpathcxt,
 						   pg_xmlCharStrndup(name, strlen(name)),
 						   pg_xmlCharStrndup(uri, strlen(uri))))
@@ -5131,12 +5142,12 @@ XmlTableDestroyOpaque(TableFuncScanState *state)
 #ifdef USE_LIBXML
 xmlDocPtr
 xml_parse_wrapper(text *data, XmlOptionType xmloption_arg,
-		  bool preserve_whitespace, int encoding,
-		  XmlOptionType *parsed_xmloptiontype, xmlNodePtr *parsed_nodes,
-		  Node *escontext)
+				  bool preserve_whitespace, int encoding,
+				  XmlOptionType *parsed_xmloptiontype, xmlNodePtr *parsed_nodes,
+				  Node *escontext)
 {
 	return xml_parse(data, xmloption_arg, preserve_whitespace,
-					encoding, parsed_xmloptiontype, parsed_nodes, escontext);
+					 encoding, parsed_xmloptiontype, parsed_nodes, escontext);
 }
 
 xmlChar *
@@ -5147,7 +5158,7 @@ pg_xmlCharStrndup_wrapper(const char *str, size_t len)
 
 int
 parse_xml_decl_wrapper(const xmlChar *str, size_t *lenp,
-						   xmlChar **version, xmlChar **encoding, int *standalone)
+					   xmlChar **version, xmlChar **encoding, int *standalone)
 {
 	return parse_xml_decl(str, lenp, version, encoding, standalone);
 }
