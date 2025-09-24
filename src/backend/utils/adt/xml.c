@@ -232,6 +232,10 @@ const TableFuncRoutine XmlTableRoutine =
 	.DestroyOpaque = XmlTableDestroyOpaque
 };
 
+#ifdef USE_LIBXML
+openxml_set_namespaces_hook_type openxml_set_namespaces_hook = NULL;
+#endif
+
 #define NO_XML_SUPPORT() \
 	ereport(ERROR, \
 			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
@@ -4794,6 +4798,10 @@ XmlTableSetNamespace(TableFuncScanState *state, const char *name, const char *ur
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("DEFAULT namespace is not supported")));
 	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetNamespace");
+
+	/* For TSQL OPENXML, following hook will fetch and register namespaces in Xpath context. */
+	if (openxml_set_namespaces_hook)
+        return openxml_set_namespaces_hook(xtCxt->xpathcxt, xtCxt->xmlerrcxt, uri);
 
 	if (xmlXPathRegisterNs(xtCxt->xpathcxt,
 						   pg_xmlCharStrndup(name, strlen(name)),

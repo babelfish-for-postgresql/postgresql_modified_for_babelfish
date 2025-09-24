@@ -21,6 +21,7 @@
 #include "nodes/primnodes.h"
 #ifdef USE_LIBXML
 #include <libxml/tree.h>
+#include <libxml/xpath.h>
 #endif
 
 typedef struct varlena xmltype;
@@ -96,6 +97,10 @@ extern xmlDocPtr xml_parse_wrapper(text *data, XmlOptionType xmloption_arg,
 extern xmlChar *pg_xmlCharStrndup_wrapper(const char *str, size_t len);
 extern int parse_xml_decl_wrapper(const xmlChar *str, size_t *lenp,
 						   xmlChar **version, xmlChar **encoding, int *standalone);
+						   
+/* Hook function type for TSQL OPENXML namespace handling */
+typedef void (*openxml_set_namespaces_hook_type) (xmlXPathContext *xpathctx, PgXmlErrorContext *xmlerrcxt, char *doc_id_str);
+extern PGDLLIMPORT openxml_set_namespaces_hook_type openxml_set_namespaces_hook;
 #endif							/* USE_LIBXML */
 
 extern PGDLLIMPORT int xmlbinary;	/* XmlBinaryType, but int for guc enum */

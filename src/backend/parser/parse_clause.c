@@ -56,6 +56,8 @@ sortby_nulls_hook_type  sortby_nulls_hook = NULL;
 
 optimize_explicit_cast_hook_type optimize_explicit_cast_hook = NULL;
 
+pre_transform_openxml_columns_hook_type pre_transform_openxml_columns_hook = NULL;
+
 static int	extractRemainingColumns(ParseState *pstate,
 									ParseNamespaceColumn *src_nscolumns,
 									List *src_colnames,
@@ -710,6 +712,13 @@ transformRangeTableFunc(ParseState *pstate, RangeTableFunc *rtf)
 	tf->functype = TFT_XMLTABLE;
 	constructName = "XMLTABLE";
 	docType = XMLOID;
+
+	/*
+	 * Hook to allow extensions to pre-process OPENXML column definitions
+	 * before standard XMLTABLE transformation.
+	 */
+	if (pre_transform_openxml_columns_hook && tf->functype == TFT_XMLTABLE)
+		pre_transform_openxml_columns_hook(pstate, rtf);
 
 	/*
 	 * We make lateral_only names of this level visible, whether or not the
