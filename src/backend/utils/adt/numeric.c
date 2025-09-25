@@ -252,6 +252,13 @@ struct NumericData
 	 | ((n)->choice.n_short.n_header & NUMERIC_SHORT_WEIGHT_MASK)) \
 	: ((n)->choice.n_long.n_weight))
 
+/*
+ * Maximum weight of a stored Numeric value (based on the use of int16 for the
+ * weight in NumericLong).  Note that intermediate values held in NumericVar
+ * and NumericSumAccum variables may have much larger weights.
+ */
+#define NUMERIC_WEIGHT_MAX			PG_INT16_MAX
+
 /* ----------
  * NumericVar is the format we use for arithmetic.  The digit-array part
  * is the same as the NumericData storage format, but the header is more
@@ -554,6 +561,8 @@ static void sub_var(const NumericVar *var1, const NumericVar *var2,
 static void mul_var(const NumericVar *var1, const NumericVar *var2,
 					NumericVar *result,
 					int rscale);
+static void mul_var_short(const NumericVar *var1, const NumericVar *var2,
+						  NumericVar *result);
 static void div_var(const NumericVar *var1, const NumericVar *var2,
 					NumericVar *result,
 					int rscale, bool round);
@@ -602,7 +611,7 @@ static void round_var(NumericVar *var, int rscale);
 static void trunc_var(NumericVar *var, int rscale);
 static void strip_var(NumericVar *var);
 static void compute_bucket(Numeric operand, Numeric bound1, Numeric bound2,
-						   const NumericVar *count_var, bool reversed_bounds,
+						   const NumericVar *count_var,
 						   NumericVar *result_var);
 
 static void accum_sum_add(NumericSumAccum *accum, const NumericVar *val);
@@ -1548,10 +1557,15 @@ numeric_round(PG_FUNCTION_ARGS)
 		PG_RETURN_NUMERIC(duplicate_numeric(num));
 
 	/*
-	 * Limit the scale value to avoid possible overflow in calculations
+	 * Limit the scale value to avoid possible overflow in calculations.
+	 *
+	 * These limits are based on the maximum number of digits a Numeric value
+	 * can have before and after the decimal point, but we must allow for one
+	 * extra digit before the decimal point, in case the most significant
+	 * digit rounds up; we must check if that causes Numeric overflow.
 	 */
-	scale = Max(scale, -NUMERIC_MAX_RESULT_SCALE);
-	scale = Min(scale, NUMERIC_MAX_RESULT_SCALE);
+	scale = Max(scale, -(NUMERIC_WEIGHT_MAX + 1) * DEC_DIGITS - 1);
+	scale = Min(scale, NUMERIC_DSCALE_MAX);
 
 	/*
 	 * Unpack the argument and round it at the proper digit position
@@ -1597,10 +1611,13 @@ numeric_trunc(PG_FUNCTION_ARGS)
 		PG_RETURN_NUMERIC(duplicate_numeric(num));
 
 	/*
-	 * Limit the scale value to avoid possible overflow in calculations
+	 * Limit the scale value to avoid possible overflow in calculations.
+	 *
+	 * These limits are based on the maximum number of digits a Numeric value
+	 * can have before and after the decimal point.
 	 */
-	scale = Max(scale, -NUMERIC_MAX_RESULT_SCALE);
-	scale = Min(scale, NUMERIC_MAX_RESULT_SCALE);
+	scale = Max(scale, -(NUMERIC_WEIGHT_MAX + 1) * DEC_DIGITS);
+	scale = Min(scale, NUMERIC_DSCALE_MAX);
 
 	/*
 	 * Unpack the argument and truncate it at the proper digit position
@@ -1882,7 +1899,7 @@ width_bucket_numeric(PG_FUNCTION_ARGS)
 			else if (cmp_numerics(operand, bound2) >= 0)
 				add_var(&count_var, &const_one, &result_var);
 			else
-				compute_bucket(operand, bound1, bound2, &count_var, false,
+				compute_bucket(operand, bound1, bound2, &count_var,
 							   &result_var);
 			break;
 
@@ -1893,7 +1910,7 @@ width_bucket_numeric(PG_FUNCTION_ARGS)
 			else if (cmp_numerics(operand, bound2) <= 0)
 				add_var(&count_var, &const_one, &result_var);
 			else
-				compute_bucket(operand, bound1, bound2, &count_var, true,
+				compute_bucket(operand, bound1, bound2, &count_var,
 							   &result_var);
 			break;
 	}
@@ -1912,14 +1929,13 @@ width_bucket_numeric(PG_FUNCTION_ARGS)
 
 /*
  * 'operand' is inside the bucket range, so determine the correct
- * bucket for it to go. The calculations performed by this function
+ * bucket for it to go in. The calculations performed by this function
  * are derived directly from the SQL2003 spec. Note however that we
  * multiply by count before dividing, to avoid unnecessary roundoff error.
  */
 static void
 compute_bucket(Numeric operand, Numeric bound1, Numeric bound2,
-			   const NumericVar *count_var, bool reversed_bounds,
-			   NumericVar *result_var)
+			   const NumericVar *count_var, NumericVar *result_var)
 {
 	NumericVar	bound1_var;
 	NumericVar	bound2_var;
@@ -1929,34 +1945,22 @@ compute_bucket(Numeric operand, Numeric bound1, Numeric bound2,
 	init_var_from_num(bound2, &bound2_var);
 	init_var_from_num(operand, &operand_var);
 
-	if (!reversed_bounds)
-	{
-		sub_var(&operand_var, &bound1_var, &operand_var);
-		sub_var(&bound2_var, &bound1_var, &bound2_var);
-	}
-	else
-	{
-		sub_var(&bound1_var, &operand_var, &operand_var);
-		sub_var(&bound1_var, &bound2_var, &bound2_var);
-	}
+	/*
+	 * Per spec, bound1 is inclusive and bound2 is exclusive, and so we have
+	 * bound1 <= operand < bound2 or bound1 >= operand > bound2.  Either way,
+	 * the result is ((operand - bound1) * count) / (bound2 - bound1) + 1,
+	 * where the quotient is computed using floor division (i.e., division to
+	 * zero decimal places with truncation), which guarantees that the result
+	 * is in the range [1, count].  Reversing the bounds doesn't affect the
+	 * computation, because the signs cancel out when dividing.
+	 */
+	sub_var(&operand_var, &bound1_var, &operand_var);
+	sub_var(&bound2_var, &bound1_var, &bound2_var);
 
 	mul_var(&operand_var, count_var, &operand_var,
 			operand_var.dscale + count_var->dscale);
-	div_var(&operand_var, &bound2_var, result_var,
-			select_div_scale(&operand_var, &bound2_var), true);
-
-	/*
-	 * Roundoff in the division could give us a quotient exactly equal to
-	 * "count", which is too large.  Clamp so that we do not emit a result
-	 * larger than "count".
-	 */
-	if (cmp_var(result_var, count_var) >= 0)
-		set_var_from_var(count_var, result_var);
-	else
-	{
-		add_var(result_var, &const_one, result_var);
-		floor_var(result_var, result_var);
-	}
+	div_var(&operand_var, &bound2_var, result_var, 0, false);
+	add_var(result_var, &const_one, result_var);
 
 	free_var(&bound1_var);
 	free_var(&bound2_var);
@@ -7368,7 +7372,7 @@ set_var_from_non_decimal_integer_str(const char *str, const char *cp, int sign,
 					add_var(dest, &tmp_var, dest);
 
 					/* Result will overflow if weight overflows int16 */
-					if (dest->weight > SHRT_MAX)
+					if (dest->weight > NUMERIC_WEIGHT_MAX)
 						goto out_of_range;
 
 					/* Begin a new group */
@@ -7405,7 +7409,7 @@ set_var_from_non_decimal_integer_str(const char *str, const char *cp, int sign,
 					add_var(dest, &tmp_var, dest);
 
 					/* Result will overflow if weight overflows int16 */
-					if (dest->weight > SHRT_MAX)
+					if (dest->weight > NUMERIC_WEIGHT_MAX)
 						goto out_of_range;
 
 					/* Begin a new group */
@@ -7442,7 +7446,7 @@ set_var_from_non_decimal_integer_str(const char *str, const char *cp, int sign,
 					add_var(dest, &tmp_var, dest);
 
 					/* Result will overflow if weight overflows int16 */
-					if (dest->weight > SHRT_MAX)
+					if (dest->weight > NUMERIC_WEIGHT_MAX)
 						goto out_of_range;
 
 					/* Begin a new group */
@@ -7478,7 +7482,7 @@ set_var_from_non_decimal_integer_str(const char *str, const char *cp, int sign,
 	int64_to_numericvar(tmp, &tmp_var);
 	add_var(dest, &tmp_var, dest);
 
-	if (dest->weight > SHRT_MAX)
+	if (dest->weight > NUMERIC_WEIGHT_MAX)
 		goto out_of_range;
 
 	dest->sign = sign;
@@ -8806,11 +8810,21 @@ mul_var(const NumericVar *var1, const NumericVar *var2, NumericVar *result,
 	var1digits = var1->digits;
 	var2digits = var2->digits;
 
-	if (var1ndigits == 0 || var2ndigits == 0)
+	if (var1ndigits == 0)
 	{
 		/* one or both inputs is zero; so is result */
 		zero_var(result);
 		result->dscale = rscale;
+		return;
+	}
+
+	/*
+	 * If var1 has 1-4 digits and the exact result was requested, delegate to
+	 * mul_var_short() which uses a faster direct multiplication algorithm.
+	 */
+	if (var1ndigits <= 4 && rscale == var1->dscale + var2->dscale)
+	{
+		mul_var_short(var1, var2, result);
 		return;
 	}
 
@@ -8958,6 +8972,212 @@ mul_var(const NumericVar *var1, const NumericVar *var2, NumericVar *result,
 
 	/* Round to target rscale (and set result->dscale) */
 	round_var(result, rscale);
+
+	/* Strip leading and trailing zeroes */
+	strip_var(result);
+}
+
+
+/*
+ * mul_var_short() -
+ *
+ *	Special-case multiplication function used when var1 has 1-4 digits, var2
+ *	has at least as many digits as var1, and the exact product var1 * var2 is
+ *	requested.
+ */
+static void
+mul_var_short(const NumericVar *var1, const NumericVar *var2,
+			  NumericVar *result)
+{
+	int			var1ndigits = var1->ndigits;
+	int			var2ndigits = var2->ndigits;
+	NumericDigit *var1digits = var1->digits;
+	NumericDigit *var2digits = var2->digits;
+	int			res_sign;
+	int			res_weight;
+	int			res_ndigits;
+	NumericDigit *res_buf;
+	NumericDigit *res_digits;
+	uint32		carry;
+	uint32		term;
+
+	/* Check preconditions */
+	Assert(var1ndigits >= 1);
+	Assert(var1ndigits <= 4);
+	Assert(var2ndigits >= var1ndigits);
+
+	/*
+	 * Determine the result sign, weight, and number of digits to calculate.
+	 * The weight figured here is correct if the product has no leading zero
+	 * digits; otherwise strip_var() will fix things up.  Note that, unlike
+	 * mul_var(), we do not need to allocate an extra output digit, because we
+	 * are not rounding here.
+	 */
+	if (var1->sign == var2->sign)
+		res_sign = NUMERIC_POS;
+	else
+		res_sign = NUMERIC_NEG;
+	res_weight = var1->weight + var2->weight + 1;
+	res_ndigits = var1ndigits + var2ndigits;
+
+	/* Allocate result digit array */
+	res_buf = digitbuf_alloc(res_ndigits + 1);
+	res_buf[0] = 0;				/* spare digit for later rounding */
+	res_digits = res_buf + 1;
+
+	/*
+	 * Compute the result digits in reverse, in one pass, propagating the
+	 * carry up as we go.  The i'th result digit consists of the sum of the
+	 * products var1digits[i1] * var2digits[i2] for which i = i1 + i2 + 1.
+	 */
+	switch (var1ndigits)
+	{
+		case 1:
+			/* ---------
+			 * 1-digit case:
+			 *		var1ndigits = 1
+			 *		var2ndigits >= 1
+			 *		res_ndigits = var2ndigits + 1
+			 * ----------
+			 */
+			carry = 0;
+			for (int i = res_ndigits - 2; i >= 0; i--)
+			{
+				term = (uint32) var1digits[0] * var2digits[i] + carry;
+				res_digits[i + 1] = (NumericDigit) (term % NBASE);
+				carry = term / NBASE;
+			}
+			res_digits[0] = (NumericDigit) carry;
+			break;
+
+		case 2:
+			/* ---------
+			 * 2-digit case:
+			 *		var1ndigits = 2
+			 *		var2ndigits >= 2
+			 *		res_ndigits = var2ndigits + 2
+			 * ----------
+			 */
+			/* last result digit and carry */
+			term = (uint32) var1digits[1] * var2digits[res_ndigits - 3];
+			res_digits[res_ndigits - 1] = (NumericDigit) (term % NBASE);
+			carry = term / NBASE;
+
+			/* remaining digits, except for the first two */
+			for (int i = res_ndigits - 3; i >= 1; i--)
+			{
+				term = (uint32) var1digits[0] * var2digits[i] +
+					(uint32) var1digits[1] * var2digits[i - 1] + carry;
+				res_digits[i + 1] = (NumericDigit) (term % NBASE);
+				carry = term / NBASE;
+			}
+
+			/* first two digits */
+			term = (uint32) var1digits[0] * var2digits[0] + carry;
+			res_digits[1] = (NumericDigit) (term % NBASE);
+			res_digits[0] = (NumericDigit) (term / NBASE);
+			break;
+
+		case 3:
+			/* ---------
+			 * 3-digit case:
+			 *		var1ndigits = 3
+			 *		var2ndigits >= 3
+			 *		res_ndigits = var2ndigits + 3
+			 * ----------
+			 */
+			/* last two result digits */
+			term = (uint32) var1digits[2] * var2digits[res_ndigits - 4];
+			res_digits[res_ndigits - 1] = (NumericDigit) (term % NBASE);
+			carry = term / NBASE;
+
+			term = (uint32) var1digits[1] * var2digits[res_ndigits - 4] +
+				(uint32) var1digits[2] * var2digits[res_ndigits - 5] + carry;
+			res_digits[res_ndigits - 2] = (NumericDigit) (term % NBASE);
+			carry = term / NBASE;
+
+			/* remaining digits, except for the first three */
+			for (int i = res_ndigits - 4; i >= 2; i--)
+			{
+				term = (uint32) var1digits[0] * var2digits[i] +
+					(uint32) var1digits[1] * var2digits[i - 1] +
+					(uint32) var1digits[2] * var2digits[i - 2] + carry;
+				res_digits[i + 1] = (NumericDigit) (term % NBASE);
+				carry = term / NBASE;
+			}
+
+			/* first three digits */
+			term = (uint32) var1digits[0] * var2digits[1] +
+				(uint32) var1digits[1] * var2digits[0] + carry;
+			res_digits[2] = (NumericDigit) (term % NBASE);
+			carry = term / NBASE;
+
+			term = (uint32) var1digits[0] * var2digits[0] + carry;
+			res_digits[1] = (NumericDigit) (term % NBASE);
+			res_digits[0] = (NumericDigit) (term / NBASE);
+			break;
+
+		case 4:
+			/* ---------
+			 * 4-digit case:
+			 *		var1ndigits = 4
+			 *		var2ndigits >= 4
+			 *		res_ndigits = var2ndigits + 4
+			 * ----------
+			 */
+			/* last three result digits */
+			term = (uint32) var1digits[3] * var2digits[res_ndigits - 5];
+			res_digits[res_ndigits - 1] = (NumericDigit) (term % NBASE);
+			carry = term / NBASE;
+
+			term = (uint32) var1digits[2] * var2digits[res_ndigits - 5] +
+				(uint32) var1digits[3] * var2digits[res_ndigits - 6] + carry;
+			res_digits[res_ndigits - 2] = (NumericDigit) (term % NBASE);
+			carry = term / NBASE;
+
+			term = (uint32) var1digits[1] * var2digits[res_ndigits - 5] +
+				(uint32) var1digits[2] * var2digits[res_ndigits - 6] +
+				(uint32) var1digits[3] * var2digits[res_ndigits - 7] + carry;
+			res_digits[res_ndigits - 3] = (NumericDigit) (term % NBASE);
+			carry = term / NBASE;
+
+			/* remaining digits, except for the first four */
+			for (int i = res_ndigits - 5; i >= 3; i--)
+			{
+				term = (uint32) var1digits[0] * var2digits[i] +
+					(uint32) var1digits[1] * var2digits[i - 1] +
+					(uint32) var1digits[2] * var2digits[i - 2] +
+					(uint32) var1digits[3] * var2digits[i - 3] + carry;
+				res_digits[i + 1] = (NumericDigit) (term % NBASE);
+				carry = term / NBASE;
+			}
+
+			/* first four digits */
+			term = (uint32) var1digits[0] * var2digits[2] +
+				(uint32) var1digits[1] * var2digits[1] +
+				(uint32) var1digits[2] * var2digits[0] + carry;
+			res_digits[3] = (NumericDigit) (term % NBASE);
+			carry = term / NBASE;
+
+			term = (uint32) var1digits[0] * var2digits[1] +
+				(uint32) var1digits[1] * var2digits[0] + carry;
+			res_digits[2] = (NumericDigit) (term % NBASE);
+			carry = term / NBASE;
+
+			term = (uint32) var1digits[0] * var2digits[0] + carry;
+			res_digits[1] = (NumericDigit) (term % NBASE);
+			res_digits[0] = (NumericDigit) (term / NBASE);
+			break;
+	}
+
+	/* Store the product in result */
+	digitbuf_free(result->buf);
+	result->ndigits = res_ndigits;
+	result->buf = res_buf;
+	result->digits = res_digits;
+	result->weight = res_weight;
+	result->sign = res_sign;
+	result->dscale = var1->dscale + var2->dscale;
 
 	/* Strip leading and trailing zeroes */
 	strip_var(result);
@@ -11124,7 +11344,8 @@ power_var(const NumericVar *base, const NumericVar *exp, NumericVar *result)
 	/*
 	 * Set the scale for the low-precision calculation, computing ln(base) to
 	 * around 8 significant digits.  Note that ln_dweight may be as small as
-	 * -SHRT_MAX, so the scale may exceed NUMERIC_MAX_DISPLAY_SCALE here.
+	 * -NUMERIC_DSCALE_MAX, so the scale may exceed NUMERIC_MAX_DISPLAY_SCALE
+	 * here.
 	 */
 	local_rscale = 8 - ln_dweight;
 	local_rscale = Max(local_rscale, NUMERIC_MIN_DISPLAY_SCALE);
@@ -11232,7 +11453,7 @@ power_var_int(const NumericVar *base, int exp, int exp_dscale,
 		f = 0;					/* result is 0 or 1 (weight 0), or error */
 
 	/* overflow/underflow tests with fuzz factors */
-	if (f > (SHRT_MAX + 1) * DEC_DIGITS)
+	if (f > (NUMERIC_WEIGHT_MAX + 1) * DEC_DIGITS)
 		ereport(ERROR,
 				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 				 errmsg("value overflows numeric format")));
@@ -11363,7 +11584,8 @@ power_var_int(const NumericVar *base, int exp, int exp_dscale,
 		 * int16, the final result is guaranteed to overflow (or underflow, if
 		 * exp < 0), so we can give up before wasting too many cycles.
 		 */
-		if (base_prod.weight > SHRT_MAX || result->weight > SHRT_MAX)
+		if (base_prod.weight > NUMERIC_WEIGHT_MAX ||
+			result->weight > NUMERIC_WEIGHT_MAX)
 		{
 			/* overflow, unless neg, in which case result should be 0 */
 			if (!neg)

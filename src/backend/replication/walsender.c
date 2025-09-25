@@ -695,7 +695,7 @@ UploadManifest(void)
 	ib = CreateIncrementalBackupInfo(mcxt);
 
 	/* Send a CopyInResponse message */
-	pq_beginmessage(&buf, 'G');
+	pq_beginmessage(&buf, PqMsg_CopyInResponse);
 	pq_sendbyte(&buf, 0);
 	pq_sendint16(&buf, 0);
 	pq_endmessage_reuse(&buf);
@@ -1057,16 +1057,21 @@ logical_read_xlog_page(XLogReaderState *state, XLogRecPtr targetPagePtr, int req
 
 	/*
 	 * Make sure we have enough WAL available before retrieving the current
-	 * timeline. This is needed to determine am_cascading_walsender accurately
-	 * which is needed to determine the current timeline.
+	 * timeline.
 	 */
 	flushptr = WalSndWaitForWal(targetPagePtr + reqLen);
+
+	/* Fail if not enough (implies we are going to shut down) */
+	if (flushptr < targetPagePtr + reqLen)
+		return -1;
 
 	/*
 	 * Since logical decoding is also permitted on a standby server, we need
 	 * to check if the server is in recovery to decide how to get the current
-	 * timeline ID (so that it also cover the promotion or timeline change
-	 * cases).
+	 * timeline ID (so that it also covers the promotion or timeline change
+	 * cases). We must determine am_cascading_walsender after waiting for the
+	 * required WAL so that it is correct when the walsender wakes up after a
+	 * promotion.
 	 */
 	am_cascading_walsender = RecoveryInProgress();
 
@@ -1080,10 +1085,6 @@ logical_read_xlog_page(XLogReaderState *state, XLogRecPtr targetPagePtr, int req
 	sendTimeLine = state->currTLI;
 	sendTimeLineValidUpto = state->currTLIValidUntil;
 	sendTimeLineNextTLI = state->nextTLI;
-
-	/* fail if not (implies we are going to shut down) */
-	if (flushptr < targetPagePtr + reqLen)
-		return -1;
 
 	if (targetPagePtr + XLOG_BLCKSZ <= flushptr)
 		count = XLOG_BLCKSZ;	/* more than one block available */
@@ -1406,12 +1407,15 @@ DropReplicationSlot(DropReplicationSlotCmd *cmd)
 }
 
 /*
- * Process extra options given to ALTER_REPLICATION_SLOT.
+ * Change the definition of a replication slot.
  */
 static void
-ParseAlterReplSlotOptions(AlterReplicationSlotCmd *cmd, bool *failover)
+AlterReplicationSlot(AlterReplicationSlotCmd *cmd)
 {
 	bool		failover_given = false;
+	bool		two_phase_given = false;
+	bool		failover;
+	bool		two_phase;
 
 	/* Parse options */
 	foreach_ptr(DefElem, defel, cmd->options)
@@ -1423,23 +1427,24 @@ ParseAlterReplSlotOptions(AlterReplicationSlotCmd *cmd, bool *failover)
 						(errcode(ERRCODE_SYNTAX_ERROR),
 						 errmsg("conflicting or redundant options")));
 			failover_given = true;
-			*failover = defGetBoolean(defel);
+			failover = defGetBoolean(defel);
+		}
+		else if (strcmp(defel->defname, "two_phase") == 0)
+		{
+			if (two_phase_given)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			two_phase_given = true;
+			two_phase = defGetBoolean(defel);
 		}
 		else
 			elog(ERROR, "unrecognized option: %s", defel->defname);
 	}
-}
 
-/*
- * Change the definition of a replication slot.
- */
-static void
-AlterReplicationSlot(AlterReplicationSlotCmd *cmd)
-{
-	bool		failover = false;
-
-	ParseAlterReplSlotOptions(cmd, &failover);
-	ReplicationSlotAlter(cmd->slotname, failover);
+	ReplicationSlotAlter(cmd->slotname,
+						 failover_given ? &failover : NULL,
+						 two_phase_given ? &two_phase : NULL);
 }
 
 /*

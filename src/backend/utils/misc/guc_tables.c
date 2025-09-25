@@ -34,6 +34,7 @@
 #include "access/xlog_internal.h"
 #include "access/xlogprefetcher.h"
 #include "access/xlogrecovery.h"
+#include "access/xlogutils.h"
 #include "archive/archive_module.h"
 #include "catalog/namespace.h"
 #include "catalog/storage.h"
@@ -72,10 +73,12 @@
 #include "replication/slotsync.h"
 #include "replication/syncrep.h"
 #include "storage/bufmgr.h"
+#include "storage/bufpage.h"
 #include "storage/large_object.h"
 #include "storage/pg_shmem.h"
 #include "storage/predicate.h"
 #include "storage/standby.h"
+#include "tcop/backend_startup.h"
 #include "tcop/tcopprot.h"
 #include "tsearch/ts_cache.h"
 #include "utils/builtins.h"
@@ -91,26 +94,13 @@
 #include "utils/rls.h"
 #include "utils/xml.h"
 
+#ifdef TRACE_SYNCSCAN
+#include "access/syncscan.h"
+#endif
+
 /* This value is normally passed in from the Makefile */
 #ifndef PG_KRB_SRVTAB
 #define PG_KRB_SRVTAB ""
-#endif
-
-/* XXX these should appear in other modules' header files */
-extern bool Log_disconnections;
-extern bool Trace_connection_negotiation;
-extern int	CommitDelay;
-extern int	CommitSiblings;
-extern char *default_tablespace;
-extern char *temp_tablespaces;
-extern bool ignore_checksum_failure;
-extern bool ignore_invalid_pages;
-
-#ifdef TRACE_SYNCSCAN
-extern bool trace_syncscan;
-#endif
-#ifdef DEBUG_BOUNDED_SORT
-extern bool optimize_bounded_sort;
 #endif
 
 /*
@@ -609,6 +599,7 @@ static int	segment_size;
 static int	shared_memory_size_mb;
 static int	shared_memory_size_in_huge_pages;
 static int	wal_block_size;
+static int	num_os_semaphores;
 static bool data_checksums;
 static bool integer_datetimes;
 
@@ -2227,7 +2218,7 @@ struct config_int ConfigureNamesInt[] =
 		},
 		&MaxConnections,
 		100, 1, MAX_BACKENDS,
-		check_max_connections, NULL, NULL
+		NULL, NULL, NULL
 	},
 
 	{
@@ -2308,6 +2299,17 @@ struct config_int ConfigureNamesInt[] =
 		},
 		&shared_memory_size_in_huge_pages,
 		-1, -1, INT_MAX,
+		NULL, NULL, NULL
+	},
+
+	{
+		{"num_os_semaphores", PGC_INTERNAL, PRESET_OPTIONS,
+			gettext_noop("Shows the number of semaphores required for the server."),
+			NULL,
+			GUC_NOT_IN_SAMPLE | GUC_DISALLOW_IN_FILE | GUC_RUNTIME_COMPUTED
+		},
+		&num_os_semaphores,
+		0, 0, INT_MAX,
 		NULL, NULL, NULL
 	},
 
@@ -2943,7 +2945,7 @@ struct config_int ConfigureNamesInt[] =
 		},
 		&max_wal_senders,
 		10, 0, MAX_BACKENDS,
-		check_max_wal_senders, NULL, NULL
+		NULL, NULL, NULL
 	},
 
 	{
@@ -3173,7 +3175,7 @@ struct config_int ConfigureNamesInt[] =
 		},
 		&max_worker_processes,
 		8, 0, MAX_BACKENDS,
-		check_max_worker_processes, NULL, NULL
+		NULL, NULL, NULL
 	},
 
 	{
@@ -3407,7 +3409,7 @@ struct config_int ConfigureNamesInt[] =
 		},
 		&autovacuum_max_workers,
 		3, 1, MAX_BACKENDS,
-		check_autovacuum_max_workers, NULL, NULL
+		NULL, NULL, NULL
 	},
 
 	{

@@ -731,7 +731,7 @@ include_dir 'conf.d'
        <para>
         Determines the number of connection <quote>slots</quote> that are
         reserved for connections by roles with privileges of the
-        <link linkend="predefined-roles-table"><literal>pg_use_reserved_connections</literal></link>
+        <xref linkend="predefined-role-pg-use-reserved-connections"/>
         role.  Whenever the number of free connection slots is greater than
         <xref linkend="guc-superuser-reserved-connections"/> but less than or
         equal to the sum of <varname>superuser_reserved_connections</varname>
@@ -1443,11 +1443,11 @@ include_dir 'conf.d'
        </para>
 
        <para>
-        Older PostgreSQL versions do not have this setting and always use the
-        client's preferences.  This setting is mainly for backward
-        compatibility with those versions.  Using the server's preferences is
-        usually better because it is more likely that the server is appropriately
-        configured.
+        <productname>PostgreSQL</productname> versions before 9.4 do not have
+        this setting and always use the client's preferences.  This setting is
+        mainly for backward compatibility with those versions.  Using the
+        server's preferences is usually better because it is more likely that
+        the server is appropriately configured.
        </para>
       </listitem>
      </varlistentry>
@@ -4318,11 +4318,17 @@ restore_command = 'copy "C:\\server\\archivedir\\%f" "%p"'  # Windows
      <listitem>
       <para>
        Enables the WAL summarizer process. Note that WAL summarization can
-       be enabled either on a primary or on a standby. WAL summarization
-       cannot be enabled when <varname>wal_level</varname> is set to
-       <literal>minimal</literal>.  This parameter can only be set in the
-       <filename>postgresql.conf</filename> file or on the server command line.
-       The default is <literal>off</literal>.
+       be enabled either on a primary or on a standby.  This parameter can only
+       be set in the <filename>postgresql.conf</filename> file or on the server
+       command line.  The default is <literal>off</literal>.
+      </para>
+      <para>
+       The server cannot be started with <literal>summarize_wal=on</literal>
+       if <literal>wal_level</literal> is set to <literal>minimal</literal>. If
+       <literal>summarize_wal=on</literal> is configured after server startup
+       while <literal>wal_level=minimal</literal>, the summarizer will run
+       but refuse to generate summary files for any WAL generated with
+       <literal>wal_level=minimal</literal>.
       </para>
       </listitem>
      </varlistentry>
@@ -8319,7 +8325,9 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
         measure the overhead of timing on your system.
         I/O timing information is
         displayed in <link linkend="monitoring-pg-stat-database-view">
-        <structname>pg_stat_database</structname></link>, in the output of
+        <structname>pg_stat_database</structname></link>,
+        <link linkend="monitoring-pg-stat-io-view">
+        <structname>pg_stat_io</structname></link>, in the output of
         <xref linkend="sql-explain"/> when the <literal>BUFFERS</literal> option
         is used, in the output of <xref linkend="sql-vacuum"/> when
         the <literal>VERBOSE</literal> option is used, by autovacuum
@@ -11133,6 +11141,24 @@ dynamic_library_path = 'C:\tools\postgresql;H:\my_project\lib;$libdir'
         Reports the maximum number of index keys. It is determined by
         the value of <literal>INDEX_MAX_KEYS</literal> when building the server. The
         default value is 32 keys.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-num-os-semaphores" xreflabel="num_os_semaphores">
+      <term><varname>num_os_semaphores</varname> (<type>integer</type>)
+      <indexterm>
+       <primary><varname>num_os_semaphores</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Reports the number of semaphores that are needed for the server based
+        on the configured number of allowed connections
+        (<xref linkend="guc-max-connections"/>), allowed autovacuum worker
+        processes (<xref linkend="guc-autovacuum-max-workers"/>), allowed WAL
+        sender processes (<xref linkend="guc-max-wal-senders"/>), allowed
+        background processes (<xref linkend="guc-max-worker-processes"/>), etc.
        </para>
       </listitem>
      </varlistentry>

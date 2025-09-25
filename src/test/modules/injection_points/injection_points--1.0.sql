@@ -15,6 +15,16 @@ AS 'MODULE_PATHNAME', 'injection_points_attach'
 LANGUAGE C STRICT PARALLEL UNSAFE;
 
 --
+-- injection_points_load()
+--
+-- Load an injection point already attached.
+--
+CREATE FUNCTION injection_points_load(IN point_name TEXT)
+RETURNS void
+AS 'MODULE_PATHNAME', 'injection_points_load'
+LANGUAGE C STRICT PARALLEL UNSAFE;
+
+--
 -- injection_points_run()
 --
 -- Executes the action attached to the injection point.
@@ -22,6 +32,16 @@ LANGUAGE C STRICT PARALLEL UNSAFE;
 CREATE FUNCTION injection_points_run(IN point_name TEXT)
 RETURNS void
 AS 'MODULE_PATHNAME', 'injection_points_run'
+LANGUAGE C STRICT PARALLEL UNSAFE;
+
+--
+-- injection_points_cached()
+--
+-- Executes the action attached to the injection point, from local cache.
+--
+CREATE FUNCTION injection_points_cached(IN point_name TEXT)
+RETURNS void
+AS 'MODULE_PATHNAME', 'injection_points_cached'
 LANGUAGE C STRICT PARALLEL UNSAFE;
 
 --

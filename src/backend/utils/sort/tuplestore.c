@@ -109,6 +109,7 @@ struct Tuplestorestate
 	bool		truncated;		/* tuplestore_trim has removed tuples? */
 	int64		availMem;		/* remaining memory available, in bytes */
 	int64		allowedMem;		/* total memory allowed, in bytes */
+	int64		maxSpace;		/* maximum space used in memory */
 	int64		tuples;			/* number of tuples added */
 	BufFile    *myfile;			/* underlying file, or NULL if none */
 	MemoryContext context;		/* memory context for holding tuples */
@@ -238,6 +239,7 @@ static Tuplestorestate *tuplestore_begin_common(int eflags,
 												int maxKBytes);
 static void tuplestore_puttuple_common(Tuplestorestate *state, void *tuple);
 static void dumptuples(Tuplestorestate *state);
+static void tuplestore_updatemax(Tuplestorestate *state);
 static unsigned int getlen(Tuplestorestate *state, bool eofOK);
 static void *copytup_heap(Tuplestorestate *state, void *tup);
 static void writetup_heap(Tuplestorestate *state, void *tup);
@@ -262,8 +264,16 @@ tuplestore_begin_common(int eflags, bool interXact, int maxKBytes)
 	state->truncated = false;
 	state->allowedMem = maxKBytes * 1024L;
 	state->availMem = state->allowedMem;
+	state->maxSpace = 0;
 	state->myfile = NULL;
-	state->context = CurrentMemoryContext;
+
+	/*
+	 * The palloc/pfree pattern for tuple memory is in a FIFO pattern.  A
+	 * generation context is perfectly suited for this.
+	 */
+	state->context = GenerationContextCreate(CurrentMemoryContext,
+											 "tuplestore tuples",
+											 ALLOCSET_DEFAULT_SIZES);
 	state->resowner = CurrentResourceOwner;
 
 	state->memtupdeleted = 0;
@@ -420,17 +430,44 @@ tuplestore_clear(Tuplestorestate *state)
 	int			i;
 	TSReadPointer *readptr;
 
+	/* update the maxSpace before doing any USEMEM/FREEMEM adjustments */
+	tuplestore_updatemax(state);
+
 	if (state->myfile)
 		BufFileClose(state->myfile);
 	state->myfile = NULL;
-	if (state->memtuples)
+
+#ifdef USE_ASSERT_CHECKING
 	{
+		int64		availMem = state->availMem;
+
+		/*
+		 * Below, we reset the memory context for storing tuples.  To save
+		 * from having to always call GetMemoryChunkSpace() on all stored
+		 * tuples, we adjust the availMem to forget all the tuples and just
+		 * recall USEMEM for the space used by the memtuples array.  Here we
+		 * just Assert that's correct and the memory tracking hasn't gone
+		 * wrong anywhere.
+		 */
 		for (i = state->memtupdeleted; i < state->memtupcount; i++)
-		{
-			FREEMEM(state, GetMemoryChunkSpace(state->memtuples[i]));
-			pfree(state->memtuples[i]);
-		}
+			availMem += GetMemoryChunkSpace(state->memtuples[i]);
+
+		availMem += GetMemoryChunkSpace(state->memtuples);
+
+		Assert(availMem == state->allowedMem);
 	}
+#endif
+
+	/* clear the memory consumed by the memory tuples */
+	MemoryContextReset(state->context);
+
+	/*
+	 * Zero the used memory and re-consume the space for the memtuples array.
+	 * This saves having to FREEMEM for each stored tuple.
+	 */
+	state->availMem = state->allowedMem;
+	USEMEM(state, GetMemoryChunkSpace(state->memtuples));
+
 	state->status = TSS_INMEM;
 	state->truncated = false;
 	state->memtupdeleted = 0;
@@ -452,16 +489,11 @@ tuplestore_clear(Tuplestorestate *state)
 void
 tuplestore_end(Tuplestorestate *state)
 {
-	int			i;
-
 	if (state->myfile)
 		BufFileClose(state->myfile);
-	if (state->memtuples)
-	{
-		for (i = state->memtupdeleted; i < state->memtupcount; i++)
-			pfree(state->memtuples[i]);
-		pfree(state->memtuples);
-	}
+
+	MemoryContextDelete(state->context);
+	pfree(state->memtuples);
 	pfree(state->readptrs);
 	pfree(state);
 }
@@ -767,6 +799,7 @@ tuplestore_puttuple_common(Tuplestorestate *state, void *tuple)
 	TSReadPointer *readptr;
 	int			i;
 	ResourceOwner oldowner;
+	MemoryContext oldcxt;
 
 	state->tuples++;
 
@@ -818,7 +851,16 @@ tuplestore_puttuple_common(Tuplestorestate *state, void *tuple)
 			oldowner = CurrentResourceOwner;
 			CurrentResourceOwner = state->resowner;
 
+			/*
+			 * We switch out of the state->context as this is a generation
+			 * context, which isn't ideal for allocations relating to the
+			 * BufFile.
+			 */
+			oldcxt = MemoryContextSwitchTo(state->context->parent);
+
 			state->myfile = BufFileCreateTemp(state->interXact);
+
+			MemoryContextSwitchTo(oldcxt);
 
 			CurrentResourceOwner = oldowner;
 
@@ -1402,6 +1444,9 @@ tuplestore_trim(Tuplestorestate *state)
 	Assert(nremove >= state->memtupdeleted);
 	Assert(nremove <= state->memtupcount);
 
+	/* before freeing any memory, update maxSpace */
+	tuplestore_updatemax(state);
+
 	/* Release no-longer-needed tuples */
 	for (i = state->memtupdeleted; i < nremove; i++)
 	{
@@ -1442,6 +1487,49 @@ tuplestore_trim(Tuplestorestate *state)
 		if (!state->readptrs[i].eof_reached)
 			state->readptrs[i].current -= nremove;
 	}
+}
+
+/*
+ * tuplestore_updatemax
+ *		Update maxSpace field
+ */
+static void
+tuplestore_updatemax(Tuplestorestate *state)
+{
+	if (state->status == TSS_INMEM)
+		state->maxSpace = Max(state->maxSpace,
+							  state->allowedMem - state->availMem);
+}
+
+/*
+ * tuplestore_storage_type_name
+ *		Return a string description of the storage method used to store the
+ *		tuples.
+ */
+const char *
+tuplestore_storage_type_name(Tuplestorestate *state)
+{
+	if (state->status == TSS_INMEM)
+		return "Memory";
+	else
+		return "Disk";
+}
+
+/*
+ * tuplestore_space_used
+ *		Return the maximum space used in memory unless the tuplestore has spilled
+ *		to disk, in which case, return the disk space used.
+ */
+int64
+tuplestore_space_used(Tuplestorestate *state)
+{
+	/* First, update the maxSpace field */
+	tuplestore_updatemax(state);
+
+	if (state->status == TSS_INMEM)
+		return state->maxSpace;
+	else
+		return BufFileSize(state->myfile);
 }
 
 /*
@@ -1513,6 +1601,7 @@ writetup_heap(Tuplestorestate *state, void *tup)
 	if (state->backward)		/* need trailing length word? */
 		BufFileWrite(state->myfile, &tuplen, sizeof(tuplen));
 
+	/* no need to call tuplestore_updatemax() when not in TSS_INMEM */
 	FREEMEM(state, GetMemoryChunkSpace(tuple));
 	heap_free_minimal_tuple(tuple);
 }
@@ -1525,7 +1614,6 @@ readtup_heap(Tuplestorestate *state, unsigned int len)
 	MinimalTuple tuple = (MinimalTuple) palloc(tuplen);
 	char	   *tupbody = (char *) tuple + MINIMAL_TUPLE_DATA_OFFSET;
 
-	USEMEM(state, GetMemoryChunkSpace(tuple));
 	/* read in the tuple proper */
 	tuple->t_len = tuplen;
 	BufFileReadExact(state->myfile, tupbody, tupbodylen);

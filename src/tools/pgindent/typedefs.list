@@ -253,6 +253,7 @@ BernoulliSamplerData
 BgWorkerStartTime
 BgwHandleStatus
 BinaryArithmFunc
+BinaryUpgradeClassOidItem
 BindParamCbData
 BipartiteMatchState
 BitString
@@ -261,6 +262,7 @@ BitmapAndPath
 BitmapAndState
 BitmapHeapPath
 BitmapHeapScan
+BitmapHeapScanInstrumentation
 BitmapHeapScanState
 BitmapIndexScan
 BitmapIndexScanState
@@ -1238,6 +1240,7 @@ InjectionPointCallback
 InjectionPointCondition
 InjectionPointConditionType
 InjectionPointEntry
+InjectionPointsCtl
 InjectionPointSharedState
 InlineCodeBlock
 InsertStmt
@@ -2603,6 +2606,7 @@ SetToDefault
 SetupWorkerPtrType
 ShDependObjectInfo
 SharedAggInfo
+SharedBitmapHeapInstrumentation
 SharedBitmapState
 SharedDependencyObjectType
 SharedDependencyType
@@ -3697,6 +3701,9 @@ pg_md5_ctx
 pg_on_exit_callback
 pg_prng_state
 pg_re_flags
+pg_regex_t
+pg_regmatch_t
+pg_regoff_t
 pg_saslprep_rc
 pg_sha1_ctx
 pg_sha224_ctx

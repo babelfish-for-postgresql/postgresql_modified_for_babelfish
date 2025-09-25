@@ -12591,12 +12591,13 @@ fi
 done
 
   # Function introduced in OpenSSL 1.1.1.
-  for ac_func in X509_get_signature_info
+  for ac_func in X509_get_signature_info SSL_CTX_set_num_tickets
 do :
-  ac_fn_c_check_func "$LINENO" "X509_get_signature_info" "ac_cv_func_X509_get_signature_info"
-if test "x$ac_cv_func_X509_get_signature_info" = xyes; then :
+  as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
+ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+if eval test \"x\$"$as_ac_var"\" = x"yes"; then :
   cat >>confdefs.h <<_ACEOF
-#define HAVE_X509_GET_SIGNATURE_INFO 1
+#define `$as_echo "HAVE_$ac_func" | $as_tr_cpp` 1
 _ACEOF
 
 fi
@@ -15778,6 +15779,16 @@ fi
 cat >>confdefs.h <<_ACEOF
 #define HAVE_DECL_STRNLEN $ac_have_decl
 _ACEOF
+ac_fn_c_check_decl "$LINENO" "strsep" "ac_cv_have_decl_strsep" "$ac_includes_default"
+if test "x$ac_cv_have_decl_strsep" = xyes; then :
+  ac_have_decl=1
+else
+  ac_have_decl=0
+fi
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_DECL_STRSEP $ac_have_decl
+_ACEOF
 
 
 # We can't use AC_CHECK_FUNCS to detect these functions, because it
@@ -15920,6 +15931,19 @@ else
   case " $LIBOBJS " in
   *" strnlen.$ac_objext "* ) ;;
   *) LIBOBJS="$LIBOBJS strnlen.$ac_objext"
+ ;;
+esac
+
+fi
+
+ac_fn_c_check_func "$LINENO" "strsep" "ac_cv_func_strsep"
+if test "x$ac_cv_func_strsep" = xyes; then :
+  $as_echo "#define HAVE_STRSEP 1" >>confdefs.h
+
+else
+  case " $LIBOBJS " in
+  *" strsep.$ac_objext "* ) ;;
+  *) LIBOBJS="$LIBOBJS strsep.$ac_objext"
  ;;
 esac
 

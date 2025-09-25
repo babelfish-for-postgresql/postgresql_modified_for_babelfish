@@ -56,12 +56,13 @@
 
 #include "access/htup_details.h"
 #include "catalog/pg_collation.h"
+#include "catalog/pg_database.h"
+#include "common/hashfn.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
 #include "utils/builtins.h"
 #include "utils/formatting.h"
 #include "utils/guc_hooks.h"
-#include "utils/hsearch.h"
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/pg_locale.h"
@@ -118,6 +119,8 @@ PGDLLIMPORT collation_cache_entry_hook_type collation_cache_entry_hook = NULL;
 /* is the databases's LC_CTYPE the C locale? */
 bool		database_ctype_is_c = false;
 
+static struct pg_locale_struct default_locale;
+
 /* indicates whether locale information cache is valid */
 static bool CurrentLocaleConvValid = false;
 static bool CurrentLCTimeValid = false;
@@ -131,10 +134,27 @@ typedef struct
 	bool		ctype_is_c;		/* is collation's LC_CTYPE C? */
 	bool		flags_valid;	/* true if above flags are valid */
 	pg_locale_t locale;			/* locale_t struct, or 0 if not valid */
+
+	/* needed for simplehash */
+	uint32		hash;
+	char		status;
 } collation_cache_entry;
 
-static HTAB *collation_cache = NULL;
+#define SH_PREFIX		collation_cache
+#define SH_ELEMENT_TYPE	collation_cache_entry
+#define SH_KEY_TYPE		Oid
+#define SH_KEY			collid
+#define SH_HASH_KEY(tb, key)   	murmurhash32((uint32) key)
+#define SH_EQUAL(tb, a, b)		(a == b)
+#define SH_GET_HASH(tb, a)		a->hash
+#define SH_SCOPE		static inline
+#define SH_STORE_HASH
+#define SH_DECLARE
+#define SH_DEFINE
+#include "lib/simplehash.h"
 
+static MemoryContext CollationCacheContext = NULL;
+static collation_cache_hash *CollationCache = NULL;
 
 #if defined(WIN32) && defined(LC_MESSAGES)
 static char *IsoLocaleName(const char *);
@@ -1237,18 +1257,16 @@ lookup_collation_cache(Oid collation, bool set_flags)
 	Assert(OidIsValid(collation));
 	Assert(collation != DEFAULT_COLLATION_OID);
 
-	if (collation_cache == NULL)
+	if (CollationCache == NULL)
 	{
-		/* First time through, initialize the hash table */
-		HASHCTL		ctl;
-
-		ctl.keysize = sizeof(Oid);
-		ctl.entrysize = sizeof(collation_cache_entry);
-		collation_cache = hash_create("Collation cache", 100, &ctl,
-									  HASH_ELEM | HASH_BLOBS);
+		CollationCacheContext = AllocSetContextCreate(TopMemoryContext,
+													  "collation cache",
+													  ALLOCSET_DEFAULT_SIZES);
+		CollationCache = collation_cache_create(
+			CollationCacheContext, 16, NULL);
 	}
 
-	cache_entry = hash_search(collation_cache, &collation, HASH_ENTER, &found);
+	cache_entry = collation_cache_insert(CollationCache, collation, &found);
 	if (!found)
 	{
 		/*
@@ -1445,8 +1463,6 @@ lc_ctype_is_c(Oid collation)
 	return (lookup_collation_cache(collation, true))->ctype_is_c;
 }
 
-struct pg_locale_struct default_locale;
-
 void
 make_icu_collator(const char *iculocstr,
 				  const char *icurules,
@@ -1483,7 +1499,8 @@ make_icu_collator(const char *iculocstr,
 								  UCOL_DEFAULT, UCOL_DEFAULT_STRENGTH, NULL, &status);
 		if (U_FAILURE(status))
 			ereport(ERROR,
-					(errmsg("could not open collator for locale \"%s\" with rules \"%s\": %s",
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("could not open collator for locale \"%s\" with rules \"%s\": %s",
 							iculocstr, icurules, u_errorName(status))));
 	}
 
@@ -1540,7 +1557,69 @@ pg_locale_deterministic(pg_locale_t locale)
 }
 
 /*
- * Create a locale_t from a collation OID.  Results are cached for the
+ * Initialize default_locale with database locale settings.
+ */
+void
+init_database_collation(void)
+{
+	HeapTuple	tup;
+	Form_pg_database dbform;
+	Datum		datum;
+	bool		isnull;
+
+	/* Fetch our pg_database row normally, via syscache */
+	tup = SearchSysCache1(DATABASEOID, ObjectIdGetDatum(MyDatabaseId));
+	if (!HeapTupleIsValid(tup))
+		elog(ERROR, "cache lookup failed for database %u", MyDatabaseId);
+	dbform = (Form_pg_database) GETSTRUCT(tup);
+
+	if (dbform->datlocprovider == COLLPROVIDER_BUILTIN)
+	{
+		char	   *datlocale;
+
+		datum = SysCacheGetAttrNotNull(DATABASEOID, tup, Anum_pg_database_datlocale);
+		datlocale = TextDatumGetCString(datum);
+
+		builtin_validate_locale(dbform->encoding, datlocale);
+
+		default_locale.info.builtin.locale = MemoryContextStrdup(
+																 TopMemoryContext, datlocale);
+	}
+	else if (dbform->datlocprovider == COLLPROVIDER_ICU)
+	{
+		char	   *datlocale;
+		char	   *icurules;
+
+		datum = SysCacheGetAttrNotNull(DATABASEOID, tup, Anum_pg_database_datlocale);
+		datlocale = TextDatumGetCString(datum);
+
+		datum = SysCacheGetAttr(DATABASEOID, tup, Anum_pg_database_daticurules, &isnull);
+		if (!isnull)
+			icurules = TextDatumGetCString(datum);
+		else
+			icurules = NULL;
+
+		make_icu_collator(datlocale, icurules, &default_locale);
+	}
+	else
+	{
+		Assert(dbform->datlocprovider == COLLPROVIDER_LIBC);
+	}
+
+	default_locale.provider = dbform->datlocprovider;
+
+	/*
+	 * Default locale is currently always deterministic.  Nondeterministic
+	 * locales currently don't support pattern matching, which would break a
+	 * lot of things if applied globally.
+	 */
+	default_locale.deterministic = true;
+
+	ReleaseSysCache(tup);
+}
+
+/*
+ * Create a pg_locale_t from a collation OID.  Results are cached for the
  * lifetime of the backend.  Thus, do not free the result with freelocale().
  *
  * As a special optimization, the default/database collation returns 0.
@@ -2628,7 +2707,8 @@ pg_ucol_open(const char *loc_str)
 		if (U_FAILURE(status) || status == U_STRING_NOT_TERMINATED_WARNING)
 		{
 			ereport(ERROR,
-					(errmsg("could not get language from locale \"%s\": %s",
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("could not get language from locale \"%s\": %s",
 							loc_str, u_errorName(status))));
 		}
 
@@ -2649,7 +2729,8 @@ pg_ucol_open(const char *loc_str)
 	if (U_FAILURE(status))
 		ereport(ERROR,
 		/* use original string for error report */
-				(errmsg("could not open collator for locale \"%s\": %s",
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("could not open collator for locale \"%s\": %s",
 						orig_str, u_errorName(status))));
 
 	if (U_ICU_VERSION_MAJOR_NUM < 54)
@@ -2665,7 +2746,8 @@ pg_ucol_open(const char *loc_str)
 		{
 			ucol_close(collator);
 			ereport(ERROR,
-					(errmsg("could not open collator for locale \"%s\": %s",
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("could not open collator for locale \"%s\": %s",
 							orig_str, u_errorName(status))));
 		}
 	}
@@ -2828,6 +2910,7 @@ icu_set_collation_attributes(UCollator *collator, const char *loc,
 	char	   *icu_locale_id;
 	char	   *lower_str;
 	char	   *str;
+	char	   *token;
 
 	/*
 	 * The input locale may be a BCP 47 language tag, e.g.
@@ -2853,7 +2936,7 @@ icu_set_collation_attributes(UCollator *collator, const char *loc,
 		return;
 	str++;
 
-	for (char *token = strtok(str, ";"); token; token = strtok(NULL, ";"))
+	while ((token = strsep(&str, ";")))
 	{
 		char	   *e = strchr(token, '=');
 
@@ -2976,7 +3059,8 @@ icu_language_tag(const char *loc_str, int elevel)
 
 		if (elevel > 0)
 			ereport(elevel,
-					(errmsg("could not convert locale name \"%s\" to language tag: %s",
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("could not convert locale name \"%s\" to language tag: %s",
 							loc_str, u_errorName(status))));
 		return NULL;
 	}
@@ -3017,7 +3101,8 @@ icu_validate_locale(const char *loc_str)
 	if (U_FAILURE(status) || status == U_STRING_NOT_TERMINATED_WARNING)
 	{
 		ereport(elevel,
-				(errmsg("could not get language from ICU locale \"%s\": %s",
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("could not get language from ICU locale \"%s\": %s",
 						loc_str, u_errorName(status)),
 				 errhint("To disable ICU locale validation, set the parameter \"%s\" to \"%s\".",
 						 "icu_validation_level", "disabled")));
@@ -3046,7 +3131,8 @@ icu_validate_locale(const char *loc_str)
 
 	if (!found)
 		ereport(elevel,
-				(errmsg("ICU locale \"%s\" has unknown language \"%s\"",
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("ICU locale \"%s\" has unknown language \"%s\"",
 						loc_str, lang),
 				 errhint("To disable ICU locale validation, set the parameter \"%s\" to \"%s\".",
 						 "icu_validation_level", "disabled")));

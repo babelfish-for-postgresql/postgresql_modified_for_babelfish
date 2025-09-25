@@ -161,7 +161,6 @@ typedef enum
  */
 struct PGPROC
 {
-	/* proc->links MUST BE FIRST IN STRUCT (see ProcSleep,ProcWakeup,etc) */
 	dlist_node	links;			/* list link if process is in a list */
 	dlist_head *procgloballist; /* procglobal list that owns this PGPROC */
 
@@ -453,6 +452,11 @@ extern PGDLLIMPORT int IdleInTransactionSessionTimeout;
 extern PGDLLIMPORT int TransactionTimeout;
 extern PGDLLIMPORT int IdleSessionTimeout;
 extern PGDLLIMPORT bool log_lock_waits;
+
+#ifdef EXEC_BACKEND
+extern slock_t *ProcStructLock;
+extern PGPROC *AuxiliaryProcs;
+#endif
 
 
 /*

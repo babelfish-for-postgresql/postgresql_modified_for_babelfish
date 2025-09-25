@@ -183,7 +183,7 @@ typedef struct bkend
 static dlist_head BackendList = DLIST_STATIC_INIT(BackendList);
 
 #ifdef EXEC_BACKEND
-Backend    *ShmemBackendArray;
+NON_EXEC_STATIC Backend *ShmemBackendArray;
 #endif
 
 BackgroundWorker *MyBgworkerEntry = NULL;
@@ -4322,89 +4322,6 @@ MaxLivePostmasterChildren(void)
 {
 	return 2 * (MaxConnections + autovacuum_max_workers + 1 +
 				max_wal_senders + max_worker_processes);
-}
-
-/*
- * Connect background worker to a database.
- */
-void
-BackgroundWorkerInitializeConnection(const char *dbname, const char *username, uint32 flags)
-{
-	BackgroundWorker *worker = MyBgworkerEntry;
-	bits32		init_flags = 0; /* never honor session_preload_libraries */
-
-	/* ignore datallowconn? */
-	if (flags & BGWORKER_BYPASS_ALLOWCONN)
-		init_flags |= INIT_PG_OVERRIDE_ALLOW_CONNS;
-	/* ignore rolcanlogin? */
-	if (flags & BGWORKER_BYPASS_ROLELOGINCHECK)
-		init_flags |= INIT_PG_OVERRIDE_ROLE_LOGIN;
-
-	/* XXX is this the right errcode? */
-	if (!(worker->bgw_flags & BGWORKER_BACKEND_DATABASE_CONNECTION))
-		ereport(FATAL,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("database connection requirement not indicated during registration")));
-
-	InitPostgres(dbname, InvalidOid,	/* database to connect to */
-				 username, InvalidOid,	/* role to connect as */
-				 init_flags,
-				 NULL);			/* no out_dbname */
-
-	/* it had better not gotten out of "init" mode yet */
-	if (!IsInitProcessingMode())
-		ereport(ERROR,
-				(errmsg("invalid processing mode in background worker")));
-	SetProcessingMode(NormalProcessing);
-}
-
-/*
- * Connect background worker to a database using OIDs.
- */
-void
-BackgroundWorkerInitializeConnectionByOid(Oid dboid, Oid useroid, uint32 flags)
-{
-	BackgroundWorker *worker = MyBgworkerEntry;
-	bits32		init_flags = 0; /* never honor session_preload_libraries */
-
-	/* ignore datallowconn? */
-	if (flags & BGWORKER_BYPASS_ALLOWCONN)
-		init_flags |= INIT_PG_OVERRIDE_ALLOW_CONNS;
-	/* ignore rolcanlogin? */
-	if (flags & BGWORKER_BYPASS_ROLELOGINCHECK)
-		init_flags |= INIT_PG_OVERRIDE_ROLE_LOGIN;
-
-	/* XXX is this the right errcode? */
-	if (!(worker->bgw_flags & BGWORKER_BACKEND_DATABASE_CONNECTION))
-		ereport(FATAL,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("database connection requirement not indicated during registration")));
-
-	InitPostgres(NULL, dboid,	/* database to connect to */
-				 NULL, useroid, /* role to connect as */
-				 init_flags,
-				 NULL);			/* no out_dbname */
-
-	/* it had better not gotten out of "init" mode yet */
-	if (!IsInitProcessingMode())
-		ereport(ERROR,
-				(errmsg("invalid processing mode in background worker")));
-	SetProcessingMode(NormalProcessing);
-}
-
-/*
- * Block/unblock signals in a background worker
- */
-void
-BackgroundWorkerBlockSignals(void)
-{
-	sigprocmask(SIG_SETMASK, &BlockSig, NULL);
-}
-
-void
-BackgroundWorkerUnblockSignals(void)
-{
-	sigprocmask(SIG_SETMASK, &UnBlockSig, NULL);
 }
 
 /*

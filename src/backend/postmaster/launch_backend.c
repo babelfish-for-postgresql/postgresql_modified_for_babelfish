@@ -63,6 +63,7 @@
 #include "utils/builtins.h"
 #include "utils/datetime.h"
 #include "utils/guc.h"
+#include "utils/injection_point.h"
 #include "utils/memutils.h"
 #include "utils/timestamp.h"
 
@@ -104,6 +105,9 @@ typedef struct
 	void	   *UsedShmemSegAddr;
 	slock_t    *ShmemLock;
 	struct bkend *ShmemBackendArray;
+#ifdef USE_INJECTION_POINTS
+	struct InjectionPointsCtl *ActiveInjectionPoints;
+#endif
 #ifndef HAVE_SPINLOCKS
 	PGSemaphore *SpinlockSemaArray;
 #endif
@@ -114,7 +118,7 @@ typedef struct
 	PROC_HDR   *ProcGlobal;
 	PGPROC	   *AuxiliaryProcs;
 	PGPROC	   *PreparedXactProcs;
-	PMSignalData *PMSignalState;
+	volatile PMSignalData *PMSignalState;
 	pid_t		PostmasterPid;
 	TimestampTz PgStartTime;
 	TimestampTz PgReloadTime;
@@ -668,18 +672,6 @@ SubPostmasterMain(int argc, char *argv[])
 	pg_unreachable();			/* main_fn never returns */
 }
 
-/*
- * The following need to be available to the save/restore_backend_variables
- * functions.  They are marked NON_EXEC_STATIC in their home modules.
- */
-extern slock_t *ShmemLock;
-extern slock_t *ProcStructLock;
-extern PGPROC *AuxiliaryProcs;
-extern PMSignalData *PMSignalState;
-extern pg_time_t first_syslogger_file_time;
-extern struct bkend *ShmemBackendArray;
-extern bool redirection_done;
-
 #ifndef WIN32
 #define write_inheritable_socket(dest, src, childpid) ((*(dest) = (src)), true)
 #define read_inheritable_socket(dest, src) (*(dest) = *(src))
@@ -721,6 +713,10 @@ save_backend_variables(BackendParameters *param, ClientSocket *client_sock,
 
 	param->ShmemLock = ShmemLock;
 	param->ShmemBackendArray = ShmemBackendArray;
+
+#ifdef USE_INJECTION_POINTS
+	param->ActiveInjectionPoints = ActiveInjectionPoints;
+#endif
 
 #ifndef HAVE_SPINLOCKS
 	param->SpinlockSemaArray = SpinlockSemaArray;
@@ -764,7 +760,8 @@ save_backend_variables(BackendParameters *param, ClientSocket *client_sock,
 	strlcpy(param->pkglib_path, pkglib_path, MAXPGPATH);
 
 	param->startup_data_len = startup_data_len;
-	memcpy(param->startup_data, startup_data, startup_data_len);
+	if (startup_data_len > 0)
+		memcpy(param->startup_data, startup_data, startup_data_len);
 
 	return true;
 }
@@ -979,6 +976,10 @@ restore_backend_variables(BackendParameters *param)
 
 	ShmemLock = param->ShmemLock;
 	ShmemBackendArray = param->ShmemBackendArray;
+
+#ifdef USE_INJECTION_POINTS
+	ActiveInjectionPoints = param->ActiveInjectionPoints;
+#endif
 
 #ifndef HAVE_SPINLOCKS
 	SpinlockSemaArray = param->SpinlockSemaArray;

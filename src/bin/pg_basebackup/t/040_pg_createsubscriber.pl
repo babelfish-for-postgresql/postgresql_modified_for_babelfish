@@ -116,6 +116,10 @@ command_fails(
 my $node_p = PostgreSQL::Test::Cluster->new('node_p');
 my $pconnstr = $node_p->connstr;
 $node_p->init(allows_streaming => 'logical');
+# Disable autovacuum to avoid generating xid during stats update as otherwise
+# the new XID could then be replicated to standby at some random point making
+# slots at primary lag behind standby during slot sync.
+$node_p->append_conf('postgresql.conf', 'autovacuum = off');
 $node_p->start;
 
 # Set up node F as about-to-fail node
@@ -223,10 +227,6 @@ command_fails(
 	],
 	'primary server is in recovery');
 
-# Insert another row on node P and wait node S to catch up
-$node_p->safe_psql($db1, "INSERT INTO tbl1 VALUES('second row')");
-$node_p->wait_for_replay_catchup($node_s);
-
 # Check some unmet conditions on node P
 $node_p->append_conf(
 	'postgresql.conf', q{
@@ -293,11 +293,29 @@ $node_p->safe_psql($db1,
 	"SELECT pg_create_logical_replication_slot('$fslotname', 'pgoutput', false, false, true)"
 );
 $node_s->start;
+# Wait for the standby to catch up so that the standby is not lagging behind
+# the failover slot.
+$node_p->wait_for_replay_catchup($node_s);
 $node_s->safe_psql('postgres', "SELECT pg_sync_replication_slots()");
 my $result = $node_s->safe_psql('postgres',
 	"SELECT slot_name FROM pg_replication_slots WHERE slot_name = '$fslotname' AND synced AND NOT temporary"
 );
 is($result, 'failover_slot', 'failover slot is synced');
+
+# Insert another row on node P and wait node S to catch up. We
+# intentionally performed this insert after syncing logical slot
+# as otherwise the local slot's (created during synchronization of
+# slot) xmin on standby could be ahead of the remote slot leading
+# to failure in synchronization.
+$node_p->safe_psql($db1, "INSERT INTO tbl1 VALUES('second row')");
+$node_p->wait_for_replay_catchup($node_s);
+
+# Create subscription to test its removal
+my $dummy_sub = 'regress_sub_dummy';
+$node_p->safe_psql($db1,
+	"CREATE SUBSCRIPTION $dummy_sub CONNECTION 'dbname=dummy' PUBLICATION pub_dummy WITH (connect=false)"
+);
+$node_p->wait_for_replay_catchup($node_s);
 $node_s->stop;
 
 # dry run mode on node S
@@ -372,6 +390,13 @@ $node_p->safe_psql($db2, "INSERT INTO tbl2 VALUES('row 1')");
 # Start subscriber
 $node_s->start;
 
+# Confirm the pre-existing subscription has been removed
+$result = $node_s->safe_psql(
+	'postgres', qq(
+	SELECT count(*) FROM pg_subscription WHERE subname = '$dummy_sub'
+));
+is($result, qq(0), 'pre-existing subscription was dropped');
+
 # Get subscription names
 $result = $node_s->safe_psql(
 	'postgres', qq(
@@ -389,16 +414,16 @@ $result = $node_s->safe_psql($db1,
 );
 is($result, qq(0), 'failover slot was removed');
 
-# Check result on database $db1
+# Check result in database $db1
 $result = $node_s->safe_psql($db1, 'SELECT * FROM tbl1');
 is( $result, qq(first row
 second row
 third row),
-	"logical replication works on database $db1");
+	"logical replication works in database $db1");
 
-# Check result on database $db2
+# Check result in database $db2
 $result = $node_s->safe_psql($db2, 'SELECT * FROM tbl2');
-is($result, qq(row 1), "logical replication works on database $db2");
+is($result, qq(row 1), "logical replication works in database $db2");
 
 # Different system identifier?
 my $sysid_p = $node_p->safe_psql('postgres',

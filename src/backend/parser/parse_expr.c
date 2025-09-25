@@ -3767,7 +3767,6 @@ coerceJsonFuncExpr(ParseState *pstate, Node *expr,
 	Node	   *res;
 	int			location;
 	Oid			exprtype = exprType(expr);
-	int32		baseTypmod = returning->typmod;
 
 	/* if output type is not specified or equals to function type, return */
 	if (!OidIsValid(returning->typid) || returning->typid == exprtype)
@@ -3797,19 +3796,18 @@ coerceJsonFuncExpr(ParseState *pstate, Node *expr,
 	}
 
 	/*
-	 * For domains, consider the base type's typmod to decide whether to setup
-	 * an implicit or explicit cast.
+	 * For other cases, try to coerce expression to the output type using
+	 * assignment-level casts, erroring out if none available.  This basically
+	 * allows coercing the jsonb value to any string type (typcategory = 'S').
+	 *
+	 * Requesting assignment-level here means that typmod / length coercion
+	 * assumes implicit coercion which is the behavior we want; see
+	 * build_coercion_expression().
 	 */
-	if (get_typtype(returning->typid) == TYPTYPE_DOMAIN)
-		(void) getBaseTypeAndTypmod(returning->typid, &baseTypmod);
-
-	/* try to coerce expression to the output type */
 	res = coerce_to_target_type(pstate, expr, exprtype,
-								returning->typid, baseTypmod,
-								baseTypmod > 0 ? COERCION_IMPLICIT :
-								COERCION_EXPLICIT,
-								baseTypmod > 0 ? COERCE_IMPLICIT_CAST :
-								COERCE_EXPLICIT_CAST,
+								returning->typid, returning->typmod,
+								COERCION_ASSIGNMENT,
+								COERCE_IMPLICIT_CAST,
 								location);
 
 	if (!res && report_error)
@@ -3834,7 +3832,6 @@ makeJsonConstructorExpr(ParseState *pstate, JsonConstructorType type,
 	JsonConstructorExpr *jsctor = makeNode(JsonConstructorExpr);
 	Node	   *placeholder;
 	Node	   *coercion;
-	int32		baseTypmod = returning->typmod;
 
 	jsctor->args = args;
 	jsctor->func = fexpr;
@@ -3872,17 +3869,6 @@ makeJsonConstructorExpr(ParseState *pstate, JsonConstructorType type,
 		placeholder = (Node *) cte;
 	}
 
-	/*
-	 * Convert the source expression to text, because coerceJsonFuncExpr()
-	 * will create an implicit cast to the RETURNING types with typmod and
-	 * there are no implicit casts from json(b) to such types.  For domains,
-	 * the base type's typmod will be considered, so do so here too.
-	 */
-	if (get_typtype(returning->typid) == TYPTYPE_DOMAIN)
-		(void) getBaseTypeAndTypmod(returning->typid, &baseTypmod);
-	if (baseTypmod > 0)
-		placeholder = coerce_to_specific_type(pstate, placeholder, TEXTOID,
-											  "JSON_CONSTRUCTOR()");
 	coercion = coerceJsonFuncExpr(pstate, placeholder, returning, true);
 
 	if (coercion != placeholder)
@@ -3894,11 +3880,9 @@ makeJsonConstructorExpr(ParseState *pstate, JsonConstructorType type,
 /*
  * Transform JSON_OBJECT() constructor.
  *
- * JSON_OBJECT() is transformed into json[b]_build_object[_ext]() call
- * depending on the output JSON format. The first two arguments of
- * json[b]_build_object_ext() are absent_on_null and check_unique.
- *
- * Then function call result is coerced to the target type.
+ * JSON_OBJECT() is transformed into a JsonConstructorExpr node of type
+ * JSCTOR_JSON_OBJECT.  The result is coerced to the target type given
+ * by ctor->output.
  */
 static Node *
 transformJsonObjectConstructor(ParseState *pstate, JsonObjectConstructor *ctor)
@@ -4088,10 +4072,11 @@ transformJsonAggConstructor(ParseState *pstate, JsonAggConstructor *agg_ctor,
 /*
  * Transform JSON_OBJECTAGG() aggregate function.
  *
- * JSON_OBJECTAGG() is transformed into
- * json[b]_objectagg[_unique][_strict](key, value) call depending on
- * the output JSON format.  Then the function call result is coerced to the
- * target output type.
+ * JSON_OBJECT() is transformed into a JsonConstructorExpr node of type
+ * JSCTOR_JSON_OBJECTAGG, which at runtime becomes a
+ * json[b]_object_agg[_unique][_strict](agg->arg->key, agg->arg->value) call
+ * depending on the output JSON format.  The result is coerced to the target
+ * type given by agg->constructor->output.
  */
 static Node *
 transformJsonObjectAgg(ParseState *pstate, JsonObjectAgg *agg)
@@ -4151,9 +4136,11 @@ transformJsonObjectAgg(ParseState *pstate, JsonObjectAgg *agg)
 /*
  * Transform JSON_ARRAYAGG() aggregate function.
  *
- * JSON_ARRAYAGG() is transformed into json[b]_agg[_strict]() call depending
- * on the output JSON format and absent_on_null.  Then the function call result
- * is coerced to the target output type.
+ * JSON_ARRAYAGG() is transformed into a JsonConstructorExpr node of type
+ * JSCTOR_JSON_ARRAYAGG, which at runtime becomes a
+ * json[b]_object_agg[_unique][_strict](agg->arg) call depending on the output
+ * JSON format.  The result is coerced to the target type given by
+ * agg->constructor->output.
  */
 static Node *
 transformJsonArrayAgg(ParseState *pstate, JsonArrayAgg *agg)
@@ -4189,11 +4176,9 @@ transformJsonArrayAgg(ParseState *pstate, JsonArrayAgg *agg)
 /*
  * Transform JSON_ARRAY() constructor.
  *
- * JSON_ARRAY() is transformed into json[b]_build_array[_ext]() call
- * depending on the output JSON format. The first argument of
- * json[b]_build_array_ext() is absent_on_null.
- *
- * Then function call result is coerced to the target type.
+ * JSON_ARRAY() is transformed into a JsonConstructorExpr node of type
+ * JSCTOR_JSON_ARRAY.  The result is coerced to the target type given
+ * by ctor->output.
  */
 static Node *
 transformJsonArrayConstructor(ParseState *pstate, JsonArrayConstructor *ctor)

@@ -453,7 +453,7 @@ static void prepare_column_cache(ColumnIOData *column, Oid typid, int32 typmod,
 static Datum populate_record_field(ColumnIOData *col, Oid typid, int32 typmod,
 								   const char *colname, MemoryContext mcxt, Datum defaultval,
 								   JsValue *jsv, bool *isnull, Node *escontext,
-								   bool omit_quotes);
+								   bool omit_scalar_quotes);
 static RecordIOData *allocate_record_info(MemoryContext mcxt, int ncolumns);
 static bool JsObjectGetField(JsObject *obj, char *field, JsValue *jsv);
 static void populate_recordset_record(PopulateRecordsetState *state, JsObject *obj);
@@ -470,7 +470,7 @@ static Datum populate_array(ArrayIOData *aio, const char *colname,
 							Node *escontext);
 static Datum populate_domain(DomainIOData *io, Oid typid, const char *colname,
 							 MemoryContext mcxt, JsValue *jsv, bool *isnull,
-							 Node *escontext);
+							 Node *escontext, bool omit_quotes);
 
 /* functions supporting jsonb_delete, jsonb_set and jsonb_concat */
 static JsonbValue *IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
@@ -3133,18 +3133,6 @@ populate_scalar(ScalarIOData *io, Oid typid, int32 typmod, JsValue *jsv,
 
 		json = jsv->val.json.str;
 		Assert(json);
-		if (len >= 0)
-		{
-			/* Need to copy non-null-terminated string */
-			str = palloc(len + 1 * sizeof(char));
-			memcpy(str, json, len);
-			str[len] = '\0';
-		}
-		else
-		{
-			/* string is already null-terminated */
-			str = unconstify(char *, json);
-		}
 
 		/* If converting to json/jsonb, make string into valid JSON literal */
 		if ((typid == JSONOID || typid == JSONBOID) &&
@@ -3153,11 +3141,23 @@ populate_scalar(ScalarIOData *io, Oid typid, int32 typmod, JsValue *jsv,
 			StringInfoData buf;
 
 			initStringInfo(&buf);
-			escape_json(&buf, str);
-			/* free temporary buffer */
-			if (str != json)
-				pfree(str);
+			if (len >= 0)
+				escape_json_with_len(&buf, json, len);
+			else
+				escape_json(&buf, json);
 			str = buf.data;
+		}
+		else if (len >= 0)
+		{
+			/* create a NUL-terminated version */
+			str = palloc(len + 1);
+			memcpy(str, json, len);
+			str[len] = '\0';
+		}
+		else
+		{
+			/* string is already NUL-terminated */
+			str = unconstify(char *, json);
 		}
 	}
 	else
@@ -3218,7 +3218,8 @@ populate_domain(DomainIOData *io,
 				MemoryContext mcxt,
 				JsValue *jsv,
 				bool *isnull,
-				Node *escontext)
+				Node *escontext,
+				bool omit_quotes)
 {
 	Datum		res;
 
@@ -3229,7 +3230,7 @@ populate_domain(DomainIOData *io,
 		res = populate_record_field(io->base_io,
 									io->base_typid, io->base_typmod,
 									colname, mcxt, PointerGetDatum(NULL),
-									jsv, isnull, escontext, false);
+									jsv, isnull, escontext, omit_quotes);
 		Assert(!*isnull || SOFT_ERROR_OCCURRED(escontext));
 	}
 
@@ -3461,7 +3462,7 @@ populate_record_field(ColumnIOData *col,
 
 		case TYPECAT_DOMAIN:
 			return populate_domain(&col->io.domain, typid, colname, mcxt,
-								   jsv, isnull, escontext);
+								   jsv, isnull, escontext, omit_scalar_quotes);
 
 		default:
 			elog(ERROR, "unrecognized type category '%c'", typcat);
@@ -5935,7 +5936,7 @@ transform_string_values_scalar(void *state, char *token, JsonTokenType tokentype
 	{
 		text	   *out = _state->action(_state->action_state, token, strlen(token));
 
-		escape_json(_state->strval, text_to_cstring(out));
+		escape_json_text(_state->strval, out);
 	}
 	else
 		appendStringInfoString(_state->strval, token);

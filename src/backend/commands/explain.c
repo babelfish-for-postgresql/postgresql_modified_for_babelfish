@@ -21,6 +21,7 @@
 #include "foreign/fdwapi.h"
 #include "jit/jit.h"
 #include "libpq/pqformat.h"
+#include "libpq/protocol.h"
 #include "nodes/extensible.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
@@ -125,6 +126,7 @@ static void show_sort_info(SortState *sortstate, ExplainState *es);
 static void show_incremental_sort_info(IncrementalSortState *incrsortstate,
 									   ExplainState *es);
 static void show_hash_info(HashState *hashstate, ExplainState *es);
+static void show_material_info(MaterialState *mstate, ExplainState *es);
 static void show_memoize_info(MemoizeState *mstate, List *ancestors,
 							  ExplainState *es);
 static void show_hashagg_info(AggState *aggstate, ExplainState *es);
@@ -1749,6 +1751,9 @@ ExplainNode(PlanState *planstate, List *ancestors,
 					case JOIN_ANTI:
 						jointype = "Anti";
 						break;
+					case JOIN_RIGHT_SEMI:
+						jointype = "Right Semi";
+						break;
 					case JOIN_RIGHT_ANTI:
 						jointype = "Right Anti";
 						break;
@@ -2006,8 +2011,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			if (plan->qual)
 				show_instrumentation_count("Rows Removed by Filter", 1,
 										   planstate, es);
-			if (es->analyze)
-				show_tidbitmap_info((BitmapHeapScanState *) planstate, es);
+			show_tidbitmap_info((BitmapHeapScanState *) planstate, es);
 			break;
 		case T_SampleScan:
 			show_tablesample(((SampleScan *) plan)->tablesample,
@@ -2247,6 +2251,9 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			break;
 		case T_Hash:
 			show_hash_info(castNode(HashState, planstate), es);
+			break;
+		case T_Material:
+			show_material_info(castNode(MaterialState, planstate), es);
 			break;
 		case T_Memoize:
 			show_memoize_info(castNode(MemoizeState, planstate), ancestors,
@@ -3320,6 +3327,42 @@ show_hash_info(HashState *hashstate, ExplainState *es)
 }
 
 /*
+ * Show information on material node, storage method and maximum memory/disk
+ * space used.
+ */
+static void
+show_material_info(MaterialState *mstate, ExplainState *es)
+{
+	Tuplestorestate *tupstore = mstate->tuplestorestate;
+	const char *storageType;
+	int64		spaceUsedKB;
+
+	/*
+	 * Nothing to show if ANALYZE option wasn't used or if execution didn't
+	 * get as far as creating the tuplestore.
+	 */
+	if (!es->analyze || tupstore == NULL)
+		return;
+
+	storageType = tuplestore_storage_type_name(tupstore);
+	spaceUsedKB = BYTES_TO_KILOBYTES(tuplestore_space_used(tupstore));
+
+	if (es->format != EXPLAIN_FORMAT_TEXT)
+	{
+		ExplainPropertyText("Storage", storageType, es);
+		ExplainPropertyInteger("Maximum Storage", "kB", spaceUsedKB, es);
+	}
+	else
+	{
+		ExplainIndentText(es);
+		appendStringInfo(es->str,
+						 "Storage: %s  Maximum Storage: " INT64_FORMAT "kB\n",
+						 storageType,
+						 spaceUsedKB);
+	}
+}
+
+/*
  * Show information on memoize hits/misses/evictions and memory usage.
  */
 static void
@@ -3585,29 +3628,68 @@ show_hashagg_info(AggState *aggstate, ExplainState *es)
 }
 
 /*
- * If it's EXPLAIN ANALYZE, show exact/lossy pages for a BitmapHeapScan node
+ * Show exact/lossy pages for a BitmapHeapScan node
  */
 static void
 show_tidbitmap_info(BitmapHeapScanState *planstate, ExplainState *es)
 {
+	if (!es->analyze)
+		return;
+
 	if (es->format != EXPLAIN_FORMAT_TEXT)
 	{
-		ExplainPropertyInteger("Exact Heap Blocks", NULL,
-							   planstate->exact_pages, es);
-		ExplainPropertyInteger("Lossy Heap Blocks", NULL,
-							   planstate->lossy_pages, es);
+		ExplainPropertyUInteger("Exact Heap Blocks", NULL,
+								planstate->stats.exact_pages, es);
+		ExplainPropertyUInteger("Lossy Heap Blocks", NULL,
+								planstate->stats.lossy_pages, es);
 	}
 	else
 	{
-		if (planstate->exact_pages > 0 || planstate->lossy_pages > 0)
+		if (planstate->stats.exact_pages > 0 || planstate->stats.lossy_pages > 0)
 		{
 			ExplainIndentText(es);
 			appendStringInfoString(es->str, "Heap Blocks:");
-			if (planstate->exact_pages > 0)
-				appendStringInfo(es->str, " exact=%ld", planstate->exact_pages);
-			if (planstate->lossy_pages > 0)
-				appendStringInfo(es->str, " lossy=%ld", planstate->lossy_pages);
+			if (planstate->stats.exact_pages > 0)
+				appendStringInfo(es->str, " exact=" UINT64_FORMAT, planstate->stats.exact_pages);
+			if (planstate->stats.lossy_pages > 0)
+				appendStringInfo(es->str, " lossy=" UINT64_FORMAT, planstate->stats.lossy_pages);
 			appendStringInfoChar(es->str, '\n');
+		}
+	}
+
+	/* Display stats for each parallel worker */
+	if (planstate->pstate != NULL)
+	{
+		for (int n = 0; n < planstate->sinstrument->num_workers; n++)
+		{
+			BitmapHeapScanInstrumentation *si = &planstate->sinstrument->sinstrument[n];
+
+			if (si->exact_pages == 0 && si->lossy_pages == 0)
+				continue;
+
+			if (es->workers_state)
+				ExplainOpenWorker(n, es);
+
+			if (es->format == EXPLAIN_FORMAT_TEXT)
+			{
+				ExplainIndentText(es);
+				appendStringInfoString(es->str, "Heap Blocks:");
+				if (si->exact_pages > 0)
+					appendStringInfo(es->str, " exact=" UINT64_FORMAT, si->exact_pages);
+				if (si->lossy_pages > 0)
+					appendStringInfo(es->str, " lossy=" UINT64_FORMAT, si->lossy_pages);
+				appendStringInfoChar(es->str, '\n');
+			}
+			else
+			{
+				ExplainPropertyUInteger("Exact Heap Blocks", NULL,
+										si->exact_pages, es);
+				ExplainPropertyUInteger("Lossy Heap Blocks", NULL,
+										si->lossy_pages, es);
+			}
+
+			if (es->workers_state)
+				ExplainCloseWorker(n, es);
 		}
 	}
 }
@@ -5416,7 +5498,7 @@ serializeAnalyzeReceive(TupleTableSlot *slot, DestReceiver *self)
 	 * Note that we fill a StringInfo buffer the same as printtup() does, so
 	 * as to capture the costs of manipulating the strings accurately.
 	 */
-	pq_beginmessage_reuse(buf, 'D');
+	pq_beginmessage_reuse(buf, PqMsg_DataRow);
 
 	pq_sendint16(buf, natts);
 

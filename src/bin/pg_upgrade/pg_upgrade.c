@@ -66,7 +66,7 @@ static void copy_xact_xlog_xid(void);
 static bool has_babelfish_db(ClusterInfo *cluster);
 static void set_frozenxids(bool minmxid_only);
 static void make_outputdirs(char *pgdata);
-static void setup(char *argv0, bool *live_check);
+static void setup(char *argv0);
 static void create_logical_replication_slots(void);
 
 ClusterInfo old_cluster,
@@ -89,7 +89,6 @@ int
 main(int argc, char **argv)
 {
 	char	   *deletion_script_file_name = NULL;
-	bool		live_check = false;
 	bool		has_bbf_db = false;
 
 	/*
@@ -125,18 +124,18 @@ main(int argc, char **argv)
 	 */
 	make_outputdirs(new_cluster.pgdata);
 
-	setup(argv[0], &live_check);
+	setup(argv[0]);
 
-	output_check_banner(live_check);
+	output_check_banner();
 
 	check_cluster_versions();
 
-	get_sock_dir(&old_cluster, live_check);
-	get_sock_dir(&new_cluster, false);
+	get_sock_dir(&old_cluster);
+	get_sock_dir(&new_cluster);
 
-	check_cluster_compatibility(live_check);
+	check_cluster_compatibility();
 
-	check_and_dump_old_cluster(live_check);
+	check_and_dump_old_cluster();
 
 
 	/* -- NEW -- */
@@ -342,7 +341,7 @@ make_outputdirs(char *pgdata)
 
 
 static void
-setup(char *argv0, bool *live_check)
+setup(char *argv0)
 {
 	/*
 	 * make sure the user has a clean environment, otherwise, we may confuse
@@ -389,7 +388,7 @@ setup(char *argv0, bool *live_check)
 				pg_fatal("There seems to be a postmaster servicing the old cluster.\n"
 						 "Please shutdown that postmaster and try again.");
 			else
-				*live_check = true;
+				user_opts.live_check = true;
 		}
 	}
 
@@ -545,8 +544,20 @@ static void
 create_new_objects(void)
 {
 	int			dbnum;
+	PGconn	   *conn_new_template1;
 
 	prep_status_progress("Restoring database schemas in the new cluster");
+
+	/*
+	 * Ensure that any changes to template0 are fully written out to disk
+	 * prior to restoring the databases.  This is necessary because we use the
+	 * FILE_COPY strategy to create the databases (which testing has shown to
+	 * be faster), and when the server is in binary upgrade mode, it skips the
+	 * checkpoints this strategy ordinarily performs.
+	 */
+	conn_new_template1 = connectToServer(&new_cluster, "template1");
+	PQclear(executeQueryOrDie(conn_new_template1, "CHECKPOINT"));
+	PQfinish(conn_new_template1);
 
 	/*
 	 * We cannot process the template1 database concurrently with others,
@@ -659,7 +670,7 @@ create_new_objects(void)
 		set_frozenxids(true);
 
 	/* update new_cluster info now that we have objects in the databases */
-	get_db_rel_and_slot_infos(&new_cluster, false);
+	get_db_rel_and_slot_infos(&new_cluster);
 }
 
 /*

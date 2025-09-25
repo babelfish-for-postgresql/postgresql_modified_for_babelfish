@@ -266,6 +266,21 @@ select  count(*) from tenk1, tenk2 where tenk1.unique1 = tenk2.unique1;
 reset enable_hashjoin;
 reset enable_nestloop;
 
+-- test parallel nestloop join path with materialization of the inner path
+alter table tenk2 set (parallel_workers = 0);
+explain (costs off)
+select * from tenk1 t1, tenk2 t2 where t1.two > t2.two;
+
+-- test that parallel nestloop join is not generated if the inner path is
+-- not parallel-safe
+explain (costs off)
+select * from tenk1 t1
+    left join lateral
+      (select t1.unique1 as x, * from tenk2 t2 order by 1) t2
+    on true
+where t1.two > t2.two;
+alter table tenk2 reset (parallel_workers);
+
 -- test gather merge
 set enable_hashagg = false;
 

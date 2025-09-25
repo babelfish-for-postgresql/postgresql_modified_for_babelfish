@@ -185,7 +185,7 @@ typedef struct ComputeXidHorizonsResult
 	FullTransactionId latest_completed;
 
 	/*
-	 * The same for procArray->replication_slot_xmin and.
+	 * The same for procArray->replication_slot_xmin and
 	 * procArray->replication_slot_catalog_xmin.
 	 */
 	TransactionId slot_xmin;
@@ -2753,8 +2753,6 @@ GetRunningTransactionData(void)
 	 */
 	for (index = 0; index < arrayP->numProcs; index++)
 	{
-		int			pgprocno = arrayP->pgprocnos[index];
-		PGPROC	   *proc = &allProcs[pgprocno];
 		TransactionId xid;
 
 		/* Fetch xid just once - see GetNewTransactionId */
@@ -2776,11 +2774,18 @@ GetRunningTransactionData(void)
 			oldestRunningXid = xid;
 
 		/*
-		 * Also, update the oldest running xid within the current database.
+		 * Also, update the oldest running xid within the current database. As
+		 * fetching pgprocno and PGPROC could cause cache misses, we do cheap
+		 * TransactionId comparison first.
 		 */
-		if (proc->databaseId == MyDatabaseId &&
-			TransactionIdPrecedes(xid, oldestRunningXid))
-			oldestDatabaseRunningXid = xid;
+		if (TransactionIdPrecedes(xid, oldestDatabaseRunningXid))
+		{
+			int			pgprocno = arrayP->pgprocnos[index];
+			PGPROC	   *proc = &allProcs[pgprocno];
+
+			if (proc->databaseId == MyDatabaseId)
+				oldestDatabaseRunningXid = xid;
+		}
 
 		if (ProcGlobal->subxidStates[index].overflowed)
 			suboverflowed = true;

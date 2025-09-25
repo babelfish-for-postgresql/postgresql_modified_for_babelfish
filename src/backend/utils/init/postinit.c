@@ -317,7 +317,6 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
 	bool		isnull;
 	char	   *collate;
 	char	   *ctype;
-	char	   *datlocale;
 
 	/* Fetch our pg_database row normally, via syscache */
 	tup = SearchSysCache1(DATABASEOID, ObjectIdGetDatum(MyDatabaseId));
@@ -422,42 +421,7 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
 		strcmp(ctype, "POSIX") == 0)
 		database_ctype_is_c = true;
 
-	if (dbform->datlocprovider == COLLPROVIDER_BUILTIN)
-	{
-		datum = SysCacheGetAttrNotNull(DATABASEOID, tup, Anum_pg_database_datlocale);
-		datlocale = TextDatumGetCString(datum);
-
-		builtin_validate_locale(dbform->encoding, datlocale);
-
-		default_locale.info.builtin.locale = MemoryContextStrdup(
-																 TopMemoryContext, datlocale);
-	}
-	else if (dbform->datlocprovider == COLLPROVIDER_ICU)
-	{
-		char	   *icurules;
-
-		datum = SysCacheGetAttrNotNull(DATABASEOID, tup, Anum_pg_database_datlocale);
-		datlocale = TextDatumGetCString(datum);
-
-		datum = SysCacheGetAttr(DATABASEOID, tup, Anum_pg_database_daticurules, &isnull);
-		if (!isnull)
-			icurules = TextDatumGetCString(datum);
-		else
-			icurules = NULL;
-
-		make_icu_collator(datlocale, icurules, &default_locale);
-	}
-	else
-		datlocale = NULL;
-
-	default_locale.provider = dbform->datlocprovider;
-
-	/*
-	 * Default locale is currently always deterministic.  Nondeterministic
-	 * locales currently don't support pattern matching, which would break a
-	 * lot of things if applied globally.
-	 */
-	default_locale.deterministic = true;
+	init_database_collation();
 
 	/*
 	 * Check collation version.  See similar code in
@@ -477,7 +441,10 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
 		if (dbform->datlocprovider == COLLPROVIDER_LIBC)
 			locale = collate;
 		else
-			locale = datlocale;
+		{
+			datum = SysCacheGetAttrNotNull(DATABASEOID, tup, Anum_pg_database_datlocale);
+			locale = TextDatumGetCString(datum);
+		}
 
 		actual_versionstr = get_collation_actual_version(dbform->datlocprovider, locale);
 		if (!actual_versionstr)
@@ -579,57 +546,14 @@ InitializeMaxBackends(void)
 	MaxBackends = MaxConnections + autovacuum_max_workers + 1 +
 		max_worker_processes + max_wal_senders;
 
-	/* internal error because the values were all checked previously */
 	if (MaxBackends > MAX_BACKENDS)
-		elog(ERROR, "too many backends configured");
-}
-
-/*
- * GUC check_hook for max_connections
- */
-bool
-check_max_connections(int *newval, void **extra, GucSource source)
-{
-	if (*newval + autovacuum_max_workers + 1 +
-		max_worker_processes + max_wal_senders > MAX_BACKENDS)
-		return false;
-	return true;
-}
-
-/*
- * GUC check_hook for autovacuum_max_workers
- */
-bool
-check_autovacuum_max_workers(int *newval, void **extra, GucSource source)
-{
-	if (MaxConnections + *newval + 1 +
-		max_worker_processes + max_wal_senders > MAX_BACKENDS)
-		return false;
-	return true;
-}
-
-/*
- * GUC check_hook for max_worker_processes
- */
-bool
-check_max_worker_processes(int *newval, void **extra, GucSource source)
-{
-	if (MaxConnections + autovacuum_max_workers + 1 +
-		*newval + max_wal_senders > MAX_BACKENDS)
-		return false;
-	return true;
-}
-
-/*
- * GUC check_hook for max_wal_senders
- */
-bool
-check_max_wal_senders(int *newval, void **extra, GucSource source)
-{
-	if (MaxConnections + autovacuum_max_workers + 1 +
-		max_worker_processes + *newval > MAX_BACKENDS)
-		return false;
-	return true;
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("too many server processes configured"),
+				 errdetail("\"max_connections\" (%d) plus \"autovacuum_max_workers\" (%d) plus \"max_worker_processes\" (%d) plus \"max_wal_senders\" (%d) must be less than %d.",
+						   MaxConnections, autovacuum_max_workers,
+						   max_worker_processes, max_wal_senders,
+						   MAX_BACKENDS)));
 }
 
 /*

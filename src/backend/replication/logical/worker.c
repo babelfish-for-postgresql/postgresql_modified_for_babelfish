@@ -406,9 +406,6 @@ static void apply_handle_tuple_routing(ApplyExecutionData *edata,
 									   LogicalRepTupleData *newtup,
 									   CmdType operation);
 
-/* Compute GID for two_phase transactions */
-static void TwoPhaseTransactionGid(Oid subid, TransactionId xid, char *gid, int szgid);
-
 /* Functions for skipping changes */
 static void maybe_start_skipping_changes(XLogRecPtr finish_lsn);
 static void stop_skipping_changes(void);
@@ -3931,7 +3928,7 @@ maybe_reread_subscription(void)
 	/* !slotname should never happen when enabled is true. */
 	Assert(newsub->slotname);
 
-	/* two-phase should not be altered */
+	/* two-phase cannot be altered while the worker is running */
 	Assert(newsub->twophasestate == MySubscription->twophasestate);
 
 	/*
@@ -4417,24 +4414,6 @@ cleanup_subxact_info()
 }
 
 /*
- * Form the prepared transaction GID for two_phase transactions.
- *
- * Return the GID in the supplied buffer.
- */
-static void
-TwoPhaseTransactionGid(Oid subid, TransactionId xid, char *gid, int szgid)
-{
-	Assert(subid != InvalidRepOriginId);
-
-	if (!TransactionIdIsValid(xid))
-		ereport(ERROR,
-				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				 errmsg_internal("invalid two-phase transaction ID")));
-
-	snprintf(gid, szgid, "pg_gid_%u_%u", subid, xid);
-}
-
-/*
  * Common function to run the apply loop with error handling. Disable the
  * subscription, if necessary.
  *
@@ -4520,7 +4499,8 @@ run_apply_worker()
 	if (LogRepWorkerWalRcvConn == NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_CONNECTION_FAILURE),
-				 errmsg("could not connect to the publisher: %s", err)));
+				 errmsg("apply worker for subscription \"%s\" could not connect to the publisher: %s",
+						MySubscription->name, err)));
 
 	/*
 	 * We don't really use the output identify_system for anything but it does
@@ -5050,7 +5030,7 @@ AtEOXact_LogicalRepWorkers(bool isCommit)
 			List	   *workers;
 			ListCell   *lc2;
 
-			workers = logicalrep_workers_find(subid, true);
+			workers = logicalrep_workers_find(subid, true, false);
 			foreach(lc2, workers)
 			{
 				LogicalRepWorker *worker = (LogicalRepWorker *) lfirst(lc2);

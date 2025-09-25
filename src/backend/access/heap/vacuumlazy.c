@@ -438,13 +438,13 @@ heap_vacuum_rel(Relation rel, VacuumParams *params,
 	 * as an upper bound on the XIDs stored in the pages we'll actually scan
 	 * (NewRelfrozenXid tracking must never be allowed to miss unfrozen XIDs).
 	 *
-	 * Next acquire vistest, a related cutoff that's used in pruning.  We
-	 * expect vistest will always make heap_page_prune_and_freeze() remove any
-	 * deleted tuple whose xmax is < OldestXmin.  lazy_scan_prune must never
-	 * become confused about whether a tuple should be frozen or removed.  (In
-	 * the future we might want to teach lazy_scan_prune to recompute vistest
-	 * from time to time, to increase the number of dead tuples it can prune
-	 * away.)
+	 * Next acquire vistest, a related cutoff that's used in pruning.  We use
+	 * vistest in combination with OldestXmin to ensure that
+	 * heap_page_prune_and_freeze() always removes any deleted tuple whose
+	 * xmax is < OldestXmin.  lazy_scan_prune must never become confused about
+	 * whether a tuple should be frozen or removed.  (In the future we might
+	 * want to teach lazy_scan_prune to recompute vistest from time to time,
+	 * to increase the number of dead tuples it can prune away.)
 	 */
 	vacrel->aggressive = vacuum_get_cutoffs(rel, params, &vacrel->cutoffs);
 	vacrel->rel_pages = orig_rel_pages = RelationGetNumberOfBlocks(rel);
@@ -2126,11 +2126,16 @@ lazy_vacuum_heap_rel(LVRelState *vacrel)
 		Buffer		buf;
 		Page		page;
 		Size		freespace;
+		OffsetNumber offsets[MaxOffsetNumber];
+		int			num_offsets;
 
 		vacuum_delay_point();
 
 		blkno = iter_result->blkno;
 		vacrel->blkno = blkno;
+
+		num_offsets = TidStoreGetBlockOffsets(iter_result, offsets, lengthof(offsets));
+		Assert(num_offsets <= lengthof(offsets));
 
 		/*
 		 * Pin the visibility map page in case we need to mark the page
@@ -2143,8 +2148,8 @@ lazy_vacuum_heap_rel(LVRelState *vacrel)
 		buf = ReadBufferExtended(vacrel->rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
 								 vacrel->bstrategy);
 		LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
-		lazy_vacuum_heap_page(vacrel, blkno, buf, iter_result->offsets,
-							  iter_result->num_offsets, vmbuffer);
+		lazy_vacuum_heap_page(vacrel, blkno, buf, offsets,
+							  num_offsets, vmbuffer);
 
 		/* Now that we've vacuumed the page, record its available space */
 		page = BufferGetPage(buf);
