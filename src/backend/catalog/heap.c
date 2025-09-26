@@ -1399,7 +1399,7 @@ heap_create_with_catalog(const char *relname,
 		 * table variables don't have any transaction semantics
 		 * due to their scope. 
 		 */
-		if (enr->md.name[0] == '#')
+		if (relname[0] == '#')
 			enr->md.is_bbf_temp_table = true;
 		else
 			enr->md.is_bbf_temp_table = false;
