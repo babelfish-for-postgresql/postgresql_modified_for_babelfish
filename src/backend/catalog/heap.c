@@ -1395,6 +1395,14 @@ heap_create_with_catalog(const char *relname,
 		strncpy(enr->md.name, relname, strlen(relname) + 1);
 		enr->md.reliddesc = relid;
 		enr->md.enrtype = ENR_TSQL_TEMP;
+		/*
+		 * table variables don't have any transaction semantics
+		 * due to their scope. 
+		 */
+		if (enr->md.name[0] == '#')
+			enr->md.is_bbf_temp_table = true;
+		else
+			enr->md.is_bbf_temp_table = false;
 		register_ENR(currentQueryEnv, enr);
 		MemoryContextSwitchTo(oldcontext);
 	}
