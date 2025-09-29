@@ -2410,6 +2410,9 @@ StatisticsObjIsVisible(Oid relid)
 		{
 			Oid			namespaceId = lfirst_oid(l);
 
+			if (namespaceId == myTempNamespace)
+				continue;		/* do not look in temp namespace */
+
 			if (namespaceId == stxnamespace)
 			{
 				/* Found it first in path */
