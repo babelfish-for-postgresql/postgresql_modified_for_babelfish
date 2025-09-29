@@ -3365,15 +3365,6 @@ SPI_register_relation(EphemeralNamedRelation enr)
 			else
 				_SPI_current->queryEnv = create_queryEnv();
 		}
-		/*
-		 * Aurora Babelfish specific - 
-		 * We've introduced a flag in ENR metadata structure called is_bbf_temp_table
-		 * This flag helps Babelfish temp tables implement transaction semantics
-		 */
-		if (enr->md.name[0] == '#')
-			enr->md.is_bbf_temp_table = true;
-		else
-			enr->md.is_bbf_temp_table = false;
 		register_ENR(_SPI_current->queryEnv, enr);
 		res = SPI_OK_REL_REGISTER;
 	}
@@ -3438,6 +3429,7 @@ SPI_register_trigger_data(TriggerData *tdata)
 		enr->md.enrtype = ENR_NAMED_TUPLESTORE;
 		enr->md.enrtuples = tuplestore_tuple_count(tdata->tg_newtable);
 		enr->reldata = tdata->tg_newtable;
+		enr->md.parent_oid = InvalidOid;
 		rc = SPI_register_relation(enr);
 		if (rc != SPI_OK_REL_REGISTER)
 			return rc;
@@ -3455,6 +3447,7 @@ SPI_register_trigger_data(TriggerData *tdata)
 		enr->md.enrtype = ENR_NAMED_TUPLESTORE;
 		enr->md.enrtuples = tuplestore_tuple_count(tdata->tg_oldtable);
 		enr->reldata = tdata->tg_oldtable;
+		enr->md.parent_oid = InvalidOid;
 		rc = SPI_register_relation(enr);
 		if (rc != SPI_OK_REL_REGISTER)
 			return rc;

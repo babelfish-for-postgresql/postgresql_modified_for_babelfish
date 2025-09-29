@@ -1013,16 +1013,7 @@ index_create(Relation heapRelation,
 		enr->md.name = palloc0(strlen(indexRelationName) + 1);
 		strncpy(enr->md.name, indexRelationName, strlen(indexRelationName) + 1);
 		enr->md.reliddesc = indexRelationId;
-		enr->md.enrtype = ENR_TSQL_TEMP;
-		/*
-		 * table variables don't have any transaction semantics
-		 * due to their scope. Hence, we would mark the flag only
-		 * if the index is not on table variable
-		 */
-		if (indexRelationName[0] != '@')
-			enr->md.is_bbf_temp_table = true;
-		else
-			enr->md.is_bbf_temp_table = false;
+		enr->md.parent_oid = heapRelationId;
 		register_ENR(currentQueryEnv, enr);
 		MemoryContextSwitchTo(oldcontext);
 	}

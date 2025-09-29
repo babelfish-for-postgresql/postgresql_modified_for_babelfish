@@ -100,6 +100,8 @@ typedef struct EphemeralNamedRelationMetadataData
 	SubTransactionId dropped_subid;
 	/* List of uncommitted tuples. They must be processed on ROLLBACK, or cleared on commit. */
 	List		*uncommitted_cattups[ENR_CATTUP_END];
+	/* Maintain parent oid for tracking if child objects should follow transactional semantics based on parent nature */
+	Oid			parent_oid;
 } EphemeralNamedRelationMetadataData;
 
 typedef EphemeralNamedRelationMetadataData *EphemeralNamedRelationMetadata;
