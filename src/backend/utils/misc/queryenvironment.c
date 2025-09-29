@@ -222,8 +222,10 @@ register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 		 * semantics.
 		 */
 		EphemeralNamedRelation parent_enr = GetENRTempTableWithOid(enr->md.parent_oid);
-		Assert(parent_enr);
-		enr->md.is_bbf_temp_table = parent_enr->md.is_bbf_temp_table;
+		if(parent_enr)
+			enr->md.is_bbf_temp_table = parent_enr->md.is_bbf_temp_table;
+		else
+			enr->md.is_bbf_temp_table = false;
 	} else {
 		/*
 		 * This is a table or some parent entity. If the name of this table

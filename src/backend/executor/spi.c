@@ -3365,6 +3365,7 @@ SPI_register_relation(EphemeralNamedRelation enr)
 			else
 				_SPI_current->queryEnv = create_queryEnv();
 		}
+
 		register_ENR(_SPI_current->queryEnv, enr);
 		res = SPI_OK_REL_REGISTER;
 	}

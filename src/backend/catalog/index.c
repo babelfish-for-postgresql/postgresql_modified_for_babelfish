@@ -1013,6 +1013,7 @@ index_create(Relation heapRelation,
 		enr->md.name = palloc0(strlen(indexRelationName) + 1);
 		strncpy(enr->md.name, indexRelationName, strlen(indexRelationName) + 1);
 		enr->md.reliddesc = indexRelationId;
+		enr->md.enrtype = ENR_TSQL_TEMP;
 		enr->md.parent_oid = heapRelationId;
 		register_ENR(currentQueryEnv, enr);
 		MemoryContextSwitchTo(oldcontext);
