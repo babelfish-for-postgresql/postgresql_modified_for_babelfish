@@ -3430,6 +3430,7 @@ SPI_register_trigger_data(TriggerData *tdata)
 		enr->md.enrtype = ENR_NAMED_TUPLESTORE;
 		enr->md.enrtuples = tuplestore_tuple_count(tdata->tg_newtable);
 		enr->reldata = tdata->tg_newtable;
+		enr->md.parent_oid = InvalidOid;
 		rc = SPI_register_relation(enr);
 		if (rc != SPI_OK_REL_REGISTER)
 			return rc;
@@ -3447,6 +3448,7 @@ SPI_register_trigger_data(TriggerData *tdata)
 		enr->md.enrtype = ENR_NAMED_TUPLESTORE;
 		enr->md.enrtuples = tuplestore_tuple_count(tdata->tg_oldtable);
 		enr->reldata = tdata->tg_oldtable;
+		enr->md.parent_oid = InvalidOid;
 		rc = SPI_register_relation(enr);
 		if (rc != SPI_OK_REL_REGISTER)
 			return rc;
