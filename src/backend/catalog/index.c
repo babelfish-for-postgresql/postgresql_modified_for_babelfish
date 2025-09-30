@@ -1002,6 +1002,7 @@ index_create(Relation heapRelation,
 		strncpy(enr->md.name, indexRelationName, strlen(indexRelationName) + 1);
 		enr->md.reliddesc = indexRelationId;
 		enr->md.enrtype = ENR_TSQL_TEMP;
+		enr->md.parent_oid = heapRelationId;
 		register_ENR(currentQueryEnv, enr);
 		MemoryContextSwitchTo(oldcontext);
 	}
