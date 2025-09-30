@@ -346,8 +346,8 @@ WALSummarizer	"Waiting to read or update WAL summarization state."
 DSMRegistry	"Waiting to read or update the dynamic shared memory registry."
 InjectionPoint	"Waiting to read or update information related to injection points."
 SerialControl	"Waiting to read or update shared <filename>pg_serial</filename> state."
-TsqlApplockSync	"Waiting to read or update Applock local and global hashmaps of Babelfish."
 WaitLSN	"Waiting to read or update shared Wait-for-LSN state."
+TsqlApplockSync	"Waiting to read or update Applock local and global hashmaps of Babelfish."
 
 #
 # END OF PREDEFINED LWLOCKS (DO NOT CHANGE THIS LINE)
