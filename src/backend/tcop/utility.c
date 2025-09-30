@@ -1172,7 +1172,7 @@ ProcessUtilitySlow(ParseState *pstate,
 						{
 							CreateStmt *cstmt = (CreateStmt *) stmt;
 							Datum		toast_options;
-							static char *validnsps[] = HEAP_RELOPT_NAMESPACES;
+							const char *const validnsps[] = HEAP_RELOPT_NAMESPACES;
 
 							/* Remember transformed RangeVar for LIKE */
 							table_rv = cstmt->relation;
@@ -1711,7 +1711,7 @@ ProcessUtilitySlow(ParseState *pstate,
 				PG_TRY(2);
 				{
 					address = ExecRefreshMatView((RefreshMatViewStmt *) parsetree,
-												 queryString, params, qc);
+												 queryString, qc);
 				}
 				PG_FINALLY(2);
 				{

@@ -1713,8 +1713,8 @@ psql_completion(const char *text, int start, int end)
 	/* psql's backslash commands. */
 	static const char *const backslash_commands[] = {
 		"\\a",
-		"\\bind",
-		"\\connect", "\\conninfo", "\\C", "\\cd", "\\copy",
+		"\\bind", "\\bind_named",
+		"\\connect", "\\conninfo", "\\C", "\\cd", "\\close", "\\copy",
 		"\\copyright", "\\crosstabview",
 		"\\d", "\\da", "\\dA", "\\dAc", "\\dAf", "\\dAo", "\\dAp",
 		"\\db", "\\dc", "\\dconfig", "\\dC", "\\dd", "\\ddp", "\\dD",
@@ -1731,7 +1731,7 @@ psql_completion(const char *text, int start, int end)
 		"\\if", "\\include", "\\include_relative", "\\ir",
 		"\\list", "\\lo_import", "\\lo_export", "\\lo_list", "\\lo_unlink",
 		"\\out",
-		"\\password", "\\print", "\\prompt", "\\pset",
+		"\\parse", "\\password", "\\print", "\\prompt", "\\pset",
 		"\\qecho", "\\quit",
 		"\\reset",
 		"\\s", "\\set", "\\setenv", "\\sf", "\\sv",
@@ -2353,7 +2353,6 @@ psql_completion(const char *text, int start, int end)
 					  "OWNER TO", "SET", "VALIDATE CONSTRAINT",
 					  "REPLICA IDENTITY", "ATTACH PARTITION",
 					  "DETACH PARTITION", "FORCE ROW LEVEL SECURITY",
-					  "SPLIT PARTITION", "MERGE PARTITIONS (",
 					  "OF", "NOT OF");
 	/* ALTER TABLE xxx ADD */
 	else if (Matches("ALTER", "TABLE", MatchAny, "ADD"))
@@ -2610,29 +2609,16 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH("FROM (", "IN (", "WITH (");
 
 	/*
-	 * If we have ALTER TABLE <foo> DETACH|SPLIT PARTITION, provide a list of
+	 * If we have ALTER TABLE <foo> DETACH PARTITION, provide a list of
 	 * partitions of <foo>.
 	 */
-	else if (Matches("ALTER", "TABLE", MatchAny, "DETACH|SPLIT", "PARTITION"))
+	else if (Matches("ALTER", "TABLE", MatchAny, "DETACH", "PARTITION"))
 	{
 		set_completion_reference(prev3_wd);
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_partition_of_table);
 	}
 	else if (Matches("ALTER", "TABLE", MatchAny, "DETACH", "PARTITION", MatchAny))
 		COMPLETE_WITH("CONCURRENTLY", "FINALIZE");
-
-	/* ALTER TABLE <name> SPLIT PARTITION <name> */
-	else if (Matches("ALTER", "TABLE", MatchAny, "SPLIT", "PARTITION", MatchAny))
-		COMPLETE_WITH("INTO ( PARTITION");
-
-	/* ALTER TABLE <name> MERGE PARTITIONS ( */
-	else if (Matches("ALTER", "TABLE", MatchAny, "MERGE", "PARTITIONS", "("))
-	{
-		set_completion_reference(prev4_wd);
-		COMPLETE_WITH_SCHEMA_QUERY(Query_for_partition_of_table);
-	}
-	else if (Matches("ALTER", "TABLE", MatchAny, "MERGE", "PARTITIONS", "(*)"))
-		COMPLETE_WITH("INTO");
 
 	/* ALTER TABLE <name> OF */
 	else if (Matches("ALTER", "TABLE", MatchAny, "OF"))
@@ -3267,15 +3253,9 @@ psql_completion(const char *text, int start, int end)
 	/* Complete "CREATE TEMP/TEMPORARY" with the possible temp objects */
 	else if (TailMatches("CREATE", "TEMP|TEMPORARY"))
 		COMPLETE_WITH("SEQUENCE", "TABLE", "VIEW");
-	/* Complete "CREATE UNLOGGED" with TABLE, SEQUENCE or MATVIEW */
+	/* Complete "CREATE UNLOGGED" with TABLE or SEQUENCE */
 	else if (TailMatches("CREATE", "UNLOGGED"))
-	{
-		/* but not MATVIEW in CREATE SCHEMA */
-		if (HeadMatches("CREATE", "SCHEMA"))
-			COMPLETE_WITH("TABLE", "SEQUENCE");
-		else
-			COMPLETE_WITH("TABLE", "SEQUENCE", "MATERIALIZED VIEW");
-	}
+		COMPLETE_WITH("TABLE", "SEQUENCE");
 	/* Complete PARTITION BY with RANGE ( or LIST ( or ... */
 	else if (TailMatches("PARTITION", "BY"))
 		COMPLETE_WITH("RANGE (", "LIST (", "HASH (");

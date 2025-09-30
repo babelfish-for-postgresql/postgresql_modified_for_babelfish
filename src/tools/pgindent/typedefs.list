@@ -275,6 +275,7 @@ BlockId
 BlockIdData
 BlockInfoRecord
 BlockNumber
+BlockRangeReadStreamPrivate
 BlockRefTable
 BlockRefTableBuffer
 BlockRefTableChunk
@@ -467,6 +468,7 @@ ConditionVariableMinimallyPadded
 ConditionalStack
 ConfigData
 ConfigVariable
+ConflictType
 ConnCacheEntry
 ConnCacheKey
 ConnParams
@@ -1958,6 +1960,7 @@ PSQL_COMP_CASE
 PSQL_ECHO
 PSQL_ECHO_HIDDEN
 PSQL_ERROR_ROLLBACK
+PSQL_SEND_MODE
 PTEntryArray
 PTIterationArray
 PTOKEN_PRIVILEGES
@@ -2120,6 +2123,8 @@ PgStatShared_Common
 PgStatShared_Database
 PgStatShared_Function
 PgStatShared_HashEntry
+PgStatShared_InjectionPoint
+PgStatShared_InjectionPointFixed
 PgStatShared_IO
 PgStatShared_Relation
 PgStatShared_ReplSlot
@@ -2151,6 +2156,8 @@ PgStat_Snapshot
 PgStat_SnapshotEntry
 PgStat_StatDBEntry
 PgStat_StatFuncEntry
+PgStat_StatInjEntry
+PgStat_StatInjFixedEntry
 PgStat_StatReplSlotEntry
 PgStat_StatSubEntry
 PgStat_StatTabEntry
@@ -2573,6 +2580,8 @@ SeqScan
 SeqScanState
 SeqTable
 SeqTableData
+SeqType
+SequenceItem
 SerCommitSeqNo
 SerialControl
 SerialIOData
@@ -2652,7 +2661,6 @@ SimpleStats
 SimpleStringList
 SimpleStringListCell
 SingleBoundSortItem
-SinglePartitionSpec
 Size
 SkipPages
 SlabBlock
@@ -2717,7 +2725,6 @@ SpinDelayStatus
 SplitInterval
 SplitLR
 SplitPageLayout
-SplitPartitionContext
 SplitPoint
 SplitTextOutputData
 SplitVar
@@ -3111,6 +3118,8 @@ WaitEventIO
 WaitEventIPC
 WaitEventSet
 WaitEventTimeout
+WaitLSNProcInfo
+WaitLSNState
 WaitPMResult
 WalCloseMethod
 WalCompression
@@ -3310,19 +3319,19 @@ bbsink_shell
 bbsink_state
 bbsink_throttle
 bbsink_zstd
-bbstreamer
-bbstreamer_archive_context
-bbstreamer_extractor
-bbstreamer_gzip_decompressor
-bbstreamer_gzip_writer
-bbstreamer_lz4_frame
-bbstreamer_member
-bbstreamer_ops
-bbstreamer_plain_writer
-bbstreamer_recovery_injector
-bbstreamer_tar_archiver
-bbstreamer_tar_parser
-bbstreamer_zstd_frame
+astreamer
+astreamer_archive_context
+astreamer_extractor
+astreamer_gzip_decompressor
+astreamer_gzip_writer
+astreamer_lz4_frame
+astreamer_member
+astreamer_ops
+astreamer_plain_writer
+astreamer_recovery_injector
+astreamer_tar_archiver
+astreamer_tar_parser
+astreamer_zstd_frame
 bgworker_main_type
 bh_node_type
 binaryheap
@@ -3357,6 +3366,7 @@ chr
 cmpEntriesArg
 codes_t
 collation_cache_entry
+collation_cache_hash
 color
 colormaprange
 compare_context

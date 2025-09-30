@@ -915,7 +915,7 @@ try_nestloop_path(PlannerInfo *root,
 	initial_cost_nestloop(root, &workspace, jointype,
 						  outer_path, inner_path, extra);
 
-	if (add_path_precheck(joinrel,
+	if (add_path_precheck(joinrel, workspace.disabled_nodes,
 						  workspace.startup_cost, workspace.total_cost,
 						  pathkeys, required_outer))
 	{
@@ -961,6 +961,7 @@ try_partial_nestloop_path(PlannerInfo *root,
 	 * rels are required here.
 	 */
 	Assert(bms_is_empty(joinrel->lateral_relids));
+	Assert(bms_is_empty(PATH_REQ_OUTER(outer_path)));
 	if (inner_path->param_info != NULL)
 	{
 		Relids		inner_paramrels = inner_path->param_info->ppi_req_outer;
@@ -998,7 +999,8 @@ try_partial_nestloop_path(PlannerInfo *root,
 	 */
 	initial_cost_nestloop(root, &workspace, jointype,
 						  outer_path, inner_path, extra);
-	if (!add_partial_path_precheck(joinrel, workspace.total_cost, pathkeys))
+	if (!add_partial_path_precheck(joinrel, workspace.disabled_nodes,
+								   workspace.total_cost, pathkeys))
 		return;
 
 	/* Might be good enough to be worth trying, so let's try it. */
@@ -1095,7 +1097,7 @@ try_mergejoin_path(PlannerInfo *root,
 						   outersortkeys, innersortkeys,
 						   extra);
 
-	if (add_path_precheck(joinrel,
+	if (add_path_precheck(joinrel, workspace.disabled_nodes,
 						  workspace.startup_cost, workspace.total_cost,
 						  pathkeys, required_outer))
 	{
@@ -1144,13 +1146,9 @@ try_partial_mergejoin_path(PlannerInfo *root,
 	 * See comments in try_partial_hashjoin_path().
 	 */
 	Assert(bms_is_empty(joinrel->lateral_relids));
-	if (inner_path->param_info != NULL)
-	{
-		Relids		inner_paramrels = inner_path->param_info->ppi_req_outer;
-
-		if (!bms_is_empty(inner_paramrels))
-			return;
-	}
+	Assert(bms_is_empty(PATH_REQ_OUTER(outer_path)));
+	if (!bms_is_empty(PATH_REQ_OUTER(inner_path)))
+		return;
 
 	/*
 	 * If the given paths are already well enough ordered, we can skip doing
@@ -1171,7 +1169,8 @@ try_partial_mergejoin_path(PlannerInfo *root,
 						   outersortkeys, innersortkeys,
 						   extra);
 
-	if (!add_partial_path_precheck(joinrel, workspace.total_cost, pathkeys))
+	if (!add_partial_path_precheck(joinrel, workspace.disabled_nodes,
+								   workspace.total_cost, pathkeys))
 		return;
 
 	/* Might be good enough to be worth trying, so let's try it. */
@@ -1240,7 +1239,7 @@ try_hashjoin_path(PlannerInfo *root,
 	initial_cost_hashjoin(root, &workspace, jointype, hashclauses,
 						  outer_path, inner_path, extra, false);
 
-	if (add_path_precheck(joinrel,
+	if (add_path_precheck(joinrel, workspace.disabled_nodes,
 						  workspace.startup_cost, workspace.total_cost,
 						  NIL, required_outer))
 	{
@@ -1286,19 +1285,14 @@ try_partial_hashjoin_path(PlannerInfo *root,
 	JoinCostWorkspace workspace;
 
 	/*
-	 * If the inner path is parameterized, the parameterization must be fully
-	 * satisfied by the proposed outer path.  Parameterized partial paths are
-	 * not supported.  The caller should already have verified that no lateral
-	 * rels are required here.
+	 * If the inner path is parameterized, we can't use a partial hashjoin.
+	 * Parameterized partial paths are not supported.  The caller should
+	 * already have verified that no lateral rels are required here.
 	 */
 	Assert(bms_is_empty(joinrel->lateral_relids));
-	if (inner_path->param_info != NULL)
-	{
-		Relids		inner_paramrels = inner_path->param_info->ppi_req_outer;
-
-		if (!bms_is_empty(inner_paramrels))
-			return;
-	}
+	Assert(bms_is_empty(PATH_REQ_OUTER(outer_path)));
+	if (!bms_is_empty(PATH_REQ_OUTER(inner_path)))
+		return;
 
 	/*
 	 * Before creating a path, get a quick lower bound on what it is likely to
@@ -1306,7 +1300,8 @@ try_partial_hashjoin_path(PlannerInfo *root,
 	 */
 	initial_cost_hashjoin(root, &workspace, jointype, hashclauses,
 						  outer_path, inner_path, extra, parallel_hash);
-	if (!add_partial_path_precheck(joinrel, workspace.total_cost, NIL))
+	if (!add_partial_path_precheck(joinrel, workspace.disabled_nodes,
+								   workspace.total_cost, NIL))
 		return;
 
 	/* Might be good enough to be worth trying, so let's try it. */
@@ -1381,6 +1376,10 @@ sort_inner_and_outer(PlannerInfo *root,
 	Path	   *cheapest_safe_inner = NULL;
 	List	   *all_pathkeys;
 	ListCell   *l;
+
+	/* Nothing to do if there are no available mergejoin clauses */
+	if (extra->mergeclause_list == NIL)
+		return;
 
 	/*
 	 * We only consider the cheapest-total-cost input paths, since we are

@@ -3329,6 +3329,12 @@
   proname => 'pg_sequence_last_value', provolatile => 'v', proparallel => 'u',
   prorettype => 'int8', proargtypes => 'regclass',
   prosrc => 'pg_sequence_last_value' },
+{ oid => '9876', descr => 'return sequence tuple, for use by pg_dump',
+  proname => 'pg_get_sequence_data', provolatile => 'v', proparallel => 'u',
+  prorettype => 'record', proargtypes => 'regclass',
+  proallargtypes => '{regclass,int8,bool}', proargmodes => '{i,o,o}',
+  proargnames => '{sequence_oid,last_value,is_called}',
+  prosrc => 'pg_get_sequence_data' },
 
 { oid => '275', descr => 'return the next oid for a system table',
   proname => 'pg_nextoid', provolatile => 'v', proparallel => 'u',
@@ -6581,6 +6587,12 @@
   prorettype => 'text', proargtypes => '',
   prosrc => 'pg_get_wal_replay_pause_state' },
 
+{ oid => '111',
+  descr => 'wait for the target LSN to be replayed on standby with an optional timeout',
+  proname => 'pg_wal_replay_wait', prokind => 'p', prorettype => 'void',
+  proargtypes => 'pg_lsn int8', proargnames => '{target_lsn,timeout}',
+  prosrc => 'pg_wal_replay_wait' },
+
 { oid => '6224', descr => 'get resource managers loaded in system',
   proname => 'pg_get_wal_resource_managers', prorows => '50', proretset => 't',
   provolatile => 'v', prorettype => 'record', proargtypes => '',
@@ -7731,6 +7743,14 @@
   proname => 'system', provolatile => 'v', prorettype => 'tsm_handler',
   proargtypes => 'internal', prosrc => 'tsm_system_handler' },
 
+# CRC variants
+{ oid => '8571', descr => 'CRC-32 value',
+  proname => 'crc32', proleakproof => 't', prorettype => 'int8',
+  proargtypes => 'bytea', prosrc => 'crc32_bytea' },
+{ oid => '8572', descr => 'CRC-32C value',
+  proname => 'crc32c', proleakproof => 't', prorettype => 'int8',
+  proargtypes => 'bytea', prosrc => 'crc32c_bytea' },
+
 # cryptographic
 { oid => '2311', descr => 'MD5 hash',
   proname => 'md5', proleakproof => 't', prorettype => 'text',
@@ -8317,9 +8337,9 @@
   proname => 'pg_get_backend_memory_contexts', prorows => '100',
   proretset => 't', provolatile => 'v', proparallel => 'r',
   prorettype => 'record', proargtypes => '',
-  proallargtypes => '{text,text,text,text,int4,_int4,int8,int8,int8,int8,int8}',
-  proargmodes => '{o,o,o,o,o,o,o,o,o,o,o}',
-  proargnames => '{name, ident, parent, type, level, path, total_bytes, total_nblocks, free_bytes, free_chunks, used_bytes}',
+  proallargtypes => '{text,text,text,int4,_int4,int8,int8,int8,int8,int8}',
+  proargmodes => '{o,o,o,o,o,o,o,o,o,o}',
+  proargnames => '{name, ident, type, level, path, total_bytes, total_nblocks, free_bytes, free_chunks, used_bytes}',
   prosrc => 'pg_get_backend_memory_contexts' },
 
 # logging memory contexts of the specified backend

@@ -293,7 +293,7 @@
       encrypted client connections.  <productname>OpenSSL</productname> is
       also required for random number generation on platforms that do not
       have <filename>/dev/urandom</filename> (except Windows).  The minimum
-      required version is 1.0.2.
+      required version is 1.1.0.
      </para>
     </listitem>
 
@@ -941,12 +941,10 @@ build-postgresql:
         <para>
          <command>llvm-config</command><indexterm><primary>llvm-config</primary></indexterm>
          will be used to find the required compilation options.
-         <command>llvm-config</command>, and then
-         <command>llvm-config-$major-$minor</command> for all supported
-         versions, will be searched for in your <envar>PATH</envar>.  If
-         that would not yield the desired program,
-         use <envar>LLVM_CONFIG</envar> to specify a path to the
-         correct <command>llvm-config</command>. For example
+         <command>llvm-config</command> will be searched for in your
+         <envar>PATH</envar>.  If that would not yield the desired program,
+         use <envar>LLVM_CONFIG</envar> to specify a path to the correct
+         <command>llvm-config</command>. For example
 <programlisting>
 ./configure ... --with-llvm LLVM_CONFIG='/path/to/llvm/bin/llvm-config'
 </programlisting>
@@ -1254,34 +1252,6 @@ build-postgresql:
          This disables
          support for compressed archives in <application>pg_dump</application>
          and <application>pg_restore</application>.
-        </para>
-       </listitem>
-      </varlistentry>
-
-      <varlistentry id="configure-option-disable-spinlocks">
-       <term><option>--disable-spinlocks</option></term>
-       <listitem>
-        <para>
-         Allow the build to succeed even if <productname>PostgreSQL</productname>
-         has no CPU spinlock support for the platform.  The lack of
-         spinlock support will result in very poor performance; therefore,
-         this option should only be used if the build aborts and
-         informs you that the platform lacks spinlock support. If this
-         option is required to build <productname>PostgreSQL</productname> on
-         your platform, please report the problem to the
-         <productname>PostgreSQL</productname> developers.
-        </para>
-       </listitem>
-      </varlistentry>
-
-      <varlistentry id="configure-option-disable-atomics">
-       <term><option>--disable-atomics</option></term>
-       <listitem>
-        <para>
-         Disable use of CPU atomic operations.  This option does nothing on
-         platforms that lack such operations.  On platforms that do have
-         them, this will result in poor performance.  This option is only
-         useful for debugging or making performance comparisons.
         </para>
        </listitem>
       </varlistentry>
@@ -2690,35 +2660,6 @@ ninja install
       </listitem>
      </varlistentry>
 
-     <varlistentry id="configure-spinlocks-meson">
-      <term><option>-Dspinlocks={ true | false }</option></term>
-      <listitem>
-       <para>
-        This option is set to true by default; setting it to false will
-        allow the build to succeed even if <productname>PostgreSQL</productname>
-        has no CPU spinlock support for the platform.  The lack of
-        spinlock support will result in very poor performance; therefore,
-        this option should only be changed if the build aborts and
-        informs you that the platform lacks spinlock support. If setting this
-        option to false is required to build <productname>PostgreSQL</productname> on
-        your platform, please report the problem to the
-        <productname>PostgreSQL</productname> developers.
-       </para>
-      </listitem>
-     </varlistentry>
-
-     <varlistentry id="configure-atomics-meson">
-      <term><option>-Datomics={ true | false }</option></term>
-      <listitem>
-       <para>
-        This option is set to true by default; setting it to false will
-        disable use of CPU atomic operations.  The option does nothing on
-        platforms that lack such operations.  On platforms that do have
-        them, disabling atomics will result in poor performance.  Changing
-        this option is only useful for debugging or making performance comparisons.
-       </para>
-      </listitem>
-     </varlistentry>
     </variablelist>
    </sect3>
 
@@ -3393,9 +3334,6 @@ export MANPATH
    these CPU architectures: x86, PowerPC, S/390, SPARC, ARM, MIPS,
    and RISC-V, including
    big-endian, little-endian, 32-bit, and 64-bit variants where applicable.
-   It is often
-   possible to build on an unsupported CPU type by configuring with
-   <option>--disable-spinlocks</option>, but performance will be poor.
   </para>
 
   <para>
@@ -3782,11 +3720,11 @@ make: *** [postgres] Error 1
    </sect3>
   </sect2>
 
-  <sect2 id="installation-notes-visual">
-   <title>Visual</title>
+  <sect2 id="installation-notes-visual-studio">
+   <title>Visual Studio</title>
 
-   <indexterm zone="installation-notes-visual">
-    <primary>Visual</primary>
+   <indexterm zone="installation-notes-visual-studio">
+    <primary>Visual Studio</primary>
     <secondary>installation on</secondary>
    </indexterm>
 
@@ -3800,8 +3738,8 @@ make: *** [postgres] Error 1
    </para>
 
    <para>
-    PostgreSQL for Windows with Visual can be built using meson, as described
-    in <xref linkend="install-meson"/>.
+    PostgreSQL for Windows with Visual Studio can be built using Meson, as
+    described in <xref linkend="install-meson"/>.
     The native Windows port requires a 32 or 64-bit version of Windows
     10 or later.
    </para>

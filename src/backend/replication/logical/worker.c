@@ -170,6 +170,7 @@
 #include "postmaster/interrupt.h"
 #include "postmaster/walwriter.h"
 #include "replication/logical.h"
+#include "replication/conflict.h"
 #include "replication/logicallauncher.h"
 #include "replication/logicalproto.h"
 #include "replication/logicalrelation.h"
@@ -1138,7 +1139,17 @@ apply_handle_prepare(StringInfo s)
 	CommitTransactionCommand();
 	pgstat_report_stat(false);
 
-	store_flush_position(prepare_data.end_lsn, XactLastCommitEnd);
+	/*
+	 * It is okay not to set the local_end LSN for the prepare because we
+	 * always flush the prepare record. So, we can send the acknowledgment of
+	 * the remote_end LSN as soon as prepare is finished.
+	 *
+	 * XXX For the sake of consistency with commit, we could have set it with
+	 * the LSN of prepare but as of now we don't track that value similar to
+	 * XactLastCommitEnd, and adding it for this purpose doesn't seems worth
+	 * it.
+	 */
+	store_flush_position(prepare_data.end_lsn, InvalidXLogRecPtr);
 
 	in_remote_transaction = false;
 
@@ -1256,7 +1267,12 @@ apply_handle_rollback_prepared(StringInfo s)
 
 	pgstat_report_stat(false);
 
-	store_flush_position(rollback_data.rollback_end_lsn, XactLastCommitEnd);
+	/*
+	 * It is okay not to set the local_end LSN for the rollback of prepared
+	 * transaction because we always flush the WAL record for it. See
+	 * apply_handle_prepare.
+	 */
+	store_flush_position(rollback_data.rollback_end_lsn, InvalidXLogRecPtr);
 	in_remote_transaction = false;
 
 	/* Process any tables that are being synchronized in parallel. */
@@ -1311,7 +1327,11 @@ apply_handle_stream_prepare(StringInfo s)
 
 			CommitTransactionCommand();
 
-			store_flush_position(prepare_data.end_lsn, XactLastCommitEnd);
+			/*
+			 * It is okay not to set the local_end LSN for the prepare because
+			 * we always flush the prepare record. See apply_handle_prepare.
+			 */
+			store_flush_position(prepare_data.end_lsn, InvalidXLogRecPtr);
 
 			in_remote_transaction = false;
 
@@ -1369,7 +1389,11 @@ apply_handle_stream_prepare(StringInfo s)
 
 			CommitTransactionCommand();
 
-			MyParallelShared->last_commit_end = XactLastCommitEnd;
+			/*
+			 * It is okay not to set the local_end LSN for the prepare because
+			 * we always flush the prepare record. See apply_handle_prepare.
+			 */
+			MyParallelShared->last_commit_end = InvalidXLogRecPtr;
 
 			pa_set_xact_state(MyParallelShared, PARALLEL_TRANS_FINISHED);
 			pa_unlock_transaction(MyParallelShared->xid, AccessExclusiveLock);
@@ -2463,7 +2487,8 @@ apply_handle_insert_internal(ApplyExecutionData *edata,
 	EState	   *estate = edata->estate;
 
 	/* We must open indexes here. */
-	ExecOpenIndices(relinfo, false);
+	ExecOpenIndices(relinfo, true);
+	InitConflictIndexes(relinfo);
 
 	/* Do the insert. */
 	TargetPrivilegesCheck(relinfo->ri_RelationDesc, ACL_INSERT);
@@ -2660,13 +2685,12 @@ apply_handle_update_internal(ApplyExecutionData *edata,
 	MemoryContext oldctx;
 
 	EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1, NIL);
-	ExecOpenIndices(relinfo, false);
+	ExecOpenIndices(relinfo, true);
 
 	found = FindReplTupleInLocalRel(edata, localrel,
 									&relmapentry->remoterel,
 									localindexoid,
 									remoteslot, &localslot);
-	ExecClearTuple(remoteslot);
 
 	/*
 	 * Tuple found.
@@ -2675,6 +2699,28 @@ apply_handle_update_internal(ApplyExecutionData *edata,
 	 */
 	if (found)
 	{
+		RepOriginId localorigin;
+		TransactionId localxmin;
+		TimestampTz localts;
+
+		/*
+		 * Report the conflict if the tuple was modified by a different
+		 * origin.
+		 */
+		if (GetTupleTransactionInfo(localslot, &localxmin, &localorigin, &localts) &&
+			localorigin != replorigin_session_origin)
+		{
+			TupleTableSlot *newslot;
+
+			/* Store the new tuple for conflict reporting */
+			newslot = table_slot_create(localrel, &estate->es_tupleTable);
+			slot_store_data(newslot, relmapentry, newtup);
+
+			ReportApplyConflict(estate, relinfo, LOG, CT_UPDATE_ORIGIN_DIFFERS,
+								remoteslot, localslot, newslot,
+								InvalidOid, localxmin, localorigin, localts);
+		}
+
 		/* Process and store remote tuple in the slot */
 		oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
 		slot_modify_data(remoteslot, localslot, relmapentry, newtup);
@@ -2685,6 +2731,8 @@ apply_handle_update_internal(ApplyExecutionData *edata,
 
 		EvalPlanQualSetSlot(&epqstate, remoteslot);
 
+		InitConflictIndexes(relinfo);
+
 		/* Do the actual update. */
 		TargetPrivilegesCheck(relinfo->ri_RelationDesc, ACL_UPDATE);
 		ExecSimpleRelationUpdate(relinfo, estate, &epqstate, localslot,
@@ -2692,16 +2740,19 @@ apply_handle_update_internal(ApplyExecutionData *edata,
 	}
 	else
 	{
+		TupleTableSlot *newslot = localslot;
+
+		/* Store the new tuple for conflict reporting */
+		slot_store_data(newslot, relmapentry, newtup);
+
 		/*
 		 * The tuple to be updated could not be found.  Do nothing except for
 		 * emitting a log message.
-		 *
-		 * XXX should this be promoted to ereport(LOG) perhaps?
 		 */
-		elog(DEBUG1,
-			 "logical replication did not find row to be updated "
-			 "in replication target relation \"%s\"",
-			 RelationGetRelationName(localrel));
+		ReportApplyConflict(estate, relinfo, LOG, CT_UPDATE_MISSING,
+							remoteslot, NULL, newslot,
+							InvalidOid, InvalidTransactionId,
+							InvalidRepOriginId, 0);
 	}
 
 	/* Cleanup. */
@@ -2824,6 +2875,20 @@ apply_handle_delete_internal(ApplyExecutionData *edata,
 	/* If found delete it. */
 	if (found)
 	{
+		RepOriginId localorigin;
+		TransactionId localxmin;
+		TimestampTz localts;
+
+		/*
+		 * Report the conflict if the tuple was modified by a different
+		 * origin.
+		 */
+		if (GetTupleTransactionInfo(localslot, &localxmin, &localorigin, &localts) &&
+			localorigin != replorigin_session_origin)
+			ReportApplyConflict(estate, relinfo, LOG, CT_DELETE_ORIGIN_DIFFERS,
+								remoteslot, localslot, NULL,
+								InvalidOid, localxmin, localorigin, localts);
+
 		EvalPlanQualSetSlot(&epqstate, localslot);
 
 		/* Do the actual delete. */
@@ -2835,13 +2900,11 @@ apply_handle_delete_internal(ApplyExecutionData *edata,
 		/*
 		 * The tuple to be deleted could not be found.  Do nothing except for
 		 * emitting a log message.
-		 *
-		 * XXX should this be promoted to ereport(LOG) perhaps?
 		 */
-		elog(DEBUG1,
-			 "logical replication did not find row to be deleted "
-			 "in replication target relation \"%s\"",
-			 RelationGetRelationName(localrel));
+		ReportApplyConflict(estate, relinfo, LOG, CT_DELETE_MISSING,
+							remoteslot, NULL, NULL,
+							InvalidOid, InvalidTransactionId,
+							InvalidRepOriginId, 0);
 	}
 
 	/* Cleanup. */
@@ -3008,6 +3071,10 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 				ResultRelInfo *partrelinfo_new;
 				Relation	partrel_new;
 				bool		found;
+				EPQState	epqstate;
+				RepOriginId localorigin;
+				TransactionId localxmin;
+				TimestampTz localts;
 
 				/* Get the matching local tuple from the partition. */
 				found = FindReplTupleInLocalRel(edata, partrel,
@@ -3016,17 +3083,41 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 												remoteslot_part, &localslot);
 				if (!found)
 				{
+					TupleTableSlot *newslot = localslot;
+
+					/* Store the new tuple for conflict reporting */
+					slot_store_data(newslot, part_entry, newtup);
+
 					/*
 					 * The tuple to be updated could not be found.  Do nothing
 					 * except for emitting a log message.
-					 *
-					 * XXX should this be promoted to ereport(LOG) perhaps?
 					 */
-					elog(DEBUG1,
-						 "logical replication did not find row to be updated "
-						 "in replication target relation's partition \"%s\"",
-						 RelationGetRelationName(partrel));
+					ReportApplyConflict(estate, partrelinfo,
+										LOG, CT_UPDATE_MISSING,
+										remoteslot_part, NULL, newslot,
+										InvalidOid, InvalidTransactionId,
+										InvalidRepOriginId, 0);
+
 					return;
+				}
+
+				/*
+				 * Report the conflict if the tuple was modified by a
+				 * different origin.
+				 */
+				if (GetTupleTransactionInfo(localslot, &localxmin, &localorigin, &localts) &&
+					localorigin != replorigin_session_origin)
+				{
+					TupleTableSlot *newslot;
+
+					/* Store the new tuple for conflict reporting */
+					newslot = table_slot_create(partrel, &estate->es_tupleTable);
+					slot_store_data(newslot, part_entry, newtup);
+
+					ReportApplyConflict(estate, partrelinfo, LOG, CT_UPDATE_ORIGIN_DIFFERS,
+										remoteslot_part, localslot, newslot,
+										InvalidOid, localxmin, localorigin,
+										localts);
 				}
 
 				/*
@@ -3040,6 +3131,8 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 				if (logicalrep_modify_slot_hook)
 					logicalrep_modify_slot_hook(partrel, estate, remoteslot_part);
 				MemoryContextSwitchTo(oldctx);
+
+				EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1, NIL);
 
 				/*
 				 * Does the updated tuple still satisfy the current
@@ -3056,18 +3149,14 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 					 * work already done above to find the local tuple in the
 					 * partition.
 					 */
-					EPQState	epqstate;
-
-					EvalPlanQualInit(&epqstate, estate, NULL, NIL, -1, NIL);
-					ExecOpenIndices(partrelinfo, false);
+					ExecOpenIndices(partrelinfo, true);
+					InitConflictIndexes(partrelinfo);
 
 					EvalPlanQualSetSlot(&epqstate, remoteslot_part);
 					TargetPrivilegesCheck(partrelinfo->ri_RelationDesc,
 										  ACL_UPDATE);
 					ExecSimpleRelationUpdate(partrelinfo, estate, &epqstate,
 											 localslot, remoteslot_part);
-					ExecCloseIndices(partrelinfo);
-					EvalPlanQualEnd(&epqstate);
 				}
 				else
 				{
@@ -3110,10 +3199,12 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 											 get_namespace_name(RelationGetNamespace(partrel_new)),
 											 RelationGetRelationName(partrel_new));
 
+					ExecOpenIndices(partrelinfo, false);
+
 					/* DELETE old tuple found in the old partition. */
-					apply_handle_delete_internal(edata, partrelinfo,
-												 localslot,
-												 part_entry->localindexoid);
+					EvalPlanQualSetSlot(&epqstate, localslot);
+					TargetPrivilegesCheck(partrelinfo->ri_RelationDesc, ACL_DELETE);
+					ExecSimpleRelationDelete(partrelinfo, estate, &epqstate, localslot);
 
 					/* INSERT new tuple into the new partition. */
 
@@ -3143,6 +3234,9 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 					apply_handle_insert_internal(edata, partrelinfo_new,
 												 remoteslot_part);
 				}
+
+				ExecCloseIndices(partrelinfo);
+				EvalPlanQualEnd(&epqstate);
 			}
 			break;
 
@@ -4656,6 +4750,17 @@ InitializeLogRepWorker(void)
 	CommitTransactionCommand();
 }
 
+/*
+ * Reset the origin state.
+ */
+static void
+replorigin_reset(int code, Datum arg)
+{
+	replorigin_session_origin = InvalidRepOriginId;
+	replorigin_session_origin_lsn = InvalidXLogRecPtr;
+	replorigin_session_origin_timestamp = 0;
+}
+
 /* Common function to setup the leader apply or tablesync worker. */
 void
 SetupApplyOrSyncWorker(int worker_slot)
@@ -4683,6 +4788,19 @@ SetupApplyOrSyncWorker(int worker_slot)
 	load_file("libpqwalreceiver", false);
 
 	InitializeLogRepWorker();
+
+	/*
+	 * Register a callback to reset the origin state before aborting any
+	 * pending transaction during shutdown (see ShutdownPostgres()). This will
+	 * avoid origin advancement for an in-complete transaction which could
+	 * otherwise lead to its loss as such a transaction won't be sent by the
+	 * server again.
+	 *
+	 * Note that even a LOG or DEBUG statement placed after setting the origin
+	 * state may process a shutdown signal before committing the current apply
+	 * operation. So, it is important to register such a callback here.
+	 */
+	before_shmem_exit(replorigin_reset, (Datum) 0);
 
 	/* Connect to the origin and start the replication. */
 	elog(DEBUG1, "connecting to publisher using connection string \"%s\"",
@@ -4910,11 +5028,22 @@ void
 apply_error_callback(void *arg)
 {
 	ApplyErrorCallbackArg *errarg = &apply_error_callback_arg;
+	int			elevel;
 
 	if (apply_error_callback_arg.command == 0)
 		return;
 
 	Assert(errarg->origin_name);
+
+	elevel = geterrlevel();
+
+	/*
+	 * Reset the origin state to prevent the advancement of origin progress if
+	 * we fail to apply. Otherwise, this will result in transaction loss as
+	 * that transaction won't be sent again by the server.
+	 */
+	if (elevel >= ERROR)
+		replorigin_reset(0, (Datum) 0);
 
 	if (errarg->rel == NULL)
 	{

@@ -87,6 +87,7 @@ LIBPQWALRECEIVER_CONNECT	"Waiting in WAL receiver to establish connection to rem
 LIBPQWALRECEIVER_RECEIVE	"Waiting in WAL receiver to receive data from remote server."
 SSL_OPEN_SERVER	"Waiting for SSL while attempting connection."
 WAIT_FOR_STANDBY_CONFIRMATION	"Waiting for WAL to be received and flushed by the physical standby."
+WAIT_FOR_WAL_REPLAY	"Waiting for a replay of the particular WAL position on the physical standby."
 WAL_SENDER_WAIT_FOR_WAL	"Waiting for WAL to be flushed in WAL sender process."
 WAL_SENDER_WRITE_DATA	"Waiting for any activity when processing replies from WAL receiver in WAL sender process."
 
@@ -142,7 +143,7 @@ MULTIXACT_CREATION	"Waiting for a multixact creation to complete."
 PARALLEL_BITMAP_SCAN	"Waiting for parallel bitmap scan to become initialized."
 PARALLEL_CREATE_INDEX_SCAN	"Waiting for parallel <command>CREATE INDEX</command> workers to finish heap scan."
 PARALLEL_FINISH	"Waiting for parallel workers to finish computing."
-PROCARRAY_GROUP_UPDATE	"Waiting for the group leader to clear the transaction ID at end of a parallel operation."
+PROCARRAY_GROUP_UPDATE	"Waiting for the group leader to clear the transaction ID at transaction end."
 PROC_SIGNAL_BARRIER	"Waiting for a barrier event to be processed by all backends."
 PROMOTE	"Waiting for standby promotion."
 RECOVERY_CONFLICT_SNAPSHOT	"Waiting for recovery conflict resolution for a vacuum cleanup."
@@ -157,7 +158,7 @@ SYNC_REP	"Waiting for confirmation from a remote server during synchronous repli
 WAL_RECEIVER_EXIT	"Waiting for the WAL receiver to exit."
 WAL_RECEIVER_WAIT_START	"Waiting for startup process to send initial data for streaming replication."
 WAL_SUMMARY_READY	"Waiting for a new WAL summary to be generated."
-XACT_GROUP_UPDATE	"Waiting for the group leader to update transaction status at end of a parallel operation."
+XACT_GROUP_UPDATE	"Waiting for the group leader to update transaction status at transaction end."
 
 ABI_compatibility:
 
@@ -345,6 +346,7 @@ WALSummarizer	"Waiting to read or update WAL summarization state."
 DSMRegistry	"Waiting to read or update the dynamic shared memory registry."
 InjectionPoint	"Waiting to read or update information related to injection points."
 SerialControl	"Waiting to read or update shared <filename>pg_serial</filename> state."
+WaitLSN	"Waiting to read or update shared Wait-for-LSN state."
 TsqlApplockSync	"Waiting to read or update Applock local and global hashmaps of Babelfish."
 
 #

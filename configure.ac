@@ -187,18 +187,6 @@ PGAC_ARG_BOOL(enable, rpath, yes,
 AC_SUBST(enable_rpath)
 
 #
-# Spinlocks
-#
-PGAC_ARG_BOOL(enable, spinlocks, yes,
-              [do not use spinlocks])
-
-#
-# Atomic operations
-#
-PGAC_ARG_BOOL(enable, atomics, yes,
-              [do not use atomic operations])
-
-#
 # --enable-debug adds -g to compiler flags
 #
 PGAC_ARG_BOOL(enable, debug, no,
@@ -530,6 +518,15 @@ if test "$GCC" = yes -a "$ICC" = no; then
   # This was included in -Wall/-Wformat in older GCC versions
   PGAC_PROG_CC_CFLAGS_OPT([-Wformat-security])
   PGAC_PROG_CXX_CFLAGS_OPT([-Wformat-security])
+  # gcc 14+, clang for a while
+  # (Supported in C++ by clang but not gcc.  For consistency, omit in C++.)
+  save_CFLAGS=$CFLAGS
+  PGAC_PROG_CC_CFLAGS_OPT([-Wmissing-variable-declarations])
+  PERMIT_MISSING_VARIABLE_DECLARATIONS=
+  if test x"$save_CFLAGS" != x"$CFLAGS"; then
+    PERMIT_MISSING_VARIABLE_DECLARATIONS=-Wno-missing-variable-declarations
+  fi
+  AC_SUBST(PERMIT_MISSING_VARIABLE_DECLARATIONS)
   # Disable strict-aliasing rules; needed for gcc 3.3+
   PGAC_PROG_CC_CFLAGS_OPT([-fno-strict-aliasing])
   PGAC_PROG_CXX_CFLAGS_OPT([-fno-strict-aliasing])
@@ -832,11 +829,7 @@ AC_MSG_RESULT([$with_icu])
 AC_SUBST(with_icu)
 
 if test "$with_icu" = yes; then
-  PKG_CHECK_MODULES(ICU, icu-uc icu-i18n, [],
-    [AC_MSG_ERROR([ICU library not found
-If you have ICU already installed, see config.log for details on the
-failure.  It is possible the compiler isn't looking in the proper directory.
-Use --without-icu to disable ICU support.])])
+  PKG_CHECK_MODULES(ICU, icu-uc icu-i18n)
 fi
 
 #
@@ -1296,20 +1289,6 @@ failure.  It is possible the compiler isn't looking in the proper directory.
 Use --without-zlib to disable zlib support.])])
 fi
 
-if test "$enable_spinlocks" = yes; then
-  AC_DEFINE(HAVE_SPINLOCKS, 1, [Define to 1 if you have spinlocks.])
-else
-  AC_MSG_WARN([
-*** Not using spinlocks will cause poor performance.])
-fi
-
-if test "$enable_atomics" = yes; then
-  AC_DEFINE(HAVE_ATOMICS, 1, [Define to 1 if you want to use atomics if available.])
-else
-  AC_MSG_WARN([
-*** Not using atomic operations will cause poor performance.])
-fi
-
 if test "$with_gssapi" = yes ; then
   if test "$PORTNAME" != "win32"; then
     AC_SEARCH_LIBS(gss_store_cred_into, [gssapi_krb5 gss 'gssapi -lkrb5 -lcrypto'], [],
@@ -1335,8 +1314,8 @@ fi
 
 if test "$with_ssl" = openssl ; then
   dnl Order matters!
-  # Minimum required OpenSSL version is 1.0.2
-  AC_DEFINE(OPENSSL_API_COMPAT, [0x10002000L],
+  # Minimum required OpenSSL version is 1.1.0
+  AC_DEFINE(OPENSSL_API_COMPAT, [0x10100000L],
             [Define to the OpenSSL API version in use. This avoids deprecation warnings from newer OpenSSL versions.])
   if test "$PORTNAME" != "win32"; then
      AC_CHECK_LIB(crypto, CRYPTO_new_ex_data, [], [AC_MSG_ERROR([library 'crypto' is required for OpenSSL])])
@@ -1352,12 +1331,8 @@ if test "$with_ssl" = openssl ; then
   # defines OPENSSL_VERSION_NUMBER to claim version 2.0.0, even though it
   # doesn't have these OpenSSL 1.1.0 functions. So check for individual
   # functions.
-  AC_CHECK_FUNCS([OPENSSL_init_ssl BIO_meth_new ASN1_STRING_get0_data HMAC_CTX_new HMAC_CTX_free])
-  # OpenSSL versions before 1.1.0 required setting callback functions, for
-  # thread-safety. In 1.1.0, it's no longer required, and CRYPTO_lock()
-  # function was removed.
-  AC_CHECK_FUNCS([CRYPTO_lock])
-  # Function introduced in OpenSSL 1.1.1.
+  AC_CHECK_FUNCS([OPENSSL_init_ssl], [], [AC_MSG_ERROR([OpenSSL version >= 1.1.0 is required for SSL support])])
+  # Function introduced in OpenSSL 1.1.1, not in LibreSSL.
   AC_CHECK_FUNCS([X509_get_signature_info SSL_CTX_set_num_tickets])
   AC_DEFINE([USE_OPENSSL], 1, [Define to 1 to build with OpenSSL support. (--with-ssl=openssl)])
 elif test "$with_ssl" != no ; then
@@ -1464,7 +1439,6 @@ AC_CHECK_HEADERS(m4_normalize([
 	execinfo.h
 	getopt.h
 	ifaddrs.h
-	langinfo.h
 	mbarrier.h
 	sys/epoll.h
 	sys/event.h
@@ -2424,7 +2398,13 @@ fi
 # For linkers that understand --export-dynamic, add that to the LDFLAGS_EX_BE
 # (backend specific ldflags). One some platforms this will always fail (e.g.,
 # windows), but on others it depends on the choice of linker (e.g., solaris).
+# macOS uses -export_dynamic instead.  (On macOS, the option is only
+# needed when also using -flto, but we add it anyway since it's
+# harmless.)
 PGAC_PROG_CC_LD_VARFLAGS_OPT(LDFLAGS_EX_BE, [-Wl,--export-dynamic], $link_test_func)
+if test x"$LDFLAGS_EX_BE" = x""; then
+  PGAC_PROG_CC_LD_VARFLAGS_OPT(LDFLAGS_EX_BE, [-Wl,-export_dynamic], $link_test_func)
+fi
 AC_SUBST(LDFLAGS_EX_BE)
 
 # Create compiler version string

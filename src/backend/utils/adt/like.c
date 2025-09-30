@@ -99,10 +99,8 @@ SB_lower_char(unsigned char c, pg_locale_t locale, bool locale_is_c)
 {
 	if (locale_is_c)
 		return pg_ascii_tolower(c);
-	else if (locale)
-		return tolower_l(c, locale->info.lt);
 	else
-		return pg_tolower(c);
+		return tolower_l(c, locale->info.lt);
 }
 
 
@@ -183,8 +181,7 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 			   *p;
 	int			slen,
 				plen;
-	pg_locale_t locale = 0;
-	bool		locale_is_c = false;
+	pg_locale_t locale;
 
 	if (!OidIsValid(collation))
 	{
@@ -198,10 +195,7 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 				 errhint("Use the COLLATE clause to set the collation explicitly.")));
 	}
 
-	if (lc_ctype_is_c(collation))
-		locale_is_c = true;
-	else
-		locale = pg_newlocale_from_collation(collation);
+	locale = pg_newlocale_from_collation(collation);
 
 	if (!pg_locale_deterministic(locale))
 		ereport(ERROR,
@@ -221,7 +215,7 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 	 * way.
 	 */
 
-	if (pg_database_encoding_max_length() > 1 || (locale && locale->provider == COLLPROVIDER_ICU))
+	if (pg_database_encoding_max_length() > 1 || (locale->provider == COLLPROVIDER_ICU))
 	{
 		pat = DatumGetTextPP(DirectFunctionCall1Coll(lower, collation,
 													 PointerGetDatum(pat)));
@@ -242,7 +236,7 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 		plen = VARSIZE_ANY_EXHDR(pat);
 		s = VARDATA_ANY(str);
 		slen = VARSIZE_ANY_EXHDR(str);
-		return SB_IMatchText(s, slen, p, plen, locale, locale_is_c);
+		return SB_IMatchText(s, slen, p, plen, locale, locale->ctype_is_c);
 	}
 }
 

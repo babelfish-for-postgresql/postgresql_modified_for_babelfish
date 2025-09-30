@@ -1203,7 +1203,8 @@ transformAExprNullIf(ParseState *pstate, A_Expr *a)
 	if (result->opresulttype != BOOLOID)
 		ereport(ERROR,
 				(errcode(ERRCODE_DATATYPE_MISMATCH),
-				 errmsg("NULLIF requires = operator to yield boolean"),
+		/* translator: %s is name of a SQL construct, eg NULLIF */
+				 errmsg("%s requires = operator to yield boolean", "NULLIF"),
 				 parser_errposition(pstate, a->location)));
 	if (result->opretset)
 		ereport(ERROR,
@@ -3230,7 +3231,9 @@ make_distinct_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
 	if (((OpExpr *) result)->opresulttype != BOOLOID)
 		ereport(ERROR,
 				(errcode(ERRCODE_DATATYPE_MISMATCH),
-				 errmsg("IS DISTINCT FROM requires = operator to yield boolean"),
+		/* translator: %s is name of a SQL construct, eg NULLIF */
+				 errmsg("%s requires = operator to yield boolean",
+						"IS DISTINCT FROM"),
 				 parser_errposition(pstate, location)));
 	if (((OpExpr *) result)->opretset)
 		ereport(ERROR,
@@ -4511,15 +4514,22 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
 			if (func->column_name == NULL)
 				ereport(ERROR,
 						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("invalid ON EMPTY behavior"),
-						errdetail("Only ERROR, NULL, EMPTY [ ARRAY ], EMPTY OBJECT, or DEFAULT expression is allowed in ON EMPTY for JSON_QUERY()."),
+				/*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errmsg("invalid %s behavior", "ON EMPTY"),
+				/*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY),
+					second %s is a SQL/JSON function name (e.g. JSON_QUERY) */
+						errdetail("Only ERROR, NULL, EMPTY ARRAY, EMPTY OBJECT, or DEFAULT expression is allowed in %s for %s.",
+								  "ON EMPTY", "JSON_QUERY()"),
 						parser_errposition(pstate, func->on_empty->location));
 			else
 				ereport(ERROR,
 						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("invalid ON EMPTY behavior for column \"%s\"",
-							   func->column_name),
-						errdetail("Only ERROR, NULL, EMPTY [ ARRAY ], EMPTY OBJECT, or DEFAULT expression is allowed in ON EMPTY for formatted columns."),
+				/*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errmsg("invalid %s behavior for column \"%s\"",
+							   "ON EMPTY", func->column_name),
+				/*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errdetail("Only ERROR, NULL, EMPTY ARRAY, EMPTY OBJECT, or DEFAULT expression is allowed in %s for formatted columns.",
+								  "ON EMPTY"),
 						parser_errposition(pstate, func->on_empty->location));
 		}
 		if (func->on_error != NULL &&
@@ -4533,15 +4543,22 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
 			if (func->column_name == NULL)
 				ereport(ERROR,
 						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("invalid ON ERROR behavior"),
-						errdetail("Only ERROR, NULL, EMPTY [ ARRAY ], EMPTY OBJECT, or DEFAULT expression is allowed in ON ERROR for JSON_QUERY()."),
+				/*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errmsg("invalid %s behavior", "ON ERROR"),
+				/*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY),
+					second %s is a SQL/JSON function name (e.g. JSON_QUERY) */
+						errdetail("Only ERROR, NULL, EMPTY ARRAY, EMPTY OBJECT, or DEFAULT expression is allowed in %s for %s.",
+								  "ON ERROR", "JSON_QUERY()"),
 						parser_errposition(pstate, func->on_error->location));
 			else
 				ereport(ERROR,
 						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("invalid ON ERROR behavior for column \"%s\"",
-							   func->column_name),
-						errdetail("Only ERROR, NULL, EMPTY [ ARRAY ], EMPTY OBJECT, or DEFAULT expression is allowed in ON ERROR for formatted columns."),
+				/*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errmsg("invalid %s behavior for column \"%s\"",
+							   "ON ERROR", func->column_name),
+				/*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errdetail("Only ERROR, NULL, EMPTY ARRAY, EMPTY OBJECT, or DEFAULT expression is allowed in %s for formatted columns.",
+								  "ON ERROR"),
 						parser_errposition(pstate, func->on_error->location));
 		}
 	}
@@ -4557,15 +4574,20 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
 		if (func->column_name == NULL)
 			ereport(ERROR,
 					errcode(ERRCODE_SYNTAX_ERROR),
-					errmsg("invalid ON ERROR behavior"),
-					errdetail("Only ERROR, TRUE, FALSE, or UNKNOWN is allowed in ON ERROR for JSON_EXISTS()."),
+			/*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+					errmsg("invalid %s behavior", "ON ERROR"),
+					errdetail("Only ERROR, TRUE, FALSE, or UNKNOWN is allowed in %s for %s.",
+							  "ON ERROR", "JSON_EXISTS()"),
 					parser_errposition(pstate, func->on_error->location));
 		else
 			ereport(ERROR,
 					errcode(ERRCODE_SYNTAX_ERROR),
-					errmsg("invalid ON ERROR behavior for column \"%s\"",
-						   func->column_name),
-					errdetail("Only ERROR, TRUE, FALSE, or UNKNOWN is allowed in ON ERROR for EXISTS columns."),
+			/*- translator: first %s is name a SQL/JSON clause (eg. ON EMPTY) */
+					errmsg("invalid %s behavior for column \"%s\"",
+						   "ON ERROR", func->column_name),
+			/*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+					errdetail("Only ERROR, TRUE, FALSE, or UNKNOWN is allowed in %s for EXISTS columns.",
+							  "ON ERROR"),
 					parser_errposition(pstate, func->on_error->location));
 	}
 	if (func->op == JSON_VALUE_OP)
@@ -4578,15 +4600,22 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
 			if (func->column_name == NULL)
 				ereport(ERROR,
 						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("invalid ON EMPTY behavior"),
-						errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in ON EMPTY for JSON_VALUE()."),
+				/*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errmsg("invalid %s behavior", "ON EMPTY"),
+				/*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY),
+					second %s is a SQL/JSON function name (e.g. JSON_QUERY) */
+						errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in %s for %s.",
+								  "ON EMPTY", "JSON_VALUE()"),
 						parser_errposition(pstate, func->on_empty->location));
 			else
 				ereport(ERROR,
 						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("invalid ON EMPTY behavior for column \"%s\"",
-							   func->column_name),
-						errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in ON EMPTY for scalar columns."),
+				/*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errmsg("invalid %s behavior for column \"%s\"",
+							   "ON EMPTY", func->column_name),
+				/*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in %s for scalar columns.",
+								  "ON EMPTY"),
 						parser_errposition(pstate, func->on_empty->location));
 		}
 		if (func->on_error != NULL &&
@@ -4597,15 +4626,22 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
 			if (func->column_name == NULL)
 				ereport(ERROR,
 						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("invalid ON ERROR behavior"),
-						errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in ON ERROR for JSON_VALUE()."),
+				/*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errmsg("invalid %s behavior", "ON ERROR"),
+				/*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY),
+					second %s is a SQL/JSON function name (e.g. JSON_QUERY) */
+						errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in %s for %s.",
+								  "ON ERROR", "JSON_VALUE()"),
 						parser_errposition(pstate, func->on_error->location));
 			else
 				ereport(ERROR,
 						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("invalid ON ERROR behavior for column \"%s\"",
-							   func->column_name),
-						errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in ON ERROR for scalar columns."),
+				/*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errmsg("invalid %s behavior for column \"%s\"",
+							   "ON ERROR", func->column_name),
+				/*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
+						errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in %s for scalar columns.",
+								  "ON ERROR"),
 						parser_errposition(pstate, func->on_error->location));
 		}
 	}
@@ -4870,51 +4906,91 @@ transformJsonBehavior(ParseState *pstate, JsonBehavior *behavior,
 	if (expr == NULL && btype != JSON_BEHAVIOR_ERROR)
 		expr = GetJsonBehaviorConst(btype, location);
 
-	if (expr)
+	/*
+	 * Try to coerce the expression if needed.
+	 *
+	 * Use runtime coercion using json_populate_type() if the expression is
+	 * NULL, jsonb-valued, or boolean-valued (unless the target type is
+	 * integer or domain over integer, in which case use the
+	 * boolean-to-integer cast function).
+	 *
+	 * For other non-NULL expressions, try to find a cast and error out if one
+	 * is not found.
+	 */
+	if (expr && exprType(expr) != returning->typid)
 	{
-		Node	   *coerced_expr = expr;
 		bool		isnull = (IsA(expr, Const) && ((Const *) expr)->constisnull);
 
-		/*
-		 * Coerce NULLs and "internal" (that is, not specified by the user)
-		 * jsonb-valued expressions at runtime using json_populate_type().
-		 *
-		 * For other (user-specified) non-NULL values, try to find a cast and
-		 * error out if one is not found.
-		 */
 		if (isnull ||
-			(exprType(expr) == JSONBOID &&
-			 btype == default_behavior))
+			exprType(expr) == JSONBOID ||
+			(exprType(expr) == BOOLOID &&
+			 getBaseType(returning->typid) != INT4OID))
+		{
 			coerce_at_runtime = true;
+
+			/*
+			 * json_populate_type() expects to be passed a jsonb value, so gin
+			 * up a Const containing the appropriate boolean value represented
+			 * as jsonb, discarding the original Const containing a plain
+			 * boolean.
+			 */
+			if (exprType(expr) == BOOLOID)
+			{
+				char	   *val = btype == JSON_BEHAVIOR_TRUE ? "true" : "false";
+
+				expr = (Node *) makeConst(JSONBOID, -1, InvalidOid, -1,
+										  DirectFunctionCall1(jsonb_in,
+															  CStringGetDatum(val)),
+										  false, false);
+			}
+		}
 		else
 		{
-			int32		baseTypmod = returning->typmod;
+			Node	   *coerced_expr;
+			char		typcategory = TypeCategory(returning->typid);
 
-			if (get_typtype(returning->typid) == TYPTYPE_DOMAIN)
-				(void) getBaseTypeAndTypmod(returning->typid, &baseTypmod);
-
-			if (baseTypmod > 0)
-				expr = coerce_to_specific_type(pstate, expr, TEXTOID,
-											   "JSON_FUNCTION()");
+			/*
+			 * Use an assignment cast if coercing to a string type so that
+			 * build_coercion_expression() assumes implicit coercion when
+			 * coercing the typmod, so that inputs exceeding length cause an
+			 * error instead of silent truncation.
+			 */
 			coerced_expr =
 				coerce_to_target_type(pstate, expr, exprType(expr),
-									  returning->typid, baseTypmod,
-									  baseTypmod > 0 ? COERCION_IMPLICIT :
+									  returning->typid, returning->typmod,
+									  (typcategory == TYPCATEGORY_STRING ||
+									   typcategory == TYPCATEGORY_BITSTRING) ?
+									  COERCION_ASSIGNMENT :
 									  COERCION_EXPLICIT,
-									  baseTypmod > 0 ? COERCE_IMPLICIT_CAST :
 									  COERCE_EXPLICIT_CAST,
 									  exprLocation((Node *) behavior));
-		}
 
-		if (coerced_expr == NULL)
-			ereport(ERROR,
-					errcode(ERRCODE_CANNOT_COERCE),
-					errmsg("cannot cast behavior expression of type %s to %s",
-						   format_type_be(exprType(expr)),
-						   format_type_be(returning->typid)),
-					parser_errposition(pstate, exprLocation(expr)));
-		else
+			if (coerced_expr == NULL)
+			{
+				/*
+				 * Provide a HINT if the expression comes from a DEFAULT
+				 * clause.
+				 */
+				if (btype == JSON_BEHAVIOR_DEFAULT)
+					ereport(ERROR,
+							errcode(ERRCODE_CANNOT_COERCE),
+							errmsg("cannot cast behavior expression of type %s to %s",
+								   format_type_be(exprType(expr)),
+								   format_type_be(returning->typid)),
+							errhint("You will need to explicitly cast the expression to type %s.",
+									format_type_be(returning->typid)),
+							parser_errposition(pstate, exprLocation(expr)));
+				else
+					ereport(ERROR,
+							errcode(ERRCODE_CANNOT_COERCE),
+							errmsg("cannot cast behavior expression of type %s to %s",
+								   format_type_be(exprType(expr)),
+								   format_type_be(returning->typid)),
+							parser_errposition(pstate, exprLocation(expr)));
+			}
+
 			expr = coerced_expr;
+		}
 	}
 
 	if (behavior)

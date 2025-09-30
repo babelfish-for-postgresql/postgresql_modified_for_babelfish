@@ -284,7 +284,6 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 	PartitionElem *partelem;
 	PartitionSpec *partspec;
 	PartitionBoundSpec *partboundspec;
-	SinglePartitionSpec *singlepartspec;
 	RoleSpec   *rolespec;
 	PublicationObjSpec *publicationobjectspec;
 	struct SelectLimit *selectlimit;
@@ -510,7 +509,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 
 %type <boolean> opt_instead
 %type <boolean> opt_unique opt_verbose opt_full
-%type <boolean> opt_freeze opt_analyze opt_default opt_recheck
+%type <boolean> opt_freeze opt_analyze opt_default
 %type <defelt>	opt_binary copy_delimiter
 
 %type <boolean> copy_from opt_program
@@ -661,8 +660,6 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 %type <partelem>	part_elem
 %type <list>		part_params
 %type <partboundspec> PartitionBoundSpec
-%type <singlepartspec>	SinglePartitionSpec
-%type <list>		partitions_list
 %type <list>		hash_partbound
 %type <defelt>		hash_partbound_elem
 
@@ -783,14 +780,14 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 	ORDER ORDINALITY OTHERS OUT_P OUTER_P
 	OVER OVERLAPS OVERLAY OVERRIDING OWNED OWNER
 
-	PARALLEL PARAMETER PARSER PARTIAL PARTITION PARTITIONS PASSING PASSWORD PATH
+	PARALLEL PARAMETER PARSER PARTIAL PARTITION PASSING PASSWORD PATH
 	PLACING PLAN PLANS POLICY
 	POSITION PRECEDING PRECISION PRESERVE PREPARE PREPARED PRIMARY
 	PRIOR PRIVILEGES PROCEDURAL PROCEDURE PROCEDURES PROGRAM PUBLICATION
 
 	QUOTE QUOTES
 
-	RANGE READ REAL REASSIGN RECHECK RECURSIVE REF_P REFERENCES REFERENCING
+	RANGE READ REAL REASSIGN RECURSIVE REF_P REFERENCES REFERENCING
 	REFRESH REINDEX RELATIVE_P RELEASE RENAME REPEATABLE REPLACE REPLICA
 	RESET RESTART RESTRICT RETURN RETURNING RETURNS REVOKE RIGHT ROLE ROLLBACK ROLLUP
 	ROUTINE ROUTINES ROW ROWS RULE
@@ -798,7 +795,7 @@ fix_domain_typmods_hook_type fix_domain_typmods_hook = NULL;
 	SAVEPOINT SCALAR SCHEMA SCHEMAS SCROLL SEARCH SECOND_P SECURITY SELECT
 	SEQUENCE SEQUENCES
 	SERIALIZABLE SERVER SESSION SESSION_USER SET SETS SETOF SHARE SHOW
-	SIMILAR SIMPLE SKIP SMALLINT SNAPSHOT SOME SPLIT SOURCE SQL_P STABLE STANDALONE_P
+	SIMILAR SIMPLE SKIP SMALLINT SNAPSHOT SOME SOURCE SQL_P STABLE STANDALONE_P
 	START STATEMENT STATISTICS STDIN STDOUT STORAGE STORED STRICT_P STRING_P STRIP_P
 	SUBSCRIPTION SUBSTRING SUPPORT SYMMETRIC SYSID SYSTEM_P SYSTEM_USER
 
@@ -2341,23 +2338,6 @@ alter_table_cmds:
 			| alter_table_cmds ',' alter_table_cmd	{ $$ = lappend($1, $3); }
 		;
 
-partitions_list:
-			SinglePartitionSpec							{ $$ = list_make1($1); }
-			| partitions_list ',' SinglePartitionSpec	{ $$ = lappend($1, $3); }
-		;
-
-SinglePartitionSpec:
-			PARTITION qualified_name PartitionBoundSpec
-				{
-					SinglePartitionSpec *n = makeNode(SinglePartitionSpec);
-
-					n->name = $2;
-					n->bound = $3;
-
-					$$ = n;
-				}
-		;
-
 partition_cmd:
 			/* ALTER TABLE <name> ATTACH PARTITION <table_name> FOR VALUES */
 			ATTACH PARTITION qualified_name PartitionBoundSpec
@@ -2368,7 +2348,6 @@ partition_cmd:
 					n->subtype = AT_AttachPartition;
 					cmd->name = $3;
 					cmd->bound = $4;
-					cmd->partlist = NULL;
 					cmd->concurrent = false;
 					n->def = (Node *) cmd;
 
@@ -2383,7 +2362,6 @@ partition_cmd:
 					n->subtype = AT_DetachPartition;
 					cmd->name = $3;
 					cmd->bound = NULL;
-					cmd->partlist = NULL;
 					cmd->concurrent = $4;
 					n->def = (Node *) cmd;
 
@@ -2397,35 +2375,6 @@ partition_cmd:
 					n->subtype = AT_DetachPartitionFinalize;
 					cmd->name = $3;
 					cmd->bound = NULL;
-					cmd->partlist = NULL;
-					cmd->concurrent = false;
-					n->def = (Node *) cmd;
-					$$ = (Node *) n;
-				}
-			/* ALTER TABLE <name> SPLIT PARTITION <partition_name> INTO () */
-			| SPLIT PARTITION qualified_name INTO '(' partitions_list ')'
-				{
-					AlterTableCmd *n = makeNode(AlterTableCmd);
-					PartitionCmd *cmd = makeNode(PartitionCmd);
-
-					n->subtype = AT_SplitPartition;
-					cmd->name = $3;
-					cmd->bound = NULL;
-					cmd->partlist = $6;
-					cmd->concurrent = false;
-					n->def = (Node *) cmd;
-					$$ = (Node *) n;
-				}
-			/* ALTER TABLE <name> MERGE PARTITIONS () INTO <partition_name> */
-			| MERGE PARTITIONS '(' qualified_name_list ')' INTO qualified_name
-				{
-					AlterTableCmd *n = makeNode(AlterTableCmd);
-					PartitionCmd *cmd = makeNode(PartitionCmd);
-
-					n->subtype = AT_MergePartitions;
-					cmd->name = $7;
-					cmd->bound = NULL;
-					cmd->partlist = $4;
 					cmd->concurrent = false;
 					n->def = (Node *) cmd;
 					$$ = (Node *) n;
@@ -2442,7 +2391,6 @@ index_partition_cmd:
 					n->subtype = AT_AttachPartition;
 					cmd->name = $3;
 					cmd->bound = NULL;
-					cmd->partlist = NULL;
 					cmd->concurrent = false;
 					n->def = (Node *) cmd;
 
@@ -6660,7 +6608,7 @@ opclass_item_list:
 		;
 
 opclass_item:
-			OPERATOR Iconst any_operator opclass_purpose opt_recheck
+			OPERATOR Iconst any_operator opclass_purpose
 				{
 					CreateOpClassItem *n = makeNode(CreateOpClassItem);
 					ObjectWithArgs *owa = makeNode(ObjectWithArgs);
@@ -6674,7 +6622,6 @@ opclass_item:
 					$$ = (Node *) n;
 				}
 			| OPERATOR Iconst operator_with_argtypes opclass_purpose
-			  opt_recheck
 				{
 					CreateOpClassItem *n = makeNode(CreateOpClassItem);
 
@@ -6724,23 +6671,6 @@ opt_opfamily:	FAMILY any_name				{ $$ = $2; }
 opclass_purpose: FOR SEARCH					{ $$ = NIL; }
 			| FOR ORDER BY any_name			{ $$ = $4; }
 			| /*EMPTY*/						{ $$ = NIL; }
-		;
-
-opt_recheck:	RECHECK
-				{
-					/*
-					 * RECHECK no longer does anything in opclass definitions,
-					 * but we still accept it to ease porting of old database
-					 * dumps.
-					 */
-					ereport(NOTICE,
-							(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-							 errmsg("RECHECK is no longer required"),
-							 errhint("Update your data type."),
-							 parser_errposition(@1)));
-					$$ = true;
-				}
-			| /*EMPTY*/						{ $$ = false; }
 		;
 
 
@@ -18008,7 +17938,6 @@ unreserved_keyword:
 			| PARSER
 			| PARTIAL
 			| PARTITION
-			| PARTITIONS
 			| PASSING
 			| PASSWORD
 			| PATH
@@ -18031,7 +17960,6 @@ unreserved_keyword:
 			| RANGE
 			| READ
 			| REASSIGN
-			| RECHECK
 			| RECURSIVE
 			| REF_P
 			| REFERENCING
@@ -18077,7 +18005,6 @@ unreserved_keyword:
 			| SKIP
 			| SNAPSHOT
 			| SOURCE
-			| SPLIT
 			| SQL_P
 			| STABLE
 			| STANDALONE_P
@@ -18634,7 +18561,6 @@ bare_label_keyword:
 			| PARSER
 			| PARTIAL
 			| PARTITION
-			| PARTITIONS
 			| PASSING
 			| PASSWORD
 			| PATH
@@ -18661,7 +18587,6 @@ bare_label_keyword:
 			| READ
 			| REAL
 			| REASSIGN
-			| RECHECK
 			| RECURSIVE
 			| REF_P
 			| REFERENCES
@@ -18715,7 +18640,6 @@ bare_label_keyword:
 			| SNAPSHOT
 			| SOME
 			| SOURCE
-			| SPLIT
 			| SQL_P
 			| STABLE
 			| STANDALONE_P

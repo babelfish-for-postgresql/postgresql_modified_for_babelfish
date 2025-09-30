@@ -71,6 +71,9 @@ static void ExecInitExprRec(Expr *node, ExprState *state,
 static void ExecInitFunc(ExprEvalStep *scratch, Expr *node, List *args,
 						 Oid funcid, Oid inputcollid,
 						 ExprState *state);
+static void ExecInitSubPlanExpr(SubPlan *subplan,
+								ExprState *state,
+								Datum *resv, bool *resnull);
 static void ExecCreateExprSetupSteps(ExprState *state, Node *node);
 static void ExecPushExprSetupSteps(ExprState *state, ExprSetupInfo *info);
 static bool expr_setup_walker(Node *node, ExprSetupInfo *info);
@@ -95,6 +98,7 @@ static void ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 							 ExprEvalStep *scratch);
 static void ExecInitJsonCoercion(ExprState *state, JsonReturning *returning,
 								 ErrorSaveContext *escontext, bool omit_quotes,
+								 bool exists_coerce,
 								 Datum *resv, bool *resnull);
 
 
@@ -1407,7 +1411,6 @@ ExecInitExprRec(Expr *node, ExprState *state,
 		case T_SubPlan:
 			{
 				SubPlan    *subplan = (SubPlan *) node;
-				SubPlanState *sstate;
 
 				/*
 				 * Real execution of a MULTIEXPR SubPlan has already been
@@ -1424,19 +1427,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
 					break;
 				}
 
-				if (!state->parent)
-					elog(ERROR, "SubPlan found with no parent plan");
-
-				sstate = ExecInitSubPlan(subplan, state->parent);
-
-				/* add SubPlanState nodes to state->parent->subPlan */
-				state->parent->subPlan = lappend(state->parent->subPlan,
-												 sstate);
-
-				scratch.opcode = EEOP_SUBPLAN;
-				scratch.d.subplan.sstate = sstate;
-
-				ExprEvalPushStep(state, &scratch);
+				ExecInitSubPlanExpr(subplan, state, resv, resnull);
 				break;
 			}
 
@@ -2720,6 +2711,70 @@ ExecInitFunc(ExprEvalStep *scratch, Expr *node, List *args, Oid funcid,
 }
 
 /*
+ * Append the steps necessary for the evaluation of a SubPlan node to
+ * ExprState->steps.
+ *
+ * subplan - SubPlan expression to evaluate
+ * state - ExprState to whose ->steps to append the necessary operations
+ * resv / resnull - where to store the result of the node into
+ */
+static void
+ExecInitSubPlanExpr(SubPlan *subplan,
+					ExprState *state,
+					Datum *resv, bool *resnull)
+{
+	ExprEvalStep scratch = {0};
+	SubPlanState *sstate;
+	ListCell   *pvar;
+	ListCell   *l;
+
+	if (!state->parent)
+		elog(ERROR, "SubPlan found with no parent plan");
+
+	/*
+	 * Generate steps to evaluate input arguments for the subplan.
+	 *
+	 * We evaluate the argument expressions into ExprState's resvalue/resnull,
+	 * and then use PARAM_SET to update the parameter. We do that, instead of
+	 * evaluating directly into the param, to avoid depending on the pointer
+	 * value remaining stable / being included in the generated expression. No
+	 * danger of conflicts with other uses of resvalue/resnull as storing and
+	 * using the value always is in subsequent steps.
+	 *
+	 * Any calculation we have to do can be done in the parent econtext, since
+	 * the Param values don't need to have per-query lifetime.
+	 */
+	Assert(list_length(subplan->parParam) == list_length(subplan->args));
+	forboth(l, subplan->parParam, pvar, subplan->args)
+	{
+		int			paramid = lfirst_int(l);
+		Expr	   *arg = (Expr *) lfirst(pvar);
+
+		ExecInitExprRec(arg, state,
+						&state->resvalue, &state->resnull);
+
+		scratch.opcode = EEOP_PARAM_SET;
+		scratch.d.param.paramid = paramid;
+		/* paramtype's not actually used, but we might as well fill it */
+		scratch.d.param.paramtype = exprType((Node *) arg);
+		ExprEvalPushStep(state, &scratch);
+	}
+
+	sstate = ExecInitSubPlan(subplan, state->parent);
+
+	/* add SubPlanState nodes to state->parent->subPlan */
+	state->parent->subPlan = lappend(state->parent->subPlan,
+									 sstate);
+
+	scratch.opcode = EEOP_SUBPLAN;
+	scratch.resvalue = resv;
+	scratch.resnull = resnull;
+	scratch.d.subplan.sstate = sstate;
+
+	ExprEvalPushStep(state, &scratch);
+}
+
+/*
  * Add expression steps performing setup that's needed before any of the
  * main execution of the expression.
  */
@@ -2793,29 +2848,12 @@ ExecPushExprSetupSteps(ExprState *state, ExprSetupInfo *info)
 	foreach(lc, info->multiexpr_subplans)
 	{
 		SubPlan    *subplan = (SubPlan *) lfirst(lc);
-		SubPlanState *sstate;
 
 		Assert(subplan->subLinkType == MULTIEXPR_SUBLINK);
 
-		/* This should match what ExecInitExprRec does for other SubPlans: */
-
-		if (!state->parent)
-			elog(ERROR, "SubPlan found with no parent plan");
-
-		sstate = ExecInitSubPlan(subplan, state->parent);
-
-		/* add SubPlanState nodes to state->parent->subPlan */
-		state->parent->subPlan = lappend(state->parent->subPlan,
-										 sstate);
-
-		scratch.opcode = EEOP_SUBPLAN;
-		scratch.d.subplan.sstate = sstate;
-
 		/* The result can be ignored, but we better put it somewhere */
-		scratch.resvalue = &state->resvalue;
-		scratch.resnull = &state->resnull;
-
-		ExprEvalPushStep(state, &scratch);
+		ExecInitSubPlanExpr(subplan, state,
+							&state->resvalue, &state->resnull);
 	}
 }
 
@@ -3937,6 +3975,147 @@ ExecBuildAggTransCall(ExprState *state, AggState *aggstate,
 }
 
 /*
+ * Build an ExprState that calls the given hash function(s) on the given
+ * 'hash_exprs'.  When multiple expressions are present, the hash values
+ * returned by each hash function are combined to produce a single hash value.
+ *
+ * desc: tuple descriptor for the to-be-hashed expressions
+ * ops: TupleTableSlotOps for the TupleDesc
+ * hashfunc_oids: Oid for each hash function to call, one for each 'hash_expr'
+ * collations: collation to use when calling the hash function.
+ * hash_expr: list of expressions to hash the value of
+ * opstrict: array corresponding to the 'hashfunc_oids' to store op_strict()
+ * parent: PlanState node that the 'hash_exprs' will be evaluated at
+ * init_value: Normally 0, but can be set to other values to seed the hash
+ * with some other value.  Using non-zero is slightly less efficient but can
+ * be useful.
+ * keep_nulls: if true, evaluation of the returned ExprState will abort early
+ * returning NULL if the given hash function is strict and the Datum to hash
+ * is null.  When set to false, any NULL input Datums are skipped.
+ */
+ExprState *
+ExecBuildHash32Expr(TupleDesc desc, const TupleTableSlotOps *ops,
+					const Oid *hashfunc_oids, const List *collations,
+					const List *hash_exprs, const bool *opstrict,
+					PlanState *parent, uint32 init_value, bool keep_nulls)
+{
+	ExprState  *state = makeNode(ExprState);
+	ExprEvalStep scratch = {0};
+	List	   *adjust_jumps = NIL;
+	ListCell   *lc;
+	ListCell   *lc2;
+	intptr_t	strict_opcode;
+	intptr_t	opcode;
+
+	Assert(list_length(hash_exprs) == list_length(collations));
+
+	state->parent = parent;
+
+	/* Insert setup steps as needed. */
+	ExecCreateExprSetupSteps(state, (Node *) hash_exprs);
+
+	if (init_value == 0)
+	{
+		/*
+		 * No initial value, so we can assign the result of the hash function
+		 * for the first hash_expr without having to concern ourselves with
+		 * combining the result with any initial value.
+		 */
+		strict_opcode = EEOP_HASHDATUM_FIRST_STRICT;
+		opcode = EEOP_HASHDATUM_FIRST;
+	}
+	else
+	{
+		/* Set up operation to set the initial value. */
+		scratch.opcode = EEOP_HASHDATUM_SET_INITVAL;
+		scratch.d.hashdatum_initvalue.init_value = UInt32GetDatum(init_value);
+		scratch.resvalue = &state->resvalue;
+		scratch.resnull = &state->resnull;
+
+		ExprEvalPushStep(state, &scratch);
+
+		/*
+		 * When using an initial value use the NEXT32/NEXT32_STRICT ops as the
+		 * FIRST/FIRST_STRICT ops would overwrite the stored initial value.
+		 */
+		strict_opcode = EEOP_HASHDATUM_NEXT32_STRICT;
+		opcode = EEOP_HASHDATUM_NEXT32;
+	}
+
+	forboth(lc, hash_exprs, lc2, collations)
+	{
+		Expr	   *expr = (Expr *) lfirst(lc);
+		FmgrInfo   *finfo;
+		FunctionCallInfo fcinfo;
+		int			i = foreach_current_index(lc);
+		Oid			funcid;
+		Oid			inputcollid = lfirst_oid(lc2);
+
+		funcid = hashfunc_oids[i];
+
+		/* Allocate hash function lookup data. */
+		finfo = palloc0(sizeof(FmgrInfo));
+		fcinfo = palloc0(SizeForFunctionCallInfo(1));
+
+		fmgr_info(funcid, finfo);
+
+		/*
+		 * Build the steps to evaluate the hash function's argument have it so
+		 * the value of that is stored in the 0th argument of the hash func.
+		 */
+		ExecInitExprRec(expr,
+						state,
+						&fcinfo->args[0].value,
+						&fcinfo->args[0].isnull);
+
+		scratch.resvalue = &state->resvalue;
+		scratch.resnull = &state->resnull;
+
+		/* Initialize function call parameter structure too */
+		InitFunctionCallInfoData(*fcinfo, finfo, 1, inputcollid, NULL, NULL);
+
+		scratch.d.hashdatum.finfo = finfo;
+		scratch.d.hashdatum.fcinfo_data = fcinfo;
+		scratch.d.hashdatum.fn_addr = finfo->fn_addr;
+
+		scratch.opcode = opstrict[i] && !keep_nulls ? strict_opcode : opcode;
+		scratch.d.hashdatum.jumpdone = -1;
+
+		ExprEvalPushStep(state, &scratch);
+		adjust_jumps = lappend_int(adjust_jumps, state->steps_len - 1);
+
+		/*
+		 * For subsequent keys we must combine the hash value with the
+		 * previous hashes.
+		 */
+		strict_opcode = EEOP_HASHDATUM_NEXT32_STRICT;
+		opcode = EEOP_HASHDATUM_NEXT32;
+	}
+
+	/* adjust jump targets */
+	foreach(lc, adjust_jumps)
+	{
+		ExprEvalStep *as = &state->steps[lfirst_int(lc)];
+
+		Assert(as->opcode == EEOP_HASHDATUM_FIRST ||
+			   as->opcode == EEOP_HASHDATUM_FIRST_STRICT ||
+			   as->opcode == EEOP_HASHDATUM_NEXT32 ||
+			   as->opcode == EEOP_HASHDATUM_NEXT32_STRICT);
+		Assert(as->d.hashdatum.jumpdone == -1);
+		as->d.hashdatum.jumpdone = state->steps_len;
+	}
+
+	scratch.resvalue = NULL;
+	scratch.resnull = NULL;
+	scratch.opcode = EEOP_DONE;
+	ExprEvalPushStep(state, &scratch);
+
+	ExecReadyExpr(state);
+
+	return state;
+}
+
+/*
  * Build equality expression that can be evaluated using ExecQual(), returning
  * true if the expression context's inner/outer tuple are NOT DISTINCT. I.e
  * two nulls match, a null and a not-null don't match.
@@ -4334,7 +4513,9 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 		jsestate->jump_eval_coercion = state->steps_len;
 
 		ExecInitJsonCoercion(state, jsexpr->returning, escontext,
-							 jsexpr->omit_quotes, resv, resnull);
+							 jsexpr->omit_quotes,
+							 jsexpr->op == JSON_EXISTS_OP,
+							 resv, resnull);
 	}
 	else if (jsexpr->use_io_coercion)
 	{
@@ -4415,7 +4596,8 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 		/* Step to coerce the ON ERROR expression if needed */
 		if (jsexpr->on_error->coerce)
 			ExecInitJsonCoercion(state, jsexpr->returning, escontext,
-								 jsexpr->omit_quotes, resv, resnull);
+								 jsexpr->omit_quotes, false,
+								 resv, resnull);
 
 		/*
 		 * Add a COERCION_FINISH step to check for errors that may occur when
@@ -4471,7 +4653,8 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 		/* Step to coerce the ON EMPTY expression if needed */
 		if (jsexpr->on_empty->coerce)
 			ExecInitJsonCoercion(state, jsexpr->returning, escontext,
-								 jsexpr->omit_quotes, resv, resnull);
+								 jsexpr->omit_quotes, false,
+								 resv, resnull);
 
 		/*
 		 * Add a COERCION_FINISH step to check for errors that may occur when
@@ -4507,6 +4690,7 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 static void
 ExecInitJsonCoercion(ExprState *state, JsonReturning *returning,
 					 ErrorSaveContext *escontext, bool omit_quotes,
+					 bool exists_coerce,
 					 Datum *resv, bool *resnull)
 {
 	ExprEvalStep scratch = {0};
@@ -4517,8 +4701,13 @@ ExecInitJsonCoercion(ExprState *state, JsonReturning *returning,
 	scratch.resnull = resnull;
 	scratch.d.jsonexpr_coercion.targettype = returning->typid;
 	scratch.d.jsonexpr_coercion.targettypmod = returning->typmod;
-	scratch.d.jsonexpr_coercion.json_populate_type_cache = NULL;
+	scratch.d.jsonexpr_coercion.json_coercion_cache = NULL;
 	scratch.d.jsonexpr_coercion.escontext = escontext;
 	scratch.d.jsonexpr_coercion.omit_quotes = omit_quotes;
+	scratch.d.jsonexpr_coercion.exists_coerce = exists_coerce;
+	scratch.d.jsonexpr_coercion.exists_cast_to_int = exists_coerce &&
+		getBaseType(returning->typid) == INT4OID;
+	scratch.d.jsonexpr_coercion.exists_check_domain = exists_coerce &&
+		DomainHasConstraints(returning->typid);
 	ExprEvalPushStep(state, &scratch);
 }

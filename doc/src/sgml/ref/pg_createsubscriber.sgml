@@ -57,9 +57,10 @@ PostgreSQL documentation
   <para>
    After a successful run, the state of the target server is analogous to a
    fresh logical replication setup.  The main difference between the logical
-   replication setup and <application>pg_createsubscriber</application> is the
-   initial data copy.  It does only the synchronization phase, which ensures
-   each table is brought up to a synchronized state.
+   replication setup and <application>pg_createsubscriber</application> is how
+   the data synchronization is done. <application>pg_createsubscriber</application>
+   does not copy the initial table data. It does only the synchronization phase,
+   which ensures each table is brought up to a synchronized state.
   </para>
 
   <para>
@@ -87,8 +88,9 @@ PostgreSQL documentation
      <term><option>--database=<replaceable class="parameter">dbname</replaceable></option></term>
      <listitem>
       <para>
-       The database name to create the subscription.  Multiple databases can
-       be selected by writing multiple <option>-d</option> switches.
+       The name of the database in which to create a subscription.  Multiple
+       databases can be selected by writing multiple <option>-d</option>
+       switches.
       </para>
      </listitem>
     </varlistentry>
@@ -139,7 +141,7 @@ PostgreSQL documentation
 
     <varlistentry>
      <term><option>-s <replaceable class="parameter">dir</replaceable></option></term>
-     <term><option>--socket-directory=<replaceable class="parameter">dir</replaceable></option></term>
+     <term><option>--socketdir=<replaceable class="parameter">dir</replaceable></option></term>
      <listitem>
       <para>
        The directory to use for postmaster sockets on target server.  The

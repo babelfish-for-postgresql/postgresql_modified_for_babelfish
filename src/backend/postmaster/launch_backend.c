@@ -53,11 +53,13 @@
 #include "postmaster/walwriter.h"
 #include "replication/slotsync.h"
 #include "replication/walreceiver.h"
+#include "storage/dsm.h"
 #include "storage/fd.h"
 #include "storage/ipc.h"
 #include "storage/pg_shmem.h"
 #include "storage/pmsignal.h"
 #include "storage/proc.h"
+#include "storage/procsignal.h"
 #include "tcop/backend_startup.h"
 #include "tcop/tcopprot.h"
 #include "utils/builtins.h"
@@ -94,7 +96,6 @@ typedef int InheritableSocket;
 typedef struct
 {
 	char		DataDir[MAXPGPATH];
-	int32		MyCancelKey;
 	int			MyPMChildSlot;
 #ifndef WIN32
 	unsigned long UsedShmemSegID;
@@ -104,12 +105,8 @@ typedef struct
 #endif
 	void	   *UsedShmemSegAddr;
 	slock_t    *ShmemLock;
-	struct bkend *ShmemBackendArray;
 #ifdef USE_INJECTION_POINTS
 	struct InjectionPointsCtl *ActiveInjectionPoints;
-#endif
-#ifndef HAVE_SPINLOCKS
-	PGSemaphore *SpinlockSemaArray;
 #endif
 	int			NamedLWLockTrancheRequests;
 	NamedLWLockTranche *NamedLWLockTrancheArray;
@@ -119,6 +116,7 @@ typedef struct
 	PGPROC	   *AuxiliaryProcs;
 	PGPROC	   *PreparedXactProcs;
 	volatile PMSignalData *PMSignalState;
+	ProcSignalHeader *ProcSignal;
 	pid_t		PostmasterPid;
 	TimestampTz PgStartTime;
 	TimestampTz PgReloadTime;
@@ -219,9 +217,9 @@ PostmasterChildName(BackendType child_type)
  * Start a new postmaster child process.
  *
  * The child process will be restored to roughly the same state whether
- * EXEC_BACKEND is used or not: it will be attached to shared memory, and fds
- * and other resources that we've inherited from postmaster that are not
- * needed in a child process have been closed.
+ * EXEC_BACKEND is used or not: it will be attached to shared memory if
+ * appropriate, and fds and other resources that we've inherited from
+ * postmaster that are not needed in a child process have been closed.
  *
  * 'startup_data' is an optional contiguous chunk of data that is passed to
  * the child process.
@@ -248,6 +246,13 @@ postmaster_child_launch(BackendType child_type,
 
 		/* Detangle from postmaster */
 		InitPostmasterChild();
+
+		/* Detach shared memory if not needed. */
+		if (!child_process_kinds[child_type].shmem_attach)
+		{
+			dsm_detach_all();
+			PGSharedMemoryDetach();
+		}
 
 		/*
 		 * Enter the Main function with TopMemoryContext.  The startup data is
@@ -702,7 +707,6 @@ save_backend_variables(BackendParameters *param, ClientSocket *client_sock,
 
 	strlcpy(param->DataDir, DataDir, MAXPGPATH);
 
-	param->MyCancelKey = MyCancelKey;
 	param->MyPMChildSlot = MyPMChildSlot;
 
 #ifdef WIN32
@@ -712,15 +716,11 @@ save_backend_variables(BackendParameters *param, ClientSocket *client_sock,
 	param->UsedShmemSegAddr = UsedShmemSegAddr;
 
 	param->ShmemLock = ShmemLock;
-	param->ShmemBackendArray = ShmemBackendArray;
 
 #ifdef USE_INJECTION_POINTS
 	param->ActiveInjectionPoints = ActiveInjectionPoints;
 #endif
 
-#ifndef HAVE_SPINLOCKS
-	param->SpinlockSemaArray = SpinlockSemaArray;
-#endif
 	param->NamedLWLockTrancheRequests = NamedLWLockTrancheRequests;
 	param->NamedLWLockTrancheArray = NamedLWLockTrancheArray;
 	param->MainLWLockArray = MainLWLockArray;
@@ -729,6 +729,7 @@ save_backend_variables(BackendParameters *param, ClientSocket *client_sock,
 	param->AuxiliaryProcs = AuxiliaryProcs;
 	param->PreparedXactProcs = PreparedXactProcs;
 	param->PMSignalState = PMSignalState;
+	param->ProcSignal = ProcSignal;
 
 	param->PostmasterPid = PostmasterPid;
 	param->PgStartTime = PgStartTime;
@@ -965,7 +966,6 @@ restore_backend_variables(BackendParameters *param)
 
 	SetDataDir(param->DataDir);
 
-	MyCancelKey = param->MyCancelKey;
 	MyPMChildSlot = param->MyPMChildSlot;
 
 #ifdef WIN32
@@ -975,15 +975,11 @@ restore_backend_variables(BackendParameters *param)
 	UsedShmemSegAddr = param->UsedShmemSegAddr;
 
 	ShmemLock = param->ShmemLock;
-	ShmemBackendArray = param->ShmemBackendArray;
 
 #ifdef USE_INJECTION_POINTS
 	ActiveInjectionPoints = param->ActiveInjectionPoints;
 #endif
 
-#ifndef HAVE_SPINLOCKS
-	SpinlockSemaArray = param->SpinlockSemaArray;
-#endif
 	NamedLWLockTrancheRequests = param->NamedLWLockTrancheRequests;
 	NamedLWLockTrancheArray = param->NamedLWLockTrancheArray;
 	MainLWLockArray = param->MainLWLockArray;
@@ -992,6 +988,7 @@ restore_backend_variables(BackendParameters *param)
 	AuxiliaryProcs = param->AuxiliaryProcs;
 	PreparedXactProcs = param->PreparedXactProcs;
 	PMSignalState = param->PMSignalState;
+	ProcSignal = param->ProcSignal;
 
 	PostmasterPid = param->PostmasterPid;
 	PgStartTime = param->PgStartTime;

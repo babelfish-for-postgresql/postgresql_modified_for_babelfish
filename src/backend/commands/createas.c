@@ -83,7 +83,7 @@ create_ctas_internal(List *attrList, IntoClause *into)
 	bool		is_matview;
 	char		relkind;
 	Datum		toast_options;
-	static char *validnsps[] = HEAP_RELOPT_NAMESPACES;
+	const char *const validnsps[] = HEAP_RELOPT_NAMESPACES;
 	ObjectAddress intoRelationAddr;
 
 	/* This code supports both CREATE TABLE AS and CREATE MATERIALIZED VIEW */
@@ -228,9 +228,6 @@ ExecCreateTableAs(ParseState *pstate, CreateTableAsStmt *stmt,
 	bool		do_refresh = false;
 	DestReceiver *dest;
 	ObjectAddress address;
-	List	   *rewritten;
-	PlannedStmt *plan;
-	QueryDesc  *queryDesc;
 
 	/* Check if the relation exists or not */
 	if (CreateTableAsRelExists(stmt))
@@ -279,9 +276,25 @@ ExecCreateTableAs(ParseState *pstate, CreateTableAsStmt *stmt,
 		 * from running the planner before all dependencies are set up.
 		 */
 		address = create_ctas_nodata(query->targetList, into);
+
+		/*
+		 * For materialized views, reuse the REFRESH logic, which locks down
+		 * security-restricted operations and restricts the search_path.  This
+		 * reduces the chance that a subsequent refresh will fail.
+		 */
+		if (do_refresh)
+			RefreshMatViewByOid(address.objectId, true, false, false,
+								pstate->p_sourcetext, qc);
+
 	}
 	else
 	{
+		List	   *rewritten;
+		PlannedStmt *plan;
+		QueryDesc  *queryDesc;
+
+		Assert(!is_matview);
+
 		/*
 		 * Parse analysis was done already, but we still have to run the rule
 		 * rewriter.  We do not do AcquireRewriteLocks: we assume the query
@@ -292,9 +305,7 @@ ExecCreateTableAs(ParseState *pstate, CreateTableAsStmt *stmt,
 
 		/* SELECT should never rewrite to more or less than one SELECT query */
 		if (list_length(rewritten) != 1)
-			elog(ERROR, "unexpected rewrite result for %s",
-				 is_matview ? "CREATE MATERIALIZED VIEW" :
-				 "CREATE TABLE AS SELECT");
+			elog(ERROR, "unexpected rewrite result for CREATE TABLE AS SELECT");
 		query = linitial_node(Query, rewritten);
 		Assert(query->commandType == CMD_SELECT);
 
@@ -337,20 +348,6 @@ ExecCreateTableAs(ParseState *pstate, CreateTableAsStmt *stmt,
 		FreeQueryDesc(queryDesc);
 
 		PopActiveSnapshot();
-	}
-
-	/*
-	 * For materialized views, reuse the REFRESH logic, which locks down
-	 * security-restricted operations and restricts the search_path.  This
-	 * reduces the chance that a subsequent refresh will fail.
-	 */
-	if (do_refresh)
-	{
-		RefreshMatViewByOid(address.objectId, false, false,
-							pstate->p_sourcetext, NULL, qc);
-
-		if (qc)
-			qc->commandTag = CMDTAG_SELECT;
 	}
 
 	return address;

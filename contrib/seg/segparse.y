@@ -12,6 +12,7 @@
 #include "utils/float.h"
 
 #include "segdata.h"
+#include "segparse.h"
 
 /* silence -Wmissing-variable-declarations */
 extern int seg_yychar;
@@ -28,14 +29,6 @@ extern int seg_yynerrs;
 static bool seg_atof(char *value, float *result, struct Node *escontext);
 
 static int sig_digits(const char *value);
-
-static char strbuf[25] = {
-	'0', '0', '0', '0', '0',
-	'0', '0', '0', '0', '0',
-	'0', '0', '0', '0', '0',
-	'0', '0', '0', '0', '0',
-	'0', '0', '0', '0', '\0'
-};
 
 %}
 
@@ -69,11 +62,13 @@ static char strbuf[25] = {
 
 range: boundary PLUMIN deviation
 	{
+		char		strbuf[25];
+
 		result->lower = $1.val - $3.val;
 		result->upper = $1.val + $3.val;
-		sprintf(strbuf, "%g", result->lower);
+		snprintf(strbuf, sizeof(strbuf), "%g", result->lower);
 		result->l_sigd = Max(sig_digits(strbuf), Max($1.sigd, $3.sigd));
-		sprintf(strbuf, "%g", result->upper);
+		snprintf(strbuf, sizeof(strbuf), "%g", result->upper);
 		result->u_sigd = Max(sig_digits(strbuf), Max($1.sigd, $3.sigd));
 		result->l_ext = '\0';
 		result->u_ext = '\0';

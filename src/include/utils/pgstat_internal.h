@@ -195,7 +195,8 @@ typedef struct PgStat_KindInfo
 
 	/*
 	 * The size of an entry in the shared stats hash table (pointed to by
-	 * PgStatShared_HashEntry->body).
+	 * PgStatShared_HashEntry->body).  For fixed-numbered statistics, this is
+	 * the size of an entry in PgStat_ShmemControl->custom_data.
 	 */
 	uint32		shared_size;
 
@@ -446,6 +447,13 @@ typedef struct PgStat_ShmemControl
 	PgStatShared_IO io;
 	PgStatShared_SLRU slru;
 	PgStatShared_Wal wal;
+
+	/*
+	 * Custom stats data with fixed-numbered objects, indexed by (PgStat_Kind
+	 * - PGSTAT_KIND_CUSTOM_MIN).
+	 */
+	void	   *custom_data[PGSTAT_KIND_CUSTOM_SIZE];
+
 } PgStat_ShmemControl;
 
 
@@ -459,7 +467,7 @@ typedef struct PgStat_Snapshot
 	/* time at which snapshot was taken */
 	TimestampTz snapshot_timestamp;
 
-	bool		fixed_valid[PGSTAT_NUM_KINDS];
+	bool		fixed_valid[PGSTAT_KIND_BUILTIN_SIZE];
 
 	PgStat_ArchiverStats archiver;
 
@@ -472,6 +480,14 @@ typedef struct PgStat_Snapshot
 	PgStat_SLRUStats slru[SLRU_NUM_ELEMENTS];
 
 	PgStat_WalStats wal;
+
+	/*
+	 * Data in snapshot for custom fixed-numbered statistics, indexed by
+	 * (PgStat_Kind - PGSTAT_KIND_CUSTOM_MIN).  Each entry is allocated in
+	 * TopMemoryContext, for a size of PgStat_KindInfo->shared_data_len.
+	 */
+	bool		custom_valid[PGSTAT_KIND_CUSTOM_SIZE];
+	void	   *custom_data[PGSTAT_KIND_CUSTOM_SIZE];
 
 	/* to free snapshot in bulk */
 	MemoryContext context;
@@ -509,6 +525,8 @@ static inline int pgstat_cmp_hash_key(const void *a, const void *b, size_t size,
 static inline uint32 pgstat_hash_hash_key(const void *d, size_t size, void *arg);
 static inline size_t pgstat_get_entry_len(PgStat_Kind kind);
 static inline void *pgstat_get_entry_data(PgStat_Kind kind, PgStatShared_Common *entry);
+static inline void *pgstat_get_custom_shmem_data(PgStat_Kind kind);
+static inline void *pgstat_get_custom_snapshot_data(PgStat_Kind kind);
 
 
 /*
@@ -516,6 +534,8 @@ static inline void *pgstat_get_entry_data(PgStat_Kind kind, PgStatShared_Common 
  */
 
 extern const PgStat_KindInfo *pgstat_get_kind_info(PgStat_Kind kind);
+extern void pgstat_register_kind(PgStat_Kind kind,
+								 const PgStat_KindInfo *kind_info);
 
 #ifdef USE_ASSERT_CHECKING
 extern void pgstat_assert_is_up(void);
@@ -822,6 +842,36 @@ pgstat_get_entry_data(PgStat_Kind kind, PgStatShared_Common *entry)
 	Assert(off != 0 && off < PG_UINT32_MAX);
 
 	return ((char *) (entry)) + off;
+}
+
+/*
+ * Returns a pointer to the shared memory area of custom stats for
+ * fixed-numbered statistics.
+ */
+static inline void *
+pgstat_get_custom_shmem_data(PgStat_Kind kind)
+{
+	int			idx = kind - PGSTAT_KIND_CUSTOM_MIN;
+
+	Assert(pgstat_is_kind_custom(kind));
+	Assert(pgstat_get_kind_info(kind)->fixed_amount);
+
+	return pgStatLocal.shmem->custom_data[idx];
+}
+
+/*
+ * Returns a pointer to the portion of custom data for fixed-numbered
+ * statistics in the current snapshot.
+ */
+static inline void *
+pgstat_get_custom_snapshot_data(PgStat_Kind kind)
+{
+	int			idx = kind - PGSTAT_KIND_CUSTOM_MIN;
+
+	Assert(pgstat_is_kind_custom(kind));
+	Assert(pgstat_get_kind_info(kind)->fixed_amount);
+
+	return pgStatLocal.snapshot.custom_data[idx];
 }
 
 #endif							/* PGSTAT_INTERNAL_H */

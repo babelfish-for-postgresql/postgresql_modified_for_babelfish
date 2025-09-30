@@ -51,6 +51,7 @@
 #include "parser/parsetree.h"
 #include "utils/backend_status.h"
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
@@ -121,7 +122,7 @@ static Query *transformCallStmt(ParseState *pstate,
 								CallStmt *stmt);
 static void transformLockingClause(ParseState *pstate, Query *qry,
 								   LockingClause *lc, bool pushedDown);
-#ifdef RAW_EXPRESSION_COVERAGE_TEST
+#ifdef DEBUG_NODE_TESTS_ENABLED
 static bool test_raw_expression_coverage(Node *node, void *context);
 #endif
 
@@ -357,25 +358,30 @@ transformStmt(ParseState *pstate, Node *parseTree)
 {
 	Query	   *result;
 
+#ifdef DEBUG_NODE_TESTS_ENABLED
+
 	/*
-	 * We apply RAW_EXPRESSION_COVERAGE_TEST testing to basic DML statements;
-	 * we can't just run it on everything because raw_expression_tree_walker()
-	 * doesn't claim to handle utility statements.
+	 * We apply debug_raw_expression_coverage_test testing to basic DML
+	 * statements; we can't just run it on everything because
+	 * raw_expression_tree_walker() doesn't claim to handle utility
+	 * statements.
 	 */
-#ifdef RAW_EXPRESSION_COVERAGE_TEST
-	switch (nodeTag(parseTree))
+	if (Debug_raw_expression_coverage_test)
 	{
-		case T_SelectStmt:
-		case T_InsertStmt:
-		case T_UpdateStmt:
-		case T_DeleteStmt:
-		case T_MergeStmt:
-			(void) test_raw_expression_coverage(parseTree, NULL);
-			break;
-		default:
-			break;
+		switch (nodeTag(parseTree))
+		{
+			case T_SelectStmt:
+			case T_InsertStmt:
+			case T_UpdateStmt:
+			case T_DeleteStmt:
+			case T_MergeStmt:
+				(void) test_raw_expression_coverage(parseTree, NULL);
+				break;
+			default:
+				break;
+		}
 	}
-#endif							/* RAW_EXPRESSION_COVERAGE_TEST */
+#endif							/* DEBUG_NODE_TESTS_ENABLED */
 
 	/*
 	 * Caution: when changing the set of statement types that have non-default
@@ -3721,6 +3727,7 @@ applyLockingClause(Query *qry, Index rtindex,
 	qry->rowMarks = lappend(qry->rowMarks, rc);
 }
 
+#ifdef DEBUG_NODE_TESTS_ENABLED
 /*
  * Coverage testing for raw_expression_tree_walker().
  *
@@ -3729,8 +3736,6 @@ applyLockingClause(Query *qry, Index rtindex,
  * applied in limited cases involving CTEs, and we don't really want to have
  * to test everything inside as well as outside a CTE.
  */
-#ifdef RAW_EXPRESSION_COVERAGE_TEST
-
 static bool
 test_raw_expression_coverage(Node *node, void *context)
 {
@@ -3740,5 +3745,4 @@ test_raw_expression_coverage(Node *node, void *context)
 									  test_raw_expression_coverage,
 									  context);
 }
-
-#endif							/* RAW_EXPRESSION_COVERAGE_TEST */
+#endif							/* DEBUG_NODE_TESTS_ENABLED */

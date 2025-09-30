@@ -701,10 +701,7 @@ ALTER SUBSCRIPTION
    <link linkend="sql-createsubscription-params-with-failover"><literal>failover</literal></link>
    parameter ensures a seamless transition of those subscriptions after the
    standby is promoted. They can continue subscribing to publications on the
-   new primary server without losing data. Note that in the case of
-   asynchronous replication, there remains a risk of data loss for transactions
-   committed on the former primary server but have yet to be replicated to the new
-   primary server.
+   new primary server.
   </para>
 
   <para>
@@ -791,7 +788,7 @@ test_standby=# SELECT slot_name, (synced AND NOT temporary AND NOT conflicting) 
    If all the slots are present on the standby server and the result
    (<literal>failover_ready</literal>) of the above SQL query is true, then
    existing subscriptions can continue subscribing to publications now on the
-   new primary server without losing data.
+   new primary server.
   </para>
 
  </sect1>
@@ -1579,8 +1576,196 @@ test_sub=# SELECT * FROM t1 ORDER BY id;
    node.  If incoming data violates any constraints the replication will
    stop.  This is referred to as a <firstterm>conflict</firstterm>.  When
    replicating <command>UPDATE</command> or <command>DELETE</command>
-   operations, missing data will not produce a conflict and such operations
-   will simply be skipped.
+   operations, missing data is also considered as a
+   <firstterm>conflict</firstterm>, but does not result in an error and such
+   operations will simply be skipped.
+  </para>
+
+  <para>
+   Additional logging is triggered in the following <firstterm>conflict</firstterm>
+   cases:
+   <variablelist>
+    <varlistentry>
+     <term><literal>insert_exists</literal></term>
+     <listitem>
+      <para>
+       Inserting a row that violates a <literal>NOT DEFERRABLE</literal>
+       unique constraint. Note that to log the origin and commit
+       timestamp details of the conflicting key,
+       <link linkend="guc-track-commit-timestamp"><varname>track_commit_timestamp</varname></link>
+       should be enabled on the subscriber. In this case, an error will be
+       raised until the conflict is resolved manually.
+      </para>
+     </listitem>
+    </varlistentry>
+    <varlistentry>
+     <term><literal>update_origin_differs</literal></term>
+     <listitem>
+      <para>
+       Updating a row that was previously modified by another origin.
+       Note that this conflict can only be detected when
+       <link linkend="guc-track-commit-timestamp"><varname>track_commit_timestamp</varname></link>
+       is enabled on the subscriber. Currently, the update is always applied
+       regardless of the origin of the local row.
+      </para>
+     </listitem>
+    </varlistentry>
+    <varlistentry>
+     <term><literal>update_exists</literal></term>
+     <listitem>
+      <para>
+       The updated value of a row violates a <literal>NOT DEFERRABLE</literal>
+       unique constraint. Note that to log the origin and commit
+       timestamp details of the conflicting key,
+       <link linkend="guc-track-commit-timestamp"><varname>track_commit_timestamp</varname></link>
+       should be enabled on the subscriber. In this case, an error will be
+       raised until the conflict is resolved manually. Note that when updating a
+       partitioned table, if the updated row value satisfies another partition
+       constraint resulting in the row being inserted into a new partition, the
+       <literal>insert_exists</literal> conflict may arise if the new row
+       violates a <literal>NOT DEFERRABLE</literal> unique constraint.
+      </para>
+     </listitem>
+    </varlistentry>
+    <varlistentry>
+     <term><literal>update_missing</literal></term>
+     <listitem>
+      <para>
+       The tuple to be updated was not found. The update will simply be
+       skipped in this scenario.
+      </para>
+     </listitem>
+    </varlistentry>
+    <varlistentry>
+     <term><literal>delete_origin_differs</literal></term>
+     <listitem>
+      <para>
+       Deleting a row that was previously modified by another origin. Note that
+       this conflict can only be detected when
+       <link linkend="guc-track-commit-timestamp"><varname>track_commit_timestamp</varname></link>
+       is enabled on the subscriber. Currently, the delete is always applied
+       regardless of the origin of the local row.
+      </para>
+     </listitem>
+    </varlistentry>
+    <varlistentry>
+     <term><literal>delete_missing</literal></term>
+     <listitem>
+      <para>
+       The tuple to be deleted was not found. The delete will simply be
+       skipped in this scenario.
+      </para>
+     </listitem>
+    </varlistentry>
+   </variablelist>
+    Note that there are other conflict scenarios, such as exclusion constraint
+    violations. Currently, we do not provide additional details for them in the
+    log.
+  </para>
+
+  <para>
+   The log format for logical replication conflicts is as follows:
+<synopsis>
+LOG:  conflict detected on relation "<replaceable>schemaname</replaceable>.<replaceable>tablename</replaceable>": conflict=<replaceable>conflict_type</replaceable>
+DETAIL:  <replaceable class="parameter">detailed_explanation</replaceable>.
+{<replaceable class="parameter">detail_values</replaceable> [; ... ]}.
+
+<phrase>where <replaceable class="parameter">detail_values</replaceable> is one of:</phrase>
+
+    <literal>Key</literal> (<replaceable>column_name</replaceable> <optional>, ...</optional>)=(<replaceable>column_value</replaceable> <optional>, ...</optional>)
+    <literal>existing local tuple</literal> <optional>(<replaceable>column_name</replaceable> <optional>, ...</optional>)=</optional>(<replaceable>column_value</replaceable> <optional>, ...</optional>)
+    <literal>remote tuple</literal> <optional>(<replaceable>column_name</replaceable> <optional>, ...</optional>)=</optional>(<replaceable>column_value</replaceable> <optional>, ...</optional>)
+    <literal>replica identity</literal> {(<replaceable>column_name</replaceable> <optional>, ...</optional>)=(<replaceable>column_value</replaceable> <optional>, ...</optional>) | full <optional>(<replaceable>column_name</replaceable> <optional>, ...</optional>)=</optional>(<replaceable>column_value</replaceable> <optional>, ...</optional>)}
+</synopsis>
+
+   The log provides the following information:
+   <variablelist>
+    <varlistentry>
+     <term><literal>LOG</literal></term>
+      <listitem>
+       <itemizedlist>
+        <listitem>
+         <para>
+         <replaceable>schemaname</replaceable>.<replaceable>tablename</replaceable>
+         identifies the local relation involved in the conflict.
+         </para>
+        </listitem>
+        <listitem>
+         <para>
+         <replaceable>conflict_type</replaceable> is the type of conflict that occurred
+         (e.g., <literal>insert_exists</literal>, <literal>update_exists</literal>).
+         </para>
+        </listitem>
+       </itemizedlist>
+      </listitem>
+    </varlistentry>
+
+    <varlistentry>
+     <term><literal>DETAIL</literal></term>
+      <listitem>
+      <itemizedlist>
+       <listitem>
+        <para>
+         <replaceable class="parameter">detailed_explanation</replaceable> includes
+         the origin, transaction ID, and commit timestamp of the transaction that
+         modified the existing local tuple, if available.
+        </para>
+       </listitem>
+       <listitem>
+        <para>
+         The <literal>Key</literal> section includes the key values of the local
+         tuple that violated a unique constraint for
+         <literal>insert_exists</literal> or <literal>update_exists</literal>
+         conflicts.
+        </para>
+       </listitem>
+       <listitem>
+        <para>
+         The <literal>existing local tuple</literal> section includes the local
+         tuple if its origin differs from the remote tuple for
+         <literal>update_origin_differs</literal> or <literal>delete_origin_differs</literal>
+         conflicts, or if the key value conflicts with the remote tuple for
+         <literal>insert_exists</literal> or <literal>update_exists</literal>
+         conflicts.
+        </para>
+       </listitem>
+       <listitem>
+        <para>
+         The <literal>remote tuple</literal> section includes the new tuple from
+         the remote insert or update operation that caused the conflict. Note that
+         for an update operation, the column value of the new tuple will be null
+         if the value is unchanged and toasted.
+        </para>
+       </listitem>
+       <listitem>
+        <para>
+         The <literal>replica identity</literal> section includes the replica
+         identity key values that were used to search for the existing local
+         tuple to be updated or deleted. This may include the full tuple value
+         if the local relation is marked with
+         <link linkend="sql-altertable-replica-identity-full"><literal>REPLICA IDENTITY FULL</literal></link>.
+        </para>
+       </listitem>
+       <listitem>
+        <para>
+         <replaceable class="parameter">column_name</replaceable> is the column name.
+         For <literal>existing local tuple</literal>, <literal>remote tuple</literal>,
+         and <literal>replica identity full</literal> cases, column names are
+         logged only if the user lacks the privilege to access all columns of
+         the table. If column names are present, they appear in the same order
+         as the corresponding column values.
+        </para>
+       </listitem>
+       <listitem>
+        <para>
+         <replaceable class="parameter">column_value</replaceable> is the column value.
+         The large column values are truncated to 64 bytes.
+        </para>
+       </listitem>
+      </itemizedlist>
+     </listitem>
+    </varlistentry>
+   </variablelist>
   </para>
 
   <para>
@@ -1597,7 +1782,7 @@ test_sub=# SELECT * FROM t1 ORDER BY id;
   </para>
 
   <para>
-   A conflict will produce an error and will stop the replication; it must be
+   A conflict that produces an error will stop the replication; it must be
    resolved manually by the user.  Details about the conflict can be found in
    the subscriber's server log.
   </para>
@@ -1609,8 +1794,9 @@ test_sub=# SELECT * FROM t1 ORDER BY id;
    an error, the replication won't proceed, and the logical replication worker will
    emit the following kind of message to the subscriber's server log:
 <screen>
-ERROR:  duplicate key value violates unique constraint "test_pkey"
-DETAIL:  Key (c)=(1) already exists.
+ERROR:  conflict detected on relation "public.test": conflict=insert_exists
+DETAIL:  Key already exists in unique index "t_pkey", which was modified locally in transaction 740 at 2024-06-26 10:47:04.727375+08.
+Key (c)=(1); existing local tuple (1, 'local'); remote tuple (1, 'remote').
 CONTEXT:  processing remote data for replication origin "pg_16395" during "INSERT" for replication target relation "public.test" in transaction 725 finished at 0/14C0378
 </screen>
    The LSN of the transaction that contains the change violating the constraint and
@@ -1636,6 +1822,15 @@ CONTEXT:  processing remote data for replication origin "pg_16395" during "INSER
    Please note that skipping the whole transaction includes skipping changes that
    might not violate any constraint.  This can easily make the subscriber
    inconsistent.
+   The additional details regarding conflicting rows, such as their origin and
+   commit timestamp can be seen in the <literal>DETAIL</literal> line of the
+   log. But note that this information is only available when
+   <link linkend="guc-track-commit-timestamp"><varname>track_commit_timestamp</varname></link>
+   is enabled on the subscriber. Users can use this information to decide
+   whether to retain the local change or adopt the remote alteration. For
+   instance, the <literal>DETAIL</literal> line in the above log indicates that
+   the existing row was modified locally. Users can manually perform a
+   remote-change-win.
   </para>
 
   <para>

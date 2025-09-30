@@ -43,6 +43,7 @@
 #include "backup/basebackup.h"
 #include "catalog/pg_control.h"
 #include "commands/tablespace.h"
+#include "commands/waitlsn.h"
 #include "common/file_utils.h"
 #include "miscadmin.h"
 #include "pgstat.h"
@@ -676,7 +677,7 @@ InitWalRecovery(ControlFileData *ControlFile, bool *wasShutdown_ptr,
 				tablespaceinfo *ti = lfirst(lc);
 				char	   *linkloc;
 
-				linkloc = psprintf("pg_tblspc/%u", ti->oid);
+				linkloc = psprintf("%s/%u", PG_TBLSPC_DIR, ti->oid);
 
 				/*
 				 * Remove the existing symlink if any and Create the symlink
@@ -1828,6 +1829,16 @@ PerformWalRecovery(void)
 				break;
 			}
 
+			/*
+			 * If we replayed an LSN that someone was waiting for then walk
+			 * over the shared memory array and set latches to notify the
+			 * waiters.
+			 */
+			if (waitLSNState &&
+				(XLogRecoveryCtl->lastReplayedEndRecPtr >=
+				 pg_atomic_read_u64(&waitLSNState->minWaitedLSN)))
+				WaitLSNSetLatches(XLogRecoveryCtl->lastReplayedEndRecPtr);
+
 			/* Else, try to fetch the next WAL record */
 			record = ReadRecord(xlogprefetcher, LOG, false, replayTLI);
 		} while (record != NULL);
@@ -2146,23 +2157,24 @@ CheckTablespaceDirectory(void)
 	DIR		   *dir;
 	struct dirent *de;
 
-	dir = AllocateDir("pg_tblspc");
-	while ((de = ReadDir(dir, "pg_tblspc")) != NULL)
+	dir = AllocateDir(PG_TBLSPC_DIR);
+	while ((de = ReadDir(dir, PG_TBLSPC_DIR)) != NULL)
 	{
-		char		path[MAXPGPATH + 10];
+		char		path[MAXPGPATH + sizeof(PG_TBLSPC_DIR)];
 
 		/* Skip entries of non-oid names */
 		if (strspn(de->d_name, "0123456789") != strlen(de->d_name))
 			continue;
 
-		snprintf(path, sizeof(path), "pg_tblspc/%s", de->d_name);
+		snprintf(path, sizeof(path), "%s/%s", PG_TBLSPC_DIR, de->d_name);
 
 		if (get_dirent_type(path, de, false, ERROR) != PGFILETYPE_LNK)
 			ereport(allow_in_place_tablespaces ? WARNING : PANIC,
 					(errcode(ERRCODE_DATA_CORRUPTED),
 					 errmsg("unexpected directory entry \"%s\" found in %s",
-							de->d_name, "pg_tblspc/"),
-					 errdetail("All directory entries in pg_tblspc/ should be symbolic links."),
+							de->d_name, PG_TBLSPC_DIR),
+					 errdetail("All directory entries in %s/ should be symbolic links.",
+							   PG_TBLSPC_DIR),
 					 errhint("Remove those directories, or set \"allow_in_place_tablespaces\" to ON transiently to let recovery complete.")));
 	}
 }

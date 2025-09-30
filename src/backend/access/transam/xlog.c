@@ -66,6 +66,7 @@
 #include "catalog/catversion.h"
 #include "catalog/pg_control.h"
 #include "catalog/pg_database.h"
+#include "commands/waitlsn.h"
 #include "common/controldata_utils.h"
 #include "common/file_utils.h"
 #include "executor/instrument.h"
@@ -1247,7 +1248,7 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
 	written = 0;
 	while (rdata != NULL)
 	{
-		char	   *rdata_data = rdata->data;
+		const char *rdata_data = rdata->data;
 		int			rdata_len = rdata->len;
 
 		while (rdata_len > freespace)
@@ -4314,7 +4315,7 @@ ReadControlFile(void)
 {
 	pg_crc32c	crc;
 	int			fd;
-	static char wal_segsz_str[20];
+	char		wal_segsz_str[20];
 	int			r;
 
 	/*
@@ -5168,9 +5169,9 @@ BootStrapXLOG(uint32 data_checksum_version)
 static char *
 str_time(pg_time_t tnow)
 {
-	static char buf[128];
+	char	   *buf = palloc(128);
 
-	pg_strftime(buf, sizeof(buf),
+	pg_strftime(buf, 128,
 				"%Y-%m-%d %H:%M:%S %Z",
 				pg_localtime(&tnow, log_timezone));
 
@@ -5652,7 +5653,7 @@ StartupXLOG(void)
 	if (didCrash)
 		pgstat_discard_stats();
 	else
-		pgstat_restore_stats();
+		pgstat_restore_stats(checkPoint.redo);
 
 	lastFullPageWrites = checkPoint.fullPageWrites;
 
@@ -6142,6 +6143,12 @@ StartupXLOG(void)
 
 	UpdateControlFile();
 	LWLockRelease(ControlFileLock);
+
+	/*
+	 * Wake up all waiters for replay LSN.  They need to report an error that
+	 * recovery was ended before achieving the target LSN.
+	 */
+	WaitLSNSetLatches(InvalidXLogRecPtr);
 
 	/*
 	 * Shutdown the recovery environment.  This must occur after
@@ -8937,10 +8944,10 @@ do_pg_backup_start(const char *backupidstr, bool fast, List **tablespaces,
 		datadirpathlen = strlen(DataDir);
 
 		/* Collect information about all tablespaces */
-		tblspcdir = AllocateDir("pg_tblspc");
-		while ((de = ReadDir(tblspcdir, "pg_tblspc")) != NULL)
+		tblspcdir = AllocateDir(PG_TBLSPC_DIR);
+		while ((de = ReadDir(tblspcdir, PG_TBLSPC_DIR)) != NULL)
 		{
-			char		fullpath[MAXPGPATH + 10];
+			char		fullpath[MAXPGPATH + sizeof(PG_TBLSPC_DIR)];
 			char		linkpath[MAXPGPATH];
 			char	   *relpath = NULL;
 			char	   *s;
@@ -8963,7 +8970,7 @@ do_pg_backup_start(const char *backupidstr, bool fast, List **tablespaces,
 			if (*badp != '\0' || errno == EINVAL || errno == ERANGE)
 				continue;
 
-			snprintf(fullpath, sizeof(fullpath), "pg_tblspc/%s", de->d_name);
+			snprintf(fullpath, sizeof(fullpath), "%s/%s", PG_TBLSPC_DIR, de->d_name);
 
 			de_type = get_dirent_type(fullpath, de, false, ERROR);
 
@@ -9024,8 +9031,8 @@ do_pg_backup_start(const char *backupidstr, bool fast, List **tablespaces,
 				 * In this case, we store a relative path rather than an
 				 * absolute path into the tablespaceinfo.
 				 */
-				snprintf(linkpath, sizeof(linkpath), "pg_tblspc/%s",
-						 de->d_name);
+				snprintf(linkpath, sizeof(linkpath), "%s/%s",
+						 PG_TBLSPC_DIR, de->d_name);
 				relpath = pstrdup(linkpath);
 			}
 			else

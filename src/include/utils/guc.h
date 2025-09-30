@@ -225,6 +225,7 @@ typedef enum
 #define GUC_DISALLOW_IN_AUTO_FILE \
 							   0x002000 /* can't set in PG_AUTOCONF_FILENAME */
 #define GUC_RUNTIME_COMPUTED   0x004000 /* delay processing in 'postgres -C' */
+#define GUC_ALLOW_IN_PARALLEL  0x008000 /* allow setting in parallel mode */
 
 #define GUC_UNIT_KB			 0x01000000 /* value is in kilobytes */
 #define GUC_UNIT_BLOCKS		 0x02000000 /* value is in blocks */
@@ -246,6 +247,12 @@ extern PGDLLIMPORT bool Debug_print_plan;
 extern PGDLLIMPORT bool Debug_print_parse;
 extern PGDLLIMPORT bool Debug_print_rewritten;
 extern PGDLLIMPORT bool Debug_pretty_print;
+
+#ifdef DEBUG_NODE_TESTS_ENABLED
+extern PGDLLIMPORT bool Debug_copy_parse_plan_trees;
+extern PGDLLIMPORT bool Debug_write_read_parse_plan_trees;
+extern PGDLLIMPORT bool Debug_raw_expression_coverage_test;
+#endif
 
 extern PGDLLIMPORT bool log_parser_stats;
 extern PGDLLIMPORT bool log_planner_stats;
@@ -297,10 +304,7 @@ extern PGDLLIMPORT int tcp_user_timeout;
 
 extern PGDLLIMPORT char *role_string;
 extern PGDLLIMPORT bool in_hot_standby_guc;
-
-#ifdef TRACE_SORT
 extern PGDLLIMPORT bool trace_sort;
-#endif
 
 #ifdef DEBUG_BOUNDED_SORT
 extern PGDLLIMPORT bool optimize_bounded_sort;
@@ -317,11 +321,11 @@ extern PGDLLIMPORT bool optimize_bounded_sort;
  * that would then require including the definition of struct
  * config_enum_entry into those header files.)
  */
-extern const struct config_enum_entry archive_mode_options[];
-extern const struct config_enum_entry dynamic_shared_memory_options[];
-extern const struct config_enum_entry recovery_target_action_options[];
-extern const struct config_enum_entry wal_level_options[];
-extern const struct config_enum_entry wal_sync_method_options[];
+extern PGDLLIMPORT const struct config_enum_entry archive_mode_options[];
+extern PGDLLIMPORT const struct config_enum_entry dynamic_shared_memory_options[];
+extern PGDLLIMPORT const struct config_enum_entry recovery_target_action_options[];
+extern PGDLLIMPORT const struct config_enum_entry wal_level_options[];
+extern PGDLLIMPORT const struct config_enum_entry wal_sync_method_options[];
 
 /*
  * Functions exported by guc.c

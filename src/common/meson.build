@@ -44,7 +44,6 @@ if ssl.found()
   common_sources += files(
     'cryptohash_openssl.c',
     'hmac_openssl.c',
-    'protocol_openssl.c',
   )
 else
   common_sources += files(
@@ -101,17 +100,18 @@ common_sources_cflags = {
 # A few files are currently only built for frontend, not server.
 # logging.c is excluded from OBJS_FRONTEND_SHLIB (shared library) as
 # a matter of policy, because it is not appropriate for general purpose
-# libraries such as libpq to report errors directly.
+# libraries such as libpq to report errors directly.  fe_memutils.c is
+# excluded because libpq must not exit() on allocation failure.
 
 common_sources_frontend_shlib = common_sources
 common_sources_frontend_shlib += files(
-  'fe_memutils.c',
   'restricted_token.c',
   'sprompt.c',
 )
 
 common_sources_frontend_static = common_sources_frontend_shlib
 common_sources_frontend_static += files(
+  'fe_memutils.c',
   'logging.c',
 )
 

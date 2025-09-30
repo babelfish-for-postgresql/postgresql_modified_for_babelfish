@@ -20,11 +20,11 @@
  * on standbys (to support cascading setups).  The requirement that slots be
  * usable on standbys precludes storing them in the system catalogs.
  *
- * Each replication slot gets its own directory inside the $PGDATA/pg_replslot
- * directory. Inside that directory the state file will contain the slot's
- * own data. Additional data can be stored alongside that file if required.
- * While the server is running, the state data is also cached in memory for
- * efficiency.
+ * Each replication slot gets its own directory inside the directory
+ * $PGDATA / PG_REPLSLOT_DIR.  Inside that directory the state file will
+ * contain the slot's own data.  Additional data can be stored alongside that
+ * file if required.  While the server is running, the state data is also
+ * cached in memory for efficiency.
  *
  * ReplicationSlotAllocationLock must be taken in exclusive mode to allocate
  * or free a slot. ReplicationSlotControlLock must be taken in shared mode
@@ -795,7 +795,7 @@ ReplicationSlotDrop(const char *name, bool nowait)
 		ereport(ERROR,
 				errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				errmsg("cannot drop replication slot \"%s\"", name),
-				errdetail("This slot is being synced from the primary server."));
+				errdetail("This replication slot is being synchronized from the primary server."));
 
 	ReplicationSlotDropAcquired();
 }
@@ -830,7 +830,7 @@ ReplicationSlotAlter(const char *name, const bool *failover,
 			ereport(ERROR,
 					errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 					errmsg("cannot alter replication slot \"%s\"", name),
-					errdetail("This slot is being synced from the primary server."));
+					errdetail("This replication slot is being synchronized from the primary server."));
 
 		/*
 		 * Do not allow users to enable failover on the standby as we do not
@@ -916,8 +916,8 @@ ReplicationSlotDropPtr(ReplicationSlot *slot)
 	LWLockAcquire(ReplicationSlotAllocationLock, LW_EXCLUSIVE);
 
 	/* Generate pathnames. */
-	sprintf(path, "pg_replslot/%s", NameStr(slot->data.name));
-	sprintf(tmppath, "pg_replslot/%s.tmp", NameStr(slot->data.name));
+	sprintf(path, "%s/%s", PG_REPLSLOT_DIR, NameStr(slot->data.name));
+	sprintf(tmppath, "%s/%s.tmp", PG_REPLSLOT_DIR, NameStr(slot->data.name));
 
 	/*
 	 * Rename the slot directory on disk, so that we'll no longer recognize
@@ -938,7 +938,7 @@ ReplicationSlotDropPtr(ReplicationSlot *slot)
 		 */
 		START_CRIT_SECTION();
 		fsync_fname(tmppath, true);
-		fsync_fname("pg_replslot", true);
+		fsync_fname(PG_REPLSLOT_DIR, true);
 		END_CRIT_SECTION();
 	}
 	else
@@ -1016,7 +1016,7 @@ ReplicationSlotSave(void)
 
 	Assert(MyReplicationSlot != NULL);
 
-	sprintf(path, "pg_replslot/%s", NameStr(MyReplicationSlot->data.name));
+	sprintf(path, "%s/%s", PG_REPLSLOT_DIR, NameStr(MyReplicationSlot->data.name));
 	SaveSlotToPath(MyReplicationSlot, path, ERROR);
 }
 
@@ -1881,7 +1881,7 @@ CheckPointReplicationSlots(bool is_shutdown)
 			continue;
 
 		/* save the slot to disk, locking is handled in SaveSlotToPath() */
-		sprintf(path, "pg_replslot/%s", NameStr(s->data.name));
+		sprintf(path, "%s/%s", PG_REPLSLOT_DIR, NameStr(s->data.name));
 
 		/*
 		 * Slot's data is not flushed each time the confirmed_flush LSN is
@@ -1922,17 +1922,17 @@ StartupReplicationSlots(void)
 	elog(DEBUG1, "starting up replication slots");
 
 	/* restore all slots by iterating over all on-disk entries */
-	replication_dir = AllocateDir("pg_replslot");
-	while ((replication_de = ReadDir(replication_dir, "pg_replslot")) != NULL)
+	replication_dir = AllocateDir(PG_REPLSLOT_DIR);
+	while ((replication_de = ReadDir(replication_dir, PG_REPLSLOT_DIR)) != NULL)
 	{
-		char		path[MAXPGPATH + 12];
+		char		path[MAXPGPATH + sizeof(PG_REPLSLOT_DIR)];
 		PGFileType	de_type;
 
 		if (strcmp(replication_de->d_name, ".") == 0 ||
 			strcmp(replication_de->d_name, "..") == 0)
 			continue;
 
-		snprintf(path, sizeof(path), "pg_replslot/%s", replication_de->d_name);
+		snprintf(path, sizeof(path), "%s/%s", PG_REPLSLOT_DIR, replication_de->d_name);
 		de_type = get_dirent_type(path, replication_de, false, DEBUG1);
 
 		/* we're only creating directories here, skip if it's not our's */
@@ -1949,7 +1949,7 @@ StartupReplicationSlots(void)
 								path)));
 				continue;
 			}
-			fsync_fname("pg_replslot", true);
+			fsync_fname(PG_REPLSLOT_DIR, true);
 			continue;
 		}
 
@@ -1987,8 +1987,8 @@ CreateSlotOnDisk(ReplicationSlot *slot)
 	 * takes out the lock, if we'd take the lock here, we'd deadlock.
 	 */
 
-	sprintf(path, "pg_replslot/%s", NameStr(slot->data.name));
-	sprintf(tmppath, "pg_replslot/%s.tmp", NameStr(slot->data.name));
+	sprintf(path, "%s/%s", PG_REPLSLOT_DIR, NameStr(slot->data.name));
+	sprintf(tmppath, "%s/%s.tmp", PG_REPLSLOT_DIR, NameStr(slot->data.name));
 
 	/*
 	 * It's just barely possible that some previous effort to create or drop a
@@ -2027,7 +2027,7 @@ CreateSlotOnDisk(ReplicationSlot *slot)
 	START_CRIT_SECTION();
 
 	fsync_fname(path, true);
-	fsync_fname("pg_replslot", true);
+	fsync_fname(PG_REPLSLOT_DIR, true);
 
 	END_CRIT_SECTION();
 }
@@ -2170,7 +2170,7 @@ SaveSlotToPath(ReplicationSlot *slot, const char *dir, int elevel)
 
 	fsync_fname(path, false);
 	fsync_fname(dir, true);
-	fsync_fname("pg_replslot", true);
+	fsync_fname(PG_REPLSLOT_DIR, true);
 
 	END_CRIT_SECTION();
 
@@ -2195,8 +2195,8 @@ RestoreSlotFromDisk(const char *name)
 {
 	ReplicationSlotOnDisk cp;
 	int			i;
-	char		slotdir[MAXPGPATH + 12];
-	char		path[MAXPGPATH + 22];
+	char		slotdir[MAXPGPATH + sizeof(PG_REPLSLOT_DIR)];
+	char		path[MAXPGPATH + sizeof(PG_REPLSLOT_DIR) + 10];
 	int			fd;
 	bool		restored = false;
 	int			readBytes;
@@ -2205,7 +2205,7 @@ RestoreSlotFromDisk(const char *name)
 	/* no need to lock here, no concurrent access allowed yet */
 
 	/* delete temp file if it exists */
-	sprintf(slotdir, "pg_replslot/%s", name);
+	sprintf(slotdir, "%s/%s", PG_REPLSLOT_DIR, name);
 	sprintf(path, "%s/state.tmp", slotdir);
 	if (unlink(path) < 0 && errno != ENOENT)
 		ereport(PANIC,
@@ -2332,7 +2332,7 @@ RestoreSlotFromDisk(const char *name)
 					(errmsg("could not remove directory \"%s\"",
 							slotdir)));
 		}
-		fsync_fname("pg_replslot", true);
+		fsync_fname(PG_REPLSLOT_DIR, true);
 		return;
 	}
 
@@ -2656,11 +2656,11 @@ StandbySlotsHaveCaughtup(XLogRecPtr wait_for_lsn, int elevel)
 			 */
 			ereport(elevel,
 					errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					errmsg("replication slot \"%s\" specified in parameter %s does not exist",
+					errmsg("replication slot \"%s\" specified in parameter \"%s\" does not exist",
 						   name, "synchronized_standby_slots"),
-					errdetail("Logical replication is waiting on the standby associated with \"%s\".",
+					errdetail("Logical replication is waiting on the standby associated with replication slot \"%s\".",
 							  name),
-					errhint("Consider creating the slot \"%s\" or amend parameter %s.",
+					errhint("Create the replication slot \"%s\" or amend parameter \"%s\".",
 							name, "synchronized_standby_slots"));
 			break;
 		}
@@ -2677,11 +2677,11 @@ StandbySlotsHaveCaughtup(XLogRecPtr wait_for_lsn, int elevel)
 			 */
 			ereport(elevel,
 					errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					errmsg("cannot have logical replication slot \"%s\" in parameter %s",
+					errmsg("cannot specify logical replication slot \"%s\" in parameter \"%s\"",
 						   name, "synchronized_standby_slots"),
-					errdetail("Logical replication is waiting for correction on \"%s\".",
+					errdetail("Logical replication is waiting for correction on replication slot \"%s\".",
 							  name),
-					errhint("Consider removing logical slot \"%s\" from parameter %s.",
+					errhint("Remove the logical replication slot \"%s\" from parameter \"%s\".",
 							name, "synchronized_standby_slots"));
 			break;
 		}
@@ -2697,11 +2697,11 @@ StandbySlotsHaveCaughtup(XLogRecPtr wait_for_lsn, int elevel)
 			/* Specified physical slot has been invalidated */
 			ereport(elevel,
 					errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-					errmsg("physical slot \"%s\" specified in parameter %s has been invalidated",
+					errmsg("physical replication slot \"%s\" specified in parameter \"%s\" has been invalidated",
 						   name, "synchronized_standby_slots"),
-					errdetail("Logical replication is waiting on the standby associated with \"%s\".",
+					errdetail("Logical replication is waiting on the standby associated with replication slot \"%s\".",
 							  name),
-					errhint("Consider dropping and recreating the slot \"%s\" or amend parameter %s.",
+					errhint("Drop and recreate the replication slot \"%s\", or amend parameter \"%s\".",
 							name, "synchronized_standby_slots"));
 			break;
 		}
@@ -2712,11 +2712,11 @@ StandbySlotsHaveCaughtup(XLogRecPtr wait_for_lsn, int elevel)
 			if (inactive)
 				ereport(elevel,
 						errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-						errmsg("replication slot \"%s\" specified in parameter %s does not have active_pid",
+						errmsg("replication slot \"%s\" specified in parameter \"%s\" does not have active_pid",
 							   name, "synchronized_standby_slots"),
-						errdetail("Logical replication is waiting on the standby associated with \"%s\".",
+						errdetail("Logical replication is waiting on the standby associated with replication slot \"%s\".",
 								  name),
-						errhint("Consider starting standby associated with \"%s\" or amend parameter %s.",
+						errhint("Start the standby associated with the replication slot \"%s\", or amend parameter \"%s\".",
 								name, "synchronized_standby_slots"));
 
 			/* Continue if the current slot hasn't caught up. */

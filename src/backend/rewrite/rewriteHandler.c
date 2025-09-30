@@ -41,6 +41,7 @@
 #include "rewrite/rewriteManip.h"
 #include "rewrite/rewriteSearchCycle.h"
 #include "rewrite/rowsecurity.h"
+#include "tcop/tcopprot.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
@@ -1735,6 +1736,14 @@ ApplyRetrieveRule(Query *parsetree,
 	if (rule->qual != NULL)
 		elog(ERROR, "cannot handle qualified ON SELECT rule");
 
+	/* Check if the expansion of non-system views are restricted */
+	if (unlikely((restrict_nonsystem_relation_kind & RESTRICT_RELKIND_VIEW) != 0 &&
+				 RelationGetRelid(relation) >= FirstNormalObjectId))
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("access to non-system view \"%s\" is restricted",
+						RelationGetRelationName(relation))));
+
 	if (rt_index == parsetree->resultRelation)
 	{
 		/*
@@ -3221,6 +3230,14 @@ rewriteTargetView(Query *parsetree, Relation view)
 		}
 	}
 
+	/* Check if the expansion of non-system views are restricted */
+	if (unlikely((restrict_nonsystem_relation_kind & RESTRICT_RELKIND_VIEW) != 0 &&
+				 RelationGetRelid(view) >= FirstNormalObjectId))
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("access to non-system view \"%s\" is restricted",
+						RelationGetRelationName(view))));
+
 	/*
 	 * The view must be updatable, else fail.
 	 *
@@ -3356,7 +3373,7 @@ rewriteTargetView(Query *parsetree, Relation view)
 						errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 						errmsg("cannot merge into view \"%s\"",
 							   RelationGetRelationName(view)),
-						errdetail("MERGE is not supported for views with INSTEAD OF triggers for some actions, but not others."),
+						errdetail("MERGE is not supported for views with INSTEAD OF triggers for some actions but not all."),
 						errhint("To enable merging into the view, either provide a full set of INSTEAD OF triggers or drop the existing INSTEAD OF triggers."));
 		}
 	}

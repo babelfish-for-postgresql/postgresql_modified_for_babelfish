@@ -191,6 +191,7 @@ extern PGDLLIMPORT pg_time_t MyStartTime;
 extern PGDLLIMPORT TimestampTz MyStartTimestamp;
 extern PGDLLIMPORT struct Port *MyProcPort;
 extern PGDLLIMPORT struct Latch *MyLatch;
+extern PGDLLIMPORT bool MyCancelKeyValid;
 extern PGDLLIMPORT int32 MyCancelKey;
 extern PGDLLIMPORT int MyPMChildSlot;
 
@@ -282,10 +283,6 @@ extern PGDLLIMPORT int VacuumCostPageMiss;
 extern PGDLLIMPORT int VacuumCostPageDirty;
 extern PGDLLIMPORT int VacuumCostLimit;
 extern PGDLLIMPORT double VacuumCostDelay;
-
-extern PGDLLIMPORT int64 VacuumPageHit;
-extern PGDLLIMPORT int64 VacuumPageMiss;
-extern PGDLLIMPORT int64 VacuumPageDirty;
 
 extern PGDLLIMPORT int VacuumCostBalance;
 extern PGDLLIMPORT bool VacuumCostActive;

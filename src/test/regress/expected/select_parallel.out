@@ -537,16 +537,22 @@ explain (costs off)
                          QUERY PLAN                         
 ------------------------------------------------------------
  Aggregate
+   Disabled Nodes: 1
    ->  Nested Loop
-         ->  Seq Scan on tenk2
-               Filter: (thousand = 0)
+         Disabled Nodes: 1
+         ->  Gather
+               Disabled Nodes: 1
+               Workers Planned: 4
+               ->  Parallel Seq Scan on tenk2
+                     Disabled Nodes: 1
+                     Filter: (thousand = 0)
          ->  Gather
                Workers Planned: 4
                ->  Parallel Bitmap Heap Scan on tenk1
                      Recheck Cond: (hundred > 1)
                      ->  Bitmap Index Scan on tenk1_hundred
                            Index Cond: (hundred > 1)
-(10 rows)
+(16 rows)
 
 select count(*) from tenk1, tenk2 where tenk1.hundred > 1 and tenk2.thousand=0;
  count 
@@ -1329,3 +1335,54 @@ SELECT 1 FROM tenk1_vw_sec
 (9 rows)
 
 rollback;
+-- test that a newly-created session role propagates to workers.
+begin;
+create role regress_parallel_worker;
+set session authorization regress_parallel_worker;
+select current_setting('session_authorization');
+     current_setting     
+-------------------------
+ regress_parallel_worker
+(1 row)
+
+set debug_parallel_query = 1;
+select current_setting('session_authorization');
+     current_setting     
+-------------------------
+ regress_parallel_worker
+(1 row)
+
+rollback;
+-- test that function option SET ROLE works in parallel workers.
+create role regress_parallel_worker;
+create function set_and_report_role() returns text as
+  $$ select current_setting('role') $$ language sql parallel safe
+  set role = regress_parallel_worker;
+create function set_role_and_error(int) returns int as
+  $$ select 1 / $1 $$ language sql parallel safe
+  set role = regress_parallel_worker;
+set debug_parallel_query = 0;
+select set_and_report_role();
+   set_and_report_role   
+-------------------------
+ regress_parallel_worker
+(1 row)
+
+select set_role_and_error(0);
+ERROR:  division by zero
+CONTEXT:  SQL function "set_role_and_error" statement 1
+set debug_parallel_query = 1;
+select set_and_report_role();
+   set_and_report_role   
+-------------------------
+ regress_parallel_worker
+(1 row)
+
+select set_role_and_error(0);
+ERROR:  division by zero
+CONTEXT:  SQL function "set_role_and_error" statement 1
+parallel worker
+reset debug_parallel_query;
+drop function set_and_report_role();
+drop function set_role_and_error(int);
+drop role regress_parallel_worker;

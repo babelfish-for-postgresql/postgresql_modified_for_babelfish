@@ -74,3 +74,26 @@ CREATE FUNCTION injection_points_detach(IN point_name TEXT)
 RETURNS void
 AS 'MODULE_PATHNAME', 'injection_points_detach'
 LANGUAGE C STRICT PARALLEL UNSAFE;
+
+--
+-- injection_points_stats_numcalls()
+--
+-- Reports statistics, if any, related to the given injection point.
+--
+CREATE FUNCTION injection_points_stats_numcalls(IN point_name TEXT)
+RETURNS bigint
+AS 'MODULE_PATHNAME', 'injection_points_stats_numcalls'
+LANGUAGE C STRICT;
+
+--
+-- injection_points_stats_fixed()
+--
+-- Reports fixed-numbered statistics for injection points.
+CREATE FUNCTION injection_points_stats_fixed(OUT numattach int8,
+   OUT numdetach int8,
+   OUT numrun int8,
+   OUT numcached int8,
+   OUT numloaded int8)
+RETURNS record
+AS 'MODULE_PATHNAME', 'injection_points_stats_fixed'
+LANGUAGE C STRICT;

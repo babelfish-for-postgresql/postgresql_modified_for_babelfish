@@ -89,6 +89,7 @@
 #include "storage/procarray.h"
 #include "utils/fmgrprotos.h"
 #include "utils/guc_hooks.h"
+#include "utils/injection_point.h"
 #include "utils/memutils.h"
 
 
@@ -120,7 +121,7 @@ MultiXactIdToOffsetEntry(MultiXactId multi)
 	return multi % MULTIXACT_OFFSETS_PER_PAGE;
 }
 
-static inline int
+static inline int64
 MultiXactIdToOffsetSegment(MultiXactId multi)
 {
 	return MultiXactIdToOffsetPage(multi) / SLRU_PAGES_PER_SEGMENT;
@@ -174,7 +175,7 @@ MXOffsetToMemberPage(MultiXactOffset offset)
 	return offset / MULTIXACT_MEMBERS_PER_PAGE;
 }
 
-static inline int
+static inline int64
 MXOffsetToMemberSegment(MultiXactOffset offset)
 {
 	return MXOffsetToMemberPage(offset) / SLRU_PAGES_PER_SEGMENT;
@@ -854,6 +855,9 @@ MultiXactIdCreateFromMembers(int nmembers, MultiXactMember *members)
 		}
 	}
 
+	/* Load the injection point before entering the critical section */
+	INJECTION_POINT_LOAD("multixact-create-from-members");
+
 	/*
 	 * Assign the MXID and offsets range to use, and make sure there is space
 	 * in the OFFSETs and MEMBERs files.  NB: this routine does
@@ -867,6 +871,8 @@ MultiXactIdCreateFromMembers(int nmembers, MultiXactMember *members)
 	 * keep OldestMulti set, in case it runs for long.
 	 */
 	multi = GetNewMultiXactId(nmembers, &offset);
+
+	INJECTION_POINT_CACHED("multixact-create-from-members");
 
 	/* Make an XLOG entry describing the new MXID. */
 	xlrec.mid = multi;
@@ -1480,6 +1486,8 @@ retry:
 			LWLockRelease(lock);
 			CHECK_FOR_INTERRUPTS();
 
+			INJECTION_POINT("multixact-get-members-cv-sleep");
+
 			ConditionVariableSleep(&MultiXactState->nextoff_cv,
 								   WAIT_EVENT_MULTIXACT_CREATION);
 			slept = true;
@@ -2009,7 +2017,7 @@ check_multixact_offset_buffers(int *newval, void **extra, GucSource source)
 }
 
 /*
- * GUC check_hook for multixact_member_buffer
+ * GUC check_hook for multixact_member_buffers
  */
 bool
 check_multixact_member_buffers(int *newval, void **extra, GucSource source)
@@ -3039,10 +3047,10 @@ SlruScanDirCbFindEarliest(SlruCtl ctl, char *filename, int64 segpage, void *data
 static void
 PerformMembersTruncation(MultiXactOffset oldestOffset, MultiXactOffset newOldestOffset)
 {
-	const int	maxsegment = MXOffsetToMemberSegment(MaxMultiXactOffset);
-	int			startsegment = MXOffsetToMemberSegment(oldestOffset);
-	int			endsegment = MXOffsetToMemberSegment(newOldestOffset);
-	int			segment = startsegment;
+	const int64 maxsegment = MXOffsetToMemberSegment(MaxMultiXactOffset);
+	int64		startsegment = MXOffsetToMemberSegment(oldestOffset);
+	int64		endsegment = MXOffsetToMemberSegment(newOldestOffset);
+	int64		segment = startsegment;
 
 	/*
 	 * Delete all the segments but the last one. The last segment can still

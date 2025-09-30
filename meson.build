@@ -268,6 +268,10 @@ elif host_system == 'windows'
   exesuffix = '.exe'
   dlsuffix = '.dll'
   library_path_var = ''
+  if cc.get_id() != 'msvc'
+    # define before including <time.h> for getting localtime_r() etc. on MinGW
+    cppflags += '-D_POSIX_C_SOURCE'
+  endif
 
   export_file_format = 'win'
   export_file_suffix = 'def'
@@ -1355,26 +1359,17 @@ if sslopt in ['auto', 'openssl']
       ['CRYPTO_new_ex_data', {'required': true}],
       ['SSL_new', {'required': true}],
 
-      # Function introduced in OpenSSL 1.0.2, not in LibreSSL.
-      ['SSL_CTX_set_cert_cb'],
-
       # Functions introduced in OpenSSL 1.1.0. We used to check for
       # OPENSSL_VERSION_NUMBER, but that didn't work with 1.1.0, because LibreSSL
       # defines OPENSSL_VERSION_NUMBER to claim version 2.0.0, even though it
       # doesn't have these OpenSSL 1.1.0 functions. So check for individual
       # functions.
-      ['OPENSSL_init_ssl'],
-      ['BIO_meth_new'],
-      ['ASN1_STRING_get0_data'],
-      ['HMAC_CTX_new'],
-      ['HMAC_CTX_free'],
+      ['OPENSSL_init_ssl', {'required': true}],
 
-      # OpenSSL versions before 1.1.0 required setting callback functions, for
-      # thread-safety. In 1.1.0, it's no longer required, and CRYPTO_lock()
-      # function was removed.
-      ['CRYPTO_lock'],
+      # Function introduced in OpenSSL 1.0.2, not in LibreSSL.
+      ['SSL_CTX_set_cert_cb'],
 
-      # Function introduced in OpenSSL 1.1.1
+      # Function introduced in OpenSSL 1.1.1, not in LibreSSL.
       ['X509_get_signature_info'],
       ['SSL_CTX_set_num_tickets'],
     ]
@@ -1398,7 +1393,7 @@ if sslopt in ['auto', 'openssl']
     if are_openssl_funcs_complete
       cdata.set('USE_OPENSSL', 1,
                 description: 'Define to 1 to build with OpenSSL support. (-Dssl=openssl)')
-      cdata.set('OPENSSL_API_COMPAT', '0x10002000L',
+      cdata.set('OPENSSL_API_COMPAT', '0x10100000L',
                 description: 'Define to the OpenSSL API version in use. This avoids deprecation warnings from newer OpenSSL versions.')
       ssl_library = 'openssl'
     else
@@ -1986,6 +1981,16 @@ if cc.has_argument('-Wdeclaration-after-statement')
   cflags_no_decl_after_statement += '-Wno-declaration-after-statement'
 endif
 
+# Some code is not clean for -Wmissing-variable-declarations, so we
+# make the "no" option available.  Also, while clang supports this
+# option for C++, gcc does not, so for consistency, leave it off for
+# C++.
+cflags_no_missing_var_decls = []
+if cc.has_argument('-Wmissing-variable-declarations')
+  cflags_warn += '-Wmissing-variable-declarations'
+  cflags_no_missing_var_decls += '-Wno-missing-variable-declarations'
+endif
+
 
 # The following tests want to suppress various unhelpful warnings by adding
 # -Wno-foo switches.  But gcc won't complain about unrecognized -Wno-foo
@@ -2089,76 +2094,61 @@ endif
 # Atomics
 ###############################################################
 
-if not get_option('spinlocks')
-  warning('Not using spinlocks will cause poor performance')
-else
-  cdata.set('HAVE_SPINLOCKS', 1)
-endif
-
-if not get_option('atomics')
-  warning('Not using atomics will cause poor performance')
-else
-  # XXX: perhaps we should require some atomics support in this case these
-  # days?
-  cdata.set('HAVE_ATOMICS', 1)
-
-  atomic_checks = [
-    {'name': 'HAVE_GCC__SYNC_CHAR_TAS',
-     'desc': '__sync_lock_test_and_set(char)',
-     'test': '''
+atomic_checks = [
+  {'name': 'HAVE_GCC__SYNC_CHAR_TAS',
+   'desc': '__sync_lock_test_and_set(char)',
+   'test': '''
 char lock = 0;
 __sync_lock_test_and_set(&lock, 1);
 __sync_lock_release(&lock);'''},
 
-    {'name': 'HAVE_GCC__SYNC_INT32_TAS',
-     'desc': '__sync_lock_test_and_set(int32)',
-     'test': '''
+  {'name': 'HAVE_GCC__SYNC_INT32_TAS',
+   'desc': '__sync_lock_test_and_set(int32)',
+   'test': '''
 int lock = 0;
 __sync_lock_test_and_set(&lock, 1);
 __sync_lock_release(&lock);'''},
 
-    {'name': 'HAVE_GCC__SYNC_INT32_CAS',
-     'desc': '__sync_val_compare_and_swap(int32)',
-     'test': '''
+  {'name': 'HAVE_GCC__SYNC_INT32_CAS',
+   'desc': '__sync_val_compare_and_swap(int32)',
+   'test': '''
 int val = 0;
 __sync_val_compare_and_swap(&val, 0, 37);'''},
 
-    {'name': 'HAVE_GCC__SYNC_INT64_CAS',
-     'desc': '__sync_val_compare_and_swap(int64)',
-     'test': '''
+  {'name': 'HAVE_GCC__SYNC_INT64_CAS',
+   'desc': '__sync_val_compare_and_swap(int64)',
+   'test': '''
 INT64 val = 0;
 __sync_val_compare_and_swap(&val, 0, 37);'''},
 
-    {'name': 'HAVE_GCC__ATOMIC_INT32_CAS',
-     'desc': ' __atomic_compare_exchange_n(int32)',
-     'test': '''
+  {'name': 'HAVE_GCC__ATOMIC_INT32_CAS',
+   'desc': ' __atomic_compare_exchange_n(int32)',
+   'test': '''
 int val = 0;
 int expect = 0;
 __atomic_compare_exchange_n(&val, &expect, 37, 0, __ATOMIC_SEQ_CST, __ATOMIC_RELAXED);'''},
 
-    {'name': 'HAVE_GCC__ATOMIC_INT64_CAS',
-     'desc': ' __atomic_compare_exchange_n(int64)',
-     'test': '''
+  {'name': 'HAVE_GCC__ATOMIC_INT64_CAS',
+   'desc': ' __atomic_compare_exchange_n(int64)',
+   'test': '''
 INT64 val = 0;
 INT64 expect = 0;
 __atomic_compare_exchange_n(&val, &expect, 37, 0, __ATOMIC_SEQ_CST, __ATOMIC_RELAXED);'''},
-  ]
+]
 
-  foreach check : atomic_checks
-    test = '''
+foreach check : atomic_checks
+  test = '''
 int main(void)
 {
 @0@
 }'''.format(check['test'])
 
-    cdata.set(check['name'],
-      cc.links(test,
-        name: check['desc'],
-        args: test_c_args + ['-DINT64=@0@'.format(cdata.get('PG_INT64_TYPE'))]) ? 1 : false
-    )
-  endforeach
-
-endif
+  cdata.set(check['name'],
+    cc.links(test,
+      name: check['desc'],
+      args: test_c_args + ['-DINT64=@0@'.format(cdata.get('PG_INT64_TYPE'))]) ? 1 : false
+  )
+endforeach
 
 
 ###############################################################
@@ -2399,7 +2389,6 @@ header_checks = [
   'execinfo.h',
   'getopt.h',
   'ifaddrs.h',
-  'langinfo.h',
   'mbarrier.h',
   'stdbool.h',
   'strings.h',
@@ -3042,7 +3031,7 @@ frontend_common_code = declare_dependency(
   compile_args: ['-DFRONTEND'],
   include_directories: [postgres_inc],
   sources: generated_headers,
-  dependencies: [os_deps, zlib, zstd],
+  dependencies: [os_deps, zlib, zstd, lz4],
 )
 
 backend_common_code = declare_dependency(

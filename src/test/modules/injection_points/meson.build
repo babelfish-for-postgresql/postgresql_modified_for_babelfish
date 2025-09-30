@@ -6,6 +6,8 @@ endif
 
 injection_points_sources = files(
   'injection_points.c',
+  'injection_stats.c',
+  'injection_stats_fixed.c',
 )
 
 if host_system == 'windows'
@@ -40,6 +42,14 @@ tests += {
   'isolation': {
     'specs': [
       'inplace',
+    ],
+  },
+  'tap': {
+    'env': {
+      'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
+    },
+    'tests': [
+      't/001_stats.pl',
     ],
   },
 }

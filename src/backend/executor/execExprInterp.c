@@ -453,6 +453,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		&&CASE_EEOP_PARAM_EXEC,
 		&&CASE_EEOP_PARAM_EXTERN,
 		&&CASE_EEOP_PARAM_CALLBACK,
+		&&CASE_EEOP_PARAM_SET,
 		&&CASE_EEOP_CASE_TESTVAL,
 		&&CASE_EEOP_MAKE_READONLY,
 		&&CASE_EEOP_IOCOERCE,
@@ -479,6 +480,11 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		&&CASE_EEOP_DOMAIN_TESTVAL,
 		&&CASE_EEOP_DOMAIN_NOTNULL,
 		&&CASE_EEOP_DOMAIN_CHECK,
+		&&CASE_EEOP_HASHDATUM_SET_INITVAL,
+		&&CASE_EEOP_HASHDATUM_FIRST,
+		&&CASE_EEOP_HASHDATUM_FIRST_STRICT,
+		&&CASE_EEOP_HASHDATUM_NEXT32,
+		&&CASE_EEOP_HASHDATUM_NEXT32_STRICT,
 		&&CASE_EEOP_CONVERT_ROWTYPE,
 		&&CASE_EEOP_SCALARARRAYOP,
 		&&CASE_EEOP_HASHED_SCALARARRAYOP,
@@ -1113,6 +1119,13 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			EEO_NEXT();
 		}
 
+		EEO_CASE(EEOP_PARAM_SET)
+		{
+			/* out of line, unlikely to matter performance-wise */
+			ExecEvalParamSet(state, op, econtext);
+			EEO_NEXT();
+		}
+
 		EEO_CASE(EEOP_CASE_TESTVAL)
 		{
 			/*
@@ -1551,6 +1564,111 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		{
 			/* too complex for an inline implementation */
 			ExecEvalConstraintCheck(state, op);
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_HASHDATUM_SET_INITVAL)
+		{
+			*op->resvalue = op->d.hashdatum_initvalue.init_value;
+			*op->resnull = false;
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_HASHDATUM_FIRST)
+		{
+			FunctionCallInfo fcinfo = op->d.hashdatum.fcinfo_data;
+
+			/*
+			 * Save the Datum on non-null inputs, otherwise store 0 so that
+			 * subsequent NEXT32 operations combine with an initialized value.
+			 */
+			if (!fcinfo->args[0].isnull)
+				*op->resvalue = op->d.hashdatum.fn_addr(fcinfo);
+			else
+				*op->resvalue = (Datum) 0;
+
+			*op->resnull = false;
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_HASHDATUM_FIRST_STRICT)
+		{
+			FunctionCallInfo fcinfo = op->d.hashdatum.fcinfo_data;
+
+			if (fcinfo->args[0].isnull)
+			{
+				/*
+				 * With strict we have the expression return NULL instead of
+				 * ignoring NULL input values.  We've nothing more to do after
+				 * finding a NULL.
+				 */
+				*op->resnull = true;
+				*op->resvalue = (Datum) 0;
+				EEO_JUMP(op->d.hashdatum.jumpdone);
+			}
+
+			/* execute the hash function and save the resulting value */
+			*op->resvalue = op->d.hashdatum.fn_addr(fcinfo);
+			*op->resnull = false;
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_HASHDATUM_NEXT32)
+		{
+			FunctionCallInfo fcinfo = op->d.hashdatum.fcinfo_data;
+			uint32		existing_hash = DatumGetUInt32(*op->resvalue);
+
+			/* combine successive hash values by rotating */
+			existing_hash = pg_rotate_left32(existing_hash, 1);
+
+			/* leave the hash value alone on NULL inputs */
+			if (!fcinfo->args[0].isnull)
+			{
+				uint32		hashvalue;
+
+				/* execute hash func and combine with previous hash value */
+				hashvalue = DatumGetUInt32(op->d.hashdatum.fn_addr(fcinfo));
+				existing_hash = existing_hash ^ hashvalue;
+			}
+
+			*op->resvalue = UInt32GetDatum(existing_hash);
+			*op->resnull = false;
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_HASHDATUM_NEXT32_STRICT)
+		{
+			FunctionCallInfo fcinfo = op->d.hashdatum.fcinfo_data;
+
+			if (fcinfo->args[0].isnull)
+			{
+				/*
+				 * With strict we have the expression return NULL instead of
+				 * ignoring NULL input values.  We've nothing more to do after
+				 * finding a NULL.
+				 */
+				*op->resnull = true;
+				*op->resvalue = (Datum) 0;
+				EEO_JUMP(op->d.hashdatum.jumpdone);
+			}
+			else
+			{
+				uint32		existing_hash = DatumGetUInt32(*op->resvalue);
+				uint32		hashvalue;
+
+				/* combine successive hash values by rotating */
+				existing_hash = pg_rotate_left32(existing_hash, 1);
+
+				/* execute hash func and combine with previous hash value */
+				hashvalue = DatumGetUInt32(op->d.hashdatum.fn_addr(fcinfo));
+				*op->resvalue = UInt32GetDatum(existing_hash ^ hashvalue);
+				*op->resnull = false;
+			}
 
 			EEO_NEXT();
 		}
@@ -2573,6 +2691,24 @@ ExecEvalParamExtern(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 	ereport(ERROR,
 			(errcode(ERRCODE_UNDEFINED_OBJECT),
 			 errmsg("no value found for parameter %d", paramId)));
+}
+
+/*
+ * Set value of a param (currently always PARAM_EXEC) from
+ * state->res{value,null}.
+ */
+void
+ExecEvalParamSet(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
+{
+	ParamExecData *prm;
+
+	prm = &(econtext->ecxt_param_exec_vals[op->d.param.paramid]);
+
+	/* Shouldn't have a pending evaluation anymore */
+	Assert(prm->execPlan == NULL);
+
+	prm->value = state->resvalue;
+	prm->isnull = state->resnull;
 }
 
 /*
@@ -4323,13 +4459,7 @@ ExecEvalJsonExprPath(ExprState *state, ExprEvalStep *op,
 				if (!error)
 				{
 					*op->resnull = false;
-					if (jsexpr->use_json_coercion)
-						*op->resvalue = DirectFunctionCall1(jsonb_in,
-															BoolGetDatum(exists) ?
-															CStringGetDatum("true") :
-															CStringGetDatum("false"));
-					else
-						*op->resvalue = BoolGetDatum(exists);
+					*op->resvalue = BoolGetDatum(exists);
 				}
 			}
 			break;
@@ -4570,10 +4700,46 @@ ExecEvalJsonCoercion(ExprState *state, ExprEvalStep *op,
 {
 	ErrorSaveContext *escontext = op->d.jsonexpr_coercion.escontext;
 
+	/*
+	 * Prepare to call json_populate_type() to coerce the boolean result of
+	 * JSON_EXISTS_OP to the target type.  If the the target type is integer
+	 * or a domain over integer, call the boolean-to-integer cast function
+	 * instead, because the integer's input function (which is what
+	 * json_populate_type() calls to coerce to scalar target types) doesn't
+	 * accept boolean literals as valid input.  We only have a special case
+	 * for integer and domains thereof as it seems common to use those types
+	 * for EXISTS columns in JSON_TABLE().
+	 */
+	if (op->d.jsonexpr_coercion.exists_coerce)
+	{
+		if (op->d.jsonexpr_coercion.exists_cast_to_int)
+		{
+			/* Check domain constraints if any. */
+			if (op->d.jsonexpr_coercion.exists_check_domain &&
+				!domain_check_safe(*op->resvalue, *op->resnull,
+								   op->d.jsonexpr_coercion.targettype,
+								   &op->d.jsonexpr_coercion.json_coercion_cache,
+								   econtext->ecxt_per_query_memory,
+								   (Node *) escontext))
+			{
+				*op->resnull = true;
+				*op->resvalue = (Datum) 0;
+			}
+			else
+				*op->resvalue = DirectFunctionCall1(bool_int4, *op->resvalue);
+			return;
+		}
+
+		*op->resvalue = DirectFunctionCall1(jsonb_in,
+											DatumGetBool(*op->resvalue) ?
+											CStringGetDatum("true") :
+											CStringGetDatum("false"));
+	}
+
 	*op->resvalue = json_populate_type(*op->resvalue, JSONBOID,
 									   op->d.jsonexpr_coercion.targettype,
 									   op->d.jsonexpr_coercion.targettypmod,
-									   &op->d.jsonexpr_coercion.json_populate_type_cache,
+									   &op->d.jsonexpr_coercion.json_coercion_cache,
 									   econtext->ecxt_per_query_memory,
 									   op->resnull,
 									   op->d.jsonexpr_coercion.omit_quotes,
@@ -4616,7 +4782,7 @@ ExecEvalJsonCoercionFinish(ExprState *state, ExprEvalStep *op)
 	if (SOFT_ERROR_OCCURRED(&jsestate->escontext))
 	{
 		/*
-		 * jsestate->error or jsetate->empty being set means that the error
+		 * jsestate->error or jsestate->empty being set means that the error
 		 * occurred when coercing the JsonBehavior value.  Throw the error in
 		 * that case with the actual coercion error message shown in the
 		 * DETAIL part.
@@ -4624,13 +4790,17 @@ ExecEvalJsonCoercionFinish(ExprState *state, ExprEvalStep *op)
 		if (DatumGetBool(jsestate->error.value))
 			ereport(ERROR,
 					(errcode(ERRCODE_DATATYPE_MISMATCH),
-					 errmsg("could not coerce ON ERROR expression (%s) to the RETURNING type",
+			/*- translator: first %s is a SQL/JSON clause (e.g. ON ERROR) */
+					 errmsg("could not coerce %s expression (%s) to the RETURNING type",
+							"ON ERROR",
 							GetJsonBehaviorValueString(jsestate->jsexpr->on_error)),
 					 errdetail("%s", jsestate->escontext.error_data->message)));
 		else if (DatumGetBool(jsestate->empty.value))
 			ereport(ERROR,
 					(errcode(ERRCODE_DATATYPE_MISMATCH),
-					 errmsg("could not coerce ON EMPTY expression (%s) to the RETURNING type",
+			/*- translator: first %s is a SQL/JSON clause (e.g. ON ERROR) */
+					 errmsg("could not coerce %s expression (%s) to the RETURNING type",
+							"ON EMPTY",
 							GetJsonBehaviorValueString(jsestate->jsexpr->on_empty)),
 					 errdetail("%s", jsestate->escontext.error_data->message)));
 
