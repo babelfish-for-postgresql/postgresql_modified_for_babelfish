@@ -2393,10 +2393,6 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	int			rows_per_statement = dopt->dump_inserts;
 	int			rows_this_statement = 0;
 
-	/* Temporary allows to access to foreign tables to dump data */
-	if (tbinfo->relkind == RELKIND_FOREIGN_TABLE)
-		set_restrict_relation_kind(fout, "view");
-
 	/*
 	 * For tables in Babelfish Database with sql_variant datatype columns, we want to 
 	 * surpass dopt->column_inserts check since these tables need to be dumped
@@ -2414,6 +2410,10 @@ dumpTableData_insert(Archive *fout, const void *dcontext)
 	/* Total number of columns in select cursor including sql_variant metadata
 	columns, if they exist. */
 	int			nfields_new = 0;
+
+	/* Temporary allows to access to foreign tables to dump data */
+	if (tbinfo->relkind == RELKIND_FOREIGN_TABLE)
+		set_restrict_relation_kind(fout, "view");
 
 	/*
 	 * If we're going to emit INSERTs with column names, the most efficient
