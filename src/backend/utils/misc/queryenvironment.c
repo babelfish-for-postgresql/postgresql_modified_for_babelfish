@@ -212,10 +212,30 @@ register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 	Assert(enr != NULL);
 	Assert(get_ENR(queryEnv, enr->md.name, false) == NULL);
 
-	if (enr->md.name[0] == '#')
-		enr->md.is_bbf_temp_table = true;
-	else
-		enr->md.is_bbf_temp_table = false;
+	if (enr->md.parent_oid != InvalidOid)
+	{
+		/*
+		 * This is an index on a ENR temp object. We mark the flag by checking 
+		 * the parent relations flag.
+		 * If it is an implicit index over tsql table variable, it gets marked 
+		 * as false, same as parent since table variable don't follow transactional
+		 * semantics.
+		 */
+		EphemeralNamedRelation parent_enr = GetENRTempTableWithOid(enr->md.parent_oid);
+		if(parent_enr)
+			enr->md.is_bbf_temp_table = parent_enr->md.is_bbf_temp_table;
+		else
+			enr->md.is_bbf_temp_table = false;
+	} else {
+		/*
+		 * This is a table or some parent entity. If the name of this table
+		 * starts with '#', this is a tsql temp table.
+		 */
+		if (enr->md.name[0] == '#')
+			enr->md.is_bbf_temp_table = true;
+		else
+			enr->md.is_bbf_temp_table = false;
+	}
 
 	if (enr->md.is_bbf_temp_table && GetCurrentSubTransactionId() != InvalidSubTransactionId)
 		enr->md.created_subid = GetCurrentSubTransactionId();
