@@ -1385,6 +1385,7 @@ heap_create_with_catalog(const char *relname,
 		strncpy(enr->md.name, relname, strlen(relname) + 1);
 		enr->md.reliddesc = relid;
 		enr->md.enrtype = ENR_TSQL_TEMP;
+		enr->md.parent_oid = InvalidOid;
 		register_ENR(currentQueryEnv, enr);
 		MemoryContextSwitchTo(oldcontext);
 	}
