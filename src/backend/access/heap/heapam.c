@@ -6232,7 +6232,7 @@ heap_inplace_lock(Relation relation,
 	 * - don't try to continue even if the updater aborts: likewise
 	 * - no crosscheck
 	 */
-	result = HeapTupleSatisfiesUpdate(&oldtup, GetCurrentCommandId(false),
+	result = HeapTupleSatisfiesUpdate(relation, &oldtup, GetCurrentCommandId(false),
 									  buffer);
 
 	if (result == TM_Invisible)
@@ -6349,20 +6349,6 @@ heap_inplace_update_and_unlock(Relation relation,
 	/* Don't proceed further if the tuple is for an ENR. We just update there.*/
 	if (ENRUpdateTuple(relation, tuple))
 		return;
-
-	INJECTION_POINT("inplace-before-pin");
-	buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(&(tuple->t_self)));
-	LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
-	page = (Page) BufferGetPage(buffer);
-
-	offnum = ItemPointerGetOffsetNumber(&(tuple->t_self));
-	if (PageGetMaxOffsetNumber(page) >= offnum)
-		lp = PageGetItemId(page, offnum);
-
-	if (PageGetMaxOffsetNumber(page) < offnum || !ItemIdIsNormal(lp))
-		elog(ERROR, "invalid lp");
-
-	htup = (HeapTupleHeader) PageGetItem(page, lp);
 
 	Assert(ItemPointerEquals(&oldtup->t_self, &tuple->t_self));
 	oldlen = oldtup->t_len - htup->t_hoff;
