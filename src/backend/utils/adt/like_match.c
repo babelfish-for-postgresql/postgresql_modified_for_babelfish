@@ -194,7 +194,7 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
 				} else if (firstpat == '[' && sql_dialect == SQL_DIALECT_TSQL)
 				{
 					int			matched = MatchText(t, tlen, p, plen,
-													locale, locale_is_c);
+													locale);
 					if (matched != LIKE_FALSE)
 						return matched; /* TRUE or ABORT */
 				}
@@ -251,7 +251,7 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
 						find_match = true;
 					}
 				}
-				else if (GETCHAR(*p) == GETCHAR(*t))
+				else if (GETCHAR(*p, locale) == GETCHAR(*t, locale))
 				{
 					prev = p;
 					NextByte(p, plen);
