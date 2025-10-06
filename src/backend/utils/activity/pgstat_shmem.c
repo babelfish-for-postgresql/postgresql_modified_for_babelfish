@@ -1062,7 +1062,7 @@ lookup_pgstat_entry_in_cache(PgStat_Kind kind, Oid dboid, Oid objoid)
 {
 	if (pgStatEntryRefHash)
 	{
-		PgStat_HashKey key = {.kind = kind,.dboid = dboid,.objoid = objoid};
+		PgStat_HashKey key = {.kind = kind,.dboid = dboid,.objid = objoid};
 		return pgstat_entry_ref_hash_lookup(pgStatEntryRefHash, key);
 	}
 	return false;
