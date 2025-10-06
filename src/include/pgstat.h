@@ -16,6 +16,7 @@
 #include "portability/instr_time.h"
 #include "storage/proc.h"
 #include "postmaster/pgarch.h"	/* for MAX_XFN_CHARS */
+#include "replication/conflict.h"
 #include "utils/backend_progress.h" /* for backward compatibility */
 #include "utils/backend_status.h"	/* for backward compatibility */
 #include "utils/relcache.h"
@@ -166,6 +167,7 @@ typedef struct PgStat_BackendSubEntry
 {
 	PgStat_Counter apply_error_count;
 	PgStat_Counter sync_error_count;
+	PgStat_Counter conflict_count[CONFLICT_NUM_TYPES];
 } PgStat_BackendSubEntry;
 
 /* ----------
@@ -266,7 +268,7 @@ typedef struct PgStat_TableXactStatus
  * ------------------------------------------------------------
  */
 
-#define PGSTAT_FILE_FORMAT_ID	0x01A5BCAE
+#define PGSTAT_FILE_FORMAT_ID	0x01A5BCAF
 
 typedef struct PgStat_ArchiverStats
 {
@@ -293,12 +295,14 @@ typedef struct PgStat_CheckpointerStats
 {
 	PgStat_Counter num_timed;
 	PgStat_Counter num_requested;
+	PgStat_Counter num_performed;
 	PgStat_Counter restartpoints_timed;
 	PgStat_Counter restartpoints_requested;
 	PgStat_Counter restartpoints_performed;
 	PgStat_Counter write_time;	/* times in milliseconds */
 	PgStat_Counter sync_time;
 	PgStat_Counter buffers_written;
+	PgStat_Counter slru_written;
 	TimestampTz stat_reset_timestamp;
 } PgStat_CheckpointerStats;
 
@@ -424,6 +428,7 @@ typedef struct PgStat_StatSubEntry
 {
 	PgStat_Counter apply_error_count;
 	PgStat_Counter sync_error_count;
+	PgStat_Counter conflict_count[CONFLICT_NUM_TYPES];
 	TimestampTz stat_reset_timestamp;
 } PgStat_StatSubEntry;
 
@@ -509,7 +514,7 @@ extern long pgstat_report_stat(bool force);
 extern void pgstat_force_next_flush(void);
 
 extern void pgstat_reset_counters(void);
-extern void pgstat_reset(PgStat_Kind kind, Oid dboid, Oid objoid);
+extern void pgstat_reset(PgStat_Kind kind, Oid dboid, uint64 objid);
 extern void pgstat_reset_of_kind(PgStat_Kind kind);
 
 /* stats accessors */
@@ -518,7 +523,7 @@ extern TimestampTz pgstat_get_stat_snapshot_timestamp(bool *have_snapshot);
 
 /* helpers */
 extern PgStat_Kind pgstat_get_kind_from_str(char *kind_str);
-extern bool pgstat_have_entry(PgStat_Kind kind, Oid dboid, Oid objoid);
+extern bool pgstat_have_entry(PgStat_Kind kind, Oid dboid, uint64 objid);
 
 
 /*
@@ -730,6 +735,7 @@ extern PgStat_SLRUStats *pgstat_fetch_slru(void);
  */
 
 extern void pgstat_report_subscription_error(Oid subid, bool is_apply_error);
+extern void pgstat_report_subscription_conflict(Oid subid, ConflictType type);
 extern void pgstat_create_subscription(Oid subid);
 extern void pgstat_drop_subscription(Oid subid);
 extern PgStat_StatSubEntry *pgstat_fetch_stat_subscription(Oid subid);

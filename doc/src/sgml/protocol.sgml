@@ -3265,7 +3265,7 @@ psql "dbname=postgres replication=database" -c "IDENTIFY_SYSTEM;"
      </term>
      <listitem>
       <para>
-       Comma separated list of publication names for which to subscribe
+       Comma-separated list of publication names for which to subscribe
        (receive changes). The individual publication names are treated
        as standard objects names and can be quoted the same as needed.
        At least one publication name is required.
@@ -3330,8 +3330,9 @@ psql "dbname=postgres replication=database" -c "IDENTIFY_SYSTEM;"
      </term>
      <listitem>
       <para>
-       Option to send changes by their origin.  Possible values are "none"
-       to only send the changes that have no origin associated, or "any"
+       Option to send changes by their origin.  Possible values are
+       <literal>none</literal> to only send the changes that have no origin
+       associated, or <literal>any</literal>
        to send the changes regardless of their origin.  This can be used
        to avoid loops (infinite replication of the same data) among
        replication nodes.
@@ -7606,8 +7607,9 @@ psql "dbname=postgres replication=database" -c "IDENTIFY_SYSTEM;"
    is a well-defined way to recover from errors during <command>COPY</command>.  The special
    <quote><literal>\.</literal></quote> last line is not needed anymore, and is not sent
    during <command>COPY OUT</command>.
-   (It is still recognized as a terminator during <command>COPY IN</command>, but its use is
-   deprecated and will eventually be removed.)  Binary <command>COPY</command> is supported.
+   (It is still recognized as a terminator during text-mode <command>COPY
+   IN</command>, but not in CSV mode.  The text-mode behavior is
+   deprecated and may eventually be removed.)  Binary <command>COPY</command> is supported.
    The CopyInResponse and CopyOutResponse messages include fields indicating
    the number of columns and the format of each column.
   </para>

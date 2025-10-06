@@ -1004,6 +1004,7 @@ GenerationBlock
 GenerationContext
 GenerationPointer
 GenericCosts
+GenericXLogPageData
 GenericXLogState
 GeqoPrivateData
 GetForeignJoinPaths_function
@@ -1258,6 +1259,7 @@ Interval
 IntervalAggState
 IntoClause
 InvalMessageArray
+InvalidationInfo
 InvalidationMsgsGroup
 IpcMemoryId
 IpcMemoryKey
@@ -1976,7 +1978,6 @@ PX_Combo
 PX_HMAC
 PX_MD
 Page
-PageData
 PageGistNSN
 PageHeader
 PageHeaderData
@@ -2379,6 +2380,7 @@ RelFileLocator
 RelFileLocatorBackend
 RelFileNumber
 RelIdCacheEnt
+RelIdToTypeIdCacheEntry
 RelInfo
 RelInfoArr
 RelMapFile
@@ -2811,6 +2813,7 @@ TBMSharedIterator
 TBMSharedIteratorState
 TBMStatus
 TBlockState
+TCPattern
 TIDBitmap
 TM_FailureData
 TM_IndexDelete
@@ -3041,6 +3044,12 @@ UnresolvedTup
 UnresolvedTupData
 UpdateContext
 UpdateStmt
+UpgradeTask
+UpgradeTaskProcessCB
+UpgradeTaskReport
+UpgradeTaskSlot
+UpgradeTaskSlotState
+UpgradeTaskStep
 UploadManifestCmd
 UpperRelationKind
 UpperUniquePath
@@ -3119,6 +3128,7 @@ WaitEventIPC
 WaitEventSet
 WaitEventTimeout
 WaitLSNProcInfo
+WaitLSNResult
 WaitLSNState
 WaitPMResult
 WalCloseMethod
@@ -3265,6 +3275,7 @@ _stringlist
 access_vector_t
 acquireLocksOnSubLinks_context
 add_nulling_relids_context
+addFkConstraintSides
 adjust_appendrel_attrs_context
 allocfunc
 amadjustmembers_function
@@ -3331,6 +3342,7 @@ astreamer_plain_writer
 astreamer_recovery_injector
 astreamer_tar_archiver
 astreamer_tar_parser
+astreamer_verify
 astreamer_zstd_frame
 bgworker_main_type
 bh_node_type
@@ -3360,7 +3372,6 @@ check_function_callback
 check_network_data
 check_object_relabel_type
 check_password_hook_type
-check_ungrouped_columns_context
 child_process_kind
 chr
 cmpEntriesArg
@@ -3596,6 +3607,7 @@ libpq_source
 line_t
 lineno_t
 list_sort_comparator
+loc_chunk
 local_relopt
 local_relopts
 local_source
@@ -3878,6 +3890,7 @@ saophash_hash
 save_buffer
 scram_state
 scram_state_enum
+script_error_callback_arg
 security_class_t
 sem_t
 sepgsql_context_info_t
@@ -3948,10 +3961,12 @@ stream_stop_callback
 string
 substitute_actual_parameters_context
 substitute_actual_srf_parameters_context
+substitute_grouped_columns_context
 substitute_phv_relids_context
 subxids_array_status
 symbol
 tablespaceinfo
+tar_file
 td_entry
 teSection
 temp_tablespaces_extra

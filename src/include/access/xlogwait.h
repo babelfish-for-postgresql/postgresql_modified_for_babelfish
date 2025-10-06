@@ -1,16 +1,16 @@
 /*-------------------------------------------------------------------------
  *
- * waitlsn.h
+ * xlogwait.h
  *	  Declarations for LSN replay waiting routines.
  *
  * Copyright (c) 2024, PostgreSQL Global Development Group
  *
- * src/include/commands/waitlsn.h
+ * src/include/access/xlogwait.h
  *
  *-------------------------------------------------------------------------
  */
-#ifndef WAIT_LSN_H
-#define WAIT_LSN_H
+#ifndef XLOG_WAIT_H
+#define XLOG_WAIT_H
 
 #include "lib/pairingheap.h"
 #include "postgres.h"
@@ -70,11 +70,23 @@ typedef struct WaitLSNState
 	WaitLSNProcInfo procInfos[FLEXIBLE_ARRAY_MEMBER];
 } WaitLSNState;
 
+/*
+ * Result statuses for WaitForLSNReplay().
+ */
+typedef enum
+{
+	WAIT_LSN_RESULT_SUCCESS,	/* Target LSN is reached */
+	WAIT_LSN_RESULT_TIMEOUT,	/* Timeout occurred */
+	WAIT_LSN_RESULT_NOT_IN_RECOVERY,	/* Recovery ended before or during our
+										 * wait */
+} WaitLSNResult;
+
 extern PGDLLIMPORT WaitLSNState *waitLSNState;
 
 extern Size WaitLSNShmemSize(void);
 extern void WaitLSNShmemInit(void);
 extern void WaitLSNSetLatches(XLogRecPtr currentLSN);
 extern void WaitLSNCleanup(void);
+extern WaitLSNResult WaitForLSNReplay(XLogRecPtr targetLSN, int64 timeout);
 
-#endif							/* WAIT_LSN_H */
+#endif							/* XLOG_WAIT_H */

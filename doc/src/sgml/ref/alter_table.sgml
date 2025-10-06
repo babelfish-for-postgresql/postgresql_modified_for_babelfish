@@ -251,7 +251,9 @@ WITH ( MODULUS <replaceable class="parameter">numeric_literal</replaceable>, REM
       table.  Even if there is no <literal>NOT NULL</literal> constraint on the
       parent, such a constraint can still be added to individual partitions,
       if desired; that is, the children can disallow nulls even if the parent
-      allows them, but not the other way around.
+      allows them, but not the other way around.  It is also possible to drop
+      the <literal>NOT NULL</literal> constraint from <literal>ONLY</literal>
+      the parent table, which does not remove it from the children.
      </para>
     </listitem>
    </varlistentry>
@@ -795,6 +797,10 @@ WITH ( MODULUS <replaceable class="parameter">numeric_literal</replaceable>, REM
       (for identity or serial columns).  However, it is also possible to
       change the persistence of such sequences separately.
      </para>
+
+     <para>
+      This form is not supported for partitioned tables.
+     </para>
     </listitem>
    </varlistentry>
 
@@ -1121,8 +1127,8 @@ WITH ( MODULUS <replaceable class="parameter">numeric_literal</replaceable>, REM
   </para>
 
   <para>
-   All the forms of ALTER TABLE that act on a single table, except
-   <literal>RENAME</literal>, <literal>SET SCHEMA</literal>,
+   All the forms of <command>ALTER TABLE</command> that act on a single table,
+   except <literal>RENAME</literal>, <literal>SET SCHEMA</literal>,
    <literal>ATTACH PARTITION</literal>, and
    <literal>DETACH PARTITION</literal> can be combined into
    a list of multiple alterations to be applied together.  For example, it

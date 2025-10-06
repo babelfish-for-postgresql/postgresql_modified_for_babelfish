@@ -376,30 +376,22 @@ generateSerialExtraStmts(CreateStmtContext *cxt, ColumnDef *column,
 {
 	ListCell   *option;
 	DefElem    *nameEl = NULL;
+	DefElem    *loggedEl = NULL;
 	Oid			snamespaceid;
 	char	   *snamespace;
 	char	   *sname;
+	char		seqpersistence;
 	CreateSeqStmt *seqstmt;
 	AlterSeqStmt *altseqstmt;
 	List	   *attnamelist;
-	int			nameEl_idx = -1;
 
 	/* Make a copy of this as we may end up modifying it in the code below */
 	seqoptions = list_copy(seqoptions);
 
 	/*
-	 * Determine namespace and name to use for the sequence.
-	 *
-	 * First, check if a sequence name was passed in as an option.  This is
-	 * used by pg_dump.  Else, generate a name.
-	 *
-	 * Although we use ChooseRelationName, it's not guaranteed that the
-	 * selected sequence name won't conflict; given sufficiently long field
-	 * names, two different serial columns in the same table could be assigned
-	 * the same sequence name, and we'd not notice since we aren't creating
-	 * the sequence quite yet.  In practice this seems quite unlikely to be a
-	 * problem, especially since few people would need two serial columns in
-	 * one table.
+	 * Check for non-SQL-standard options (not supported within CREATE
+	 * SEQUENCE, because they'd be redundant), and remove them from the
+	 * seqoptions list if found.
 	 */
 	foreach(option, seqoptions)
 	{
@@ -410,12 +402,24 @@ generateSerialExtraStmts(CreateStmtContext *cxt, ColumnDef *column,
 			if (nameEl)
 				errorConflictingDefElem(defel, cxt->pstate);
 			nameEl = defel;
-			nameEl_idx = foreach_current_index(option);
+			seqoptions = foreach_delete_current(seqoptions, option);
+		}
+		else if (strcmp(defel->defname, "logged") == 0 ||
+				 strcmp(defel->defname, "unlogged") == 0)
+		{
+			if (loggedEl)
+				errorConflictingDefElem(defel, cxt->pstate);
+			loggedEl = defel;
+			seqoptions = foreach_delete_current(seqoptions, option);
 		}
 	}
 
+	/*
+	 * Determine namespace and name to use for the sequence.
+	 */
 	if (nameEl)
 	{
+		/* Use specified name */
 		RangeVar   *rv = makeRangeVarFromNameList(castNode(List, nameEl->arg));
 
 		snamespace = rv->schemaname;
@@ -429,11 +433,20 @@ generateSerialExtraStmts(CreateStmtContext *cxt, ColumnDef *column,
 			snamespace = get_namespace_name(snamespaceid);
 		}
 		sname = rv->relname;
-		/* Remove the SEQUENCE NAME item from seqoptions */
-		seqoptions = list_delete_nth_cell(seqoptions, nameEl_idx);
 	}
 	else
 	{
+		/*
+		 * Generate a name.
+		 *
+		 * Although we use ChooseRelationName, it's not guaranteed that the
+		 * selected sequence name won't conflict; given sufficiently long
+		 * field names, two different serial columns in the same table could
+		 * be assigned the same sequence name, and we'd not notice since we
+		 * aren't creating the sequence quite yet.  In practice this seems
+		 * quite unlikely to be a problem, especially since few people would
+		 * need two serial columns in one table.
+		 */
 		if (cxt->rel)
 			snamespaceid = RelationGetNamespace(cxt->rel);
 		else
@@ -455,22 +468,37 @@ generateSerialExtraStmts(CreateStmtContext *cxt, ColumnDef *column,
 							 cxt->relation->relname, column->colname)));
 
 	/*
+	 * Determine the persistence of the sequence.  By default we copy the
+	 * persistence of the table, but if LOGGED or UNLOGGED was specified, use
+	 * that (as long as the table isn't TEMP).
+	 *
+	 * For CREATE TABLE, we get the persistence from cxt->relation, which
+	 * comes from the CreateStmt in progress.  For ALTER TABLE, the parser
+	 * won't set cxt->relation->relpersistence, but we have cxt->rel as the
+	 * existing table, so we copy the persistence from there.
+	 */
+	seqpersistence = cxt->rel ? cxt->rel->rd_rel->relpersistence : cxt->relation->relpersistence;
+	if (loggedEl)
+	{
+		if (seqpersistence == RELPERSISTENCE_TEMP)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_TABLE_DEFINITION),
+					 errmsg("cannot set logged status of a temporary sequence"),
+					 parser_errposition(cxt->pstate, loggedEl->location)));
+		else if (strcmp(loggedEl->defname, "logged") == 0)
+			seqpersistence = RELPERSISTENCE_PERMANENT;
+		else
+			seqpersistence = RELPERSISTENCE_UNLOGGED;
+	}
+
+	/*
 	 * Build a CREATE SEQUENCE command to create the sequence object, and add
 	 * it to the list of things to be done before this CREATE/ALTER TABLE.
 	 */
 	seqstmt = makeNode(CreateSeqStmt);
 	seqstmt->for_identity = for_identity;
 	seqstmt->sequence = makeRangeVar(snamespace, sname, -1);
-
-	/*
-	 * Copy the persistence of the table.  For CREATE TABLE, we get the
-	 * persistence from cxt->relation, which comes from the CreateStmt in
-	 * progress.  For ALTER TABLE, the parser won't set
-	 * cxt->relation->relpersistence, but we have cxt->rel as the existing
-	 * table, so we copy the persistence from there.
-	 */
-	seqstmt->sequence->relpersistence = cxt->rel ? cxt->rel->rd_rel->relpersistence : cxt->relation->relpersistence;
-
+	seqstmt->sequence->relpersistence = seqpersistence;
 	seqstmt->options = seqoptions;
 
 	/*
@@ -1572,6 +1600,7 @@ generateClonedIndexStmt(RangeVar *heapRel, Relation source_idx,
 	index->unique = idxrec->indisunique;
 	index->nulls_not_distinct = idxrec->indnullsnotdistinct;
 	index->primary = idxrec->indisprimary;
+	index->iswithoutoverlaps = (idxrec->indisprimary || idxrec->indisunique) && idxrec->indisexclusion;
 	index->transformed = true;	/* don't need transformIndexStmt */
 	index->concurrent = false;
 	index->if_not_exists = false;
@@ -1621,7 +1650,9 @@ generateClonedIndexStmt(RangeVar *heapRel, Relation source_idx,
 				int			nElems;
 				int			i;
 
-				Assert(conrec->contype == CONSTRAINT_EXCLUSION);
+				Assert(conrec->contype == CONSTRAINT_EXCLUSION ||
+					   (index->iswithoutoverlaps &&
+						(conrec->contype == CONSTRAINT_PRIMARY || conrec->contype == CONSTRAINT_UNIQUE)));
 				/* Extract operator OIDs from the pg_constraint tuple */
 				datum = SysCacheGetAttrNotNull(CONSTROID, ht_constr,
 											   Anum_pg_constraint_conexclop);
@@ -2174,6 +2205,7 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 	}
 	index->nulls_not_distinct = constraint->nulls_not_distinct;
 	index->isconstraint = true;
+	index->iswithoutoverlaps = constraint->without_overlaps;
 	index->deferrable = constraint->deferrable;
 	index->initdeferred = constraint->initdeferred;
 
@@ -2272,6 +2304,11 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 					 errmsg("index \"%s\" is not valid", index_name),
 					 parser_errposition(cxt->pstate, constraint->location)));
 
+		/*
+		 * Today we forbid non-unique indexes, but we could permit GiST
+		 * indexes whose last entry is a range type and use that to create a
+		 * WITHOUT OVERLAPS constraint (i.e. a temporal constraint).
+		 */
 		if (!index_form->indisunique)
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -2409,7 +2446,8 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 	 * For UNIQUE and PRIMARY KEY, we just have a list of column names.
 	 *
 	 * Make sure referenced keys exist.  If we are making a PRIMARY KEY index,
-	 * also make sure they are NOT NULL.
+	 * also make sure they are NOT NULL.  For WITHOUT OVERLAPS constraints, we
+	 * make sure the last part is a range or multirange.
 	 */
 	else
 	{
@@ -2421,6 +2459,7 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 			ColumnDef  *column = NULL;
 			ListCell   *columns;
 			IndexElem  *iparam;
+			Oid			typid = InvalidOid;
 
 			/* T-SQL parser might have directly prepared indexElem */
 			if (nodeTag(lfirst(lc)) == T_IndexElem) {
@@ -2440,6 +2479,9 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 					break;
 				}
 			}
+			if (!found)
+				column = NULL;
+
 			if (found)
 			{
 				/*
@@ -2495,6 +2537,7 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 						if (strcmp(key, inhname) == 0)
 						{
 							found = true;
+							typid = inhattr->atttypid;
 
 							/*
 							 * It's tempting to set forced_not_null if the
@@ -2544,6 +2587,50 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 				}
 			}
 
+			/*
+			 * The WITHOUT OVERLAPS part (if any) must be a range or
+			 * multirange type.
+			 */
+			if (constraint->without_overlaps && lc == list_last_cell(constraint->keys))
+			{
+				if (!found && cxt->isalter)
+				{
+					/*
+					 * Look up the column type on existing table. If we can't
+					 * find it, let things fail in DefineIndex.
+					 */
+					Relation	rel = cxt->rel;
+
+					for (int i = 0; i < rel->rd_att->natts; i++)
+					{
+						Form_pg_attribute attr = TupleDescAttr(rel->rd_att, i);
+						const char *attname;
+
+						if (attr->attisdropped)
+							break;
+
+						attname = NameStr(attr->attname);
+						if (strcmp(attname, key) == 0)
+						{
+							found = true;
+							typid = attr->atttypid;
+							break;
+						}
+					}
+				}
+				if (found)
+				{
+					if (!OidIsValid(typid) && column)
+						typid = typenameTypeId(NULL, column->typeName);
+
+					if (!OidIsValid(typid) || !(type_is_range(typid) || type_is_multirange(typid)))
+						ereport(ERROR,
+								(errcode(ERRCODE_DATATYPE_MISMATCH),
+								 errmsg("column \"%s\" in WITHOUT OVERLAPS is not a range or multirange type", key),
+								 parser_errposition(cxt->pstate, constraint->location)));
+				}
+			}
+
 			/* OK, add it to the index definition */
 			iparam = makeNode(IndexElem);
 			iparam->name = pstrdup(key);
@@ -2581,6 +2668,23 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 				notnullcmds = lappend(notnullcmds, notnullcmd);
 			}
 		}
+
+		if (constraint->without_overlaps)
+		{
+			/*
+			 * This enforces that there is at least one equality column
+			 * besides the WITHOUT OVERLAPS columns.  This is per SQL
+			 * standard.  XXX Do we need this?
+			 */
+			if (list_length(constraint->keys) < 2)
+				ereport(ERROR,
+						errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("constraint using WITHOUT OVERLAPS needs at least two columns"));
+
+			/* WITHOUT OVERLAPS requires a GiST index */
+			index->accessMethod = "gist";
+		}
+
 	}
 
 	/*

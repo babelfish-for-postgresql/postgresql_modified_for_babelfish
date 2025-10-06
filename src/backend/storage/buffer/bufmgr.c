@@ -1259,6 +1259,7 @@ StartReadBuffersImpl(ReadBuffersOperation *operation,
 {
 	int			actual_nblocks = *nblocks;
 	int			io_buffers_len = 0;
+	int			maxcombine = 0;
 
 	Assert(*nblocks > 0);
 	Assert(*nblocks <= MAX_IO_COMBINE_LIMIT);
@@ -1290,6 +1291,23 @@ StartReadBuffersImpl(ReadBuffersOperation *operation,
 		{
 			/* Extend the readable range to cover this block. */
 			io_buffers_len++;
+
+			/*
+			 * Check how many blocks we can cover with the same IO. The smgr
+			 * implementation might e.g. be limited due to a segment boundary.
+			 */
+			if (i == 0 && actual_nblocks > 1)
+			{
+				maxcombine = smgrmaxcombine(operation->smgr,
+											operation->forknum,
+											blockNum);
+				if (unlikely(maxcombine < actual_nblocks))
+				{
+					elog(DEBUG2, "limiting nblocks at %u from %u to %u",
+						 blockNum, actual_nblocks, maxcombine);
+					actual_nblocks = maxcombine;
+				}
+			}
 		}
 	}
 	*nblocks = actual_nblocks;
@@ -1477,11 +1495,11 @@ WaitReadBuffers(ReadBuffersOperation *operation)
 		io_buffers_len = 1;
 
 		/*
-		 * How many neighboring-on-disk blocks can we can scatter-read into
-		 * other buffers at the same time?  In this case we don't wait if we
-		 * see an I/O already in progress.  We already hold BM_IO_IN_PROGRESS
-		 * for the head block, so we should get on with that I/O as soon as
-		 * possible.  We'll come back to this block again, above.
+		 * How many neighboring-on-disk blocks can we scatter-read into other
+		 * buffers at the same time?  In this case we don't wait if we see an
+		 * I/O already in progress.  We already hold BM_IO_IN_PROGRESS for the
+		 * head block, so we should get on with that I/O as soon as possible.
+		 * We'll come back to this block again, above.
 		 */
 		while ((i + 1) < nblocks &&
 			   WaitReadBuffersCanStartIO(buffers[i + 1], true))
@@ -5899,7 +5917,12 @@ ScheduleBufferTagForWriteback(WritebackContext *wb_context, IOContext io_context
 {
 	PendingWriteback *pending;
 
-	if (io_direct_flags & IO_DIRECT_DATA)
+	/*
+	 * As pg_flush_data() doesn't do anything with fsync disabled, there's no
+	 * point in tracking in that case.
+	 */
+	if (io_direct_flags & IO_DIRECT_DATA ||
+		!enableFsync)
 		return;
 
 	/*

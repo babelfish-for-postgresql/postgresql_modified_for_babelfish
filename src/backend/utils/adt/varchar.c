@@ -761,20 +761,16 @@ bpchareq(PG_FUNCTION_ARGS)
 				len2;
 	bool		result;
 	Oid			collid = PG_GET_COLLATION();
-	bool		locale_is_c = false;
-	pg_locale_t mylocale = 0;
+	pg_locale_t mylocale;
 
 	check_collation_set(collid);
 
 	len1 = bcTruelen(arg1);
 	len2 = bcTruelen(arg2);
 
-	if (lc_collate_is_c(collid))
-		locale_is_c = true;
-	else
-		mylocale = pg_newlocale_from_collation(collid);
+	mylocale = pg_newlocale_from_collation(collid);
 
-	if (locale_is_c || pg_locale_deterministic(mylocale))
+	if (mylocale->deterministic)
 	{
 		/*
 		 * Since we only care about equality or not-equality, we can avoid all
@@ -806,20 +802,16 @@ bpcharne(PG_FUNCTION_ARGS)
 				len2;
 	bool		result;
 	Oid			collid = PG_GET_COLLATION();
-	bool		locale_is_c = false;
-	pg_locale_t mylocale = 0;
+	pg_locale_t mylocale;
 
 	check_collation_set(collid);
 
 	len1 = bcTruelen(arg1);
 	len2 = bcTruelen(arg2);
 
-	if (lc_collate_is_c(collid))
-		locale_is_c = true;
-	else
-		mylocale = pg_newlocale_from_collation(collid);
+	mylocale = pg_newlocale_from_collation(collid);
 
-	if (locale_is_c || pg_locale_deterministic(mylocale))
+	if (mylocale->deterministic)
 	{
 		/*
 		 * Since we only care about equality or not-equality, we can avoid all
@@ -1026,7 +1018,7 @@ hashbpchar(PG_FUNCTION_ARGS)
 
 	mylocale = pg_newlocale_from_collation(collid);
 
-	if (pg_locale_deterministic(mylocale))
+	if (mylocale->deterministic)
 	{
 		result = hash_any((unsigned char *) keydata, keylen);
 	}
@@ -1082,7 +1074,7 @@ hashbpcharextended(PG_FUNCTION_ARGS)
 
 	mylocale = pg_newlocale_from_collation(collid);
 
-	if (pg_locale_deterministic(mylocale))
+	if (mylocale->deterministic)
 	{
 		result = hash_any_extended((unsigned char *) keydata, keylen,
 								   PG_GETARG_INT64(1));

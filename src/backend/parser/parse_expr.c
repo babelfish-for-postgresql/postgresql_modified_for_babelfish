@@ -4075,7 +4075,7 @@ transformJsonAggConstructor(ParseState *pstate, JsonAggConstructor *agg_ctor,
 /*
  * Transform JSON_OBJECTAGG() aggregate function.
  *
- * JSON_OBJECT() is transformed into a JsonConstructorExpr node of type
+ * JSON_OBJECTAGG() is transformed into a JsonConstructorExpr node of type
  * JSCTOR_JSON_OBJECTAGG, which at runtime becomes a
  * json[b]_object_agg[_unique][_strict](agg->arg->key, agg->arg->value) call
  * depending on the output JSON format.  The result is coerced to the target
@@ -4788,13 +4788,13 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
 			}
 
 			/*
-			 * Assume EMPTY ON ERROR when ON ERROR is not specified.
+			 * Assume EMPTY ARRAY ON ERROR when ON ERROR is not specified.
 			 *
 			 * ON EMPTY cannot be specified at the top level but it can be for
 			 * the individual columns.
 			 */
 			jsexpr->on_error = transformJsonBehavior(pstate, func->on_error,
-													 JSON_BEHAVIOR_EMPTY,
+													 JSON_BEHAVIOR_EMPTY_ARRAY,
 													 jsexpr->returning);
 			break;
 

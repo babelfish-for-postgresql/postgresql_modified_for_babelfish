@@ -1620,10 +1620,11 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		EEO_CASE(EEOP_HASHDATUM_NEXT32)
 		{
 			FunctionCallInfo fcinfo = op->d.hashdatum.fcinfo_data;
-			uint32		existing_hash = DatumGetUInt32(*op->resvalue);
+			uint32		existinghash;
 
+			existinghash = DatumGetUInt32(op->d.hashdatum.iresult->value);
 			/* combine successive hash values by rotating */
-			existing_hash = pg_rotate_left32(existing_hash, 1);
+			existinghash = pg_rotate_left32(existinghash, 1);
 
 			/* leave the hash value alone on NULL inputs */
 			if (!fcinfo->args[0].isnull)
@@ -1632,10 +1633,10 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 
 				/* execute hash func and combine with previous hash value */
 				hashvalue = DatumGetUInt32(op->d.hashdatum.fn_addr(fcinfo));
-				existing_hash = existing_hash ^ hashvalue;
+				existinghash = existinghash ^ hashvalue;
 			}
 
-			*op->resvalue = UInt32GetDatum(existing_hash);
+			*op->resvalue = UInt32GetDatum(existinghash);
 			*op->resnull = false;
 
 			EEO_NEXT();
@@ -1658,15 +1659,16 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			}
 			else
 			{
-				uint32		existing_hash = DatumGetUInt32(*op->resvalue);
+				uint32		existinghash;
 				uint32		hashvalue;
 
+				existinghash = DatumGetUInt32(op->d.hashdatum.iresult->value);
 				/* combine successive hash values by rotating */
-				existing_hash = pg_rotate_left32(existing_hash, 1);
+				existinghash = pg_rotate_left32(existinghash, 1);
 
 				/* execute hash func and combine with previous hash value */
 				hashvalue = DatumGetUInt32(op->d.hashdatum.fn_addr(fcinfo));
-				*op->resvalue = UInt32GetDatum(existing_hash ^ hashvalue);
+				*op->resvalue = UInt32GetDatum(existinghash ^ hashvalue);
 				*op->resnull = false;
 			}
 
@@ -4570,8 +4572,8 @@ ExecEvalJsonExprPath(ExprState *state, ExprEvalStep *op,
 				/* Set up to catch coercion errors of the ON EMPTY value. */
 				jsestate->escontext.error_occurred = false;
 				jsestate->escontext.details_wanted = true;
-				Assert(jsestate->jump_empty >= 0);
-				return jsestate->jump_empty;
+				/* Jump to end if the ON EMPTY behavior is to return NULL */
+				return jsestate->jump_empty >= 0 ? jsestate->jump_empty : jsestate->jump_end;
 			}
 		}
 		else if (jsexpr->on_error->btype != JSON_BEHAVIOR_ERROR)
@@ -4580,8 +4582,9 @@ ExecEvalJsonExprPath(ExprState *state, ExprEvalStep *op,
 			/* Set up to catch coercion errors of the ON ERROR value. */
 			jsestate->escontext.error_occurred = false;
 			jsestate->escontext.details_wanted = true;
-			Assert(!throw_error && jsestate->jump_error >= 0);
-			return jsestate->jump_error;
+			Assert(!throw_error);
+			/* Jump to end if the ON ERROR behavior is to return NULL */
+			return jsestate->jump_error >= 0 ? jsestate->jump_error : jsestate->jump_end;
 		}
 
 		if (jsexpr->column_name)
@@ -4601,14 +4604,15 @@ ExecEvalJsonExprPath(ExprState *state, ExprEvalStep *op,
 	 */
 	if (error)
 	{
-		Assert(!throw_error && jsestate->jump_error >= 0);
+		Assert(!throw_error);
 		*op->resvalue = (Datum) 0;
 		*op->resnull = true;
 		jsestate->error.value = BoolGetDatum(true);
 		/* Set up to catch coercion errors of the ON ERROR value. */
 		jsestate->escontext.error_occurred = false;
 		jsestate->escontext.details_wanted = true;
-		return jsestate->jump_error;
+		/* Jump to end if the ON ERROR behavior is to return NULL */
+		return jsestate->jump_error >= 0 ? jsestate->jump_error : jsestate->jump_end;
 	}
 
 	return jump_eval_coercion >= 0 ? jump_eval_coercion : jsestate->jump_end;

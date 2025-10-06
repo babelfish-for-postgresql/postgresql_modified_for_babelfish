@@ -158,6 +158,8 @@ CreateExecutorState(void)
 	estate->es_sourceText = NULL;
 
 	estate->es_use_parallel_mode = false;
+	estate->es_parallel_workers_to_launch = 0;
+	estate->es_parallel_workers_launched = 0;
 
 	estate->es_jit_flags = 0;
 	estate->es_jit = NULL;
@@ -756,7 +758,7 @@ ExecInitRangeTable(EState *estate, List *rangeTable, List *permInfos)
  * ExecGetRangeTableRelation
  *		Open the Relation for a range table entry, if not already done
  *
- * The Relations will be closed again in ExecEndPlan().
+ * The Relations will be closed in ExecEndPlan().
  */
 Relation
 ExecGetRangeTableRelation(EState *estate, Index rti)

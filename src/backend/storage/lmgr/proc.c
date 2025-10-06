@@ -36,7 +36,7 @@
 #include "access/transam.h"
 #include "access/twophase.h"
 #include "access/xlogutils.h"
-#include "commands/waitlsn.h"
+#include "access/xlogwait.h"
 #include "miscadmin.h"
 #include "pgstat.h"
 #include "postmaster/autovacuum.h"
@@ -103,6 +103,8 @@ ProcGlobalShmemSize(void)
 	Size		size = 0;
 	Size		TotalProcs =
 		add_size(MaxBackends, add_size(NUM_AUXILIARY_PROCS, max_prepared_xacts));
+	Size		fpLockBitsSize,
+				fpRelIdSize;
 
 	/* ProcGlobal */
 	size = add_size(size, sizeof(PROC_HDR));
@@ -112,6 +114,15 @@ ProcGlobalShmemSize(void)
 	size = add_size(size, mul_size(TotalProcs, sizeof(*ProcGlobal->xids)));
 	size = add_size(size, mul_size(TotalProcs, sizeof(*ProcGlobal->subxidStates)));
 	size = add_size(size, mul_size(TotalProcs, sizeof(*ProcGlobal->statusFlags)));
+
+	/*
+	 * Memory needed for PGPROC fast-path lock arrays. Make sure the sizes are
+	 * nicely aligned in each backend.
+	 */
+	fpLockBitsSize = MAXALIGN(FastPathLockGroupsPerBackend * sizeof(uint64));
+	fpRelIdSize = MAXALIGN(FastPathLockGroupsPerBackend * sizeof(Oid) * FP_LOCK_SLOTS_PER_GROUP);
+
+	size = add_size(size, mul_size(TotalProcs, (fpLockBitsSize + fpRelIdSize)));
 
 	return size;
 }
@@ -163,6 +174,12 @@ InitProcGlobal(void)
 	bool		found;
 	uint32		TotalProcs = MaxBackends + NUM_AUXILIARY_PROCS + max_prepared_xacts;
 
+	/* Used for setup of per-backend fast-path slots. */
+	char	   *fpPtr,
+			   *fpEndPtr PG_USED_FOR_ASSERTS_ONLY;
+	Size		fpLockBitsSize,
+				fpRelIdSize;
+
 	/* Create the ProcGlobal shared structure */
 	ProcGlobal = (PROC_HDR *)
 		ShmemInitStruct("Proc Header", sizeof(PROC_HDR), &found);
@@ -211,11 +228,37 @@ InitProcGlobal(void)
 	ProcGlobal->statusFlags = (uint8 *) ShmemAlloc(TotalProcs * sizeof(*ProcGlobal->statusFlags));
 	MemSet(ProcGlobal->statusFlags, 0, TotalProcs * sizeof(*ProcGlobal->statusFlags));
 
+	/*
+	 * Allocate arrays for fast-path locks. Those are variable-length, so
+	 * can't be included in PGPROC directly. We allocate a separate piece of
+	 * shared memory and then divide that between backends.
+	 */
+	fpLockBitsSize = MAXALIGN(FastPathLockGroupsPerBackend * sizeof(uint64));
+	fpRelIdSize = MAXALIGN(FastPathLockGroupsPerBackend * sizeof(Oid) * FP_LOCK_SLOTS_PER_GROUP);
+
+	fpPtr = ShmemAlloc(TotalProcs * (fpLockBitsSize + fpRelIdSize));
+	MemSet(fpPtr, 0, TotalProcs * (fpLockBitsSize + fpRelIdSize));
+
+	/* For asserts checking we did not overflow. */
+	fpEndPtr = fpPtr + (TotalProcs * (fpLockBitsSize + fpRelIdSize));
+
 	for (i = 0; i < TotalProcs; i++)
 	{
 		PGPROC	   *proc = &procs[i];
 
 		/* Common initialization for all PGPROCs, regardless of type. */
+
+		/*
+		 * Set the fast-path lock arrays, and move the pointer. We interleave
+		 * the two arrays, to (hopefully) get some locality for each backend.
+		 */
+		proc->fpLockBits = (uint64 *) fpPtr;
+		fpPtr += fpLockBitsSize;
+
+		proc->fpRelId = (Oid *) fpPtr;
+		fpPtr += fpRelIdSize;
+
+		Assert(fpPtr <= fpEndPtr);
 
 		/*
 		 * Set up per-PGPROC semaphore, latch, and fpInfoLock.  Prepared xact
@@ -278,6 +321,9 @@ InitProcGlobal(void)
 		pg_atomic_init_u64(&(proc->waitStart), 0);
 	}
 
+	/* Should have consumed exactly the expected amount of fast-path memory. */
+	Assert(fpPtr == fpEndPtr);
+
 	/*
 	 * Save pointers to the blocks of PGPROC structures reserved for auxiliary
 	 * processes and prepared transactions.
@@ -307,6 +353,19 @@ InitProcess(void)
 
 	if (MyProc != NULL)
 		elog(ERROR, "you already exist");
+
+	/*
+	 * Before we start accessing the shared memory in a serious way, mark
+	 * ourselves as an active postmaster child; this is so that the postmaster
+	 * can detect it if we exit without cleaning up.  (XXX autovac launcher
+	 * currently doesn't participate in this; it probably should.)
+	 *
+	 * Slot sync worker also does not participate in it, see comments atop
+	 * 'struct bkend' in postmaster.c.
+	 */
+	if (IsUnderPostmaster && !AmAutoVacuumLauncherProcess() &&
+		!AmLogicalSlotSyncWorkerProcess())
+		RegisterPostmasterChildActive();
 
 	/* Decide which list should supply our PGPROC. */
 	if (AmAutoVacuumLauncherProcess() || AmAutoVacuumWorkerProcess())
@@ -359,19 +418,6 @@ InitProcess(void)
 	 * the case, it would get returned to the wrong list.
 	 */
 	Assert(MyProc->procgloballist == procgloballist);
-
-	/*
-	 * Now that we have a PGPROC, mark ourselves as an active postmaster
-	 * child; this is so that the postmaster can detect it if we exit without
-	 * cleaning up.  (XXX autovac launcher currently doesn't participate in
-	 * this; it probably should.)
-	 *
-	 * Slot sync worker also does not participate in it, see comments atop
-	 * 'struct bkend' in postmaster.c.
-	 */
-	if (IsUnderPostmaster && !AmAutoVacuumLauncherProcess() &&
-		!AmLogicalSlotSyncWorkerProcess())
-		MarkPostmasterChildActive();
 
 	/*
 	 * Initialize all fields of MyProc, except for those previously
@@ -946,18 +992,6 @@ ProcKill(int code, Datum arg)
 	ProcGlobal->spins_per_delay = update_spins_per_delay(ProcGlobal->spins_per_delay);
 
 	SpinLockRelease(ProcStructLock);
-
-	/*
-	 * This process is no longer present in shared memory in any meaningful
-	 * way, so tell the postmaster we've cleaned up acceptably well. (XXX
-	 * autovac launcher should be included here someday)
-	 *
-	 * Slot sync worker is also not a postmaster child, so skip this shared
-	 * memory related processing here.
-	 */
-	if (IsUnderPostmaster && !AmAutoVacuumLauncherProcess() &&
-		!AmLogicalSlotSyncWorkerProcess())
-		MarkPostmasterChildInactive();
 
 	/* wake autovac launcher if needed -- see comments in FreeWorkerInfo */
 	if (AutovacuumLauncherPid != 0)

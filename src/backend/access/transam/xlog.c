@@ -62,11 +62,11 @@
 #include "access/xlogreader.h"
 #include "access/xlogrecovery.h"
 #include "access/xlogutils.h"
+#include "access/xlogwait.h"
 #include "backup/basebackup.h"
 #include "catalog/catversion.h"
 #include "catalog/pg_control.h"
 #include "catalog/pg_database.h"
-#include "commands/waitlsn.h"
 #include "common/controldata_utils.h"
 #include "common/file_utils.h"
 #include "executor/instrument.h"
@@ -4395,17 +4395,21 @@ ReadControlFile(void)
 		ereport(FATAL,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("database files are incompatible with server"),
-				 errdetail("The database cluster was initialized with CATALOG_VERSION_NO %d,"
-						   " but the server was compiled with CATALOG_VERSION_NO %d.",
-						   ControlFile->catalog_version_no, CATALOG_VERSION_NO),
+		/* translator: %s is a variable name and %d is its value */
+				 errdetail("The database cluster was initialized with %s %d,"
+						   " but the server was compiled with %s %d.",
+						   "CATALOG_VERSION_NO", ControlFile->catalog_version_no,
+						   "CATALOG_VERSION_NO", CATALOG_VERSION_NO),
 				 errhint("It looks like you need to initdb.")));
 	if (ControlFile->maxAlign != MAXIMUM_ALIGNOF)
 		ereport(FATAL,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("database files are incompatible with server"),
-				 errdetail("The database cluster was initialized with MAXALIGN %d,"
-						   " but the server was compiled with MAXALIGN %d.",
-						   ControlFile->maxAlign, MAXIMUM_ALIGNOF),
+		/* translator: %s is a variable name and %d is its value */
+				 errdetail("The database cluster was initialized with %s %d,"
+						   " but the server was compiled with %s %d.",
+						   "MAXALIGN", ControlFile->maxAlign,
+						   "MAXALIGN", MAXIMUM_ALIGNOF),
 				 errhint("It looks like you need to initdb.")));
 	if (ControlFile->floatFormat != FLOATFORMAT_VALUE)
 		ereport(FATAL,
@@ -4417,57 +4421,71 @@ ReadControlFile(void)
 		ereport(FATAL,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("database files are incompatible with server"),
-				 errdetail("The database cluster was initialized with BLCKSZ %d,"
-						   " but the server was compiled with BLCKSZ %d.",
-						   ControlFile->blcksz, BLCKSZ),
+		/* translator: %s is a variable name and %d is its value */
+				 errdetail("The database cluster was initialized with %s %d,"
+						   " but the server was compiled with %s %d.",
+						   "BLCKSZ", ControlFile->blcksz,
+						   "BLCKSZ", BLCKSZ),
 				 errhint("It looks like you need to recompile or initdb.")));
 	if (ControlFile->relseg_size != RELSEG_SIZE)
 		ereport(FATAL,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("database files are incompatible with server"),
-				 errdetail("The database cluster was initialized with RELSEG_SIZE %d,"
-						   " but the server was compiled with RELSEG_SIZE %d.",
-						   ControlFile->relseg_size, RELSEG_SIZE),
+		/* translator: %s is a variable name and %d is its value */
+				 errdetail("The database cluster was initialized with %s %d,"
+						   " but the server was compiled with %s %d.",
+						   "RELSEG_SIZE", ControlFile->relseg_size,
+						   "RELSEG_SIZE", RELSEG_SIZE),
 				 errhint("It looks like you need to recompile or initdb.")));
 	if (ControlFile->xlog_blcksz != XLOG_BLCKSZ)
 		ereport(FATAL,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("database files are incompatible with server"),
-				 errdetail("The database cluster was initialized with XLOG_BLCKSZ %d,"
-						   " but the server was compiled with XLOG_BLCKSZ %d.",
-						   ControlFile->xlog_blcksz, XLOG_BLCKSZ),
+		/* translator: %s is a variable name and %d is its value */
+				 errdetail("The database cluster was initialized with %s %d,"
+						   " but the server was compiled with %s %d.",
+						   "XLOG_BLCKSZ", ControlFile->xlog_blcksz,
+						   "XLOG_BLCKSZ", XLOG_BLCKSZ),
 				 errhint("It looks like you need to recompile or initdb.")));
 	if (ControlFile->nameDataLen != NAMEDATALEN)
 		ereport(FATAL,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("database files are incompatible with server"),
-				 errdetail("The database cluster was initialized with NAMEDATALEN %d,"
-						   " but the server was compiled with NAMEDATALEN %d.",
-						   ControlFile->nameDataLen, NAMEDATALEN),
+		/* translator: %s is a variable name and %d is its value */
+				 errdetail("The database cluster was initialized with %s %d,"
+						   " but the server was compiled with %s %d.",
+						   "NAMEDATALEN", ControlFile->nameDataLen,
+						   "NAMEDATALEN", NAMEDATALEN),
 				 errhint("It looks like you need to recompile or initdb.")));
 	if (ControlFile->indexMaxKeys != INDEX_MAX_KEYS)
 		ereport(FATAL,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("database files are incompatible with server"),
-				 errdetail("The database cluster was initialized with INDEX_MAX_KEYS %d,"
-						   " but the server was compiled with INDEX_MAX_KEYS %d.",
-						   ControlFile->indexMaxKeys, INDEX_MAX_KEYS),
+		/* translator: %s is a variable name and %d is its value */
+				 errdetail("The database cluster was initialized with %s %d,"
+						   " but the server was compiled with %s %d.",
+						   "INDEX_MAX_KEYS", ControlFile->indexMaxKeys,
+						   "INDEX_MAX_KEYS", INDEX_MAX_KEYS),
 				 errhint("It looks like you need to recompile or initdb.")));
 	if (ControlFile->toast_max_chunk_size != TOAST_MAX_CHUNK_SIZE)
 		ereport(FATAL,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("database files are incompatible with server"),
-				 errdetail("The database cluster was initialized with TOAST_MAX_CHUNK_SIZE %d,"
-						   " but the server was compiled with TOAST_MAX_CHUNK_SIZE %d.",
-						   ControlFile->toast_max_chunk_size, (int) TOAST_MAX_CHUNK_SIZE),
+		/* translator: %s is a variable name and %d is its value */
+				 errdetail("The database cluster was initialized with %s %d,"
+						   " but the server was compiled with %s %d.",
+						   "TOAST_MAX_CHUNK_SIZE", ControlFile->toast_max_chunk_size,
+						   "TOAST_MAX_CHUNK_SIZE", (int) TOAST_MAX_CHUNK_SIZE),
 				 errhint("It looks like you need to recompile or initdb.")));
 	if (ControlFile->loblksize != LOBLKSIZE)
 		ereport(FATAL,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("database files are incompatible with server"),
-				 errdetail("The database cluster was initialized with LOBLKSIZE %d,"
-						   " but the server was compiled with LOBLKSIZE %d.",
-						   ControlFile->loblksize, (int) LOBLKSIZE),
+		/* translator: %s is a variable name and %d is its value */
+				 errdetail("The database cluster was initialized with %s %d,"
+						   " but the server was compiled with %s %d.",
+						   "LOBLKSIZE", ControlFile->loblksize,
+						   "LOBLKSIZE", (int) LOBLKSIZE),
 				 errhint("It looks like you need to recompile or initdb.")));
 
 #ifdef USE_FLOAT8_BYVAL
@@ -4505,11 +4523,15 @@ ReadControlFile(void)
 	/* check and update variables dependent on wal_segment_size */
 	if (ConvertToXSegs(min_wal_size_mb, wal_segment_size) < 2)
 		ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						errmsg("\"min_wal_size\" must be at least twice \"wal_segment_size\"")));
+		/* translator: both %s are GUC names */
+						errmsg("\"%s\" must be at least twice \"%s\"",
+							   "min_wal_size", "wal_segment_size")));
 
 	if (ConvertToXSegs(max_wal_size_mb, wal_segment_size) < 2)
 		ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						errmsg("\"max_wal_size\" must be at least twice \"wal_segment_size\"")));
+		/* translator: both %s are GUC names */
+						errmsg("\"%s\" must be at least twice \"%s\"",
+							   "max_wal_size", "wal_segment_size")));
 
 	UsableBytesInSegment =
 		(wal_segment_size / XLOG_BLCKSZ * UsableBytesInPage) -
@@ -6146,7 +6168,7 @@ StartupXLOG(void)
 
 	/*
 	 * Wake up all waiters for replay LSN.  They need to report an error that
-	 * recovery was ended before achieving the target LSN.
+	 * recovery was ended before reaching the target LSN.
 	 */
 	WaitLSNSetLatches(InvalidXLogRecPtr);
 
@@ -6705,14 +6727,15 @@ LogCheckpointEnd(bool restartpoint)
 	 */
 	if (restartpoint)
 		ereport(LOG,
-				(errmsg("restartpoint complete: wrote %d buffers (%.1f%%); "
-						"%d WAL file(s) added, %d removed, %d recycled; "
-						"write=%ld.%03d s, sync=%ld.%03d s, total=%ld.%03d s; "
-						"sync files=%d, longest=%ld.%03d s, average=%ld.%03d s; "
-						"distance=%d kB, estimate=%d kB; "
-						"lsn=%X/%X, redo lsn=%X/%X",
+				(errmsg("restartpoint complete: wrote %d buffers (%.1f%%), "
+						"wrote %d SLRU buffers; %d WAL file(s) added, "
+						"%d removed, %d recycled; write=%ld.%03d s, "
+						"sync=%ld.%03d s, total=%ld.%03d s; sync files=%d, "
+						"longest=%ld.%03d s, average=%ld.%03d s; distance=%d kB, "
+						"estimate=%d kB; lsn=%X/%X, redo lsn=%X/%X",
 						CheckpointStats.ckpt_bufs_written,
 						(double) CheckpointStats.ckpt_bufs_written * 100 / NBuffers,
+						CheckpointStats.ckpt_slru_written,
 						CheckpointStats.ckpt_segs_added,
 						CheckpointStats.ckpt_segs_removed,
 						CheckpointStats.ckpt_segs_recycled,
@@ -6728,14 +6751,15 @@ LogCheckpointEnd(bool restartpoint)
 						LSN_FORMAT_ARGS(ControlFile->checkPointCopy.redo))));
 	else
 		ereport(LOG,
-				(errmsg("checkpoint complete: wrote %d buffers (%.1f%%); "
-						"%d WAL file(s) added, %d removed, %d recycled; "
-						"write=%ld.%03d s, sync=%ld.%03d s, total=%ld.%03d s; "
-						"sync files=%d, longest=%ld.%03d s, average=%ld.%03d s; "
-						"distance=%d kB, estimate=%d kB; "
-						"lsn=%X/%X, redo lsn=%X/%X",
+				(errmsg("checkpoint complete: wrote %d buffers (%.1f%%), "
+						"wrote %d SLRU buffers; %d WAL file(s) added, "
+						"%d removed, %d recycled; write=%ld.%03d s, "
+						"sync=%ld.%03d s, total=%ld.%03d s; sync files=%d, "
+						"longest=%ld.%03d s, average=%ld.%03d s; distance=%d kB, "
+						"estimate=%d kB; lsn=%X/%X, redo lsn=%X/%X",
 						CheckpointStats.ckpt_bufs_written,
 						(double) CheckpointStats.ckpt_bufs_written * 100 / NBuffers,
+						CheckpointStats.ckpt_slru_written,
 						CheckpointStats.ckpt_segs_added,
 						CheckpointStats.ckpt_segs_removed,
 						CheckpointStats.ckpt_segs_recycled,
@@ -6856,8 +6880,11 @@ update_checkpoint_display(int flags, bool restartpoint, bool reset)
  * In this case, we only insert an XLOG_CHECKPOINT_SHUTDOWN record, and it's
  * both the record marking the completion of the checkpoint and the location
  * from which WAL replay would begin if needed.
+ *
+ * Returns true if a new checkpoint was performed, or false if it was skipped
+ * because the system was idle.
  */
-void
+bool
 CreateCheckPoint(int flags)
 {
 	bool		shutdown;
@@ -6949,7 +6976,7 @@ CreateCheckPoint(int flags)
 			END_CRIT_SECTION();
 			ereport(DEBUG1,
 					(errmsg_internal("checkpoint skipped because system is idle")));
-			return;
+			return false;
 		}
 	}
 
@@ -7331,6 +7358,8 @@ CreateCheckPoint(int flags)
 									 CheckpointStats.ckpt_segs_added,
 									 CheckpointStats.ckpt_segs_removed,
 									 CheckpointStats.ckpt_segs_recycled);
+
+	return true;
 }
 
 /*
@@ -9111,7 +9140,7 @@ do_pg_backup_stop(BackupState *state, bool waitforarchive)
 		ereport(ERROR,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("WAL level not sufficient for making an online backup"),
-				 errhint("wal_level must be set to \"replica\" or \"logical\" at server start.")));
+				 errhint("\"wal_level\" must be set to \"replica\" or \"logical\" at server start.")));
 
 	/*
 	 * OK to update backup counter and session-level lock.

@@ -1886,12 +1886,15 @@ FlushErrorState(void)
 /*
  * ThrowErrorData --- report an error described by an ErrorData structure
  *
- * This is somewhat like ReThrowError, but it allows elevels besides ERROR,
- * and the boolean flags such as output_to_server are computed via the
- * default rules rather than being copied from the given ErrorData.
- * This is primarily used to re-report errors originally reported by
- * background worker processes and then propagated (with or without
- * modification) to the backend responsible for them.
+ * This function should be called on an ErrorData structure that isn't stored
+ * on the errordata stack and hasn't been processed yet. It will call
+ * errstart() and errfinish() as needed, so those should not have already been
+ * called.
+ *
+ * ThrowErrorData() is useful for handling soft errors. It's also useful for
+ * re-reporting errors originally reported by background worker processes and
+ * then propagated (with or without modification) to the backend responsible
+ * for them.
  */
 void
 ThrowErrorData(ErrorData *edata)
@@ -2967,12 +2970,12 @@ log_status_format(StringInfo buf, const char *format, ErrorData *edata)
 				{
 					char		strfbuf[128];
 
-					snprintf(strfbuf, sizeof(strfbuf) - 1, "%lx.%x",
-							 (long) (MyStartTime), MyProcPid);
+					snprintf(strfbuf, sizeof(strfbuf) - 1, "%" INT64_MODIFIER "x.%x",
+							 MyStartTime, MyProcPid);
 					appendStringInfo(buf, "%*s", padding, strfbuf);
 				}
 				else
-					appendStringInfo(buf, "%lx.%x", (long) (MyStartTime), MyProcPid);
+					appendStringInfo(buf, "%" INT64_MODIFIER "x.%x", MyStartTime, MyProcPid);
 				break;
 			case 'p':
 				if (padding != 0)

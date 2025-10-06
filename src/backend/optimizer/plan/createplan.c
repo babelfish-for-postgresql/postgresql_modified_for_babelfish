@@ -179,6 +179,8 @@ static void copy_generic_path_info(Plan *dest, Path *src);
 static void copy_plan_costsize(Plan *dest, Plan *src);
 static void label_sort_with_costsize(PlannerInfo *root, Sort *plan,
 									 double limit_tuples);
+static void label_incrementalsort_with_costsize(PlannerInfo *root, IncrementalSort *plan,
+												List *pathkeys, double limit_tuples);
 static SeqScan *make_seqscan(List *qptlist, List *qpqual, Index scanrelid);
 static SampleScan *make_samplescan(List *qptlist, List *qpqual, Index scanrelid,
 								   TableSampleClause *tsc);
@@ -250,7 +252,7 @@ static MergeJoin *make_mergejoin(List *tlist,
 								 List *mergeclauses,
 								 Oid *mergefamilies,
 								 Oid *mergecollations,
-								 int *mergestrategies,
+								 bool *mergereversals,
 								 bool *mergenullsfirst,
 								 Plan *lefttree, Plan *righttree,
 								 JoinType jointype, bool inner_unique,
@@ -1894,6 +1896,7 @@ create_unique_plan(PlannerInfo *root, UniquePath *best_path, int flags)
 														 subplan->targetlist);
 			sortcl->eqop = eqop;
 			sortcl->sortop = sortop;
+			sortcl->reverse_sort = false;
 			sortcl->nulls_first = false;
 			sortcl->hashable = false;	/* no need to make this accurate */
 			sortList = lappend(sortList, sortcl);
@@ -4448,7 +4451,7 @@ create_mergejoin_plan(PlannerInfo *root,
 	int			nClauses;
 	Oid		   *mergefamilies;
 	Oid		   *mergecollations;
-	int		   *mergestrategies;
+	bool	   *mergereversals;
 	bool	   *mergenullsfirst;
 	PathKey    *opathkey;
 	EquivalenceClass *opeclass;
@@ -4523,12 +4526,51 @@ create_mergejoin_plan(PlannerInfo *root,
 	if (best_path->outersortkeys)
 	{
 		Relids		outer_relids = outer_path->parent->relids;
-		Sort	   *sort = make_sort_from_pathkeys(outer_plan,
-												   best_path->outersortkeys,
-												   outer_relids);
+		Plan	   *sort_plan;
+		bool		use_incremental_sort = false;
+		int			presorted_keys;
 
-		label_sort_with_costsize(root, sort, -1.0);
-		outer_plan = (Plan *) sort;
+		/*
+		 * We choose to use incremental sort if it is enabled and there are
+		 * presorted keys; otherwise we use full sort.
+		 */
+		if (enable_incremental_sort)
+		{
+			bool		is_sorted PG_USED_FOR_ASSERTS_ONLY;
+
+			is_sorted = pathkeys_count_contained_in(best_path->outersortkeys,
+													outer_path->pathkeys,
+													&presorted_keys);
+			Assert(!is_sorted);
+
+			if (presorted_keys > 0)
+				use_incremental_sort = true;
+		}
+
+		if (!use_incremental_sort)
+		{
+			sort_plan = (Plan *)
+				make_sort_from_pathkeys(outer_plan,
+										best_path->outersortkeys,
+										outer_relids);
+
+			label_sort_with_costsize(root, (Sort *) sort_plan, -1.0);
+		}
+		else
+		{
+			sort_plan = (Plan *)
+				make_incrementalsort_from_pathkeys(outer_plan,
+												   best_path->outersortkeys,
+												   outer_relids,
+												   presorted_keys);
+
+			label_incrementalsort_with_costsize(root,
+												(IncrementalSort *) sort_plan,
+												best_path->outersortkeys,
+												-1.0);
+		}
+
+		outer_plan = sort_plan;
 		outerpathkeys = best_path->outersortkeys;
 	}
 	else
@@ -4536,6 +4578,11 @@ create_mergejoin_plan(PlannerInfo *root,
 
 	if (best_path->innersortkeys)
 	{
+		/*
+		 * We do not consider incremental sort for inner path, because
+		 * incremental sort does not support mark/restore.
+		 */
+
 		Relids		inner_relids = inner_path->parent->relids;
 		Sort	   *sort = make_sort_from_pathkeys(inner_plan,
 												   best_path->innersortkeys,
@@ -4578,7 +4625,7 @@ create_mergejoin_plan(PlannerInfo *root,
 	Assert(nClauses == list_length(best_path->path_mergeclauses));
 	mergefamilies = (Oid *) palloc(nClauses * sizeof(Oid));
 	mergecollations = (Oid *) palloc(nClauses * sizeof(Oid));
-	mergestrategies = (int *) palloc(nClauses * sizeof(int));
+	mergereversals = (bool *) palloc(nClauses * sizeof(bool));
 	mergenullsfirst = (bool *) palloc(nClauses * sizeof(bool));
 
 	opathkey = NULL;
@@ -4705,7 +4752,7 @@ create_mergejoin_plan(PlannerInfo *root,
 		/* OK, save info for executor */
 		mergefamilies[i] = opathkey->pk_opfamily;
 		mergecollations[i] = opathkey->pk_eclass->ec_collation;
-		mergestrategies[i] = opathkey->pk_strategy;
+		mergereversals[i] = (opathkey->pk_strategy == BTGreaterStrategyNumber ? true : false);
 		mergenullsfirst[i] = opathkey->pk_nulls_first;
 		i++;
 	}
@@ -4725,7 +4772,7 @@ create_mergejoin_plan(PlannerInfo *root,
 							   mergeclauses,
 							   mergefamilies,
 							   mergecollations,
-							   mergestrategies,
+							   mergereversals,
 							   mergenullsfirst,
 							   outer_plan,
 							   inner_plan,
@@ -5447,15 +5494,11 @@ label_sort_with_costsize(PlannerInfo *root, Sort *plan, double limit_tuples)
 	Plan	   *lefttree = plan->plan.lefttree;
 	Path		sort_path;		/* dummy for result of cost_sort */
 
-	/*
-	 * This function shouldn't have to deal with IncrementalSort plans because
-	 * they are only created from corresponding Path nodes.
-	 */
 	Assert(IsA(plan, Sort));
 
 	cost_sort(&sort_path, root, NIL,
-			  lefttree->total_cost,
 			  plan->plan.disabled_nodes,
+			  lefttree->total_cost,
 			  lefttree->plan_rows,
 			  lefttree->plan_width,
 			  0.0,
@@ -5467,6 +5510,37 @@ label_sort_with_costsize(PlannerInfo *root, Sort *plan, double limit_tuples)
 	plan->plan.plan_width = lefttree->plan_width;
 	plan->plan.parallel_aware = false;
 	plan->plan.parallel_safe = lefttree->parallel_safe;
+}
+
+/*
+ * Same as label_sort_with_costsize, but labels the IncrementalSort node
+ * instead.
+ */
+static void
+label_incrementalsort_with_costsize(PlannerInfo *root, IncrementalSort *plan,
+									List *pathkeys, double limit_tuples)
+{
+	Plan	   *lefttree = plan->sort.plan.lefttree;
+	Path		sort_path;		/* dummy for result of cost_incremental_sort */
+
+	Assert(IsA(plan, IncrementalSort));
+
+	cost_incremental_sort(&sort_path, root, pathkeys,
+						  plan->nPresortedCols,
+						  plan->sort.plan.disabled_nodes,
+						  lefttree->startup_cost,
+						  lefttree->total_cost,
+						  lefttree->plan_rows,
+						  lefttree->plan_width,
+						  0.0,
+						  work_mem,
+						  limit_tuples);
+	plan->sort.plan.startup_cost = sort_path.startup_cost;
+	plan->sort.plan.total_cost = sort_path.total_cost;
+	plan->sort.plan.plan_rows = lefttree->plan_rows;
+	plan->sort.plan.plan_width = lefttree->plan_width;
+	plan->sort.plan.parallel_aware = false;
+	plan->sort.plan.parallel_safe = lefttree->parallel_safe;
 }
 
 /*
@@ -6030,7 +6104,7 @@ make_mergejoin(List *tlist,
 			   List *mergeclauses,
 			   Oid *mergefamilies,
 			   Oid *mergecollations,
-			   int *mergestrategies,
+			   bool *mergereversals,
 			   bool *mergenullsfirst,
 			   Plan *lefttree,
 			   Plan *righttree,
@@ -6049,7 +6123,7 @@ make_mergejoin(List *tlist,
 	node->mergeclauses = mergeclauses;
 	node->mergeFamilies = mergefamilies;
 	node->mergeCollations = mergecollations;
-	node->mergeStrategies = mergestrategies;
+	node->mergeReversals = mergereversals;
 	node->mergeNullsFirst = mergenullsfirst;
 	node->join.jointype = jointype;
 	node->join.inner_unique = inner_unique;
@@ -6076,6 +6150,7 @@ make_sort(Plan *lefttree, int numCols,
 
 	plan = &node->plan;
 	plan->targetlist = lefttree->targetlist;
+	plan->disabled_nodes = lefttree->disabled_nodes + (enable_sort == false);
 	plan->qual = NIL;
 	plan->lefttree = lefttree;
 	plan->righttree = NULL;

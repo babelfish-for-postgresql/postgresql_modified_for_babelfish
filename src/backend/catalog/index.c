@@ -1421,7 +1421,8 @@ index_concurrently_create_copy(Relation heapRelation, Oid oldIndexId,
 							oldInfo->ii_NullsNotDistinct,
 							false,	/* not ready for inserts */
 							true,
-							indexRelation->rd_indam->amsummarizing);
+							indexRelation->rd_indam->amsummarizing,
+							oldInfo->ii_WithoutOverlaps);
 
 	/*
 	 * Extract the list of column names and the column numbers for the new
@@ -1901,6 +1902,7 @@ index_concurrently_set_dead(Oid heapId, Oid indexId)
  *		INDEX_CONSTR_CREATE_UPDATE_INDEX: update the pg_index row
  *		INDEX_CONSTR_CREATE_REMOVE_OLD_DEPS: remove existing dependencies
  *			of index on table's columns
+ *		INDEX_CONSTR_CREATE_WITHOUT_OVERLAPS: constraint uses WITHOUT OVERLAPS
  * allow_system_table_mods: allow table to be a system catalog
  * is_internal: index is constructed due to internal process
  */
@@ -1924,11 +1926,13 @@ index_constraint_create(Relation heapRelation,
 	bool		mark_as_primary;
 	bool		islocal;
 	bool		noinherit;
-	int			inhcount;
+	bool		is_without_overlaps;
+	int16		inhcount;
 
 	deferrable = (constr_flags & INDEX_CONSTR_CREATE_DEFERRABLE) != 0;
 	initdeferred = (constr_flags & INDEX_CONSTR_CREATE_INIT_DEFERRED) != 0;
 	mark_as_primary = (constr_flags & INDEX_CONSTR_CREATE_MARK_AS_PRIMARY) != 0;
+	is_without_overlaps = (constr_flags & INDEX_CONSTR_CREATE_WITHOUT_OVERLAPS) != 0;
 
 	/* constraint creation support doesn't work while bootstrapping */
 	Assert(!IsBootstrapProcessingMode());
@@ -2005,6 +2009,7 @@ index_constraint_create(Relation heapRelation,
 								   islocal,
 								   inhcount,
 								   noinherit,
+								   is_without_overlaps,
 								   is_internal);
 
 	/*
@@ -2301,8 +2306,16 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 		 */
 		WaitForLockers(heaplocktag, AccessExclusiveLock, true);
 
+		/*
+		 * Updating pg_index might involve TOAST table access, so ensure we
+		 * have a valid snapshot.
+		 */
+		PushActiveSnapshot(GetTransactionSnapshot());
+
 		/* Finish invalidation of index and mark it as dead */
 		index_concurrently_set_dead(heapId, indexId);
+
+		PopActiveSnapshot();
 
 		/*
 		 * Again, commit the transaction to make the pg_index update visible
@@ -2352,6 +2365,16 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 	RelationForgetRelation(indexId);
 
 	/*
+	 * Updating pg_index might involve TOAST table access, so ensure we have a
+	 * valid snapshot.  We only expect to get here without a snapshot in the
+	 * concurrent path.
+	 */
+	if (concurrent)
+		PushActiveSnapshot(GetTransactionSnapshot());
+	else
+		Assert(HaveRegisteredOrActiveSnapshot());
+
+	/*
 	 * fix INDEX relation, and check for expressional index
 	 */
 	indexRelation = table_open(IndexRelationId, RowExclusiveLock);
@@ -2368,6 +2391,9 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 
 	ReleaseSysCache(tuple);
 	table_close(indexRelation, RowExclusiveLock);
+
+	if (concurrent)
+		PopActiveSnapshot();
 
 	/*
 	 * if it has any expression columns, we might have stored statistics about
@@ -2458,7 +2484,8 @@ BuildIndexInfo(Relation index)
 					   indexStruct->indnullsnotdistinct,
 					   indexStruct->indisready,
 					   false,
-					   index->rd_indam->amsummarizing);
+					   index->rd_indam->amsummarizing,
+					   indexStruct->indisexclusion && indexStruct->indisunique);
 
 	/* fill in attribute numbers */
 	for (i = 0; i < numAtts; i++)
@@ -2517,7 +2544,8 @@ BuildDummyIndexInfo(Relation index)
 					   indexStruct->indnullsnotdistinct,
 					   indexStruct->indisready,
 					   false,
-					   index->rd_indam->amsummarizing);
+					   index->rd_indam->amsummarizing,
+					   indexStruct->indisexclusion && indexStruct->indisunique);
 
 	/* fill in attribute numbers */
 	for (i = 0; i < numAtts; i++)
@@ -2816,7 +2844,9 @@ index_update_stats(Relation rel,
 {
 	Oid			relid = RelationGetRelid(rel);
 	Relation	pg_class;
+	ScanKeyData key[1];
 	HeapTuple	tuple;
+	void	   *state;
 	Form_pg_class rd_rel;
 	bool		dirty;
 
@@ -2850,33 +2880,12 @@ index_update_stats(Relation rel,
 
 	pg_class = table_open(RelationRelationId, RowExclusiveLock);
 
-	/*
-	 * Make a copy of the tuple to update.  Normally we use the syscache, but
-	 * we can't rely on that during bootstrap or while reindexing pg_class
-	 * itself.
-	 */
-	if (IsBootstrapProcessingMode() ||
-		ReindexIsProcessingHeap(RelationRelationId))
-	{
-		/* don't assume syscache will work */
-		TableScanDesc pg_class_scan;
-		ScanKeyData key[1];
-
-		ScanKeyInit(&key[0],
-					Anum_pg_class_oid,
-					BTEqualStrategyNumber, F_OIDEQ,
-					ObjectIdGetDatum(relid));
-
-		pg_class_scan = table_beginscan_catalog(pg_class, 1, key);
-		tuple = heap_getnext(pg_class_scan, ForwardScanDirection);
-		tuple = heap_copytuple(tuple);
-		table_endscan(pg_class_scan);
-	}
-	else
-	{
-		/* normal case, use syscache */
-		tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
-	}
+	ScanKeyInit(&key[0],
+				Anum_pg_class_oid,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(relid));
+	systable_inplace_update_begin(pg_class, ClassOidIndexId, true, NULL,
+								  1, key, &tuple, &state);
 
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "could not find tuple for relation %u", relid);
@@ -2939,12 +2948,20 @@ index_update_stats(Relation rel,
 	 */
 	if (dirty)
 	{
-		heap_inplace_update(pg_class, tuple);
-		/* the above sends a cache inval message */
+		systable_inplace_update_finish(state, tuple);
+		/* the above sends transactional and immediate cache inval messages */
 	}
 	else
 	{
-		/* no need to change tuple, but force relcache inval anyway */
+		systable_inplace_update_cancel(state);
+
+		/*
+		 * While we didn't change relhasindex, CREATE INDEX needs a
+		 * transactional inval for when the new index's catalog rows become
+		 * visible.  Other CREATE INDEX and REINDEX code happens to also queue
+		 * this inval, but keep this in case rare callers rely on this part of
+		 * our API contract.
+		 */
 		CacheInvalidateRelcacheByTuple(tuple);
 	}
 
@@ -3254,7 +3271,6 @@ IndexCheckExclusion(Relation heapRelation,
 	indexInfo->ii_ExpressionsState = NIL;
 	indexInfo->ii_PredicateState = NULL;
 }
-
 
 /*
  * validate_index - support code for concurrent index builds
@@ -4032,6 +4048,14 @@ reindex_relation(const ReindexStmt *stmt, Oid relid, int flags,
 					 errmsg("cannot reindex invalid index \"%s.%s\" on TOAST table, skipping",
 							get_namespace_name(indexNamespaceId),
 							get_rel_name(indexOid))));
+
+			/*
+			 * Remove this invalid toast index from the reindex pending list,
+			 * as it is skipped here due to the hard failure that would happen
+			 * in reindex_index(), should we try to process it.
+			 */
+			if (flags & REINDEX_REL_SUPPRESS_INDEX_USE)
+				RemoveReindexPending(indexOid);
 			continue;
 		}
 

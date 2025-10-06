@@ -3404,6 +3404,12 @@ construct_array_builtin(Datum *elems, int nelems, Oid elmtype)
 			elmalign = TYPALIGN_INT;
 			break;
 
+		case FLOAT8OID:
+			elmlen = sizeof(float8);
+			elmbyval = FLOAT8PASSBYVAL;
+			elmalign = TYPALIGN_DOUBLE;
+			break;
+
 		case INT2OID:
 			elmlen = sizeof(int16);
 			elmbyval = true;
@@ -3445,6 +3451,12 @@ construct_array_builtin(Datum *elems, int nelems, Oid elmtype)
 			elmlen = sizeof(ItemPointerData);
 			elmbyval = false;
 			elmalign = TYPALIGN_SHORT;
+			break;
+
+		case XIDOID:
+			elmlen = sizeof(TransactionId);
+			elmbyval = true;
+			elmalign = TYPALIGN_INT;
 			break;
 
 		default:

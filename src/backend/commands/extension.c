@@ -54,6 +54,7 @@
 #include "funcapi.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
+#include "nodes/queryjumble.h"
 #include "storage/fd.h"
 #include "tcop/utility.h"
 #include "utils/acl.h"
@@ -64,6 +65,7 @@
 #include "utils/memutils.h"
 #include "utils/rel.h"
 #include "utils/snapmgr.h"
+#include "utils/syscache.h"
 #include "utils/varlena.h"
 
 
@@ -106,6 +108,17 @@ typedef struct ExtensionVersionInfo
 	struct ExtensionVersionInfo *previous;	/* current best predecessor */
 } ExtensionVersionInfo;
 
+/*
+ * Information for script_error_callback()
+ */
+typedef struct
+{
+	const char *sql;			/* entire script file contents */
+	const char *filename;		/* script file pathname */
+	ParseLoc	stmt_location;	/* current stmt start loc, or -1 if unknown */
+	ParseLoc	stmt_len;		/* length in bytes; 0 means "rest of string" */
+} script_error_callback_arg;
+
 /* Local functions */
 static List *find_update_path(List *evi_list,
 							  ExtensionVersionInfo *evi_start,
@@ -145,32 +158,9 @@ Oid
 get_extension_oid(const char *extname, bool missing_ok)
 {
 	Oid			result;
-	Relation	rel;
-	SysScanDesc scandesc;
-	HeapTuple	tuple;
-	ScanKeyData entry[1];
 
-	rel = table_open(ExtensionRelationId, AccessShareLock);
-
-	ScanKeyInit(&entry[0],
-				Anum_pg_extension_extname,
-				BTEqualStrategyNumber, F_NAMEEQ,
-				CStringGetDatum(extname));
-
-	scandesc = systable_beginscan(rel, ExtensionNameIndexId, true,
-								  NULL, 1, entry);
-
-	tuple = systable_getnext(scandesc);
-
-	/* We assume that there can be at most one matching tuple */
-	if (HeapTupleIsValid(tuple))
-		result = ((Form_pg_extension) GETSTRUCT(tuple))->oid;
-	else
-		result = InvalidOid;
-
-	systable_endscan(scandesc);
-
-	table_close(rel, AccessShareLock);
+	result = GetSysCacheOid1(EXTENSIONNAME, Anum_pg_extension_oid,
+							 CStringGetDatum(extname));
 
 	if (!OidIsValid(result) && !missing_ok)
 		ereport(ERROR,
@@ -190,32 +180,15 @@ char *
 get_extension_name(Oid ext_oid)
 {
 	char	   *result;
-	Relation	rel;
-	SysScanDesc scandesc;
 	HeapTuple	tuple;
-	ScanKeyData entry[1];
 
-	rel = table_open(ExtensionRelationId, AccessShareLock);
+	tuple = SearchSysCache1(EXTENSIONOID, ObjectIdGetDatum(ext_oid));
 
-	ScanKeyInit(&entry[0],
-				Anum_pg_extension_oid,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(ext_oid));
+	if (!HeapTupleIsValid(tuple))
+		return NULL;
 
-	scandesc = systable_beginscan(rel, ExtensionOidIndexId, true,
-								  NULL, 1, entry);
-
-	tuple = systable_getnext(scandesc);
-
-	/* We assume that there can be at most one matching tuple */
-	if (HeapTupleIsValid(tuple))
-		result = pstrdup(NameStr(((Form_pg_extension) GETSTRUCT(tuple))->extname));
-	else
-		result = NULL;
-
-	systable_endscan(scandesc);
-
-	table_close(rel, AccessShareLock);
+	result = pstrdup(NameStr(((Form_pg_extension) GETSTRUCT(tuple))->extname));
+	ReleaseSysCache(tuple);
 
 	return result;
 }
@@ -229,32 +202,15 @@ Oid
 get_extension_schema(Oid ext_oid)
 {
 	Oid			result;
-	Relation	rel;
-	SysScanDesc scandesc;
 	HeapTuple	tuple;
-	ScanKeyData entry[1];
 
-	rel = table_open(ExtensionRelationId, AccessShareLock);
+	tuple = SearchSysCache1(EXTENSIONOID, ObjectIdGetDatum(ext_oid));
 
-	ScanKeyInit(&entry[0],
-				Anum_pg_extension_oid,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(ext_oid));
+	if (!HeapTupleIsValid(tuple))
+		return InvalidOid;
 
-	scandesc = systable_beginscan(rel, ExtensionOidIndexId, true,
-								  NULL, 1, entry);
-
-	tuple = systable_getnext(scandesc);
-
-	/* We assume that there can be at most one matching tuple */
-	if (HeapTupleIsValid(tuple))
-		result = ((Form_pg_extension) GETSTRUCT(tuple))->extnamespace;
-	else
-		result = InvalidOid;
-
-	systable_endscan(scandesc);
-
-	table_close(rel, AccessShareLock);
+	result = ((Form_pg_extension) GETSTRUCT(tuple))->extnamespace;
+	ReleaseSysCache(tuple);
 
 	return result;
 }
@@ -727,7 +683,137 @@ read_extension_script_file(const ExtensionControlFile *control,
 }
 
 /*
+ * error context callback for failures in script-file execution
+ */
+static void
+script_error_callback(void *arg)
+{
+	script_error_callback_arg *callback_arg = (script_error_callback_arg *) arg;
+	const char *query = callback_arg->sql;
+	int			location = callback_arg->stmt_location;
+	int			len = callback_arg->stmt_len;
+	int			syntaxerrposition;
+	const char *lastslash;
+
+	/*
+	 * If there is a syntax error position, convert to internal syntax error;
+	 * otherwise report the current query as an item of context stack.
+	 *
+	 * Note: we'll provide no context except the filename if there's neither
+	 * an error position nor any known current query.  That shouldn't happen
+	 * though: all errors reported during raw parsing should come with an
+	 * error position.
+	 */
+	syntaxerrposition = geterrposition();
+	if (syntaxerrposition > 0)
+	{
+		/*
+		 * If we do not know the bounds of the current statement (as would
+		 * happen for an error occurring during initial raw parsing), we have
+		 * to use a heuristic to decide how much of the script to show.  We'll
+		 * also use the heuristic in the unlikely case that syntaxerrposition
+		 * is outside what we think the statement bounds are.
+		 */
+		if (location < 0 || syntaxerrposition < location ||
+			(len > 0 && syntaxerrposition > location + len))
+		{
+			/*
+			 * Our heuristic is pretty simple: look for semicolon-newline
+			 * sequences, and break at the last one strictly before
+			 * syntaxerrposition and the first one strictly after.  It's
+			 * certainly possible to fool this with semicolon-newline embedded
+			 * in a string literal, but it seems better to do this than to
+			 * show the entire extension script.
+			 */
+			int			slen = strlen(query);
+
+			location = len = 0;
+			for (int loc = 0; loc < slen; loc++)
+			{
+				if (query[loc] != ';')
+					continue;
+				if (query[loc + 1] == '\r')
+					loc++;
+				if (query[loc + 1] == '\n')
+				{
+					int			bkpt = loc + 2;
+
+					if (bkpt < syntaxerrposition)
+						location = bkpt;
+					else if (bkpt > syntaxerrposition)
+					{
+						len = bkpt - location;
+						break;	/* no need to keep searching */
+					}
+				}
+			}
+		}
+
+		/* Trim leading/trailing whitespace, for consistency */
+		query = CleanQuerytext(query, &location, &len);
+
+		/*
+		 * Adjust syntaxerrposition.  It shouldn't be pointing into the
+		 * whitespace we just trimmed, but cope if it is.
+		 */
+		syntaxerrposition -= location;
+		if (syntaxerrposition < 0)
+			syntaxerrposition = 0;
+		else if (syntaxerrposition > len)
+			syntaxerrposition = len;
+
+		/* And report. */
+		errposition(0);
+		internalerrposition(syntaxerrposition);
+		internalerrquery(pnstrdup(query, len));
+	}
+	else if (location >= 0)
+	{
+		/*
+		 * Since no syntax cursor will be shown, it's okay and helpful to trim
+		 * the reported query string to just the current statement.
+		 */
+		query = CleanQuerytext(query, &location, &len);
+		errcontext("SQL statement \"%.*s\"", len, query);
+	}
+
+	/*
+	 * Trim the reported file name to remove the path.  We know that
+	 * get_extension_script_filename() inserted a '/', regardless of whether
+	 * we're on Windows.
+	 */
+	lastslash = strrchr(callback_arg->filename, '/');
+	if (lastslash)
+		lastslash++;
+	else
+		lastslash = callback_arg->filename; /* shouldn't happen, but cope */
+
+	/*
+	 * If we have a location (which, as said above, we really always should)
+	 * then report a line number to aid in localizing problems in big scripts.
+	 */
+	if (location >= 0)
+	{
+		int			linenumber = 1;
+
+		for (query = callback_arg->sql; *query; query++)
+		{
+			if (--location < 0)
+				break;
+			if (*query == '\n')
+				linenumber++;
+		}
+		errcontext("extension script file \"%s\", near line %d",
+				   lastslash, linenumber);
+	}
+	else
+		errcontext("extension script file \"%s\"", lastslash);
+}
+
+/*
  * Execute given SQL string.
+ *
+ * The filename the string came from is also provided, for error reporting.
  *
  * Note: it's tempting to just use SPI to execute the string, but that does
  * not work very well.  The really serious problem is that SPI will parse,
@@ -738,11 +824,26 @@ read_extension_script_file(const ExtensionControlFile *control,
  * could be very long.
  */
 static void
-execute_sql_string(const char *sql)
+execute_sql_string(const char *sql, const char *filename)
 {
+	script_error_callback_arg callback_arg;
+	ErrorContextCallback scripterrcontext;
 	List	   *raw_parsetree_list;
 	DestReceiver *dest;
 	ListCell   *lc1;
+
+	/*
+	 * Setup error traceback support for ereport().
+	 */
+	callback_arg.sql = sql;
+	callback_arg.filename = filename;
+	callback_arg.stmt_location = -1;
+	callback_arg.stmt_len = -1;
+
+	scripterrcontext.callback = script_error_callback;
+	scripterrcontext.arg = (void *) &callback_arg;
+	scripterrcontext.previous = error_context_stack;
+	error_context_stack = &scripterrcontext;
 
 	/*
 	 * Parse the SQL string into a list of raw parse trees.
@@ -764,6 +865,10 @@ execute_sql_string(const char *sql)
 					oldcontext;
 		List	   *stmt_list;
 		ListCell   *lc2;
+
+		/* Report location of this query for error context callback */
+		callback_arg.stmt_location = parsetree->stmt_location;
+		callback_arg.stmt_len = parsetree->stmt_len;
 
 		/*
 		 * We do the work for each parsetree in a short-lived context, to
@@ -833,6 +938,8 @@ execute_sql_string(const char *sql)
 		MemoryContextSwitchTo(oldcontext);
 		MemoryContextDelete(per_parsetree_context);
 	}
+
+	error_context_stack = scripterrcontext.previous;
 
 	/* Be sure to advance the command counter after the last script command */
 	CommandCounterIncrement();
@@ -1110,7 +1217,7 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
 		/* And now back to C string */
 		c_sql = text_to_cstring(DatumGetTextPP(t_sql));
 
-		execute_sql_string(c_sql);
+		execute_sql_string(c_sql, filename);
 	}
 	PG_FINALLY();
 	{
@@ -3544,7 +3651,7 @@ read_whole_file(const char *filename, int *length)
 				 errmsg("file \"%s\" is too large", filename)));
 	bytes_to_read = (size_t) fst.st_size;
 
-	if ((file = AllocateFile(filename, PG_BINARY_R)) == NULL)
+	if ((file = AllocateFile(filename, "r")) == NULL)
 		ereport(ERROR,
 				(errcode_for_file_access(),
 				 errmsg("could not open file \"%s\" for reading: %m",

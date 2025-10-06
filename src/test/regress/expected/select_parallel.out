@@ -537,14 +537,11 @@ explain (costs off)
                          QUERY PLAN                         
 ------------------------------------------------------------
  Aggregate
-   Disabled Nodes: 1
    ->  Nested Loop
-         Disabled Nodes: 1
          ->  Gather
-               Disabled Nodes: 1
                Workers Planned: 4
                ->  Parallel Seq Scan on tenk2
-                     Disabled Nodes: 1
+                     Disabled: true
                      Filter: (thousand = 0)
          ->  Gather
                Workers Planned: 4
@@ -552,7 +549,7 @@ explain (costs off)
                      Recheck Cond: (hundred > 1)
                      ->  Bitmap Index Scan on tenk1_hundred
                            Index Cond: (hundred > 1)
-(16 rows)
+(13 rows)
 
 select count(*) from tenk1, tenk2 where tenk1.hundred > 1 and tenk2.thousand=0;
  count 
@@ -1386,3 +1383,27 @@ reset debug_parallel_query;
 drop function set_and_report_role();
 drop function set_role_and_error(int);
 drop role regress_parallel_worker;
+-- don't freeze in ParallelFinish while holding an LWLock
+BEGIN;
+CREATE FUNCTION my_cmp (int4, int4)
+RETURNS int LANGUAGE sql AS
+$$
+	SELECT
+		CASE WHEN $1 < $2 THEN -1
+				WHEN $1 > $2 THEN  1
+				ELSE 0
+		END;
+$$;
+CREATE TABLE parallel_hang (i int4);
+INSERT INTO parallel_hang
+	(SELECT * FROM generate_series(1, 400) gs);
+CREATE OPERATOR CLASS int4_custom_ops FOR TYPE int4 USING btree AS
+	OPERATOR 1 < (int4, int4), OPERATOR 2 <= (int4, int4),
+	OPERATOR 3 = (int4, int4), OPERATOR 4 >= (int4, int4),
+	OPERATOR 5 > (int4, int4), FUNCTION 1 my_cmp(int4, int4);
+CREATE UNIQUE INDEX parallel_hang_idx
+					ON parallel_hang
+					USING btree (i int4_custom_ops);
+SET debug_parallel_query = on;
+DELETE FROM parallel_hang WHERE 380 <= i AND i <= 420;
+ROLLBACK;

@@ -739,8 +739,8 @@ collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 	/* Loop over every block in the relation. */
 	while ((buffer = read_stream_next_buffer(stream, NULL)) != InvalidBuffer)
 	{
-		bool		check_frozen = false;
-		bool		check_visible = false;
+		bool		check_frozen = all_frozen;
+		bool		check_visible = all_visible;
 		Page		page;
 		OffsetNumber offnum,
 					maxoff;
@@ -759,9 +759,9 @@ collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 		 * The visibility map bits might have changed while we were acquiring
 		 * the page lock.  Recheck to avoid returning spurious results.
 		 */
-		if (all_frozen && !VM_ALL_FROZEN(rel, blkno, &vmbuffer))
+		if (check_frozen && !VM_ALL_FROZEN(rel, blkno, &vmbuffer))
 			check_frozen = false;
-		if (all_visible && !VM_ALL_VISIBLE(rel, blkno, &vmbuffer))
+		if (check_visible && !VM_ALL_VISIBLE(rel, blkno, &vmbuffer))
 			check_visible = false;
 		if (!check_visible && !check_frozen)
 		{

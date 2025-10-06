@@ -2309,6 +2309,8 @@ ExecInitExprRec(Expr *node, ExprState *state,
 			{
 				JsonValueExpr *jve = (JsonValueExpr *) node;
 
+				Assert(jve->raw_expr != NULL);
+				ExecInitExprRec(jve->raw_expr, state, resv, resnull);
 				Assert(jve->formatted_expr != NULL);
 				ExecInitExprRec(jve->formatted_expr, state, resv, resnull);
 				break;
@@ -4001,6 +4003,7 @@ ExecBuildHash32Expr(TupleDesc desc, const TupleTableSlotOps *ops,
 {
 	ExprState  *state = makeNode(ExprState);
 	ExprEvalStep scratch = {0};
+	NullableDatum *iresult = NULL;
 	List	   *adjust_jumps = NIL;
 	ListCell   *lc;
 	ListCell   *lc2;
@@ -4013,6 +4016,14 @@ ExecBuildHash32Expr(TupleDesc desc, const TupleTableSlotOps *ops,
 
 	/* Insert setup steps as needed. */
 	ExecCreateExprSetupSteps(state, (Node *) hash_exprs);
+
+	/*
+	 * When hashing more than 1 expression or if we have an init value, we
+	 * need somewhere to store the intermediate hash value so that it's
+	 * available to be combined with the result of subsequent hashing.
+	 */
+	if (list_length(hash_exprs) > 1 || init_value != 0)
+		iresult = palloc(sizeof(NullableDatum));
 
 	if (init_value == 0)
 	{
@@ -4029,8 +4040,8 @@ ExecBuildHash32Expr(TupleDesc desc, const TupleTableSlotOps *ops,
 		/* Set up operation to set the initial value. */
 		scratch.opcode = EEOP_HASHDATUM_SET_INITVAL;
 		scratch.d.hashdatum_initvalue.init_value = UInt32GetDatum(init_value);
-		scratch.resvalue = &state->resvalue;
-		scratch.resnull = &state->resnull;
+		scratch.resvalue = &iresult->value;
+		scratch.resnull = &iresult->isnull;
 
 		ExprEvalPushStep(state, &scratch);
 
@@ -4068,8 +4079,26 @@ ExecBuildHash32Expr(TupleDesc desc, const TupleTableSlotOps *ops,
 						&fcinfo->args[0].value,
 						&fcinfo->args[0].isnull);
 
-		scratch.resvalue = &state->resvalue;
-		scratch.resnull = &state->resnull;
+		if (i == list_length(hash_exprs) - 1)
+		{
+			/* the result for hashing the final expr is stored in the state */
+			scratch.resvalue = &state->resvalue;
+			scratch.resnull = &state->resnull;
+		}
+		else
+		{
+			Assert(iresult != NULL);
+
+			/* intermediate values are stored in an intermediate result */
+			scratch.resvalue = &iresult->value;
+			scratch.resnull = &iresult->isnull;
+		}
+
+		/*
+		 * NEXT32 opcodes need to look at the intermediate result.  We might
+		 * as well just set this for all ops.  FIRSTs won't look at it.
+		 */
+		scratch.d.hashdatum.iresult = iresult;
 
 		/* Initialize function call parameter structure too */
 		InitFunctionCallInfoData(*fcinfo, finfo, 1, inputcollid, NULL, NULL);
@@ -4416,9 +4445,11 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 	List	   *jumps_return_null = NIL;
 	List	   *jumps_to_end = NIL;
 	ListCell   *lc;
-	ErrorSaveContext *escontext =
-		jsexpr->on_error->btype != JSON_BEHAVIOR_ERROR ?
-		&jsestate->escontext : NULL;
+	ErrorSaveContext *escontext;
+	bool		returning_domain =
+		get_typtype(jsexpr->returning->typid) == TYPTYPE_DOMAIN;
+
+	Assert(jsexpr->on_error != NULL);
 
 	jsestate->jsexpr = jsexpr;
 
@@ -4496,6 +4527,9 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 	scratch->d.constval.isnull = true;
 	ExprEvalPushStep(state, scratch);
 
+	escontext = jsexpr->on_error->btype != JSON_BEHAVIOR_ERROR ?
+		&jsestate->escontext : NULL;
+
 	/*
 	 * To handle coercion errors softly, use the following ErrorSaveContext to
 	 * pass to ExecInitExprRec() when initializing the coercion expressions
@@ -4567,9 +4601,18 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 	 * Step to check jsestate->error and return the ON ERROR expression if
 	 * there is one.  This handles both the errors that occur during jsonpath
 	 * evaluation in EEOP_JSONEXPR_PATH and subsequent coercion evaluation.
+	 *
+	 * Speed up common cases by avoiding extra steps for a NULL-valued ON
+	 * ERROR expression unless RETURNING a domain type, where constraints must
+	 * be checked. ExecEvalJsonExprPath() already returns NULL on error,
+	 * making additional steps unnecessary in typical scenarios. Note that the
+	 * default ON ERROR behavior for JSON_VALUE() and JSON_QUERY() is to
+	 * return NULL.
 	 */
-	if (jsexpr->on_error &&
-		jsexpr->on_error->btype != JSON_BEHAVIOR_ERROR)
+	if (jsexpr->on_error->btype != JSON_BEHAVIOR_ERROR &&
+		(!(IsA(jsexpr->on_error->expr, Const) &&
+		   ((Const *) jsexpr->on_error->expr)->constisnull) ||
+		 returning_domain))
 	{
 		ErrorSaveContext *saved_escontext;
 
@@ -4624,9 +4667,15 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 	/*
 	 * Step to check jsestate->empty and return the ON EMPTY expression if
 	 * there is one.
+	 *
+	 * See the comment above for details on the optimization for NULL-valued
+	 * expressions.
 	 */
 	if (jsexpr->on_empty != NULL &&
-		jsexpr->on_empty->btype != JSON_BEHAVIOR_ERROR)
+		jsexpr->on_empty->btype != JSON_BEHAVIOR_ERROR &&
+		(!(IsA(jsexpr->on_empty->expr, Const) &&
+		   ((Const *) jsexpr->on_empty->expr)->constisnull) ||
+		 returning_domain))
 	{
 		ErrorSaveContext *saved_escontext;
 

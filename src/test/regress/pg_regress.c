@@ -233,14 +233,17 @@ free_stringlist(_stringlist **listhead)
 static void
 split_to_stringlist(const char *s, const char *delim, _stringlist **listhead)
 {
-	char	   *sc = pg_strdup(s);
 	char	   *token;
+	char	   *sc;
+	char	   *tofree;
+
+	tofree = sc = pg_strdup(s);
 
 	while ((token = strsep(&sc, delim)))
 	{
 		add_stringlist_item(listhead, token);
 	}
-	free(sc);
+	free(tofree);
 }
 
 /*
@@ -776,7 +779,7 @@ initialize_environment(void)
 	/*
 	 * Set timezone and datestyle for datetime-related tests
 	 */
-	setenv("PGTZ", "PST8PDT", 1);
+	setenv("PGTZ", "America/Los_Angeles", 1);
 	setenv("PGDATESTYLE", "Postgres, MDY", 1);
 
 	/*

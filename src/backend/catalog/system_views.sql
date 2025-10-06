@@ -1138,12 +1138,14 @@ CREATE VIEW pg_stat_checkpointer AS
     SELECT
         pg_stat_get_checkpointer_num_timed() AS num_timed,
         pg_stat_get_checkpointer_num_requested() AS num_requested,
+        pg_stat_get_checkpointer_num_performed() AS num_done,
         pg_stat_get_checkpointer_restartpoints_timed() AS restartpoints_timed,
         pg_stat_get_checkpointer_restartpoints_requested() AS restartpoints_req,
         pg_stat_get_checkpointer_restartpoints_performed() AS restartpoints_done,
         pg_stat_get_checkpointer_write_time() AS write_time,
         pg_stat_get_checkpointer_sync_time() AS sync_time,
         pg_stat_get_checkpointer_buffers_written() AS buffers_written,
+        pg_stat_get_checkpointer_slru_written() AS slru_written,
         pg_stat_get_checkpointer_stat_reset_time() AS stats_reset;
 
 CREATE VIEW pg_stat_io AS
@@ -1365,6 +1367,12 @@ CREATE VIEW pg_stat_subscription_stats AS
         s.subname,
         ss.apply_error_count,
         ss.sync_error_count,
+        ss.confl_insert_exists,
+        ss.confl_update_origin_differs,
+        ss.confl_update_exists,
+        ss.confl_update_missing,
+        ss.confl_delete_origin_differs,
+        ss.confl_delete_missing,
         ss.stats_reset
     FROM pg_subscription as s,
          pg_stat_get_subscription_stats(s.oid) as ss;

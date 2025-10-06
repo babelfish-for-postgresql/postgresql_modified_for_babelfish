@@ -792,7 +792,7 @@ endif
 llvmopt = get_option('llvm')
 llvm = not_found_dep
 if add_languages('cpp', required: llvmopt, native: false)
-  llvm = dependency('llvm', version: '>=10', method: 'config-tool', required: llvmopt)
+  llvm = dependency('llvm', version: '>=14', method: 'config-tool', required: llvmopt)
 
   if llvm.found()
 
@@ -1058,7 +1058,10 @@ if not perlopt.disabled()
       if cc.get_id() == 'msvc'
         # prevent binary mismatch between MSVC built plperl and Strawberry or
         # msys ucrt perl libraries
-        perl_ccflags += ['-DNO_THREAD_SAFE_LOCALE']
+        perl_v = run_command(perl, '-V').stdout()
+        if not perl_v.contains('USE_THREAD_SAFE_LOCALE')
+          perl_ccflags += ['-DNO_THREAD_SAFE_LOCALE']
+        endif
       endif
     endif
 
@@ -1069,20 +1072,19 @@ if not perlopt.disabled()
     # Config's ccdlflags and ldflags.  (Those are the choices of those who
     # built the Perl installation, which are not necessarily appropriate
     # for building PostgreSQL.)
-    ldopts = run_command(perl, '-MExtUtils::Embed', '-e', 'ldopts', check: true).stdout().strip()
-    undesired = run_command(perl_conf_cmd, 'ccdlflags', check: true).stdout().split()
-    undesired += run_command(perl_conf_cmd, 'ldflags', check: true).stdout().split()
+    perl_ldopts = run_command(perl, '-e', '''
+use ExtUtils::Embed;
+use Text::ParseWords;
+# tell perl to suppress including these in ldopts
+*ExtUtils::Embed::_ldflags =*ExtUtils::Embed::_ccdlflags = sub { return ""; };
+# adding an argument to ldopts makes it return a value instead of printing
+# print one of these per line so splitting will preserve spaces in file names.
+# shellwords eats backslashes, so we need to escape them.
+(my $opts = ldopts(undef)) =~ s!\\!\\\\!g;
+print "$_\n" foreach shellwords($opts);
+''',
+     check: true).stdout().strip().split('\n')
 
-    perl_ldopts = []
-    foreach ldopt : ldopts.split(' ')
-      if ldopt == '' or ldopt in undesired
-        continue
-      endif
-
-      perl_ldopts += ldopt.strip('"')
-    endforeach
-
-    message('LDFLAGS recommended by perl: "@0@"'.format(ldopts))
     message('LDFLAGS for embedding perl: "@0@"'.format(' '.join(perl_ldopts)))
 
     perl_dep_int = declare_dependency(
@@ -1359,12 +1361,8 @@ if sslopt in ['auto', 'openssl']
       ['CRYPTO_new_ex_data', {'required': true}],
       ['SSL_new', {'required': true}],
 
-      # Functions introduced in OpenSSL 1.1.0. We used to check for
-      # OPENSSL_VERSION_NUMBER, but that didn't work with 1.1.0, because LibreSSL
-      # defines OPENSSL_VERSION_NUMBER to claim version 2.0.0, even though it
-      # doesn't have these OpenSSL 1.1.0 functions. So check for individual
-      # functions.
-      ['OPENSSL_init_ssl', {'required': true}],
+      # Functions introduced in OpenSSL 1.1.1.
+      ['SSL_CTX_set_ciphersuites', {'required': true}],
 
       # Function introduced in OpenSSL 1.0.2, not in LibreSSL.
       ['SSL_CTX_set_cert_cb'],
@@ -1393,7 +1391,7 @@ if sslopt in ['auto', 'openssl']
     if are_openssl_funcs_complete
       cdata.set('USE_OPENSSL', 1,
                 description: 'Define to 1 to build with OpenSSL support. (-Dssl=openssl)')
-      cdata.set('OPENSSL_API_COMPAT', '0x10100000L',
+      cdata.set('OPENSSL_API_COMPAT', '0x10101000L',
                 description: 'Define to the OpenSSL API version in use. This avoids deprecation warnings from newer OpenSSL versions.')
       ssl_library = 'openssl'
     else
@@ -2401,6 +2399,7 @@ header_checks = [
   'sys/ucred.h',
   'termios.h',
   'ucred.h',
+  'xlocale.h',
 ]
 
 foreach header : header_checks
@@ -2544,15 +2543,6 @@ else
   cdata.set('STRERROR_R_INT', false)
 endif
 
-# Find the right header file for the locale_t type.  macOS needs xlocale.h;
-# standard is locale.h, but glibc <= 2.25 also had an xlocale.h file that
-# we should not use so we check the standard header first.  MSVC has a
-# replacement defined in src/include/port/win32_port.h.
-if not cc.has_type('locale_t', prefix: '#include <locale.h>') and \
-   cc.has_type('locale_t', prefix: '#include <xlocale.h>')
-  cdata.set('LOCALE_T_IN_XLOCALE', 1)
-endif
-
 # Check if the C compiler understands typeof or a variant.  Define
 # HAVE_TYPEOF if so, and define 'typeof' to the actual key word.
 foreach kw : ['typeof', '__typeof__', 'decltype']
@@ -2576,29 +2566,6 @@ int main(void)
     break
   endif
 endforeach
-
-
-# Try to find a declaration for wcstombs_l().  It might be in stdlib.h
-# (following the POSIX requirement for wcstombs()), or in locale.h, or in
-# xlocale.h.  If it's in the latter, define WCSTOMBS_L_IN_XLOCALE.
-wcstombs_l_test = '''
-#include <stdlib.h>
-#include <locale.h>
-@0@
-
-void main(void)
-{
-#ifndef wcstombs_l
-    (void) wcstombs_l;
-#endif
-}
-'''
-if (not cc.compiles(wcstombs_l_test.format(''),
-      name: 'wcstombs_l') and
-    cc.compiles(wcstombs_l_test.format('#include <xlocale.h>'),
-      name: 'wcstombs_l in xlocale.h'))
-    cdata.set('WCSTOMBS_L_IN_XLOCALE', 1)
-endif
 
 
 # MSVC doesn't cope well with defining restrict to __restrict, the spelling it

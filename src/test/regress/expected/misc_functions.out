@@ -412,6 +412,12 @@ select count(*) >= 0 as ok from pg_ls_archive_statusdir();
  t
 (1 row)
 
+select count(*) >= 0 as ok from pg_ls_summariesdir();
+ ok 
+----
+ t
+(1 row)
+
 -- pg_read_file()
 select length(pg_read_file('postmaster.pid')) > 20;
  ?column? 
@@ -819,3 +825,16 @@ SELECT pg_column_toast_chunk_id(a) IS NULL,
 
 DROP TABLE test_chunk_id;
 DROP FUNCTION explain_mask_costs(text, bool, bool, bool, bool);
+-- test stratnum support functions
+SELECT gist_stratnum_identity(3::smallint);
+ gist_stratnum_identity 
+------------------------
+                      3
+(1 row)
+
+SELECT gist_stratnum_identity(18::smallint);
+ gist_stratnum_identity 
+------------------------
+                     18
+(1 row)
+

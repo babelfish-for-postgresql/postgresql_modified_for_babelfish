@@ -241,7 +241,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 			Oid			indexoid = lfirst_oid(l);
 			Relation	indexRelation;
 			Form_pg_index index;
-			IndexAmRoutine *amroutine;
+			IndexAmRoutine *amroutine = NULL;
 			IndexOptInfo *info;
 			int			ncolumns,
 						nkeycolumns;
@@ -485,13 +485,12 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 						info->tuples = rel->tuples;
 				}
 
-				if (info->relam == BTREE_AM_OID)
+				/*
+				 * Get tree height while we have the index open
+				 */
+				if (amroutine->amgettreeheight)
 				{
-					/*
-					 * For btrees, get tree height while we have the index
-					 * open
-					 */
-					info->tree_height = _bt_getrootheight(indexRelation);
+					info->tree_height = amroutine->amgettreeheight(indexRelation);
 				}
 				else
 				{
@@ -829,7 +828,7 @@ infer_arbiter_indexes(PlannerInfo *root)
 		 */
 		if (indexOidFromConstraint == idxForm->indexrelid)
 		{
-			if (!idxForm->indisunique && onconflict->action == ONCONFLICT_UPDATE)
+			if (idxForm->indisexclusion && onconflict->action == ONCONFLICT_UPDATE)
 				ereport(ERROR,
 						(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 						 errmsg("ON CONFLICT DO UPDATE not supported with exclusion constraints")));
@@ -852,6 +851,13 @@ infer_arbiter_indexes(PlannerInfo *root)
 		 * skipped if it's not unique
 		 */
 		if (!idxForm->indisunique)
+			goto next;
+
+		/*
+		 * So-called unique constraints with WITHOUT OVERLAPS are really
+		 * exclusion constraints, so skip those too.
+		 */
+		if (idxForm->indisexclusion)
 			goto next;
 
 		/* Build BMS representation of plain (non expression) index attrs */

@@ -545,9 +545,9 @@ int PQsocketPoll(int sock, int forRead, int forWrite,
        the Unix epoch (that is, <type>time_t</type> times 1 million).
        Timeout is infinite if <parameter>end_time</parameter>
        is <literal>-1</literal>.  Timeout is immediate (no blocking) if
-       end_time is <literal>0</literal> (or indeed, any time before now).
-       Timeout values can be calculated conveniently by adding the desired
-       number of microseconds to the result of
+       <parameter>end_time</parameter> is <literal>0</literal> (or indeed, any
+       time before now).  Timeout values can be calculated conveniently by
+       adding the desired number of microseconds to the result of
        <xref linkend="libpq-PQgetCurrentTimeUSec"/>.
        Note that the underlying system calls may have less than microsecond
        precision, so that the actual delay may be imprecise.
@@ -1830,11 +1830,12 @@ postgresql://%2Fvar%2Flib%2Fpostgresql/dbname
           <term><literal>direct</literal></term>
           <listitem>
            <para>
-             start SSL handshake directly after establishing the TCP/IP
-             connection.  This is only allowed with sslmode=require or higher,
-             because the weaker settings could lead to unintended fallback to
-             plaintext authentication when the server does not support direct
-             SSL handshake.
+            start SSL handshake directly after establishing the TCP/IP
+            connection.  This is only allowed with
+            <literal>sslmode=require</literal> or higher, because the weaker
+            settings could lead to unintended fallback to plaintext
+            authentication when the server does not support direct SSL
+            handshake.
            </para>
           </listitem>
          </varlistentry>
@@ -2678,22 +2679,44 @@ const char *PQparameterStatus(const PGconn *conn, const char *paramName);
      </listitem>
     </varlistentry>
 
-    <varlistentry id="libpq-PQprotocolVersion">
-     <term><function>PQprotocolVersion</function><indexterm><primary>PQprotocolVersion</primary></indexterm></term>
+    <varlistentry id="libpq-PQfullProtocolVersion">
+     <term><function>PQfullProtocolVersion</function><indexterm><primary>PQfullProtocolVersion</primary></indexterm></term>
 
      <listitem>
       <para>
        Interrogates the frontend/backend protocol being used.
 <synopsis>
-int PQprotocolVersion(const PGconn *conn);
+int PQfullProtocolVersion(const PGconn *conn);
 </synopsis>
        Applications might wish to use this function to determine whether certain
-       features are supported.  Currently, the possible values are 3
-       (3.0 protocol), or zero (connection bad).  The protocol version will
-       not change after connection startup is complete, but it could
-       theoretically change during a connection reset.  The 3.0 protocol is
-       supported by <productname>PostgreSQL</productname> server versions 7.4
-       and above.
+       features are supported. The result is formed by multiplying the server's
+       major version number by 10000 and adding the minor version number. For
+       example, version 3.2 would be returned as 30002, and version 4.0 would
+       be returned as 40000. Zero is returned if the connection is bad. The 3.0
+       protocol is supported by <productname>PostgreSQL</productname> server
+       versions 7.4 and above.
+      </para>
+      <para>
+       The protocol version will not change after connection startup is
+       complete, but it could theoretically change during a connection reset.
+      </para>
+     </listitem>
+    </varlistentry>
+
+    <varlistentry id="libpq-PQprotocolVersion">
+     <term><function>PQprotocolVersion</function><indexterm><primary>PQprotocolVersion</primary></indexterm></term>
+
+     <listitem>
+      <para>
+       Interrogates the frontend/backend protocol major version.
+<synopsis>
+int PQprotocolVersion(const PGconn *conn);
+</synopsis>
+       Unlike <xref linkend="libpq-PQfullProtocolVersion"/>, this returns only
+       the major protocol version in use, but it is supported by a wider range
+       of libpq releases back to version 7.4. Currently, the possible values are
+       3 (3.0 protocol), or zero (connection bad). Prior to release version
+       14.0, libpq could additionally return 2 (2.0 protocol).
       </para>
      </listitem>
     </varlistentry>
@@ -7359,8 +7382,9 @@ int PQputline(PGconn *conn,
         <literal>\.</literal> as a final line to indicate to the server that it had
         finished sending <command>COPY</command> data.  While this still works, it is deprecated and the
         special meaning of <literal>\.</literal> can be expected to be removed in a
-        future release.  It is sufficient to call <xref linkend="libpq-PQendcopy"/> after
-        having sent the actual data.
+        future release.  (It already will misbehave in <literal>CSV</literal>
+        mode.)  It is sufficient to call <xref linkend="libpq-PQendcopy"/>
+        after having sent the actual data.
        </para>
       </note>
      </listitem>
@@ -9295,7 +9319,8 @@ myEventProc(PGEventId evtId, void *evtInfo, void *passThrough)
   <para>
    The connection service file allows libpq connection parameters to be
    associated with a single service name. That service name can then be
-   specified in a libpq connection string, and the associated settings will be
+   specified using the <literal>service</literal> key word
+   in a libpq connection string, and the associated settings will be
    used. This allows connection parameters to be modified without requiring
    a recompile of the libpq-using application. The service name can also be
    specified using the <envar>PGSERVICE</envar> environment variable.
@@ -9558,7 +9583,7 @@ ldap://ldap.acme.com/cn=dbserver,cn=hosts?pgconnectinfo?base?(objectclass=*)
    <para>
     For backwards compatibility with earlier versions of PostgreSQL, if a
     root CA file exists, the behavior of
-    <literal>sslmode</literal>=<literal>require</literal> will be the same
+    <literal>sslmode=require</literal> will be the same
     as that of <literal>verify-ca</literal>, meaning the server certificate
     is validated against the CA. Relying on this behavior is discouraged,
     and applications that need certificate validation should always use

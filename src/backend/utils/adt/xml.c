@@ -344,7 +344,7 @@ xml_out_internal(xmltype *x, pg_enc target_encoding)
 	}
 
 	ereport(WARNING,
-			errcode(ERRCODE_INTERNAL_ERROR),
+			errcode(ERRCODE_DATA_CORRUPTED),
 			errmsg_internal("could not parse XML declaration in stored value"),
 			errdetail_for_xml_code(res_code));
 #endif
@@ -677,8 +677,14 @@ xmltotext_with_options(xmltype *data, XmlOptionType xmloption_arg, bool indent)
 	}
 
 #ifdef USE_LIBXML
-	/* Parse the input according to the xmloption */
-	doc = xml_parse(data, xmloption_arg, true, GetDatabaseEncoding(),
+
+	/*
+	 * Parse the input according to the xmloption.
+	 *
+	 * preserve_whitespace is set to false in case we are indenting, otherwise
+	 * libxml2 will fail to indent elements that have whitespace between them.
+	 */
+	doc = xml_parse(data, xmloption_arg, !indent, GetDatabaseEncoding(),
 					&parsed_xmloptiontype, &content_nodes,
 					(Node *) &escontext);
 	if (doc == NULL || escontext.error_occurred)
@@ -736,7 +742,7 @@ xmltotext_with_options(xmltype *data, XmlOptionType xmloption_arg, bool indent)
 		{
 			/* If it's a document, saving is easy. */
 			if (xmlSaveDoc(ctxt, doc) == -1 || xmlerrcxt->err_occurred)
-				xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+				xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
 							"could not save document to xmlBuffer");
 		}
 		else if (content_nodes != NULL)
@@ -779,7 +785,7 @@ xmltotext_with_options(xmltype *data, XmlOptionType xmloption_arg, bool indent)
 					if (xmlSaveTree(ctxt, newline) == -1 || xmlerrcxt->err_occurred)
 					{
 						xmlFreeNode(newline);
-						xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+						xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
 									"could not save newline to xmlBuffer");
 					}
 				}
@@ -787,7 +793,7 @@ xmltotext_with_options(xmltype *data, XmlOptionType xmloption_arg, bool indent)
 				if (xmlSaveTree(ctxt, node) == -1 || xmlerrcxt->err_occurred)
 				{
 					xmlFreeNode(newline);
-					xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+					xml_ereport(xmlerrcxt, ERROR, ERRCODE_OUT_OF_MEMORY,
 								"could not save content to xmlBuffer");
 				}
 			}
@@ -802,7 +808,22 @@ xmltotext_with_options(xmltype *data, XmlOptionType xmloption_arg, bool indent)
 						"could not close xmlSaveCtxtPtr");
 		}
 
-		result = (text *) xmlBuffer_to_xmltype(buf);
+		/*
+		 * xmlDocContentDumpOutput may add a trailing newline, so remove that.
+		 */
+		if (xmloption_arg == XMLOPTION_DOCUMENT)
+		{
+			const char *str = (const char *) xmlBufferContent(buf);
+			int			len = xmlBufferLength(buf);
+
+			while (len > 0 && (str[len - 1] == '\n' ||
+							   str[len - 1] == '\r'))
+				len--;
+
+			result = cstring_to_text_with_len(str, len);
+		}
+		else
+			result = (text *) xmlBuffer_to_xmltype(buf);
 	}
 	PG_CATCH();
 	{
@@ -983,7 +1004,7 @@ xmlpi(const char *target, text *arg, bool arg_is_null, bool *result_is_null)
 
 	if (pg_strcasecmp(target, "xml") == 0)
 		ereport(ERROR,
-				(errcode(ERRCODE_SYNTAX_ERROR), /* really */
+				(errcode(ERRCODE_INVALID_XML_PROCESSING_INSTRUCTION),
 				 errmsg("invalid XML processing instruction"),
 				 errdetail("XML processing instruction target name cannot be \"%s\".", target)));
 
@@ -4362,7 +4383,7 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 	xpath_len = VARSIZE_ANY_EXHDR(xpath_expr_text);
 	if (xpath_len == 0)
 		ereport(ERROR,
-				(errcode(ERRCODE_DATA_EXCEPTION),
+				(errcode(ERRCODE_INVALID_ARGUMENT_FOR_XQUERY),
 				 errmsg("empty XPath expression")));
 
 	string = pg_xmlCharStrndup(datastr, len);
@@ -4427,9 +4448,15 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 			}
 		}
 
-		xpathcomp = xmlXPathCompile(xpath_expr);
+		/*
+		 * Note: here and elsewhere, be careful to use xmlXPathCtxtCompile not
+		 * xmlXPathCompile.  In libxml2 2.13.3 and older, the latter function
+		 * fails to defend itself against recursion-to-stack-overflow.  See
+		 * https://gitlab.gnome.org/GNOME/libxml2/-/issues/799
+		 */
+		xpathcomp = xmlXPathCtxtCompile(xpathctx, xpath_expr);
 		if (xpathcomp == NULL || xmlerrcxt->err_occurred)
-			xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_INVALID_ARGUMENT_FOR_XQUERY,
 						"invalid XPath expression");
 
 		/*
@@ -4441,7 +4468,7 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 		 */
 		xpathobj = xmlXPathCompiledEval(xpathcomp, xpathctx);
 		if (xpathobj == NULL || xmlerrcxt->err_occurred)
-			xml_ereport(xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+			xml_ereport(xmlerrcxt, ERROR, ERRCODE_INVALID_ARGUMENT_FOR_XQUERY,
 						"could not create XPath object");
 
 		/*
@@ -4771,7 +4798,7 @@ XmlTableSetNamespace(TableFuncScanState *state, const char *name, const char *ur
 	if (xmlXPathRegisterNs(xtCxt->xpathcxt,
 						   pg_xmlCharStrndup(name, strlen(name)),
 						   pg_xmlCharStrndup(uri, strlen(uri))))
-		xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_DATA_EXCEPTION,
+		xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INVALID_ARGUMENT_FOR_XQUERY,
 					"could not set XML namespace");
 #else
 	NO_XML_SUPPORT();
@@ -4793,14 +4820,17 @@ XmlTableSetRowFilter(TableFuncScanState *state, const char *path)
 
 	if (*path == '\0')
 		ereport(ERROR,
-				(errcode(ERRCODE_DATA_EXCEPTION),
+				(errcode(ERRCODE_INVALID_ARGUMENT_FOR_XQUERY),
 				 errmsg("row path filter must not be empty string")));
 
 	xstr = pg_xmlCharStrndup(path, strlen(path));
 
-	xtCxt->xpathcomp = xmlXPathCompile(xstr);
+	/* We require XmlTableSetDocument to have been done already */
+	Assert(xtCxt->xpathcxt != NULL);
+
+	xtCxt->xpathcomp = xmlXPathCtxtCompile(xtCxt->xpathcxt, xstr);
 	if (xtCxt->xpathcomp == NULL || xtCxt->xmlerrcxt->err_occurred)
-		xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_SYNTAX_ERROR,
+		xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INVALID_ARGUMENT_FOR_XQUERY,
 					"invalid XPath expression");
 #else
 	NO_XML_SUPPORT();
@@ -4824,14 +4854,17 @@ XmlTableSetColumnFilter(TableFuncScanState *state, const char *path, int colnum)
 
 	if (*path == '\0')
 		ereport(ERROR,
-				(errcode(ERRCODE_DATA_EXCEPTION),
+				(errcode(ERRCODE_INVALID_ARGUMENT_FOR_XQUERY),
 				 errmsg("column path filter must not be empty string")));
 
 	xstr = pg_xmlCharStrndup(path, strlen(path));
 
-	xtCxt->xpathscomp[colnum] = xmlXPathCompile(xstr);
+	/* We require XmlTableSetDocument to have been done already */
+	Assert(xtCxt->xpathcxt != NULL);
+
+	xtCxt->xpathscomp[colnum] = xmlXPathCtxtCompile(xtCxt->xpathcxt, xstr);
 	if (xtCxt->xpathscomp[colnum] == NULL || xtCxt->xmlerrcxt->err_occurred)
-		xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_DATA_EXCEPTION,
+		xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INVALID_ARGUMENT_FOR_XQUERY,
 					"invalid XPath expression");
 #else
 	NO_XML_SUPPORT();
@@ -4858,7 +4891,7 @@ XmlTableFetchRow(TableFuncScanState *state)
 	{
 		xtCxt->xpathobj = xmlXPathCompiledEval(xtCxt->xpathcomp, xtCxt->xpathcxt);
 		if (xtCxt->xpathobj == NULL || xtCxt->xmlerrcxt->err_occurred)
-			xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+			xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INVALID_ARGUMENT_FOR_XQUERY,
 						"could not create XPath object");
 
 		xtCxt->row_count = 0;
@@ -4922,7 +4955,7 @@ XmlTableGetValue(TableFuncScanState *state, int colnum,
 		/* Evaluate column path */
 		xpathobj = xmlXPathCompiledEval(xtCxt->xpathscomp[colnum], xtCxt->xpathcxt);
 		if (xpathobj == NULL || xtCxt->xmlerrcxt->err_occurred)
-			xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INTERNAL_ERROR,
+			xml_ereport(xtCxt->xmlerrcxt, ERROR, ERRCODE_INVALID_ARGUMENT_FOR_XQUERY,
 						"could not create XPath object");
 
 		/*

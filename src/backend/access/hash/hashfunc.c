@@ -279,7 +279,7 @@ hashtext(PG_FUNCTION_ARGS)
 
 	mylocale = pg_newlocale_from_collation(collid);
 
-	if (pg_locale_deterministic(mylocale))
+	if (mylocale->deterministic)
 	{
 		result = hash_any((unsigned char *) VARDATA_ANY(key),
 						  VARSIZE_ANY_EXHDR(key));
@@ -334,7 +334,7 @@ hashtextextended(PG_FUNCTION_ARGS)
 
 	mylocale = pg_newlocale_from_collation(collid);
 
-	if (pg_locale_deterministic(mylocale))
+	if (mylocale->deterministic)
 	{
 		result = hash_any_extended((unsigned char *) VARDATA_ANY(key),
 								   VARSIZE_ANY_EXHDR(key),
@@ -376,6 +376,11 @@ hashtextextended(PG_FUNCTION_ARGS)
 /*
  * hashvarlena() can be used for any varlena datatype in which there are
  * no non-significant bits, ie, distinct bitpatterns never compare as equal.
+ *
+ * (However, you need to define an SQL-level wrapper function around it with
+ * the concrete input data type; otherwise hashvalidate() won't accept it.
+ * Moreover, at least for built-in types, a C-level wrapper function is also
+ * recommended; otherwise, the opr_sanity test will get upset.)
  */
 Datum
 hashvarlena(PG_FUNCTION_ARGS)
@@ -405,4 +410,16 @@ hashvarlenaextended(PG_FUNCTION_ARGS)
 	PG_FREE_IF_COPY(key, 0);
 
 	return result;
+}
+
+Datum
+hashbytea(PG_FUNCTION_ARGS)
+{
+	return hashvarlena(fcinfo);
+}
+
+Datum
+hashbyteaextended(PG_FUNCTION_ARGS)
+{
+	return hashvarlenaextended(fcinfo);
 }

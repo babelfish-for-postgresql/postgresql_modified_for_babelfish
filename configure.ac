@@ -631,9 +631,6 @@ if test "$with_llvm" = yes ; then
   PGAC_PROG_VARCC_VARFLAGS_OPT(CLANG, BITCODE_CFLAGS, [-fexcess-precision=standard])
   PGAC_PROG_VARCXX_VARFLAGS_OPT(CLANGXX, BITCODE_CXXFLAGS, [-fexcess-precision=standard])
 
-  PGAC_PROG_VARCC_VARFLAGS_OPT(CLANG, BITCODE_CFLAGS, [-Xclang -no-opaque-pointers])
-  PGAC_PROG_VARCXX_VARFLAGS_OPT(CLANGXX, BITCODE_CXXFLAGS, [-Xclang -no-opaque-pointers])
-
   NOT_THE_CFLAGS=""
   PGAC_PROG_VARCC_VARFLAGS_OPT(CLANG, NOT_THE_CFLAGS, [-Wunused-command-line-argument])
   if test -n "$NOT_THE_CFLAGS"; then
@@ -1314,8 +1311,8 @@ fi
 
 if test "$with_ssl" = openssl ; then
   dnl Order matters!
-  # Minimum required OpenSSL version is 1.1.0
-  AC_DEFINE(OPENSSL_API_COMPAT, [0x10100000L],
+  # Minimum required OpenSSL version is 1.1.1
+  AC_DEFINE(OPENSSL_API_COMPAT, [0x10101000L],
             [Define to the OpenSSL API version in use. This avoids deprecation warnings from newer OpenSSL versions.])
   if test "$PORTNAME" != "win32"; then
      AC_CHECK_LIB(crypto, CRYPTO_new_ex_data, [], [AC_MSG_ERROR([library 'crypto' is required for OpenSSL])])
@@ -1324,14 +1321,10 @@ if test "$with_ssl" = openssl ; then
      AC_SEARCH_LIBS(CRYPTO_new_ex_data, [eay32 crypto], [], [AC_MSG_ERROR([library 'eay32' or 'crypto' is required for OpenSSL])])
      AC_SEARCH_LIBS(SSL_new, [ssleay32 ssl], [], [AC_MSG_ERROR([library 'ssleay32' or 'ssl' is required for OpenSSL])])
   fi
+  # Functions introduced in OpenSSL 1.1.1.
+  AC_CHECK_FUNCS([SSL_CTX_set_ciphersuites], [], [AC_MSG_ERROR([OpenSSL version >= 1.1.1 is required for SSL support])])
   # Function introduced in OpenSSL 1.0.2, not in LibreSSL.
   AC_CHECK_FUNCS([SSL_CTX_set_cert_cb])
-  # Functions introduced in OpenSSL 1.1.0. We used to check for
-  # OPENSSL_VERSION_NUMBER, but that didn't work with 1.1.0, because LibreSSL
-  # defines OPENSSL_VERSION_NUMBER to claim version 2.0.0, even though it
-  # doesn't have these OpenSSL 1.1.0 functions. So check for individual
-  # functions.
-  AC_CHECK_FUNCS([OPENSSL_init_ssl], [], [AC_MSG_ERROR([OpenSSL version >= 1.1.0 is required for SSL support])])
   # Function introduced in OpenSSL 1.1.1, not in LibreSSL.
   AC_CHECK_FUNCS([X509_get_signature_info SSL_CTX_set_num_tickets])
   AC_DEFINE([USE_OPENSSL], 1, [Define to 1 to build with OpenSSL support. (--with-ssl=openssl)])
@@ -1449,6 +1442,7 @@ AC_CHECK_HEADERS(m4_normalize([
 	sys/ucred.h
 	termios.h
 	ucred.h
+	xlocale.h
 ]))
 
 if expr x"$pgac_cv_check_readline" : 'x-lreadline' >/dev/null ; then
@@ -1611,8 +1605,6 @@ PGAC_UNION_SEMUN
 AC_CHECK_TYPES(socklen_t, [], [], [#include <sys/socket.h>])
 PGAC_STRUCT_SOCKADDR_SA_LEN
 
-PGAC_TYPE_LOCALE_T
-
 # MSVC doesn't cope well with defining restrict to __restrict, the
 # spelling it understands, because it conflicts with
 # __declspec(restrict). Therefore we define pg_restrict to the
@@ -1711,7 +1703,6 @@ fi
 ##
 
 PGAC_VAR_INT_TIMEZONE
-PGAC_FUNC_WCSTOMBS_L
 
 # Some versions of libedit contain strlcpy(), setproctitle(), and other
 # symbols that that library has no business exposing to the world.  Pending
@@ -1996,11 +1987,6 @@ if test x"$HAVE_LONG_LONG_INT_64" = xyes && test $ac_cv_alignof_long_long_int -g
 fi
 AC_DEFINE_UNQUOTED(MAXIMUM_ALIGNOF, $MAX_ALIGNOF, [Define as the maximum alignment requirement of any C data type.])
 
-
-# Some platforms predefine the types int8, int16, etc.  Only check
-# a (hopefully) representative subset.
-AC_CHECK_TYPES([int8, uint8, int64, uint64], [], [],
-[#include <stdio.h>])
 
 # Some compilers offer a 128-bit integer scalar type.
 PGAC_TYPE_128BIT_INT

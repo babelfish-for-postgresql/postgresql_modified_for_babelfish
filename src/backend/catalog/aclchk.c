@@ -75,6 +75,7 @@
 #include "nodes/makefuncs.h"
 #include "parser/parse_func.h"
 #include "parser/parse_type.h"
+#include "storage/lmgr.h"
 #include "utils/acl.h"
 #include "utils/aclchk_internal.h"
 #include "utils/builtins.h"
@@ -1855,7 +1856,7 @@ ExecGrant_Relation(InternalGrant *istmt)
 		HeapTuple	tuple;
 		ListCell   *cell_colprivs;
 
-		tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relOid));
+		tuple = SearchSysCacheLocked1(RELOID, ObjectIdGetDatum(relOid));
 		if (!HeapTupleIsValid(tuple))
 			elog(ERROR, "cache lookup failed for relation %u", relOid);
 		pg_class_tuple = (Form_pg_class) GETSTRUCT(tuple);
@@ -2072,6 +2073,7 @@ ExecGrant_Relation(InternalGrant *istmt)
 										 values, nulls, replaces);
 
 			CatalogTupleUpdate(relation, &newtuple->t_self, newtuple);
+			UnlockTuple(relation, &tuple->t_self, InplaceUpdateTupleLock);
 
 			/* Update initial privileges for extensions */
 			recordExtensionInitPriv(relOid, RelationRelationId, 0, new_acl);
@@ -2084,6 +2086,8 @@ ExecGrant_Relation(InternalGrant *istmt)
 
 			pfree(new_acl);
 		}
+		else
+			UnlockTuple(relation, &tuple->t_self, InplaceUpdateTupleLock);
 
 		/*
 		 * Handle column-level privileges, if any were specified or implied.
@@ -2197,7 +2201,7 @@ ExecGrant_common(InternalGrant *istmt, Oid classid, AclMode default_privs,
 		Oid		   *oldmembers;
 		Oid		   *newmembers;
 
-		tuple = SearchSysCache1(cacheid, ObjectIdGetDatum(objectid));
+		tuple = SearchSysCacheLocked1(cacheid, ObjectIdGetDatum(objectid));
 		if (!HeapTupleIsValid(tuple))
 			elog(ERROR, "cache lookup failed for %s %u", get_object_class_descr(classid), objectid);
 
@@ -2278,6 +2282,7 @@ ExecGrant_common(InternalGrant *istmt, Oid classid, AclMode default_privs,
 									 nulls, replaces);
 
 		CatalogTupleUpdate(relation, &newtuple->t_self, newtuple);
+		UnlockTuple(relation, &tuple->t_self, InplaceUpdateTupleLock);
 
 		/* Update initial privileges for extensions */
 		recordExtensionInitPriv(objectid, classid, 0, new_acl);
@@ -2658,8 +2663,6 @@ string_to_privilege(const char *privname)
 		return ACL_ALTER_SYSTEM;
 	if (strcmp(privname, "maintain") == 0)
 		return ACL_MAINTAIN;
-	if (strcmp(privname, "rule") == 0)
-		return 0;				/* ignore old RULE privileges */
 	ereport(ERROR,
 			(errcode(ERRCODE_SYNTAX_ERROR),
 			 errmsg("unrecognized privilege type \"%s\"", privname)));
@@ -3472,7 +3475,7 @@ pg_class_aclmask_ext(Oid table_oid, Oid roleid, AclMode mask,
 	 * Check if ACL_MAINTAIN is being checked and, if so, and not already set
 	 * as part of the result, then check if the user is a member of the
 	 * pg_maintain role, which allows VACUUM, ANALYZE, CLUSTER, REFRESH
-	 * MATERIALIZED VIEW, and REINDEX on all relations.
+	 * MATERIALIZED VIEW, REINDEX, and LOCK TABLE on all relations.
 	 */
 	if (mask & ACL_MAINTAIN &&
 		!(result & ACL_MAINTAIN) &&

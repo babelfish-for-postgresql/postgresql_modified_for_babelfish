@@ -1,13 +1,14 @@
 /*-------------------------------------------------------------------------
  *
- * waitlsn.c
+ * xlogwait.c
  *	  Implements waiting for the given replay LSN, which is used in
- *	  CALL pg_wal_replay_wait(target_lsn pg_lsn, timeout float8).
+ *	  CALL pg_wal_replay_wait(target_lsn pg_lsn,
+ *							  timeout float8, no_error bool).
  *
  * Copyright (c) 2024, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/commands/waitlsn.c
+ *	  src/backend/access/transam/xlogwait.c
  *
  *-------------------------------------------------------------------------
  */
@@ -20,7 +21,7 @@
 #include "pgstat.h"
 #include "access/xlog.h"
 #include "access/xlogrecovery.h"
-#include "commands/waitlsn.h"
+#include "access/xlogwait.h"
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "storage/latch.h"
@@ -217,12 +218,12 @@ WaitLSNCleanup(void)
  * Wait using MyLatch till the given LSN is replayed, the postmaster dies or
  * timeout happens.
  */
-static void
+WaitLSNResult
 WaitForLSNReplay(XLogRecPtr targetLSN, int64 timeout)
 {
 	XLogRecPtr	currentLSN;
 	TimestampTz endtime = 0;
-	int			wake_events = WL_LATCH_SET | WL_EXIT_ON_PM_DEATH;
+	int			wake_events = WL_LATCH_SET | WL_POSTMASTER_DEATH;
 
 	/* Shouldn't be called when shmem isn't initialized */
 	Assert(waitLSNState);
@@ -240,17 +241,14 @@ WaitForLSNReplay(XLogRecPtr targetLSN, int64 timeout)
 		 * check the last replay LSN before reporting an error.
 		 */
 		if (targetLSN <= GetXLogReplayRecPtr(NULL))
-			return;
-		ereport(ERROR,
-				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				 errmsg("recovery is not in progress"),
-				 errhint("Waiting for LSN can only be executed during recovery.")));
+			return WAIT_LSN_RESULT_SUCCESS;
+		return WAIT_LSN_RESULT_NOT_IN_RECOVERY;
 	}
 	else
 	{
 		/* If target LSN is already replayed, exit immediately */
 		if (targetLSN <= GetXLogReplayRecPtr(NULL))
-			return;
+			return WAIT_LSN_RESULT_SUCCESS;
 	}
 
 	if (timeout > 0)
@@ -276,17 +274,13 @@ WaitForLSNReplay(XLogRecPtr targetLSN, int64 timeout)
 		{
 			/*
 			 * Recovery was ended, but recheck if target LSN was already
-			 * replayed.
+			 * replayed.  See the comment regarding deleteLSNWaiter() below.
 			 */
+			deleteLSNWaiter();
 			currentLSN = GetXLogReplayRecPtr(NULL);
 			if (targetLSN <= currentLSN)
-				return;
-			ereport(ERROR,
-					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-					 errmsg("recovery is not in progress"),
-					 errdetail("Recovery ended before replaying target LSN %X/%X; last replay LSN %X/%X.",
-							   LSN_FORMAT_ARGS(targetLSN),
-							   LSN_FORMAT_ARGS(currentLSN))));
+				return WAIT_LSN_RESULT_SUCCESS;
+			return WAIT_LSN_RESULT_NOT_IN_RECOVERY;
 		}
 		else
 		{
@@ -299,7 +293,7 @@ WaitForLSNReplay(XLogRecPtr targetLSN, int64 timeout)
 		/*
 		 * If the timeout value is specified, calculate the number of
 		 * milliseconds before the timeout.  Exit if the timeout is already
-		 * achieved.
+		 * reached.
 		 */
 		if (timeout > 0)
 		{
@@ -313,6 +307,16 @@ WaitForLSNReplay(XLogRecPtr targetLSN, int64 timeout)
 		rc = WaitLatch(MyLatch, wake_events, delay_ms,
 					   WAIT_EVENT_WAIT_FOR_WAL_REPLAY);
 
+		/*
+		 * Emergency bailout if postmaster has died.  This is to avoid the
+		 * necessity for manual cleanup of all postmaster children.
+		 */
+		if (rc & WL_POSTMASTER_DEATH)
+			ereport(FATAL,
+					(errcode(ERRCODE_ADMIN_SHUTDOWN),
+					 errmsg("terminating connection due to unexpected postmaster exit"),
+					 errcontext("while waiting for LSN replay")));
+
 		if (rc & WL_LATCH_SET)
 			ResetLatch(MyLatch);
 	}
@@ -325,64 +329,10 @@ WaitForLSNReplay(XLogRecPtr targetLSN, int64 timeout)
 	deleteLSNWaiter();
 
 	/*
-	 * If we didn't achieve the target LSN, we must be exited by timeout.
+	 * If we didn't reach the target LSN, we must be exited by timeout.
 	 */
 	if (targetLSN > currentLSN)
-	{
-		ereport(ERROR,
-				(errcode(ERRCODE_QUERY_CANCELED),
-				 errmsg("timed out while waiting for target LSN %X/%X to be replayed; current replay LSN %X/%X",
-						LSN_FORMAT_ARGS(targetLSN),
-						LSN_FORMAT_ARGS(currentLSN))));
-	}
-}
+		return WAIT_LSN_RESULT_TIMEOUT;
 
-Datum
-pg_wal_replay_wait(PG_FUNCTION_ARGS)
-{
-	XLogRecPtr	target_lsn = PG_GETARG_LSN(0);
-	int64		timeout = PG_GETARG_INT64(1);
-
-	if (timeout < 0)
-		ereport(ERROR,
-				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-				 errmsg("\"timeout\" must not be negative")));
-
-	/*
-	 * We are going to wait for the LSN replay.  We should first care that we
-	 * don't hold a snapshot and correspondingly our MyProc->xmin is invalid.
-	 * Otherwise, our snapshot could prevent the replay of WAL records
-	 * implying a kind of self-deadlock.  This is the reason why
-	 * pg_wal_replay_wait() is a procedure, not a function.
-	 *
-	 * At first, we should check there is no active snapshot.  According to
-	 * PlannedStmtRequiresSnapshot(), even in an atomic context, CallStmt is
-	 * processed with a snapshot.  Thankfully, we can pop this snapshot,
-	 * because PortalRunUtility() can tolerate this.
-	 */
-	if (ActiveSnapshotSet())
-		PopActiveSnapshot();
-
-	/*
-	 * At second, invalidate a catalog snapshot if any.  And we should be done
-	 * with the preparation.
-	 */
-	InvalidateCatalogSnapshot();
-
-	/* Give up if there is still an active or registered snapshot. */
-	if (GetOldestSnapshot())
-		ereport(ERROR,
-				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				 errmsg("pg_wal_replay_wait() must be only called without an active or registered snapshot"),
-				 errdetail("Make sure pg_wal_replay_wait() isn't called within a transaction with an isolation level higher than READ COMMITTED, another procedure, or a function.")));
-
-	/*
-	 * As the result we should hold no snapshot, and correspondingly our xmin
-	 * should be unset.
-	 */
-	Assert(MyProc->xmin == InvalidTransactionId);
-
-	(void) WaitForLSNReplay(target_lsn, timeout);
-
-	PG_RETURN_VOID();
+	return WAIT_LSN_RESULT_SUCCESS;
 }

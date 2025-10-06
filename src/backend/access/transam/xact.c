@@ -31,6 +31,7 @@
 #include "access/xloginsert.h"
 #include "access/xlogrecovery.h"
 #include "access/xlogutils.h"
+#include "access/xlogwait.h"
 #include "catalog/index.h"
 #include "catalog/namespace.h"
 #include "catalog/pg_enum.h"
@@ -38,7 +39,6 @@
 #include "commands/async.h"
 #include "commands/tablecmds.h"
 #include "commands/trigger.h"
-#include "commands/waitlsn.h"
 #include "common/pg_prng.h"
 #include "executor/spi.h"
 #include "libpq/be-fsstubs.h"
@@ -71,6 +71,7 @@
 #include "utils/snapmgr.h"
 #include "utils/timeout.h"
 #include "utils/timestamp.h"
+#include "utils/typcache.h"
 
 /*
  *	User-tweakable parameters
@@ -1375,14 +1376,24 @@ RecordTransactionCommit(void)
 
 		/*
 		 * Transactions without an assigned xid can contain invalidation
-		 * messages (e.g. explicit relcache invalidations or catcache
-		 * invalidations for inplace updates); standbys need to process those.
-		 * We can't emit a commit record without an xid, and we don't want to
-		 * force assigning an xid, because that'd be problematic for e.g.
-		 * vacuum.  Hence we emit a bespoke record for the invalidations. We
-		 * don't want to use that in case a commit record is emitted, so they
-		 * happen synchronously with commits (besides not wanting to emit more
-		 * WAL records).
+		 * messages.  While inplace updates do this, this is not known to be
+		 * necessary; see comment at inplace CacheInvalidateHeapTuple().
+		 * Extensions might still rely on this capability, and standbys may
+		 * need to process those invals.  We can't emit a commit record
+		 * without an xid, and we don't want to force assigning an xid,
+		 * because that'd be problematic for e.g. vacuum.  Hence we emit a
+		 * bespoke record for the invalidations. We don't want to use that in
+		 * case a commit record is emitted, so they happen synchronously with
+		 * commits (besides not wanting to emit more WAL records).
+		 *
+		 * XXX Every known use of this capability is a defect.  Since an XID
+		 * isn't controlling visibility of the change that prompted invals,
+		 * other sessions need the inval even if this transactions aborts.
+		 *
+		 * ON COMMIT DELETE ROWS does a nontransactional index_build(), which
+		 * queues a relcache inval, including in transactions without an xid
+		 * that had read the (empty) table.  Standbys don't need any ON COMMIT
+		 * DELETE ROWS invals, but we've not done the work to withhold them.
 		 */
 		if (nmsgs != 0)
 		{
@@ -2417,6 +2428,9 @@ CommitTransaction(void)
 	/* Clean up the relation cache */
 	AtEOXact_RelationCache(true);
 
+	/* Clean up the type cache */
+	AtEOXact_TypeCache();
+
 	/*
 	 * Make catalog changes visible to all backends.  This has to happen after
 	 * relcache references are dropped (see comments for
@@ -2719,6 +2733,9 @@ PrepareTransaction(void)
 	/* Clean up the relation cache */
 	AtEOXact_RelationCache(true);
 
+	/* Clean up the type cache */
+	AtEOXact_TypeCache();
+
 	/* notify doesn't need a postprepare call */
 
 	PostPrepare_PgStat();
@@ -2964,6 +2981,7 @@ AbortTransaction(void)
 							 false, true);
 		AtEOXact_Buffers(false);
 		AtEOXact_RelationCache(false);
+		AtEOXact_TypeCache();
 		AtEOXact_Inval(false);
 		AtEOXact_MultiXact();
 		ResourceOwnerRelease(TopTransactionResourceOwner,
@@ -5166,6 +5184,7 @@ CommitSubTransaction(void)
 						 true, false);
 	AtEOSubXact_RelationCache(true, s->subTransactionId,
 							  s->parent->subTransactionId);
+	AtEOSubXact_TypeCache();
 	AtEOSubXact_Inval(true);
 	AtSubCommit_smgr();
 
@@ -5344,6 +5363,7 @@ AbortSubTransaction(void)
 
 		AtEOSubXact_RelationCache(false, s->subTransactionId,
 								  s->parent->subTransactionId);
+		AtEOSubXact_TypeCache();
 		AtEOSubXact_Inval(false);
 		ResourceOwnerRelease(s->curTransactionOwner,
 							 RESOURCE_RELEASE_LOCKS,

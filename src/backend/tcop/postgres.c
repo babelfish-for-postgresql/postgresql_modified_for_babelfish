@@ -1662,6 +1662,7 @@ exec_bind_message(StringInfo input_message)
 	char		msec_str[32];
 	ParamsErrorCbData params_data;
 	ErrorContextCallback params_errcxt;
+	ListCell   *lc;
 
 	/* Get the fixed part of the message */
 	portal_name = pq_getmsgstring(input_message);
@@ -1696,6 +1697,17 @@ exec_bind_message(StringInfo input_message)
 	debug_query_string = psrc->query_string;
 
 	pgstat_report_activity(STATE_RUNNING, psrc->query_string);
+
+	foreach(lc, psrc->query_list)
+	{
+		Query	   *query = lfirst_node(Query, lc);
+
+		if (query->queryId != UINT64CONST(0))
+		{
+			pgstat_report_query_id(query->queryId, false);
+			break;
+		}
+	}
 
 	set_ps_display("BIND");
 
@@ -2119,6 +2131,7 @@ exec_execute_message(const char *portal_name, long max_rows)
 	ErrorContextCallback params_errcxt;
 	const char *cmdtagname;
 	size_t		cmdtaglen;
+	ListCell   *lc;
 
 	/* Adjust destination to tell printtup.c what to do */
 	dest = whereToSendOutput;
@@ -2164,6 +2177,17 @@ exec_execute_message(const char *portal_name, long max_rows)
 	debug_query_string = sourceText;
 
 	pgstat_report_activity(STATE_RUNNING, sourceText);
+
+	foreach(lc, portal->stmts)
+	{
+		PlannedStmt *stmt = lfirst_node(PlannedStmt, lc);
+
+		if (stmt->queryId != UINT64CONST(0))
+		{
+			pgstat_report_query_id(stmt->queryId, false);
+			break;
+		}
+	}
 
 	cmdtagname = GetCommandTagNameAndLen(portal->commandTag, &cmdtaglen);
 
@@ -4176,6 +4200,9 @@ PostgresSingleUserMain(int argc, char *argv[],
 
 	/* Initialize MaxBackends */
 	InitializeMaxBackends();
+
+	/* Initialize size of fast-path lock cache. */
+	InitializeFastPathLocks();
 
 	/*
 	 * Give preloaded libraries a chance to request additional shared memory.

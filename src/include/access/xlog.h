@@ -167,6 +167,7 @@ typedef struct CheckpointStatsData
 	TimestampTz ckpt_end_t;		/* end of checkpoint */
 
 	int			ckpt_bufs_written;	/* # of buffers written */
+	int			ckpt_slru_written;	/* # of SLRU buffers written */
 
 	int			ckpt_segs_added;	/* # of new xlog segments created */
 	int			ckpt_segs_removed;	/* # of xlog segments deleted */
@@ -239,7 +240,7 @@ extern void LocalProcessControlFile(bool reset);
 extern WalLevel GetActiveWalLevelOnStandby(void);
 extern void StartupXLOG(void);
 extern void ShutdownXLOG(int code, Datum arg);
-extern void CreateCheckPoint(int flags);
+extern bool CreateCheckPoint(int flags);
 extern bool CreateRestartPoint(int flags);
 extern WALAvailability GetWALAvailability(XLogRecPtr targetLSN);
 extern void XLogPutNextOid(Oid nextOid);

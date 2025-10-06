@@ -475,7 +475,7 @@ BeginCopyTo(ParseState *pstate,
 				if (q->querySource == QSRC_NON_INSTEAD_RULE)
 					ereport(ERROR,
 							(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-							 errmsg("DO ALSO rules are not supported for the COPY")));
+							 errmsg("DO ALSO rules are not supported for COPY")));
 			}
 
 			ereport(ERROR,
@@ -492,7 +492,11 @@ BeginCopyTo(ParseState *pstate,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 					 errmsg("COPY (SELECT INTO) is not supported")));
 
-		Assert(query->utilityStmt == NULL);
+		/* The only other utility command we could see is NOTIFY */
+		if (query->utilityStmt != NULL)
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("COPY query must not be a utility command")));
 
 		/*
 		 * Similarly the grammar doesn't enforce the presence of a RETURNING
@@ -1160,8 +1164,11 @@ CopyAttributeOutCSV(CopyToState cstate, const char *string,
 	if (!use_quote)
 	{
 		/*
-		 * Because '\.' can be a data value, quote it if it appears alone on a
-		 * line so it is not interpreted as the end-of-data marker.
+		 * Quote '\.' if it appears alone on a line, so that it will not be
+		 * interpreted as an end-of-data marker.  (PG 18 and up will not
+		 * interpret '\.' in CSV that way, except in embedded-in-SQL data; but
+		 * we want the data to be loadable by older versions too.  Also, this
+		 * avoids breaking clients that are still using PQgetline().)
 		 */
 		if (single_attr && strcmp(ptr, "\\.") == 0)
 			use_quote = true;

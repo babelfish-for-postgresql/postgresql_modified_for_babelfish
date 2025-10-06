@@ -163,6 +163,7 @@ select (w).size = :segsize as ok
 from (select pg_ls_waldir() w) ss where length((w).name) = 24 limit 1;
 
 select count(*) >= 0 as ok from pg_ls_archive_statusdir();
+select count(*) >= 0 as ok from pg_ls_summariesdir();
 
 -- pg_read_file()
 select length(pg_read_file('postmaster.pid')) > 20;
@@ -360,3 +361,7 @@ SELECT pg_column_toast_chunk_id(a) IS NULL,
   FROM test_chunk_id;
 DROP TABLE test_chunk_id;
 DROP FUNCTION explain_mask_costs(text, bool, bool, bool, bool);
+
+-- test stratnum support functions
+SELECT gist_stratnum_identity(3::smallint);
+SELECT gist_stratnum_identity(18::smallint);

@@ -2169,14 +2169,14 @@ connectFailureMessage(PGconn *conn, int errorno)
 static int
 useKeepalives(PGconn *conn)
 {
-	char	   *ep;
 	int			val;
 
 	if (conn->keepalives == NULL)
 		return 1;
-	val = strtol(conn->keepalives, &ep, 10);
-	if (*ep)
+
+	if (!pqParseIntParam(conn->keepalives, &val, conn, "keepalives"))
 		return -1;
+
 	return val != 0 ? 1 : 0;
 }
 
@@ -3084,7 +3084,7 @@ keep_going:						/* We will come back to here until there is
 
 						if (usekeepalives < 0)
 						{
-							libpq_append_conn_error(conn, "keepalives parameter must be an integer");
+							/* error is already reported */
 							err = 1;
 						}
 						else if (usekeepalives == 0)
@@ -6763,9 +6763,9 @@ conninfo_uri_parse_params(char *params,
 static char *
 conninfo_uri_decode(const char *str, PQExpBuffer errorMessage)
 {
-	char	   *buf;
-	char	   *p;
-	const char *q = str;
+	char	   *buf;			/* result */
+	char	   *p;				/* output location */
+	const char *q = str;		/* input location */
 
 	buf = malloc(strlen(str) + 1);
 	if (buf == NULL)
@@ -6775,13 +6775,23 @@ conninfo_uri_decode(const char *str, PQExpBuffer errorMessage)
 	}
 	p = buf;
 
+	/* skip leading whitespaces */
+	for (const char *s = q; *s == ' '; s++)
+	{
+		q++;
+		continue;
+	}
+
 	for (;;)
 	{
 		if (*q != '%')
 		{
-			/* copy and check for NUL terminator */
-			if (!(*(p++) = *(q++)))
-				break;
+			/* if found a whitespace or NUL, the string ends */
+			if (*q == ' ' || *q == '\0')
+				goto end;
+
+			/* copy character */
+			*(p++) = *(q++);
 		}
 		else
 		{
@@ -6816,6 +6826,26 @@ conninfo_uri_decode(const char *str, PQExpBuffer errorMessage)
 			*(p++) = c;
 		}
 	}
+
+end:
+
+	/* skip trailing whitespaces */
+	for (const char *s = q; *s == ' '; s++)
+	{
+		q++;
+		continue;
+	}
+
+	/* Not at the end of the string yet?  Fail. */
+	if (*q != '\0')
+	{
+		libpq_append_error(errorMessage, "trailing data found: \"%s\"", str);
+		free(buf);
+		return NULL;
+	}
+
+	/* Copy NUL terminator */
+	*p = '\0';
 
 	return buf;
 }
@@ -7159,6 +7189,16 @@ PQprotocolVersion(const PGconn *conn)
 }
 
 int
+PQfullProtocolVersion(const PGconn *conn)
+{
+	if (!conn)
+		return 0;
+	if (conn->status == CONNECTION_BAD)
+		return 0;
+	return PG_PROTOCOL_FULL(conn->pversion);
+}
+
+int
 PQserverVersion(const PGconn *conn)
 {
 	if (!conn)
@@ -7472,13 +7512,17 @@ passwordFromFile(const char *hostname, const char *port, const char *dbname,
 
 #ifndef WIN32
 	if (fstat(fileno(fp), &stat_buf) != 0)
+	{
+		fclose(fp);
 		return NULL;
+	}
 
 	if (!S_ISREG(stat_buf.st_mode))
 	{
 		fprintf(stderr,
 				libpq_gettext("WARNING: password file \"%s\" is not a plain file\n"),
 				pgpassfile);
+		fclose(fp);
 		return NULL;
 	}
 
@@ -7488,6 +7532,7 @@ passwordFromFile(const char *hostname, const char *port, const char *dbname,
 		fprintf(stderr,
 				libpq_gettext("WARNING: password file \"%s\" has group or world access; permissions should be u=rw (0600) or less\n"),
 				pgpassfile);
+		fclose(fp);
 		return NULL;
 	}
 #else

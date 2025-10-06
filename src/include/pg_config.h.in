@@ -199,12 +199,6 @@
 /* Define to 1 if you have the `inet_pton' function. */
 #undef HAVE_INET_PTON
 
-/* Define to 1 if the system has the type `int64'. */
-#undef HAVE_INT64
-
-/* Define to 1 if the system has the type `int8'. */
-#undef HAVE_INT8
-
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
@@ -286,9 +280,6 @@
 /* Define to 1 if you have the `mkdtemp' function. */
 #undef HAVE_MKDTEMP
 
-/* Define to 1 if you have the `OPENSSL_init_ssl' function. */
-#undef HAVE_OPENSSL_INIT_SSL
-
 /* Define to 1 if you have the <ossp/uuid.h> header file. */
 #undef HAVE_OSSP_UUID_H
 
@@ -363,6 +354,9 @@
 
 /* Define to 1 if you have the `SSL_CTX_set_cert_cb' function. */
 #undef HAVE_SSL_CTX_SET_CERT_CB
+
+/* Define to 1 if you have the `SSL_CTX_set_ciphersuites' function. */
+#undef HAVE_SSL_CTX_SET_CIPHERSUITES
 
 /* Define to 1 if you have the `SSL_CTX_set_num_tickets' function. */
 #undef HAVE_SSL_CTX_SET_NUM_TICKETS
@@ -457,12 +451,6 @@
 /* Define to 1 if you have the <ucred.h> header file. */
 #undef HAVE_UCRED_H
 
-/* Define to 1 if the system has the type `uint64'. */
-#undef HAVE_UINT64
-
-/* Define to 1 if the system has the type `uint8'. */
-#undef HAVE_UINT8
-
 /* Define to 1 if the system has the type `union semun'. */
 #undef HAVE_UNION_SEMUN
 
@@ -498,6 +486,9 @@
 
 /* Define to 1 if the assembler supports X86_64's POPCNTQ instruction. */
 #undef HAVE_X86_64_POPCNTQ
+
+/* Define to 1 if you have the <xlocale.h> header file. */
+#undef HAVE_XLOCALE_H
 
 /* Define to 1 if you have XSAVE intrinsics. */
 #undef HAVE_XSAVE_INTRINSICS
@@ -558,9 +549,6 @@
 
 /* Define to the appropriate printf length modifier for 64-bit ints. */
 #undef INT64_MODIFIER
-
-/* Define to 1 if `locale_t' requires <xlocale.h>. */
-#undef LOCALE_T_IN_XLOCALE
 
 /* Define as the maximum alignment requirement of any C data type. */
 #undef MAXIMUM_ALIGNOF
@@ -747,9 +735,6 @@
 
 /* Define to 1 to build with ZSTD support. (--with-zstd) */
 #undef USE_ZSTD
-
-/* Define to 1 if `wcstombs_l' requires <xlocale.h>. */
-#undef WCSTOMBS_L_IN_XLOCALE
 
 /* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
    significant byte first (like Motorola and SPARC, unlike Intel). */

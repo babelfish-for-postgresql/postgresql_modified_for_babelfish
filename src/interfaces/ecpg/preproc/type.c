@@ -8,30 +8,6 @@
 
 static struct ECPGstruct_member struct_no_indicator = {"no_indicator", &ecpg_no_indicator, NULL};
 
-/* malloc + error check */
-void *
-mm_alloc(size_t size)
-{
-	void	   *ptr = malloc(size);
-
-	if (ptr == NULL)
-		mmfatal(OUT_OF_MEMORY, "out of memory");
-
-	return ptr;
-}
-
-/* strdup + error check */
-char *
-mm_strdup(const char *string)
-{
-	char	   *new = strdup(string);
-
-	if (new == NULL)
-		mmfatal(OUT_OF_MEMORY, "out of memory");
-
-	return new;
-}
-
 /* duplicate memberlist */
 struct ECPGstruct_member *
 ECPGstruct_member_dup(struct ECPGstruct_member *rm)
@@ -93,13 +69,13 @@ ECPGmake_struct_member(const char *name, struct ECPGtype *type, struct ECPGstruc
 }
 
 struct ECPGtype *
-ECPGmake_simple_type(enum ECPGttype type, char *size, int counter)
+ECPGmake_simple_type(enum ECPGttype type, const char *size, int counter)
 {
 	struct ECPGtype *ne = (struct ECPGtype *) mm_alloc(sizeof(struct ECPGtype));
 
 	ne->type = type;
 	ne->type_name = NULL;
-	ne->size = size;
+	ne->size = mm_strdup(size);
 	ne->u.element = NULL;
 	ne->struct_sizeof = NULL;
 	ne->counter = counter;		/* only needed for varchar and bytea */
@@ -108,7 +84,7 @@ ECPGmake_simple_type(enum ECPGttype type, char *size, int counter)
 }
 
 struct ECPGtype *
-ECPGmake_array_type(struct ECPGtype *type, char *size)
+ECPGmake_array_type(struct ECPGtype *type, const char *size)
 {
 	struct ECPGtype *ne = ECPGmake_simple_type(ECPGt_array, size, 0);
 
@@ -120,7 +96,7 @@ ECPGmake_array_type(struct ECPGtype *type, char *size)
 struct ECPGtype *
 ECPGmake_struct_type(struct ECPGstruct_member *rm, enum ECPGttype type, char *type_name, char *struct_sizeof)
 {
-	struct ECPGtype *ne = ECPGmake_simple_type(type, mm_strdup("1"), 0);
+	struct ECPGtype *ne = ECPGmake_simple_type(type, "1", 0);
 
 	ne->type_name = mm_strdup(type_name);
 	ne->u.members = ECPGstruct_member_dup(rm);

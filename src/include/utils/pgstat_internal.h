@@ -53,7 +53,8 @@ typedef struct PgStat_HashKey
 {
 	PgStat_Kind kind;			/* statistics entry kind */
 	Oid			dboid;			/* database ID. InvalidOid for shared objects. */
-	Oid			objoid;			/* object ID, either table or function. */
+	uint64		objid;			/* object ID (table, function, etc.), or
+								 * identifier. */
 } PgStat_HashKey;
 
 /*
@@ -230,8 +231,14 @@ typedef struct PgStat_KindInfo
 	uint32		pending_size;
 
 	/*
+	 * Perform custom actions when initializing a backend (standalone or under
+	 * postmaster). Optional.
+	 */
+	void		(*init_backend_cb) (void);
+
+	/*
 	 * For variable-numbered stats: flush pending stats. Required if pending
-	 * data is used.
+	 * data is used.  See flush_fixed_cb for fixed-numbered stats.
 	 */
 	bool		(*flush_pending_cb) (PgStat_EntryRef *sr, bool nowait);
 
@@ -258,6 +265,19 @@ typedef struct PgStat_KindInfo
 	 * "stats" is the pointer to the allocated shared memory area.
 	 */
 	void		(*init_shmem_cb) (void *stats);
+
+	/*
+	 * For fixed-numbered statistics: Flush pending stats. Returns true if
+	 * some of the stats could not be flushed, due to lock contention for
+	 * example. Optional.
+	 */
+	bool		(*flush_fixed_cb) (bool nowait);
+
+	/*
+	 * For fixed-numbered statistics: Check for pending stats in need of
+	 * flush. Returns true if there are any stats pending for flush. Optional.
+	 */
+	bool		(*have_fixed_pending_cb) (void);
 
 	/*
 	 * For fixed-numbered statistics: Reset All.
@@ -544,10 +564,13 @@ extern void pgstat_assert_is_up(void);
 #endif
 
 extern void pgstat_delete_pending_entry(PgStat_EntryRef *entry_ref);
-extern PgStat_EntryRef *pgstat_prep_pending_entry(PgStat_Kind kind, Oid dboid, Oid objoid, bool *created_entry);
-extern PgStat_EntryRef *pgstat_fetch_pending_entry(PgStat_Kind kind, Oid dboid, Oid objoid);
+extern PgStat_EntryRef *pgstat_prep_pending_entry(PgStat_Kind kind, Oid dboid,
+												  uint64 objid,
+												  bool *created_entry);
+extern PgStat_EntryRef *pgstat_fetch_pending_entry(PgStat_Kind kind,
+												   Oid dboid, uint64 objid);
 
-extern void *pgstat_fetch_entry(PgStat_Kind kind, Oid dboid, Oid objoid);
+extern void *pgstat_fetch_entry(PgStat_Kind kind, Oid dboid, uint64 objid);
 extern void pgstat_snapshot_fixed(PgStat_Kind kind);
 
 
@@ -603,7 +626,10 @@ extern bool pgstat_function_flush_cb(PgStat_EntryRef *entry_ref, bool nowait);
  * Functions in pgstat_io.c
  */
 
-extern bool pgstat_flush_io(bool nowait);
+extern void pgstat_flush_io(bool nowait);
+
+extern bool pgstat_io_have_pending_cb(void);
+extern bool pgstat_io_flush_cb(bool nowait);
 extern void pgstat_io_init_shmem_cb(void *stats);
 extern void pgstat_io_reset_all_cb(TimestampTz ts);
 extern void pgstat_io_snapshot_cb(void);
@@ -638,16 +664,16 @@ extern bool pgstat_replslot_from_serialized_name_cb(const NameData *name, PgStat
 extern void pgstat_attach_shmem(void);
 extern void pgstat_detach_shmem(void);
 
-extern PgStat_EntryRef *pgstat_get_entry_ref(PgStat_Kind kind, Oid dboid, Oid objoid,
+extern PgStat_EntryRef *pgstat_get_entry_ref(PgStat_Kind kind, Oid dboid, uint64 objid,
 											 bool create, bool *created_entry);
 extern bool pgstat_lock_entry(PgStat_EntryRef *entry_ref, bool nowait);
 extern bool pgstat_lock_entry_shared(PgStat_EntryRef *entry_ref, bool nowait);
 extern void pgstat_unlock_entry(PgStat_EntryRef *entry_ref);
-extern bool pgstat_drop_entry(PgStat_Kind kind, Oid dboid, Oid objoid);
+extern bool pgstat_drop_entry(PgStat_Kind kind, Oid dboid, uint64 objid);
 extern void pgstat_drop_all_entries(void);
-extern PgStat_EntryRef *pgstat_get_entry_ref_locked(PgStat_Kind kind, Oid dboid, Oid objoid,
+extern PgStat_EntryRef *pgstat_get_entry_ref_locked(PgStat_Kind kind, Oid dboid, uint64 objid,
 													bool nowait);
-extern void pgstat_reset_entry(PgStat_Kind kind, Oid dboid, Oid objoid, TimestampTz ts);
+extern void pgstat_reset_entry(PgStat_Kind kind, Oid dboid, uint64 objid, TimestampTz ts);
 extern void pgstat_reset_entries_of_kind(PgStat_Kind kind, TimestampTz ts);
 extern void pgstat_reset_matching_entries(bool (*do_reset) (PgStatShared_HashEntry *, Datum),
 										  Datum match_data,
@@ -662,7 +688,8 @@ extern PgStatShared_Common *pgstat_init_entry(PgStat_Kind kind,
  * Functions in pgstat_slru.c
  */
 
-extern bool pgstat_slru_flush(bool nowait);
+extern bool pgstat_slru_have_pending_cb(void);
+extern bool pgstat_slru_flush_cb(bool nowait);
 extern void pgstat_slru_init_shmem_cb(void *stats);
 extern void pgstat_slru_reset_all_cb(TimestampTz ts);
 extern void pgstat_slru_snapshot_cb(void);
@@ -672,10 +699,11 @@ extern void pgstat_slru_snapshot_cb(void);
  * Functions in pgstat_wal.c
  */
 
-extern bool pgstat_flush_wal(bool nowait);
-extern void pgstat_init_wal(void);
-extern bool pgstat_have_pending_wal(void);
+extern void pgstat_flush_wal(bool nowait);
 
+extern void pgstat_wal_init_backend_cb(void);
+extern bool pgstat_wal_have_pending_cb(void);
+extern bool pgstat_wal_flush_cb(bool nowait);
 extern void pgstat_wal_init_shmem_cb(void *stats);
 extern void pgstat_wal_reset_all_cb(TimestampTz ts);
 extern void pgstat_wal_snapshot_cb(void);
@@ -694,8 +722,8 @@ extern void pgstat_subscription_reset_timestamp_cb(PgStatShared_Common *header, 
  */
 
 extern PgStat_SubXactStatus *pgstat_get_xact_stack_level(int nest_level);
-extern void pgstat_drop_transactional(PgStat_Kind kind, Oid dboid, Oid objoid);
-extern void pgstat_create_transactional(PgStat_Kind kind, Oid dboid, Oid objoid);
+extern void pgstat_drop_transactional(PgStat_Kind kind, Oid dboid, uint64 objid);
+extern void pgstat_create_transactional(PgStat_Kind kind, Oid dboid, uint64 objid);
 
 
 /*
@@ -703,20 +731,6 @@ extern void pgstat_create_transactional(PgStat_Kind kind, Oid dboid, Oid objoid)
  */
 
 extern PGDLLIMPORT PgStat_LocalState pgStatLocal;
-
-
-/*
- * Variables in pgstat_io.c
- */
-
-extern PGDLLIMPORT bool have_iostats;
-
-
-/*
- * Variables in pgstat_slru.c
- */
-
-extern PGDLLIMPORT bool have_slrustats;
 
 
 /*
