@@ -879,7 +879,8 @@ ExecInsert(ModifyTableContext *context,
 
 	/* Process RETURNING if present */
 	if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
-		result = ExecProcessReturning(resultRelInfo, slot, planSlot);
+		result = ExecProcessReturning(context, resultRelInfo, CMD_INSERT,
+									  NULL, slot, planSlot);
 
 	/* INSTEAD OF ROW INSERT Triggers */
 	if (resultRelInfo->ri_TrigDesc &&
@@ -1603,7 +1604,8 @@ ExecDelete(ModifyTableContext *context,
 					elog(ERROR, "failed to fetch deleted tuple for DELETE RETURNING");
 			}
 		}
-		rslot_output = ExecProcessReturning(resultRelInfo, slot, context->planSlot);
+		rslot_output = ExecProcessReturning(context, resultRelInfo, CMD_DELETE,
+									 slot, NULL, context->planSlot);
 
 		/*
 		 * Before releasing the target tuple again, make sure rslot has a
@@ -2514,7 +2516,8 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 
 	/* Process RETURNING if present */
 	if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
-		rslot = ExecProcessReturning(resultRelInfo, slot, context->planSlot);
+		rslot = ExecProcessReturning(context, resultRelInfo, CMD_UPDATE,
+									oldSlot, slot, context->planSlot);
 
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&

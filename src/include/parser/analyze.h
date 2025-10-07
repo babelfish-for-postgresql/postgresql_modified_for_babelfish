@@ -30,7 +30,7 @@ typedef void (*pre_parse_analyze_hook_type) (ParseState *pstate, RawStmt *parseT
 extern PGDLLEXPORT pre_parse_analyze_hook_type pre_parse_analyze_hook;
 
 /* Hook to handle qualifiers in returning list for output clause */
-typedef void (*pre_transform_returning_hook_type) (Query *query, List *returningList, ParseState *pstate);
+typedef void (*pre_transform_returning_hook_type) (Query *query, ReturningClause *ReturningClause, ParseState *pstate);
 extern PGDLLEXPORT pre_transform_returning_hook_type pre_transform_returning_hook;
 
 typedef void (*post_transform_delete_hook_type) (ParseState *pstate, DeleteStmt *stmt, Query *query);
