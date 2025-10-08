@@ -2740,14 +2740,15 @@ ExecIRDeleteTriggersTSQL(EState *estate, ResultRelInfo *relinfo,
 		slot = ExecGetTriggerOldSlot(estate, relinfo);
 		if (fdw_trigtuple == NULL)
 			GetTupleForTrigger(estate,
-								NULL,
-								relinfo,
-								tupleid,
-								LockTupleExclusive,
-								slot,
-								NULL,
-								NULL,
-								NULL);
+							   NULL,
+							   relinfo,
+							   tupleid,
+							   LockTupleExclusive,
+							   slot,
+							   false /* do_epq_recheck */ ,
+							   NULL,
+							   NULL,
+							   NULL);
 		else
 			ExecForceStoreHeapTuple(fdw_trigtuple, slot, false);
 
@@ -2787,6 +2788,7 @@ void ExecIRUpdateTriggersTSQL(EState *estate,
 							   tupleid,
 							   LockTupleExclusive,
 							   oldslot,
+							   false /* do_epq_recheck */ ,
 							   NULL,
 							   NULL,
 							   NULL);
