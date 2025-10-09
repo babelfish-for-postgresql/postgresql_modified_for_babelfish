@@ -157,31 +157,31 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 * Fri May 16 2025 Sumit Jaiswal <sumiji@amazon.com> - 17.7-1
 - Dump Babelfish operator classes for numeric-int comparisons to support index scan
 
-* Wed Dec 11 2024 Sharu Goel <goelshar@amazon.com> - 17.7-1
+* Wed Dec 11 2024 Sharu Goel <goelshar@amazon.com> - 17.5-1
 - Add support to dump linked roles associated with members of db_owner role
 
-* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.7-1
+* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.5-1
 - Handle dump logic for babelfish db_ddladmin fixed database role
 
-* Wed Dec 11 2024 Harsh Lunagariya <lunharsh@amazon.com> - 17.7-1
+* Wed Dec 11 2024 Harsh Lunagariya <lunharsh@amazon.com> - 17.5-1
 - Handle dump logic for babelfish db_securityadmin fixed database role
 
-* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.7-1
+* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.5-1
 - Handle dump logic for babelfish db_creator fixed server role
 
-* Wed Dec 11 2024 Shalini Lohia <lshalini@amazon.com> - 17.7-1
+* Wed Dec 11 2024 Shalini Lohia <lshalini@amazon.com> - 17.5-1
 - Handle dump logic for babelfish db_datareader/db_datawriter fixed database roles
 
-* Wed Dec 11 2024 Tanzeel Khan <tzlkhan@amazon.com> - 17.7-1
+* Wed Dec 11 2024 Tanzeel Khan <tzlkhan@amazon.com> - 17.5-1
 - Handle dump logic for babelfish db_accessadmin fixed database role
 
-* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.7-1
+* Wed Dec 11 2024 ANJU BHARTI <abanju@amazon.com> - 17.5-1
 - Handle dump logic for babelfish securityadmin fixed server role
 
-* Tue Nov 19 2024 Rishabh Tanwar <ritanwar@amazon.com> - 17.7-1
+* Tue Nov 19 2024 Rishabh Tanwar <ritanwar@amazon.com> - 17.5-1
 - Enable babelfishpg_tsql.dump_restore GUC while restoring roles
 
-* Thu Oct 3 2024 Tanzeel Khan <tzlkhan@amazon.com> - 17.7-1
+* Thu Oct 3 2024 Tanzeel Khan <tzlkhan@amazon.com> - 17.5-1
 - Dump physical database aclprivs for fixed database roles
 
 * Mon Aug 5 2024 Masahiko Sawada <msawada@postgresql.com> - 16.4-1
