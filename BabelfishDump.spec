@@ -26,7 +26,7 @@
 
 Name: BabelfishDump
 Summary: Postgresql dump utilities modified for Babelfish
-Version: 16.9
+Version: 16.11
 Release: 1%{?dist}%{?_trivial}%{?_buildid}
 License: PostgreSQL
 Url: https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish
@@ -151,6 +151,12 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
+* Fri July 25 2025 Tanya Gupta <tanyagp@amazon.com> - 16.11-1
+- Dump Babelfish operator classes for numeric-fixeddecimal comparisons to support index scan
+
+* Fri May 16 2025 Sumit Jaiswal <sumiji@amazon.com> - 16.11-1
+- Dump Babelfish operator classes for numeric-int comparisons to support index scan
+
 * Wed Dec 11 2024 Sharu Goel <goelshar@amazon.com> - 16.9-1
 - Add support to dump linked roles associated with members of db_owner role
 
