@@ -51,8 +51,11 @@
 #include "utils/syscache.h"
 #include "utils/queryenvironment.h"
 #include "utils/rel.h"
+#include "libpq/libpq.h"
+#include "miscadmin.h"
 
 #define NUM_ENR_CATALOGS 11
+#define IS_TDS_CONN() (MyProcPort && MyProcPort->is_tds_conn)
 
 pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook = NULL;
 
@@ -421,7 +424,7 @@ bool ENRGetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 
 	Oid reloid = RelationGetRelid(rel);
 
-	if (sql_dialect != SQL_DIALECT_TSQL)
+	if (sql_dialect != SQL_DIALECT_TSQL && !IS_TDS_CONN())
 	{
 		/*
 		* We cannot return false right away when sql_dialect is not TSQL.
