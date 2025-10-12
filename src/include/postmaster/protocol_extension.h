@@ -33,7 +33,7 @@ extern int	libpq_close(pgsocket server_fd);
 extern Port	*libpq_init(ClientSocket *client_sock);
 extern int	libpq_start(Port *port);
 extern void	libpq_authenticate(Port *port, const char **username);
-extern void	libpq_mainfunc(Port *port)pg_attribute_noreturn();
+pg_noreturn extern void	libpq_mainfunc(Port *port);
 extern void	libpq_send_message(ErrorData *edata);
 extern void	libpq_send_cancel_key(int pid, int32 key);
 extern void	libpq_comm_reset(void);

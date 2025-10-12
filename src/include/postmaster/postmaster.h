@@ -97,7 +97,7 @@ extern PGDLLIMPORT bool LoadedSSL;
 pg_noreturn extern void PostmasterMain(int argc, char *argv[]);
 extern void ClosePostmasterPorts(bool am_syslogger);
 extern void InitProcessGlobals(void);
-extern void ExitPostmaster(int status) pg_attribute_noreturn();
+pg_noreturn extern void ExitPostmaster(int status);
 
 extern int	MaxLivePostmasterChildren(void);
 

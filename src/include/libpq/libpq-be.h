@@ -104,7 +104,7 @@ typedef struct ProtocolExtensionConfig {
 	struct Port*	(*fn_init)(ClientSocket *client_sock);
 	int		(*fn_start)(struct Port *port);
 	void	(*fn_authenticate)(struct Port *port, const char **username);
-	void	(*fn_mainfunc)(struct Port *port) pg_attribute_noreturn();
+	void	(*fn_mainfunc)(struct Port *port);
 	void	(*fn_send_message)(ErrorData *edata);
 	void	(*fn_send_cancel_key)(int pid, int32 key);
 	void	(*fn_comm_reset)(void);
