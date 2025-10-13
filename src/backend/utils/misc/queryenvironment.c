@@ -52,8 +52,6 @@
 #include "utils/syscache.h"
 #include "utils/queryenvironment.h"
 #include "utils/rel.h"
-#include "libpq/libpq.h"
-#include "miscadmin.h"
 
 #define NUM_ENR_CATALOGS 11
 
