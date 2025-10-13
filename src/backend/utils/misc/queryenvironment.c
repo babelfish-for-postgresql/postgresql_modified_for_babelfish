@@ -427,6 +427,9 @@ bool ENRGetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 	 * PG dialect from TDS endpoint. 
 	 * Because there are cases where dialect is set to temporarily to 
 	 * PG when executing PG functions and it tries to scan ENRs.
+	 *
+	 * Note: Due to this condition, scanning for ENR temp tables
+	 * from PG endpoint and in PG dialect will not work.
 	 */
 	if (sql_dialect != SQL_DIALECT_TSQL && !(is_bbf_tds_connection_hook && is_bbf_tds_connection_hook()))
 	{
