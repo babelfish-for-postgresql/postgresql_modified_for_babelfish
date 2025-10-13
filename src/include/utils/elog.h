@@ -539,6 +539,7 @@ extern void write_jsonlog(ErrorData *edata);
  * safely (memory context, GUC load etc)
  */
 extern void write_stderr(const char *fmt,...) pg_attribute_printf(1, 2);
+extern void vwrite_stderr(const char *fmt, va_list ap) pg_attribute_printf(1, 0);
 
 extern bool error_stack_full(void);
 
