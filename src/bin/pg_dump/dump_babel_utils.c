@@ -258,7 +258,11 @@ dumpBabelRestoreChecks(Archive *fout)
 	 * Note that it can only be used in plain text dump (archNull).
 	 */
 	if (format == archNull)
+	{
+		appendPQExpBuffer(qry, "\\unrestrict %s\n", fout->dopt->restrict_key);
 		appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP on\n\n");
+		appendPQExpBuffer(qry, "\\restrict %s\n", fout->dopt->restrict_key);
+	}
 	appendPQExpBuffer(qry,
 					  "DO $$"
 					  "\nDECLARE"
@@ -295,7 +299,11 @@ dumpBabelRestoreChecks(Archive *fout)
 					  "\nEND$$;\n\n"
 					  , source_migration_mode);
 	if (format == archNull)
+	{
+		appendPQExpBuffer(qry, "\\unrestrict %s\n", fout->dopt->restrict_key);
 		appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP off\n");
+		appendPQExpBuffer(qry, "\\restrict %s\n", fout->dopt->restrict_key);
+	}
 	PQclear(res);
 
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
