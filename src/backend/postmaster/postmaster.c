@@ -1485,13 +1485,13 @@ libpq_send_message(ErrorData *edata)
 }
 
 void
-libpq_send_cancel_key(int pid, int32 key)
+libpq_send_cancel_key(int pid, char *key, int key_len)
 {
 	StringInfoData buf;
 
 	pq_beginmessage(&buf, 'K');
 	pq_sendint32(&buf, (int32) pid);
-	pq_sendint32(&buf, (int32) key);
+	pq_sendbytes(&buf, key, key_len);
 	pq_endmessage(&buf);
 	/* Need not flush since ReadyForQuery will do it. */
 

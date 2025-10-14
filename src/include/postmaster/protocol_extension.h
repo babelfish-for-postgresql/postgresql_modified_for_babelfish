@@ -35,7 +35,7 @@ extern int	libpq_start(Port *port);
 extern void	libpq_authenticate(Port *port, const char **username);
 pg_noreturn extern void	libpq_mainfunc(Port *port);
 extern void	libpq_send_message(ErrorData *edata);
-extern void	libpq_send_cancel_key(int pid, int32 key);
+extern void	libpq_send_cancel_key(int pid, char *key, int key_len);
 extern void	libpq_comm_reset(void);
 extern bool	libpq_is_reading_msg(void);
 extern void	libpq_send_ready_for_query(CommandDest dest);

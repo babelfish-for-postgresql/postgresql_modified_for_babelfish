@@ -100,7 +100,7 @@ typedef struct ProtocolExtensionConfig {
 	void	(*fn_authenticate)(struct Port *port, const char **username);
 	void	(*fn_mainfunc)(struct Port *port);
 	void	(*fn_send_message)(ErrorData *edata);
-	void	(*fn_send_cancel_key)(int pid, int32 key);
+	void	(*fn_send_cancel_key)(int pid, char *key, int key_len);
 	void	(*fn_comm_reset)(void);
 	bool	(*fn_is_reading_msg)(void);
 	void	(*fn_send_ready_for_query)(CommandDest dest);
