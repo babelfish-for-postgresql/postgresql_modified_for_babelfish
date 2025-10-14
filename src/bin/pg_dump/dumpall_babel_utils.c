@@ -112,7 +112,7 @@ isBabelfishDatabase(PGconn *conn)
  * or not.
  */
 void
-dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
+dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade, char *restrict_key)
 {
 	PGresult	*res;
 	int     	source_server_version_num;
@@ -137,7 +137,9 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 	 * Temporarily enable ON_ERROR_STOP so that whole restore script
 	 * execution fails if the following do block raises an error.
 	 */
+	appendPQExpBuffer(qry, "\\unrestrict %s\n", restrict_key);
 	appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP on\n\n");
+	appendPQExpBuffer(qry, "\\restrict %s\n", restrict_key);
 	appendPQExpBuffer(qry,
 					  "DO $$"
 					  "\nDECLARE"
@@ -173,7 +175,10 @@ dumpBabelRestoreChecks(FILE *OPF, PGconn *conn, int binary_upgrade)
 					  "\n    END IF;"
 					  "\nEND$$;\n\n"
 					  , source_migration_mode);
+
+	appendPQExpBuffer(qry, "\\unrestrict %s\n", restrict_key);
 	appendPQExpBufferStr(qry, "\\set ON_ERROR_STOP off\n");
+	appendPQExpBuffer(qry, "\\restrict %s\n", restrict_key);
 	PQclear(res);
 
 	fprintf(OPF, "%s", qry->data);
