@@ -595,7 +595,7 @@ main(int argc, char *argv[])
 		fprintf(OPF, "SET escape_string_warning = off;\n");
 	fprintf(OPF, "\n");
 
-	dumpBabelRestoreChecks(OPF, conn, binary_upgrade);
+	dumpBabelRestoreChecks(OPF, conn, binary_upgrade, restrict_key);
 
 	if (!data_only)
 	{
