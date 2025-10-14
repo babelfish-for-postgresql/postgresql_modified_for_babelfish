@@ -32,6 +32,7 @@
 #include "catalog/catalog.h"
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
+#include "catalog/namespace.h"
 #include "catalog/pg_authid.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_opclass.h"
@@ -401,14 +402,22 @@ bool ENRGetSystableScan(Relation rel, Oid indexId, int nkeys, ScanKey key, List 
 
 	Oid reloid = RelationGetRelid(rel);
 
-	if (sql_dialect != SQL_DIALECT_TSQL)
+	/*
+	 * We should allow ENR scans for T_SQL dialect as well as 
+	 * PG dialect from TDS endpoint. 
+	 * Because there are cases where dialect is set to temporarily to 
+	 * PG when executing PG functions and it tries to scan ENRs.
+	 *
+	 * Note: Due to this condition, scanning for ENR temp tables
+	 * from PG endpoint and in PG dialect will not work.
+	 */
+	if (sql_dialect != SQL_DIALECT_TSQL && !(is_bbf_tds_connection_hook && is_bbf_tds_connection_hook()))
 	{
 		/*
-		* We cannot return false right away when sql_dialect is not TSQL.
-		* There are cases when sql_dialect is temporarily set to PG when
-		* executing PG functions such as nextval_internal() in the case of
-		* identity sequence.
-		*/
+		 * There are cases when sql_dialect is temporarily set to PG when
+		 * executing PG functions such as nextval_internal() in the case of
+		 * identity sequence.
+		 */
 		if (reloid != SequenceRelationId)
 			return false;
 
