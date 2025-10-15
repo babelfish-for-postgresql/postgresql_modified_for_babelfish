@@ -4343,7 +4343,7 @@ PostgresMain(const char *dbname, const char *username)
 		PG_PROTOCOL_MAJOR(FrontendProtocol) >= 2)
 	{
 		if (MyProcPort && MyProcPort->protocol_config->fn_send_cancel_key)
-			MyProcPort->protocol_config->fn_send_cancel_key(MyProcPid, MyCancelKey, MyCancelKeyLength);
+			MyProcPort->protocol_config->fn_send_cancel_key(MyProcPid, (char *)MyCancelKey, MyCancelKeyLength);
 	}
 
 	/* Welcome banner for standalone case */
