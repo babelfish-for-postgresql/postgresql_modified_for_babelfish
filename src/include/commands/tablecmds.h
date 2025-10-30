@@ -122,4 +122,9 @@ typedef int (*find_attr_by_name_from_column_def_list_hook_type) (
 extern PGDLLEXPORT find_attr_by_name_from_column_def_list_hook_type
 	find_attr_by_name_from_column_def_list_hook;
 
+typedef bool (*object_dependency_hook_type)(const ObjectAddress *depender, 
+											const ObjectAddress *referenced);
+
+extern PGDLLEXPORT object_dependency_hook_type object_dependency_hook;
+
 #endif							/* TABLECMDS_H */

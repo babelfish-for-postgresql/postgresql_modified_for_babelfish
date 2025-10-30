@@ -131,4 +131,11 @@ typedef int (*find_attr_by_name_from_relation_hook_type) (
 extern PGDLLEXPORT find_attr_by_name_from_relation_hook_type
 	find_attr_by_name_from_relation_hook;
 
+typedef void (*range_table_entry_hook_type)(ParseState *pstate, 
+                                            RangeVar *relation, 
+                                            RangeTblEntry *rte);
+
+/* Hook for plugins to take action after relation open */
+extern PGDLLEXPORT range_table_entry_hook_type range_table_entry_hook;
+
 #endif							/* PARSE_RELATION_H */

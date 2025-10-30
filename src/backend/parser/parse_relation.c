@@ -107,6 +107,7 @@ static bool rte_visible_if_lateral(ParseState *pstate, RangeTblEntry *rte);
 static bool rte_visible_if_qualified(ParseState *pstate, RangeTblEntry *rte);
 static bool isQueryUsingTempRelation_walker(Node *node, void *context);
 
+range_table_entry_hook_type range_table_entry_hook = NULL;
 
 /*
  * refnameNamespaceItem
@@ -1521,6 +1522,9 @@ addRangeTableEntry(ParseState *pstate,
 
 	rte->rtekind = RTE_RELATION;
 	rte->alias = alias;
+
+	if (range_table_entry_hook)
+		(*range_table_entry_hook)(pstate, relation, rte);
 
 	/*
 	 * Identify the type of lock we'll need on this relation.  It's not the
