@@ -11,7 +11,7 @@ ifeq ($(PORTNAME), win32)
 override python_libspec =
 endif
 
-override CPPFLAGS := -I. -I$(srcdir) $(CPPFLAGS) $(python_includespec)
+override CPPFLAGS := -I. -I$(srcdir) $(python_includespec) $(CPPFLAGS)
 
 rpathdir = $(python_libdir)
 

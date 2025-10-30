@@ -12,11 +12,9 @@
  *-------------------------------------------------------------------------
  */
 
-#define __STDC_WANT_LIB_EXT1__ 1	/* needed to access memset_s() */
-
 #include "c.h"
 
-#if HAVE_DECL_MEMSET_S
+#if defined(HAVE_MEMSET_S)
 
 void
 explicit_bzero(void *buf, size_t len)

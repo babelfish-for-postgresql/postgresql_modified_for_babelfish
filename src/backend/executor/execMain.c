@@ -86,6 +86,7 @@ static void ExecutePlan(QueryDesc *queryDesc,
 						uint64 numberTuples,
 						ScanDirection direction,
 						DestReceiver *dest);
+static bool ExecCheckOneRelPerms(RTEPermissionInfo *perminfo);
 static bool ExecCheckPermissionsModified(Oid relOid, Oid userid,
 										 Bitmapset *modifiedCols,
 										 AclMode requiredPerms);
@@ -637,7 +638,7 @@ ExecCheckPermissions(List *rangeTable, List *rteperminfos,
  * ExecCheckOneRelPerms
  *		Check access permissions for a single relation.
  */
-bool
+static bool
 ExecCheckOneRelPerms(RTEPermissionInfo *perminfo)
 {
 	AclMode		requiredPerms;
@@ -3060,3 +3061,11 @@ EvalPlanQualEnd(EPQState *epqstate)
 	epqstate->relsubs_blocked = NULL;
 }
 
+/*
+ * ExecCheckOneRelPerms_wrapper - wrapper around ExecCheckOneRelPerms
+ */
+bool
+ExecCheckOneRelPerms_wrapper(RTEPermissionInfo *perminfo)
+{
+	return ExecCheckOneRelPerms(perminfo);
+}

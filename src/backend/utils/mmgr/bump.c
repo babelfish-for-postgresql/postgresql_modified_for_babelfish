@@ -316,7 +316,7 @@ BumpAllocLarge(MemoryContext context, Size size, int flags)
 
 	block = (BumpBlock *) malloc(blksize);
 	if (block == NULL)
-		return MemoryContextAllocationFailure(context, size, flags);
+		return NULL;
 
 	context->mem_allocated += blksize;
 

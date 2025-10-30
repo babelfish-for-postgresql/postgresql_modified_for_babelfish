@@ -320,9 +320,9 @@ bbstreamer_lz4_decompressor_content(bbstreamer *streamer,
 
 	mystreamer = (bbstreamer_lz4_frame *) streamer;
 	next_in = (uint8 *) data;
-	next_out = (uint8 *) mystreamer->base.bbs_buffer.data + mystreamer->bytes_written;
+	next_out = (uint8 *) mystreamer->base.bbs_buffer.data;
 	avail_in = len;
-	avail_out = mystreamer->base.bbs_buffer.maxlen - mystreamer->bytes_written;
+	avail_out = mystreamer->base.bbs_buffer.maxlen;
 
 	while (avail_in > 0)
 	{

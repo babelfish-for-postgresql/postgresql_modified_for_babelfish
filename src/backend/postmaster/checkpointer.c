@@ -130,9 +130,6 @@ static CheckpointerShmemStruct *CheckpointerShmem;
 /* interval for calling AbsorbSyncRequests in CheckpointWriteDelay */
 #define WRITES_PER_ABSORB		1000
 
-/* Max number of requests the checkpointer request queue can hold */
-#define MAX_CHECKPOINT_REQUESTS 10000000
-
 /*
  * GUC parameters
  */
@@ -884,14 +881,11 @@ CheckpointerShmemSize(void)
 	Size		size;
 
 	/*
-	 * The size of the requests[] array is arbitrarily set equal to NBuffers.
-	 * But there is a cap of MAX_CHECKPOINT_REQUESTS to prevent accumulating
-	 * too many checkpoint requests in the ring buffer.
+	 * Currently, the size of the requests[] array is arbitrarily set equal to
+	 * NBuffers.  This may prove too large or small ...
 	 */
 	size = offsetof(CheckpointerShmemStruct, requests);
-	size = add_size(size, mul_size(Min(NBuffers,
-									   MAX_CHECKPOINT_REQUESTS),
-								   sizeof(CheckpointerRequest)));
+	size = add_size(size, mul_size(NBuffers, sizeof(CheckpointerRequest)));
 
 	return size;
 }
@@ -920,7 +914,7 @@ CheckpointerShmemInit(void)
 		 */
 		MemSet(CheckpointerShmem, 0, size);
 		SpinLockInit(&CheckpointerShmem->ckpt_lck);
-		CheckpointerShmem->max_requests = Min(NBuffers, MAX_CHECKPOINT_REQUESTS);
+		CheckpointerShmem->max_requests = NBuffers;
 		ConditionVariableInit(&CheckpointerShmem->start_cv);
 		ConditionVariableInit(&CheckpointerShmem->done_cv);
 	}

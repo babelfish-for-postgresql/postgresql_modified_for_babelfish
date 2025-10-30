@@ -8,7 +8,7 @@
 
 project('postgresql',
   ['c'],
-  version: '17.6',
+  version: '17.5',
   license: 'PostgreSQL',
 
   # We want < 0.56 for python 3.5 compatibility on old platforms. EPEL for
@@ -1055,7 +1055,7 @@ if not perlopt.disabled()
       if cc.get_id() == 'msvc'
         # prevent binary mismatch between MSVC built plperl and Strawberry or
         # msys ucrt perl libraries
-        perl_v = run_command(perl, '-V', check: false).stdout()
+        perl_v = run_command(perl, '-V').stdout()
         if not perl_v.contains('USE_THREAD_SAFE_LOCALE')
           perl_ccflags += ['-DNO_THREAD_SAFE_LOCALE']
         endif
@@ -1888,7 +1888,10 @@ if cc.links('''
   cdata.set('HAVE__BUILTIN_OP_OVERFLOW', 1)
 endif
 
-# Check for __get_cpuid() and __cpuid().
+
+# XXX: The configure.ac check for __cpuid() is broken, we don't copy that
+# here. To prevent problems due to two detection methods working, stop
+# checking after one.
 if cc.links('''
     #include <cpuid.h>
     int main(int arg, char **argv)
@@ -2467,7 +2470,6 @@ decl_checks += [
   ['preadv', 'sys/uio.h'],
   ['pwritev', 'sys/uio.h'],
   ['strchrnul', 'string.h'],
-  ['memset_s', 'string.h', '#define __STDC_WANT_LIB_EXT1__ 1'],
 ]
 
 # Check presence of some optional LLVM functions.
@@ -2481,23 +2483,21 @@ endif
 foreach c : decl_checks
   func = c.get(0)
   header = c.get(1)
-  prologue = c.get(2, '')
-  args = c.get(3, {})
+  args = c.get(2, {})
   varname = 'HAVE_DECL_' + func.underscorify().to_upper()
 
   found = cc.compiles('''
-@0@
-#include <@1@>
+#include <@0@>
 
 int main()
 {
-#ifndef @2@
-    (void) @2@;
+#ifndef @1@
+    (void) @1@;
 #endif
 
 return 0;
 }
-'''.format(prologue, header, func),
+'''.format(header, func),
     name: 'test whether @0@ is declared'.format(func),
     # need to add cflags_warn to get at least
     # -Werror=unguarded-availability-new if applicable
@@ -2726,6 +2726,7 @@ func_checks = [
   ['inet_pton'],
   ['kqueue'],
   ['mbstowcs_l'],
+  ['memset_s'],
   ['mkdtemp'],
   ['posix_fadvise'],
   ['posix_fallocate'],

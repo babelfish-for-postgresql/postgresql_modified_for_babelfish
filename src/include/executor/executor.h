@@ -227,7 +227,8 @@ extern void standard_ExecutorEnd(QueryDesc *queryDesc);
 extern void ExecutorRewind(QueryDesc *queryDesc);
 extern bool ExecCheckPermissions(List *rangeTable,
 								 List *rteperminfos, bool ereport_on_violation);
-extern bool ExecCheckOneRelPerms(RTEPermissionInfo *perminfo);
+/* Wrapper around ExecCheckOneRelPerms */
+extern bool ExecCheckOneRelPerms_wrapper(RTEPermissionInfo *perminfo);
 extern void CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation,
 								List *mergeActions);
 extern void InitResultRelInfo(ResultRelInfo *resultRelInfo,
