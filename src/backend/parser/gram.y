@@ -14119,7 +14119,7 @@ xmltable_column_el:
 										 parser_errposition(defel->location)));
 							fc->colexpr = defel->arg;
 						}
-						else if (strcmp(defel->defname, "__pg__is_not_null") == 0)
+						else if (strcmp(defel->defname, "is_not_null") == 0)
 						{
 							if (nullability_seen)
 								ereport(ERROR,
@@ -14162,20 +14162,13 @@ xmltable_column_option_list:
 
 xmltable_column_option_el:
 			IDENT b_expr
-				{
-					if (strcmp($1, "__pg__is_not_null") == 0)
-						ereport(ERROR,
-								(errcode(ERRCODE_SYNTAX_ERROR),
-								 errmsg("option name \"%s\" cannot be used in XMLTABLE", $1),
-								 parser_errposition(@1)));
-					$$ = makeDefElem(downcaseIfTsqlAndCaseInsensitive($1), $2, @1);
-				}
+				{ $$ = makeDefElem(downcaseIfTsqlAndCaseInsensitive($1), $2, @1); }
 			| DEFAULT b_expr
 				{ $$ = makeDefElem("default", $2, @1); }
 			| NOT NULL_P
-				{ $$ = makeDefElem("__pg__is_not_null", (Node *) makeBoolean(true), @1); }
+				{ $$ = makeDefElem("is_not_null", (Node *) makeBoolean(true), @1); }
 			| NULL_P
-				{ $$ = makeDefElem("__pg__is_not_null", (Node *) makeBoolean(false), @1); }
+				{ $$ = makeDefElem("is_not_null", (Node *) makeBoolean(false), @1); }
 			| PATH b_expr
 				{ $$ = makeDefElem("path", $2, @1); }
 		;

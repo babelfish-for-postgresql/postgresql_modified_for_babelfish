@@ -172,8 +172,9 @@ pg_log_filter_error(FilterStateData *fstate, const char *fmt,...)
 /*
  * filter_get_keyword - read the next filter keyword from buffer
  *
- * Search for keywords (strings of non-whitespace characters) in the passed
- * in line buffer. Returns NULL when the buffer is empty or no keyword exists.
+ * Search for keywords (limited to ascii alphabetic characters) in
+ * the passed in line buffer. Returns NULL when the buffer is empty or the first
+ * char is not alpha. The char '_' is allowed, except as the first character.
  * The length of the found keyword is returned in the size parameter.
  */
 static const char *
@@ -182,9 +183,6 @@ filter_get_keyword(const char **line, int *size)
 	const char *ptr = *line;
 	const char *result = NULL;
 
-	/* The passed buffer must not be NULL */
-	Assert(*line != NULL);
-
 	/* Set returned length preemptively in case no keyword is found */
 	*size = 0;
 
@@ -192,12 +190,11 @@ filter_get_keyword(const char **line, int *size)
 	while (isspace((unsigned char) *ptr))
 		ptr++;
 
-	/* Grab one keyword that's the string of non-whitespace characters */
-	if (*ptr != '\0' && !isspace((unsigned char) *ptr))
+	if (isalpha((unsigned char) *ptr))
 	{
 		result = ptr++;
 
-		while (*ptr != '\0' && !isspace((unsigned char) *ptr))
+		while (isalpha((unsigned char) *ptr) || *ptr == '_')
 			ptr++;
 
 		*size = ptr - result;

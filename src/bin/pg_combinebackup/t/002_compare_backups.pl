@@ -171,7 +171,6 @@ $pitr1->command_ok(
 	[
 		'pg_dumpall', '-f',
 		$dump1, '--no-sync',
-		'--restrict-key=test',
 		'--no-unlogged-table-data', '-d',
 		$pitr1->connstr('postgres'),
 	],
@@ -180,7 +179,6 @@ $pitr2->command_ok(
 	[
 		'pg_dumpall', '-f',
 		$dump2, '--no-sync',
-		'--restrict-key=test',
 		'--no-unlogged-table-data', '-d',
 		$pitr2->connstr('postgres'),
 	],

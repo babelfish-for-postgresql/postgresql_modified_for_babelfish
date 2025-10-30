@@ -20,11 +20,6 @@ tests += {
   'name': 'auto_explain',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'regress': {
-    'sql': [
-      'alter_reset',
-    ],
-  },
   'tap': {
     'tests': [
       't/001_auto_explain.pl',

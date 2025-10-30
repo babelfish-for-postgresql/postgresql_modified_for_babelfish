@@ -8,7 +8,6 @@ use warnings FATAL => 'all';
 
 use PostgreSQL::Test::Cluster;
 use PostgreSQL::Test::Utils;
-use Time::HiRes qw(usleep);
 use Test::More;
 
 my ($stdin, $stdout, $stderr,
@@ -583,7 +582,7 @@ ok( $stderr =~
 	  /ERROR:  cannot copy invalidated replication slot "vacuum_full_inactiveslot"/,
 	"invalidated slot cannot be copied");
 
-# Set hot_standby_feedback to on
+# Turn hot_standby_feedback back on
 change_hot_standby_feedback_and_wait_for_xmins(1, 1);
 
 ##################################################
@@ -725,12 +724,12 @@ $node_primary->wait_for_replay_catchup($node_standby);
 
 # message should not be issued
 ok( !$node_standby->log_contains(
-		"invalidating obsolete replication slot \"no_conflict_inactiveslot\"", $logstart),
+		"invalidating obsolete slot \"no_conflict_inactiveslot\"", $logstart),
 	'inactiveslot slot invalidation is not logged with vacuum on conflict_test'
 );
 
 ok( !$node_standby->log_contains(
-		"invalidating obsolete replication slot \"no_conflict_activeslot\"", $logstart),
+		"invalidating obsolete slot \"no_conflict_activeslot\"", $logstart),
 	'activeslot slot invalidation is not logged with vacuum on conflict_test'
 );
 

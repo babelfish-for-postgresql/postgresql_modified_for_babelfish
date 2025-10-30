@@ -100,7 +100,7 @@ static PGresult *storeQueryResult(volatile storeInfo *sinfo, PGconn *conn, const
 static void storeRow(volatile storeInfo *sinfo, PGresult *res, bool first);
 static remoteConn *getConnectionByName(const char *name);
 static HTAB *createConnHash(void);
-static remoteConn *createNewConnection(const char *name);
+static void createNewConnection(const char *name, remoteConn *rconn);
 static void deleteConnection(const char *name);
 static char **get_pkey_attnames(Relation rel, int16 *indnkeyatts);
 static char **get_text_array_contents(ArrayType *array, int *numitems);
@@ -114,8 +114,7 @@ static Relation get_rel_from_relname(text *relname_text, LOCKMODE lockmode, AclM
 static char *generate_relation_name(Relation rel);
 static void dblink_connstr_check(const char *connstr);
 static bool dblink_connstr_has_pw(const char *connstr);
-static void dblink_security_check(PGconn *conn, const char *connname,
-								  const char *connstr);
+static void dblink_security_check(PGconn *conn, remoteConn *rconn, const char *connstr);
 static void dblink_res_error(PGconn *conn, const char *conname, PGresult *res,
 							 bool fail, const char *fmt,...) pg_attribute_printf(5, 6);
 static char *get_connect_string(const char *servername);
@@ -138,22 +137,16 @@ static uint32 dblink_we_get_conn = 0;
 static uint32 dblink_we_get_result = 0;
 
 /*
- *	Following is hash that holds multiple remote connections.
+ *	Following is list that holds multiple remote connections.
  *	Calling convention of each dblink function changes to accept
- *	connection name as the first parameter. The connection hash is
+ *	connection name as the first parameter. The connection list is
  *	much like ecpg e.g. a mapping between a name and a PGconn object.
- *
- *	To avoid potentially leaking a PGconn object in case of out-of-memory
- *	errors, we first create the hash entry, then open the PGconn.
- *	Hence, a hash entry whose rconn.conn pointer is NULL must be
- *	understood as a leftover from a failed create; it should be ignored
- *	by lookup operations, and silently replaced by create operations.
  */
 
 typedef struct remoteConnHashEnt
 {
 	char		name[NAMEDATALEN];
-	remoteConn	rconn;
+	remoteConn *rconn;
 } remoteConnHashEnt;
 
 /* initial number of connection hashes */
@@ -232,7 +225,7 @@ dblink_get_conn(char *conname_or_str,
 					 errmsg("could not establish connection"),
 					 errdetail_internal("%s", msg)));
 		}
-		dblink_security_check(conn, NULL, connstr);
+		dblink_security_check(conn, rconn, connstr);
 		if (PQclientEncoding(conn) != GetDatabaseEncoding())
 			PQsetClientEncoding(conn, GetDatabaseEncodingName());
 		freeconn = true;
@@ -295,6 +288,15 @@ dblink_connect(PG_FUNCTION_ARGS)
 	else if (PG_NARGS() == 1)
 		conname_or_str = text_to_cstring(PG_GETARG_TEXT_PP(0));
 
+	if (connname)
+	{
+		rconn = (remoteConn *) MemoryContextAlloc(TopMemoryContext,
+												  sizeof(remoteConn));
+		rconn->conn = NULL;
+		rconn->openCursorCount = 0;
+		rconn->newXactForCursor = false;
+	}
+
 	/* first check for valid foreign data server */
 	connstr = get_connect_string(conname_or_str);
 	if (connstr == NULL)
@@ -307,13 +309,6 @@ dblink_connect(PG_FUNCTION_ARGS)
 	if (dblink_we_connect == 0)
 		dblink_we_connect = WaitEventExtensionNew("DblinkConnect");
 
-	/* if we need a hashtable entry, make that first, since it might fail */
-	if (connname)
-	{
-		rconn = createNewConnection(connname);
-		Assert(rconn->conn == NULL);
-	}
-
 	/* OK to make connection */
 	conn = libpqsrv_connect(connstr, dblink_we_connect);
 
@@ -321,8 +316,8 @@ dblink_connect(PG_FUNCTION_ARGS)
 	{
 		msg = pchomp(PQerrorMessage(conn));
 		libpqsrv_disconnect(conn);
-		if (connname)
-			deleteConnection(connname);
+		if (rconn)
+			pfree(rconn);
 
 		ereport(ERROR,
 				(errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
@@ -331,16 +326,16 @@ dblink_connect(PG_FUNCTION_ARGS)
 	}
 
 	/* check password actually used if not superuser */
-	dblink_security_check(conn, connname, connstr);
+	dblink_security_check(conn, rconn, connstr);
 
 	/* attempt to set client encoding to match server encoding, if needed */
 	if (PQclientEncoding(conn) != GetDatabaseEncoding())
 		PQsetClientEncoding(conn, GetDatabaseEncodingName());
 
-	/* all OK, save away the conn */
 	if (connname)
 	{
 		rconn->conn = conn;
+		createNewConnection(connname, rconn);
 	}
 	else
 	{
@@ -380,7 +375,10 @@ dblink_disconnect(PG_FUNCTION_ARGS)
 
 	libpqsrv_disconnect(conn);
 	if (rconn)
+	{
 		deleteConnection(conname);
+		pfree(rconn);
+	}
 	else
 		pconn->conn = NULL;
 
@@ -1298,9 +1296,6 @@ dblink_get_connections(PG_FUNCTION_ARGS)
 		hash_seq_init(&status, remoteConnHash);
 		while ((hentry = (remoteConnHashEnt *) hash_seq_search(&status)) != NULL)
 		{
-			/* ignore it if it's not an open connection */
-			if (hentry->rconn.conn == NULL)
-				continue;
 			/* stash away current value */
 			astate = accumArrayResult(astate,
 									  CStringGetTextDatum(hentry->name),
@@ -2538,8 +2533,8 @@ getConnectionByName(const char *name)
 	hentry = (remoteConnHashEnt *) hash_search(remoteConnHash,
 											   key, HASH_FIND, NULL);
 
-	if (hentry && hentry->rconn.conn != NULL)
-		return &hentry->rconn;
+	if (hentry)
+		return hentry->rconn;
 
 	return NULL;
 }
@@ -2556,8 +2551,8 @@ createConnHash(void)
 					   HASH_ELEM | HASH_STRINGS);
 }
 
-static remoteConn *
-createNewConnection(const char *name)
+static void
+createNewConnection(const char *name, remoteConn *rconn)
 {
 	remoteConnHashEnt *hentry;
 	bool		found;
@@ -2571,15 +2566,17 @@ createNewConnection(const char *name)
 	hentry = (remoteConnHashEnt *) hash_search(remoteConnHash, key,
 											   HASH_ENTER, &found);
 
-	if (found && hentry->rconn.conn != NULL)
+	if (found)
+	{
+		libpqsrv_disconnect(rconn->conn);
+		pfree(rconn);
+
 		ereport(ERROR,
 				(errcode(ERRCODE_DUPLICATE_OBJECT),
 				 errmsg("duplicate connection name")));
+	}
 
-	/* New, or reusable, so initialize the rconn struct to zeroes */
-	memset(&hentry->rconn, 0, sizeof(remoteConn));
-
-	return &hentry->rconn;
+	hentry->rconn = rconn;
 }
 
 static void
@@ -2607,12 +2604,9 @@ deleteConnection(const char *name)
  * We need to make sure that the connection made used credentials
  * which were provided by the user, so check what credentials were
  * used to connect and then make sure that they came from the user.
- *
- * On failure, we close "conn" and also delete the hashtable entry
- * identified by "connname" (if that's not NULL).
  */
 static void
-dblink_security_check(PGconn *conn, const char *connname, const char *connstr)
+dblink_security_check(PGconn *conn, remoteConn *rconn, const char *connstr)
 {
 	/* Superuser bypasses security check */
 	if (superuser())
@@ -2630,8 +2624,8 @@ dblink_security_check(PGconn *conn, const char *connname, const char *connstr)
 
 	/* Otherwise, fail out */
 	libpqsrv_disconnect(conn);
-	if (connname)
-		deleteConnection(connname);
+	if (rconn)
+		pfree(rconn);
 
 	ereport(ERROR,
 			(errcode(ERRCODE_S_R_E_PROHIBITED_SQL_STATEMENT_ATTEMPTED),

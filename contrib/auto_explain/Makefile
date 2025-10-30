@@ -6,8 +6,6 @@ OBJS = \
 	auto_explain.o
 PGFILEDESC = "auto_explain - logging facility for execution plans"
 
-REGRESS = alter_reset
-
 TAP_TESTS = 1
 
 ifdef USE_PGXS

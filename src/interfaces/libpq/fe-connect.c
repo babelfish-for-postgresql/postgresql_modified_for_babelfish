@@ -7074,9 +7074,7 @@ PQport(const PGconn *conn)
 	if (!conn)
 		return NULL;
 
-	if (conn->connhost != NULL &&
-		conn->connhost[conn->whichhost].port != NULL &&
-		conn->connhost[conn->whichhost].port[0] != '\0')
+	if (conn->connhost != NULL)
 		return conn->connhost[conn->whichhost].port;
 
 	return "";
