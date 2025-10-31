@@ -138,6 +138,7 @@ InvokePreDropColumnHook_type InvokePreDropColumnHook = NULL;
 check_extended_attoptions_hook_type check_extended_attoptions_hook = NULL;
 find_attr_by_name_from_column_def_list_hook_type
 	find_attr_by_name_from_column_def_list_hook = NULL;
+object_dependency_hook_type object_dependency_hook = NULL;
 
 /*
  * State information for ALTER TABLE
@@ -13678,12 +13679,21 @@ RememberAllDependentForRebuilding(AlteredTableInfo *tab, AlterTableType subtype,
 				 * function bodies.  FIXME someday.
 				 */
 				if (subtype == AT_AlterColumnType)
+				{
+					ObjectAddress columnAddr;
+					columnAddr.classId = RelationRelationId;
+					columnAddr.objectId = RelationGetRelid(rel);
+					columnAddr.objectSubId = attnum;
+
+					if (object_dependency_hook && (*object_dependency_hook)(&foundObject, &columnAddr))
+						continue;
 					ereport(ERROR,
 							(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 							 errmsg("cannot alter type of a column used by a view or rule"),
 							 errdetail("%s depends on column \"%s\"",
 									   getObjectDescription(&foundObject, false),
 									   colName)));
+				}
 				break;
 
 			case TriggerRelationId:
