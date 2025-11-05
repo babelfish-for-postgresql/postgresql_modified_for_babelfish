@@ -116,6 +116,7 @@ static List *ExpandChecksumStar(ParseState *pstate, FuncCall *fn, int location);
 lookup_param_hook_type lookup_param_hook = NULL;
 handle_constant_literals_hook_type handle_constant_literals_hook = NULL;
 set_common_typmod_case_expr_hook_type set_common_typmod_case_expr_hook = NULL;
+set_typmod_op_expr_hook_type set_typmod_op_expr_hook = NULL;
 /*
  * transformExpr -
  *	  Analyze and transform expressions. Type checking and type casting is
@@ -1099,6 +1100,9 @@ transformAExprOp(ParseState *pstate, A_Expr *a)
 								  rexpr,
 								  last_srf,
 								  a->location);
+
+		if (sql_dialect == SQL_DIALECT_TSQL && set_typmod_op_expr_hook)
+				result = (*set_typmod_op_expr_hook)(pstate, result, lexpr, rexpr);
 	}
 
 	return result;
