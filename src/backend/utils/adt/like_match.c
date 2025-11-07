@@ -181,6 +181,15 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 							 errmsg("LIKE pattern must not end with escape character")));
 				firstpat = GETCHAR(p[1]);
 			}
+			else if (strncmp(p, BBF_ESC_CHAR_REPLC, strlen(BBF_ESC_CHAR_REPLC)) == 0 && sql_dialect == SQL_DIALECT_TSQL)
+			{
+				int esc_len = strlen(BBF_ESC_CHAR_REPLC);
+				if (plen <= esc_len)
+					ereport(ERROR,
+							(errcode(ERRCODE_INVALID_ESCAPE_SEQUENCE),
+							 errmsg("LIKE pattern must not end with escape character")));
+				firstpat = GETCHAR(p[esc_len]);
+			}
 			else
 				firstpat = GETCHAR(*p);
 
