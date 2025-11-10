@@ -101,7 +101,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 	{
 		/* Default escape '\\' is disabled in babelfish */
 		if ((*p == '\\' && sql_dialect == SQL_DIALECT_PG)||
-			(strncmp(p, BBF_ESC_CHAR_REPLC, strlen(BBF_ESC_CHAR_REPLC)) == 0 && sql_dialect == SQL_DIALECT_TSQL))
+			(sql_dialect == SQL_DIALECT_TSQL && strncmp(p, BBF_ESC_CHAR_REPLC, strlen(BBF_ESC_CHAR_REPLC)) == 0))
 		{
 			/* Next pattern byte must match literally, whatever it is */
 			if (sql_dialect == SQL_DIALECT_TSQL)
@@ -181,7 +181,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 							 errmsg("LIKE pattern must not end with escape character")));
 				firstpat = GETCHAR(p[1]);
 			}
-			else if (strncmp(p, BBF_ESC_CHAR_REPLC, strlen(BBF_ESC_CHAR_REPLC)) == 0 && sql_dialect == SQL_DIALECT_TSQL)
+			else if (sql_dialect == SQL_DIALECT_TSQL && strncmp(p, BBF_ESC_CHAR_REPLC, strlen(BBF_ESC_CHAR_REPLC)) == 0)
 			{
 				int esc_len = strlen(BBF_ESC_CHAR_REPLC);
 				if (plen <= esc_len)
@@ -202,7 +202,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 
 					if (matched != LIKE_FALSE)
 						return matched; /* TRUE or ABORT */
-				} else if (firstpat == '[' && sql_dialect == SQL_DIALECT_TSQL)
+				} else if (sql_dialect == SQL_DIALECT_TSQL && firstpat == '[')
 				{
 					int			matched = MatchText(t, tlen, p, plen,
 													locale, locale_is_c);
@@ -226,7 +226,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 			NextByte(p, plen);
 			continue;
 		}
-		else if (*p == '[' && sql_dialect == SQL_DIALECT_TSQL)
+		else if (sql_dialect == SQL_DIALECT_TSQL && *p == '[')
 		{
 			/* Tsql deal with [ and ] wild character */
 			Oid cid = InvalidOid;
@@ -308,7 +308,7 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 		NextByte(p, plen);
 	}
 
-	if (tlen > 0 && sql_dialect == SQL_DIALECT_TSQL)
+	if (sql_dialect == SQL_DIALECT_TSQL && tlen > 0)
 	{
 		/* End of pattern, but not of text.
 		 *
@@ -376,7 +376,7 @@ do_like_escape(text *pat, text *esc)
 		result = (text *) palloc(plen * 2 + VARHDRSZ);
 	r = VARDATA(result);
 
-	if (elen==0 && sql_dialect == SQL_DIALECT_TSQL)
+	if (sql_dialect == SQL_DIALECT_TSQL && elen==0)
 	{
 		/*
 		 * Escape string is empty, just throw the error.
