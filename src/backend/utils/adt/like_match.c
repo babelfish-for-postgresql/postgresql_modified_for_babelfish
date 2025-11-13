@@ -77,6 +77,7 @@
 #endif
 
 #define BBF_ESC_CHAR_REPLC "\357\277\277"
+#define BBF_ESC_CHAR_REPLC_LEN (sizeof(BBF_ESC_CHAR_REPLC) - 1)
 
 static int
 MatchText(const char *t, int tlen, const char *p, int plen,
@@ -101,12 +102,12 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 	{
 		/* Default escape '\\' is disabled in babelfish */
 		if ((*p == '\\' && sql_dialect == SQL_DIALECT_PG)||
-			(sql_dialect == SQL_DIALECT_TSQL && strncmp(p, BBF_ESC_CHAR_REPLC, strlen(BBF_ESC_CHAR_REPLC)) == 0))
+			(sql_dialect == SQL_DIALECT_TSQL && strncmp(p, BBF_ESC_CHAR_REPLC, BBF_ESC_CHAR_REPLC_LEN) == 0))
 		{
 			/* Next pattern byte must match literally, whatever it is */
 			if (sql_dialect == SQL_DIALECT_TSQL)
 			{
-				for (int i = 0; i < strlen(BBF_ESC_CHAR_REPLC); i++)
+				for (int i = 0; i < BBF_ESC_CHAR_REPLC_LEN; i++)
 				{
 					NextByte(p, plen);
 				}
@@ -181,9 +182,9 @@ MatchText(const char *t, int tlen, const char *p, int plen,
 							 errmsg("LIKE pattern must not end with escape character")));
 				firstpat = GETCHAR(p[1]);
 			}
-			else if (sql_dialect == SQL_DIALECT_TSQL && strncmp(p, BBF_ESC_CHAR_REPLC, strlen(BBF_ESC_CHAR_REPLC)) == 0)
+			else if (sql_dialect == SQL_DIALECT_TSQL && strncmp(p, BBF_ESC_CHAR_REPLC, BBF_ESC_CHAR_REPLC_LEN) == 0)
 			{
-				int esc_len = strlen(BBF_ESC_CHAR_REPLC);
+				int esc_len = BBF_ESC_CHAR_REPLC_LEN;
 				if (plen <= esc_len)
 					ereport(ERROR,
 							(errcode(ERRCODE_INVALID_ESCAPE_SEQUENCE),
@@ -426,7 +427,7 @@ do_like_escape(text *pat, text *esc)
 				{
 					/* check if direct copy string (unicode char) is valid */
 					
-					for (int i = 0; i < strlen(BBF_ESC_CHAR_REPLC); i++){
+					for (int i = 0; i < BBF_ESC_CHAR_REPLC_LEN; i++){
 						*r++ = BBF_ESC_CHAR_REPLC[i];
 					}
 					NextChar(p, plen);
