@@ -66,6 +66,7 @@
 #include "parser/parse_collate.h"
 #include "parser/parse_expr.h"
 #include "parser/parse_relation.h"
+#include "parser/parse_target.h"
 #include "parser/parsetree.h"
 #include "partitioning/partdesc.h"
 #include "pgstat.h"
@@ -2996,6 +2997,9 @@ cookDefault(ParseState *pstate,
 							format_type_be(atttypid),
 							format_type_be(type_id)),
 					 errhint("You will need to rewrite or cast the expression.")));
+
+		if (handle_type_and_collation_hook)
+			handle_type_and_collation_hook(expr, atttypid, InvalidOid);
 	}
 
 	/*
