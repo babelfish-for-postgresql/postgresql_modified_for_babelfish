@@ -2733,7 +2733,8 @@ void
 ExecIRDeleteTriggersTSQL(EState *estate, ResultRelInfo *relinfo,
 					ItemPointer tupleid,
 					HeapTuple fdw_trigtuple,
-					TransitionCaptureState *transition_capture)
+					TransitionCaptureState *transition_capture,
+					bool is_merge_delete)
 {
 	TriggerDesc *trigdesc;
 	TupleTableSlot *slot;
@@ -2749,6 +2750,7 @@ ExecIRDeleteTriggersTSQL(EState *estate, ResultRelInfo *relinfo,
 								tupleid,
 								LockTupleExclusive,
 								slot,
+								!is_merge_delete,
 								NULL,
 								NULL,
 								NULL);
@@ -2767,7 +2769,8 @@ void ExecIRUpdateTriggersTSQL(EState *estate,
 								 ItemPointer tupleid,
 								 HeapTuple fdw_trigtuple,
 								 TupleTableSlot *newslot,
-								 TransitionCaptureState *transition_capture)
+								 TransitionCaptureState *transition_capture,
+								 bool is_merge_update)
 {
 	TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 	TupleTableSlot *oldslot = ExecGetTriggerOldSlot(estate, relinfo);
@@ -2791,6 +2794,7 @@ void ExecIRUpdateTriggersTSQL(EState *estate,
 							   tupleid,
 							   LockTupleExclusive,
 							   oldslot,
+							   !is_merge_update,
 							   NULL,
 							   NULL,
 							   NULL);

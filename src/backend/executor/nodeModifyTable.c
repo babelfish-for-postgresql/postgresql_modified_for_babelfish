@@ -1535,7 +1535,7 @@ ExecDelete(ModifyTableContext *context,
 		bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(resultRelationDesc, CMD_DELETE) &&
 		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_DELETE))
 	{
-		ExecIRDeleteTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, context->mtstate->mt_transition_capture);
+		ExecIRDeleteTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, context->mtstate->mt_transition_capture, context->mtstate->operation == CMD_MERGE);
 		if (canSetTag)
 			(estate->es_processed)++;
 		return NULL;
@@ -2392,7 +2392,7 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 		sql_dialect == SQL_DIALECT_TSQL && bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(resultRelationDesc, CMD_UPDATE) &&
 		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_INSTEAD))
 	{
-		ExecIRUpdateTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, slot, context->mtstate->mt_transition_capture);
+		ExecIRUpdateTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, slot, context->mtstate->mt_transition_capture, context->mtstate->operation == CMD_MERGE);
 		if (canSetTag)
 			(estate->es_processed)++;
 		return NULL;

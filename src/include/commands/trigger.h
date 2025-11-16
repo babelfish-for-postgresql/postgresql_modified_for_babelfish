@@ -209,13 +209,15 @@ extern void ExecIRDeleteTriggersTSQL(EState *estate,
 								 ResultRelInfo *relinfo,
 								 ItemPointer tupleid,
 								 HeapTuple fdw_trigtuple,
-								 TransitionCaptureState *transition_capture);
+								 TransitionCaptureState *transition_capture,
+								 bool is_merge_delete);
 extern void ExecIRUpdateTriggersTSQL(EState *estate,
 								 ResultRelInfo *relinfo,
 								 ItemPointer tupleid,
 								 HeapTuple fdw_trigtuple,
 								 TupleTableSlot *newslot,
-								 TransitionCaptureState *transition_capture);
+								 TransitionCaptureState *transition_capture,
+								 bool is_merge_delete);
 extern bool ExecIRInsertTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TupleTableSlot *slot);
