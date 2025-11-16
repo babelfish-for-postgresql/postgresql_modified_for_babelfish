@@ -226,6 +226,9 @@ extern void ExecBSDeleteTriggers(EState *estate,
 extern void ExecASDeleteTriggers(EState *estate,
 								 ResultRelInfo *relinfo,
 								 TransitionCaptureState *transition_capture);
+extern IOTState ExecISDeleteTriggers(EState *estate,
+								ResultRelInfo *relinfo,
+								TransitionCaptureState *transition_capture);
 extern bool ExecBRDeleteTriggersNew(EState *estate,
 									EPQState *epqstate,
 									ResultRelInfo *relinfo,
