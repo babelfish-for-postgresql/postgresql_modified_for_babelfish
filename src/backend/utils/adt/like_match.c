@@ -77,6 +77,7 @@
 #endif
 
 #define BBF_ESC_CHAR_REPLC "\357\277\277"
+#define BBF_ESC_CHAR_REPLC_LEN (sizeof(BBF_ESC_CHAR_REPLC) - 1)
 
 static int
 MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
@@ -100,12 +101,12 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
 	{
 		/* Default escape '\\' is disabled in babelfish */
 		if ((*p == '\\' && sql_dialect == SQL_DIALECT_PG)||
-			(strncmp(p, BBF_ESC_CHAR_REPLC, strlen(BBF_ESC_CHAR_REPLC)) == 0 && sql_dialect == SQL_DIALECT_TSQL))
+			(sql_dialect == SQL_DIALECT_TSQL && strncmp(p, BBF_ESC_CHAR_REPLC, BBF_ESC_CHAR_REPLC_LEN) == 0))
 		{
 			/* Next pattern byte must match literally, whatever it is */
 			if (sql_dialect == SQL_DIALECT_TSQL)
 			{
-				for (int i = 0; i < strlen(BBF_ESC_CHAR_REPLC); i++)
+				for (int i = 0; i < BBF_ESC_CHAR_REPLC_LEN; i++)
 				{
 					NextByte(p, plen);
 				}
@@ -182,6 +183,15 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
 							 errmsg("LIKE pattern must not end with escape character")));
 				firstpat = GETCHAR(p[1], locale);
 			}
+			else if (sql_dialect == SQL_DIALECT_TSQL && strncmp(p, BBF_ESC_CHAR_REPLC, BBF_ESC_CHAR_REPLC_LEN) == 0)
+			{
+				int esc_len = BBF_ESC_CHAR_REPLC_LEN;
+				if (plen <= esc_len)
+					ereport(ERROR,
+							(errcode(ERRCODE_INVALID_ESCAPE_SEQUENCE),
+							 errmsg("LIKE pattern must not end with escape character")));
+				firstpat = GETCHAR(p[esc_len]);
+			}
 			else
 				firstpat = GETCHAR(*p, locale);
 
@@ -193,7 +203,7 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
 
 					if (matched != LIKE_FALSE)
 						return matched; /* TRUE or ABORT */
-				} else if (firstpat == '[' && sql_dialect == SQL_DIALECT_TSQL)
+				} else if (sql_dialect == SQL_DIALECT_TSQL && firstpat == '[')
 				{
 					int			matched = MatchText(t, tlen, p, plen,
 													locale);
@@ -217,7 +227,7 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
 			NextByte(p, plen);
 			continue;
 		}
-		else if (*p == '[' && sql_dialect == SQL_DIALECT_TSQL)
+		else if (sql_dialect == SQL_DIALECT_TSQL && *p == '[')
 		{
 			/* Tsql deal with [ and ] wild character */
 			Oid cid = InvalidOid;
@@ -443,7 +453,7 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
 		NextByte(p, plen);
 	}
 
-	if (tlen > 0 && sql_dialect == SQL_DIALECT_TSQL)
+	if (sql_dialect == SQL_DIALECT_TSQL && tlen > 0)
 	{
 		/* End of pattern, but not of text.
 		 *
@@ -511,7 +521,7 @@ do_like_escape(text *pat, text *esc)
 		result = (text *) palloc(plen * 2 + VARHDRSZ);
 	r = VARDATA(result);
 
-	if (elen==0 && sql_dialect == SQL_DIALECT_TSQL)
+	if (sql_dialect == SQL_DIALECT_TSQL && elen==0)
 	{
 		/*
 		 * Escape string is empty, just throw the error.
@@ -561,7 +571,7 @@ do_like_escape(text *pat, text *esc)
 				{
 					/* check if direct copy string (unicode char) is valid */
 					
-					for (int i = 0; i < strlen(BBF_ESC_CHAR_REPLC); i++){
+					for (int i = 0; i < BBF_ESC_CHAR_REPLC_LEN; i++){
 						*r++ = BBF_ESC_CHAR_REPLC[i];
 					}
 					NextChar(p, plen);
