@@ -1430,7 +1430,6 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 	TYPCATEGORY pcategory;
 	bool		pispreferred;
 	ListCell   *lc;
-	const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
 
 	if (select_common_type_hook)
 	{
@@ -1495,9 +1494,7 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 				pcategory = ncategory;
 				pispreferred = nispreferred;
 			}
-			else if (ncategory != pcategory &&
-				sql_dialect != SQL_DIALECT_TSQL && /* T-SQL allows to select common datatype between different categories */
-				(!dump_restore || (dump_restore && strcmp(dump_restore, "on") != 0))) /* allow common datatype between different categories while restoring babelfish database */
+			else if (ncategory != pcategory)
 			{
 				/*
 				 * both types in different categories? then not much hope...
@@ -1527,54 +1524,8 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 				pcategory = ncategory;
 				pispreferred = nispreferred;
 			}
-			else if ((sql_dialect == SQL_DIALECT_TSQL ||
-					 (dump_restore && strcmp(dump_restore, "on") == 0)) &&
-					 determine_datatype_precedence_hook != NULL &&
-					 !pispreferred &&
-					 can_coerce_type(1, &ptype, &ntype, COERCION_IMPLICIT) &&
-					 can_coerce_type(1, &ntype, &ptype, COERCION_IMPLICIT) &&
-					 determine_datatype_precedence_hook(ntype, ptype))
-			{
-				/*
-				 * T-SQL allows implicit casting on both-side.
-				 * common datatype should be decided by datatype precedence rule.
-				 */
-				pexpr = nexpr;
-				ptype = ntype;
-				pcategory = ncategory;
-				pispreferred = nispreferred;
-			}
-		} else if (sql_dialect == SQL_DIALECT_TSQL && ntype == ptype)
-		{
-			/*
-			 * For the columns which have the same base type, we choose the
-			 * expression with higher precedence type in T-SQL.
-			 * For example, smallmoney UNION money, the base type of
-			 * them are both fixeddecimal. But we shouldn't use smallmoney as
-			 * the result type, it could loss precision.
-			 * Here we don't need to update other variables since they are the
-			 * same.
-			 */
-			if (is_tsql_base_datatype_hook &&
-				(*is_tsql_base_datatype_hook)(exprType(nexpr)) &&
-				determine_datatype_precedence_hook &&
-				determine_datatype_precedence_hook(exprType(nexpr),
-												   exprType(pexpr)))
-				pexpr = nexpr;
 		}
 	}
-
-	/*
-	 * If the preferred type is not the result type of corresponding
-	 * expression, it means the result type is a domain type in Postgres. Some
-	 * base data types in T-SQL are implemented as domain types in Babelfish.
-	 * From SQL Server's perspective, we should try to retain those types as
-	 * result types.
-	 */
-	if (sql_dialect == SQL_DIALECT_TSQL && ptype != exprType(pexpr) &&
-		is_tsql_base_datatype_hook &&
-		(*is_tsql_base_datatype_hook)(exprType(pexpr)))
-		ptype = exprType(pexpr);
 
 	/*
 	 * If all the inputs were UNKNOWN type --- ie, unknown-type literals ---
@@ -1587,23 +1538,6 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 	 * literals while they are still literals, so a decision has to be made
 	 * now.
 	 */
-	if (ptype == UNKNOWNOID && sql_dialect == SQL_DIALECT_TSQL)
-	{
-		bool all_nullconst = true;
-		foreach(lc, exprs)
-		{
-			Node* expr = (Node *) lfirst(lc);
-			if (exprType(expr) != UNKNOWNOID || !IsA(expr, Const) || !((Const *) expr)->constisnull)
-			{
-				all_nullconst = false;
-				break;
-			}
-		}
-
-		if (all_nullconst)
-			ptype = INT4OID; /* in T-SQL, it is should be decided to INT4 */
-	}
-
 	if (ptype == UNKNOWNOID)
 		ptype = TEXTOID;
 
