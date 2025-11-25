@@ -56,6 +56,8 @@ optimize_explicit_cast_hook_type optimize_explicit_cast_hook = NULL;
 
 pre_transform_openxml_columns_hook_type pre_transform_openxml_columns_hook = NULL;
 
+resolve_unknwon_literal_hook_type resolve_unknwon_literal_hook = NULL;
+
 static int	extractRemainingColumns(ParseState *pstate,
 									ParseNamespaceColumn *src_nscolumns,
 									List *src_colnames,
@@ -3433,13 +3435,17 @@ addTargetToSortList(ParseState *pstate, TargetEntry *tle,
 	/* if tlist item is an UNKNOWN literal, change it to TEXT */
 	if (restype == UNKNOWNOID)
 	{
-		if (sql_dialect != SQL_DIALECT_TSQL || pstate->p_resolve_unknowns)
+		if (resolve_unknwon_literal_hook)
+			tle->expr = (Expr *) resolve_unknwon_literal_hook(pstate, (Node *) tle->expr, &restype);
+		else
+		{
 			tle->expr = (Expr *) coerce_type(pstate, (Node *) tle->expr,
-											restype, TEXTOID, -1,
-											COERCION_IMPLICIT,
-											COERCE_IMPLICIT_CAST,
-											-1);
-		restype = TEXTOID;
+											 restype, TEXTOID, -1,
+											 COERCION_IMPLICIT,
+											 COERCE_IMPLICIT_CAST,
+											 -1);
+			restype = TEXTOID;
+		}
 	}
 
 	/*
@@ -3576,13 +3582,17 @@ addTargetToGroupList(ParseState *pstate, TargetEntry *tle,
 	/* if tlist item is an UNKNOWN literal, change it to TEXT */
 	if (restype == UNKNOWNOID)
 	{
-		if (sql_dialect != SQL_DIALECT_TSQL || pstate->p_resolve_unknowns)
+		if (resolve_unknwon_literal_hook)
+			tle->expr = (Expr *) resolve_unknwon_literal_hook(pstate, (Node *) tle->expr, &restype);
+		else
+		{
 			tle->expr = (Expr *) coerce_type(pstate, (Node *) tle->expr,
-											restype, TEXTOID, -1,
-											COERCION_IMPLICIT,
-											COERCE_IMPLICIT_CAST,
-											-1);
-		restype = TEXTOID;
+											 restype, TEXTOID, -1,
+											 COERCION_IMPLICIT,
+											 COERCE_IMPLICIT_CAST,
+											 -1);
+			restype = TEXTOID;
+		}
 	}
 
 	/* avoid making duplicate grouplist entries */
