@@ -116,7 +116,7 @@ static List *ExpandChecksumStar(ParseState *pstate, FuncCall *fn, int location);
 lookup_param_hook_type lookup_param_hook = NULL;
 handle_constant_literals_hook_type handle_constant_literals_hook = NULL;
 set_common_typmod_case_expr_hook_type set_common_typmod_case_expr_hook = NULL;
-set_expr_typmod_hook_type set_expr_typmod_hook = NULL;
+post_transform_expr_recurse_hook_type post_transform_expr_recurse_hook = NULL;
 
 /*
  * transformExpr -
@@ -387,8 +387,8 @@ transformExprRecurse(ParseState *pstate, Node *expr)
 			break;
 	}
 
-	if (sql_dialect == SQL_DIALECT_TSQL && set_expr_typmod_hook)
-				result = (*set_expr_typmod_hook)(pstate, result);
+	if (sql_dialect == SQL_DIALECT_TSQL && post_transform_expr_recurse_hook)
+				result = (*post_transform_expr_recurse_hook)(pstate, result);
 
 	return result;
 }

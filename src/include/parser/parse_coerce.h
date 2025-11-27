@@ -148,7 +148,7 @@ extern PGDLLEXPORT handle_constant_literals_hook_type handle_constant_literals_h
 typedef void (*set_common_typmod_case_expr_hook_type) (ParseState *pstate, List *exprs, CaseExpr *newc);
 extern PGDLLIMPORT set_common_typmod_case_expr_hook_type set_common_typmod_case_expr_hook;
 
-typedef Node *(*set_expr_typmod_hook_type) (ParseState *pstate, Node *expr);
-extern PGDLLIMPORT set_expr_typmod_hook_type set_expr_typmod_hook;
+typedef Node *(*post_transform_expr_recurse_hook_type) (ParseState *pstate, Node *expr);
+extern PGDLLIMPORT post_transform_expr_recurse_hook_type post_transform_expr_recurse_hook;
 
 #endif							/* PARSE_COERCE_H */
