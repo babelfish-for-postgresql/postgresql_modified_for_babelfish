@@ -387,7 +387,7 @@ transformExprRecurse(ParseState *pstate, Node *expr)
 			break;
 	}
 
-	if (sql_dialect == SQL_DIALECT_TSQL && post_transform_expr_recurse_hook)
+	if (post_transform_expr_recurse_hook)
 				result = (*post_transform_expr_recurse_hook)(pstate, result);
 
 	return result;
