@@ -388,7 +388,7 @@ transformExprRecurse(ParseState *pstate, Node *expr)
 	}
 
 	if (post_transform_expr_recurse_hook)
-				result = (*post_transform_expr_recurse_hook)(pstate, result);
+		result = (*post_transform_expr_recurse_hook)(pstate, result);
 
 	return result;
 }
