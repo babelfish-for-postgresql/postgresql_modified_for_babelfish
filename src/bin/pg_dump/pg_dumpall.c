@@ -384,6 +384,7 @@ main(int argc, char *argv[])
 
 			case 30:			/* Babelfish virtual database name */
 				bbf_db_name = pg_strdup(optarg);
+				break;
 
 			default:
 				/* getopt_long already emitted a complaint */
