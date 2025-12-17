@@ -1207,6 +1207,7 @@ InternalGrant
 Interval
 IntoClause
 InvalMessageArray
+InvalidationInfo
 InvalidationMsgsGroup
 IpcMemoryId
 IpcMemoryKey
