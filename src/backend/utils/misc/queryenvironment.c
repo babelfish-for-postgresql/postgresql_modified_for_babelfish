@@ -319,16 +319,21 @@ EphemeralNamedRelation
 get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType type)
 {
 	ListCell   *lc;
+	QueryEnvironment *qe = queryEnv;
 
 	if (queryEnv == NULL || !OidIsValid(id))
 		return NULL;
 
-	foreach(lc, queryEnv->namedRelList)
+	while (qe)
 	{
-		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+		foreach(lc, qe->namedRelList)
+		{
+			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		if (enr->md.reliddesc == id && enr->md.enrtype == type)
-			return enr;
+			if (enr->md.reliddesc == id && enr->md.enrtype == type)
+				return enr;
+		}
+		qe = qe->parentEnv;
 	}
 
 	return NULL;
