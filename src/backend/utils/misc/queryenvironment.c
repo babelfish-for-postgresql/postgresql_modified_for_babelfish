@@ -222,7 +222,7 @@ register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 		 * as false, same as parent since table variable don't follow transactional
 		 * semantics.
 		 */
-		EphemeralNamedRelation parent_enr = GetENRTempTableWithOid(enr->md.parent_oid, false);
+		EphemeralNamedRelation parent_enr = GetENRTempTableWithOid(enr->md.parent_oid, true);
 		if(parent_enr)
 			enr->md.is_bbf_temp_table = parent_enr->md.is_bbf_temp_table;
 		else
