@@ -222,7 +222,7 @@ register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 		 * as false, same as parent since table variable don't follow transactional
 		 * semantics.
 		 */
-		EphemeralNamedRelation parent_enr = GetENRTempTableWithOid(enr->md.parent_oid);
+		EphemeralNamedRelation parent_enr = GetENRTempTableWithOid(enr->md.parent_oid, true);
 		if(parent_enr)
 			enr->md.is_bbf_temp_table = parent_enr->md.is_bbf_temp_table;
 		else
@@ -316,19 +316,26 @@ get_ENR(QueryEnvironment *queryEnv, const char *name, bool search)
  * Same as get_ENR() but just search for relation oid
  */
 EphemeralNamedRelation
-get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType type)
+get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType type, bool recurse)
 {
 	ListCell   *lc;
+	QueryEnvironment *qe = queryEnv;
 
 	if (queryEnv == NULL || !OidIsValid(id))
 		return NULL;
 
-	foreach(lc, queryEnv->namedRelList)
+	while (qe)
 	{
-		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+		foreach(lc, qe->namedRelList)
+		{
+			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-		if (enr->md.reliddesc == id && enr->md.enrtype == type)
-			return enr;
+			if (enr->md.reliddesc == id && enr->md.enrtype == type)
+				return enr;
+		}
+		if (!recurse)
+			break;
+		qe = qe->parentEnv;
 	}
 
 	return NULL;
@@ -339,9 +346,9 @@ get_ENR_withoid(QueryEnvironment *queryEnv, Oid id, EphemeralNameRelationType ty
  * provided arguments of currentQueryEnv and ENR_TSQL_TEMP.
  */
 EphemeralNamedRelation
-GetENRTempTableWithOid(Oid id)
+GetENRTempTableWithOid(Oid id, bool recurse)
 {
-	return get_ENR_withoid(currentQueryEnv, id, ENR_TSQL_TEMP);
+	return get_ENR_withoid(currentQueryEnv, id, ENR_TSQL_TEMP, recurse);
 }
 
 /*
@@ -821,7 +828,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 		switch (catalog_oid) {
 			case RelationRelationId:
 				rel_oid = ((Form_pg_class) GETSTRUCT(tup))->oid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_CLASS];
 					lc = list_head(enr->md.cattups[ENR_CATTUP_CLASS]);
 					ret = true;
@@ -883,7 +890,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				{
 					Form_pg_shdepend tf1 = (Form_pg_shdepend) GETSTRUCT((HeapTuple)tup);
 					rel_oid = ((Form_pg_shdepend) GETSTRUCT(tup))->objid;
-					if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+					if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 						ListCell *curlc;
 						Form_pg_shdepend tf2; /* tuple forms*/
 
@@ -916,7 +923,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				}
 			case IndexRelationId:
 				rel_oid = ((Form_pg_index) GETSTRUCT(tup))->indrelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_INDEX];
 					lc = list_head(enr->md.cattups[ENR_CATTUP_INDEX]);
 					ret = true;
@@ -934,7 +941,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				/* Composite type */
 				if (((Form_pg_type) GETSTRUCT(tup))->typelem == InvalidOid) {
 					rel_oid = ((Form_pg_type) GETSTRUCT(tup))->typrelid;
-					if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+					if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 						list_ptr = &enr->md.cattups[ENR_CATTUP_TYPE];
 						lc = list_head(enr->md.cattups[ENR_CATTUP_TYPE]);
 						ret = true;
@@ -970,7 +977,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				break;
 			case AttributeRelationId:
 				rel_oid = ((Form_pg_attribute) GETSTRUCT(tup))->attrelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					ListCell *curlc;
 					Form_pg_attribute tf1, tf2; /* tuple forms*/
 
@@ -997,7 +1004,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				break;
 			case ConstraintRelationId:
 				rel_oid = ((Form_pg_constraint) GETSTRUCT(tup))->conrelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					Form_pg_constraint tf1, tf2; /* tuple forms*/
 					ListCell *curlc;
 
@@ -1016,7 +1023,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				break;
 			case StatisticRelationId:
 				rel_oid = ((Form_pg_statistic) GETSTRUCT(tup))->starelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					Form_pg_statistic tf1, tf2; /* tuple forms*/
 					ListCell *curlc;
 
@@ -1035,7 +1042,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				break;
 			case StatisticExtRelationId:
 				rel_oid = ((Form_pg_statistic_ext) GETSTRUCT(tup))->stxrelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					Form_pg_statistic_ext tf1, tf2; /* tuple forms*/
 					ListCell *curlc;
 
@@ -1054,7 +1061,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				break;
 			case SequenceRelationId:
 				rel_oid = ((Form_pg_sequence) GETSTRUCT(tup))->seqrelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_SEQUENCE];
 					lc = list_head(enr->md.cattups[ENR_CATTUP_SEQUENCE]);
 					ret = true;
@@ -1062,7 +1069,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				break;
 			case AttrDefaultRelationId:
 				rel_oid = ((Form_pg_attrdef) GETSTRUCT(tup))->adrelid;
-				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL];
 					lc = list_head(enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]);
 					ret = true;
@@ -1143,7 +1150,7 @@ static EphemeralNamedRelation find_enr(Form_pg_depend entry)
 			* to register the dependency of the ENR relation to this object.
 			*/
 			case RelationRelationId:
-				return get_ENR_withoid(queryEnv, entry->objid, ENR_TSQL_TEMP);
+				return get_ENR_withoid(queryEnv, entry->objid, ENR_TSQL_TEMP, false);
 
 			case TypeRelationId:
 				foreach(curlc, queryEnv->namedRelList) {
@@ -1171,7 +1178,7 @@ static EphemeralNamedRelation find_enr(Form_pg_depend entry)
 
 			case ConstraintRelationId:
 			case AttrDefaultRelationId:
-				return get_ENR_withoid(queryEnv, entry->refobjid, ENR_TSQL_TEMP);
+				return get_ENR_withoid(queryEnv, entry->refobjid, ENR_TSQL_TEMP, false);
 
 			default:
 				break;
@@ -1192,7 +1199,7 @@ void ENRDropEntry(Oid id)
 	if (sql_dialect != SQL_DIALECT_TSQL || !currentQueryEnv)
 		return;
 
-	if ((enr = GetENRTempTableWithOid(id)) == NULL)
+	if ((enr = GetENRTempTableWithOid(id, false)) == NULL)
 		return;
 
 	oldcxt = MemoryContextSwitchTo(currentQueryEnv->memctx);
@@ -1313,7 +1320,7 @@ void ENRDropCatalogEntry(Relation catalog_relation, Oid relid)
 	{
 		switch (catalog_oid) {
 			case AttributeRelationId:
-				if ((enr = get_ENR_withoid(queryEnv, relid, ENR_TSQL_TEMP))) {
+				if ((enr = get_ENR_withoid(queryEnv, relid, ENR_TSQL_TEMP, false))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_ATTRIBUTE];
 					ret = true;
 				}
@@ -1706,7 +1713,7 @@ ENRRollbackUncommittedTuple(QueryEnvironment *queryEnv, ENRUncommittedTuple unco
 		*/
 		
 		Form_pg_index idx_form = (Form_pg_index) GETSTRUCT(uncommitted_tup->tup);
-		if (get_ENR_withoid(queryEnv, idx_form->indrelid, ENR_TSQL_TEMP))
+		if (get_ENR_withoid(queryEnv, idx_form->indrelid, ENR_TSQL_TEMP, false))
 		{
 			skip_cache_inval = true;
 		}
@@ -1838,7 +1845,7 @@ bool UseTempOidBuffer()
 bool UseTempOidBufferForOid(Oid relId)
 {
 	return UseTempOidBuffer()
-		&& GetENRTempTableWithOid(relId);
+		&& GetENRTempTableWithOid(relId, false);
 }
 
 bool has_existing_enr_relations()

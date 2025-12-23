@@ -3819,7 +3819,7 @@ RelationSetNewRelfilenumber(Relation relation, char persistence)
 	 * Get a writable copy of the pg_class tuple for the given relation.
 	 */
 	pg_class = table_open(RelationRelationId, RowExclusiveLock);
-	is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(RelationGetRelid(relation)));
+	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, RelationGetRelid(relation), ENR_TSQL_TEMP, true));
 	if (is_enr)
 		tuple = SearchSysCacheCopy1(RELOID,
 									  ObjectIdGetDatum(RelationGetRelid(relation)));

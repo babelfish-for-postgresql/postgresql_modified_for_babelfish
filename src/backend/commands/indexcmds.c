@@ -4579,7 +4579,7 @@ update_relispartition(Oid relationId, bool newval)
 	HeapTuple	tup;
 	Relation	classRel;
 	ItemPointerData otid;
-	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && GetENRTempTableWithOid(relationId));
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relationId, ENR_TSQL_TEMP, false));
 
 	classRel = table_open(RelationRelationId, RowExclusiveLock);
 	if (is_enr)
