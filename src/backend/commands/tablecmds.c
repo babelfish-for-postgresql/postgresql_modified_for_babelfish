@@ -3543,7 +3543,7 @@ SetRelationTableSpace(Relation rel,
 	ItemPointerData otid;
 	Form_pg_class rd_rel;
 	Oid			reloid = RelationGetRelid(rel);
-	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, reloid, ENR_TSQL_TEMP));
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, reloid, ENR_TSQL_TEMP, false));
 
 	Assert(CheckRelationTableSpaceMove(rel, newTableSpaceId));
 
@@ -4065,7 +4065,7 @@ RenameRelationInternal(Oid myrelid, const char *newrelname, bool is_internal, bo
 	HeapTuple	reltup;
 	Form_pg_class relform;
 	Oid			namespaceId;
-	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, myrelid, ENR_TSQL_TEMP));
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, myrelid, ENR_TSQL_TEMP, false));
 
 	/*
 	 * Grab a lock on the target relation, which we will NOT release until end
@@ -14720,7 +14720,7 @@ ATExecSetRelOptions(Relation rel, List *defList, AlterTableType operation,
 
 	/* Fetch heap tuple */
 	relid = RelationGetRelid(rel);
-	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relid, ENR_TSQL_TEMP));
+	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relid, ENR_TSQL_TEMP, false));
 	if (is_enr)
 		tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 	else
@@ -16985,7 +16985,7 @@ AlterRelationNamespaceInternal(Relation classRel, Oid relOid,
 	Form_pg_class classForm;
 	ObjectAddress thisobj;
 	bool		already_done = false;
-	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relOid, ENR_TSQL_TEMP));
+	bool		is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relOid, ENR_TSQL_TEMP, false));
 
 	/* no rel lock for relkind=c so use LOCKTAG_TUPLE */
 	if (is_enr)
