@@ -1938,7 +1938,7 @@ RenameDatabase(const char *oldname, const char *newname)
 				 errdetail_busy_db(notherbackends, npreparedxacts)));
 
 	/* rename */
-	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, db_id, ENR_TSQL_TEMP));
+	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, db_id, ENR_TSQL_TEMP, false));
 	if (is_enr)
 		newtup = SearchSysCacheCopy1(DATABASEOID, ObjectIdGetDatum(db_id));
 	else
