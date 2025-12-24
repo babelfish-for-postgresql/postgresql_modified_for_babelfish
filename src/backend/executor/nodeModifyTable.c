@@ -846,10 +846,6 @@ ExecInsert(ModifyTableContext *context,
 			return NULL;		/* "do nothing" */
 	}
 
-	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
-		result = ExecProcessReturning(resultRelInfo, slot, planSlot);
-
 	/* INSTEAD OF ROW INSERT Triggers */
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_insert_instead_row)
@@ -1241,7 +1237,7 @@ ExecInsert(ModifyTableContext *context,
 		ExecWithCheckOptions(WCO_VIEW_CHECK, resultRelInfo, slot, estate);
 
 	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning && sql_dialect != SQL_DIALECT_TSQL)
+	if (resultRelInfo->ri_projectReturning)
 		result = ExecProcessReturning(resultRelInfo, slot, planSlot);
 
 	if (inserted_tuple)
@@ -1480,7 +1476,6 @@ ExecDelete(ModifyTableContext *context,
 	Relation	resultRelationDesc = resultRelInfo->ri_RelationDesc;
 	TupleTableSlot *slot = NULL;
 	TM_Result	result;
-	TupleTableSlot *rslot_output = NULL;
 
 	if (tupleDeleted)
 		*tupleDeleted = false;
@@ -1492,43 +1487,6 @@ ExecDelete(ModifyTableContext *context,
 	if (!ExecDeletePrologue(context, resultRelInfo, tupleid, oldtuple,
 							epqreturnslot, tmresult))
 		return NULL;
-
-	/* Process RETURNING if present and if requested */
-	if (processReturning && resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
-	{
-		/*
-		 * We have to put the target tuple into a slot, which means first we
-		 * gotta fetch it.  We can use the trigger tuple slot.
-		 */
-		if (resultRelInfo->ri_FdwRoutine)
-		{
-			/* FDW must have provided a slot containing the deleted row */
-			Assert(!TupIsNull(slot));
-		}
-		else
-		{
-			slot = ExecGetReturningSlot(estate, resultRelInfo);
-			if (oldtuple != NULL)
-			{
-				ExecForceStoreHeapTuple(oldtuple, slot, false);
-			}
-			else
-			{
-				if (!table_tuple_fetch_row_version(resultRelationDesc, tupleid,
-												   SnapshotAny, slot))
-					elog(ERROR, "failed to fetch deleted tuple for DELETE RETURNING");
-			}
-		}
-		rslot_output = ExecProcessReturning(resultRelInfo, slot, context->planSlot);
-
-		/*
-		 * Before releasing the target tuple again, make sure rslot has a
-		 * local copy of any pass-by-reference values.
-		 */
-		ExecMaterializeSlot(rslot_output);
-
-		ExecClearTuple(slot);
-	}
 
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_delete_instead_statement &&
@@ -1765,7 +1723,7 @@ ldelete:
 	ExecDeleteEpilogue(context, resultRelInfo, tupleid, oldtuple, changingPart);
 
 	/* Process RETURNING if present and if requested */
-	if (processReturning && resultRelInfo->ri_projectReturning && sql_dialect != SQL_DIALECT_TSQL)
+	if (processReturning && resultRelInfo->ri_projectReturning)
 	{
 		/*
 		 * We have to put the target tuple into a slot, which means first we
@@ -1805,9 +1763,6 @@ ldelete:
 
 		return rslot;
 	}
-
-	if (processReturning && resultRelInfo->ri_projectReturning && rslot_output)
-		return rslot_output;
 
 	return NULL;
 }
@@ -2371,7 +2326,6 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 	Relation	resultRelationDesc = resultRelInfo->ri_RelationDesc;
 	UpdateContext updateCxt = {0};
 	TM_Result	result;
-	TupleTableSlot *rslot = NULL;
 
 	/*
 	 * abort the operation if not running transactions
@@ -2385,10 +2339,6 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 	 */
 	if (!ExecUpdatePrologue(context, resultRelInfo, tupleid, oldtuple, slot, NULL))
 		return NULL;
-
-	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
-		rslot = ExecProcessReturning(resultRelInfo, slot, context->planSlot);
 
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&
@@ -2613,11 +2563,8 @@ redo_act:
 					   slot);
 
 	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning && sql_dialect != SQL_DIALECT_TSQL)
-		return ExecProcessReturning(resultRelInfo, slot, context->planSlot);
-
 	if (resultRelInfo->ri_projectReturning)
-		return rslot;
+		return ExecProcessReturning(resultRelInfo, slot, context->planSlot);
 
 	return NULL;
 }
