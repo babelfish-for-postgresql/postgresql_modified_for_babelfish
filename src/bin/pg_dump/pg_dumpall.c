@@ -342,6 +342,8 @@ main(int argc, char *argv[])
 
 			case 30:			/* Babelfish virtual database name */
 				bbf_db_name = pg_strdup(optarg);
+				break;
+				
 			case 9:
 				restrict_key = pg_strdup(optarg);
 				appendPQExpBufferStr(pgdumpopts, " --restrict-key ");
