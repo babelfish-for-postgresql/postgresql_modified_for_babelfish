@@ -744,10 +744,6 @@ ExecInsert(ModifyTableState *mtstate,
 			return NULL;		/* "do nothing" */
 	}
 
-	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning)
-		result = ExecProcessReturning(resultRelInfo, slot, planSlot);
-
 	/* INSTEAD OF ROW INSERT Triggers */
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_insert_instead_row)
@@ -1232,10 +1228,6 @@ ExecDelete(ModifyTableState *mtstate,
 {
 	Relation	resultRelationDesc = resultRelInfo->ri_RelationDesc;
 	TM_Result	result;
-	TM_FailureData tmfd;
-	TupleTableSlot *slot = NULL;
-	TransitionCaptureState *ar_delete_trig_tcs;
-	TupleTableSlot *rslot_output = NULL;
 
 	if (tupleDeleted)
 		*tupleDeleted = false;
@@ -1255,43 +1247,6 @@ ExecDelete(ModifyTableState *mtstate,
 
 		if (!dodelete)			/* "do nothing" */
 			return NULL;
-	}
-
-	/* Process RETURNING if present and if requested */
-	if (processReturning && resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
-	{
-		/*
-		 * We have to put the target tuple into a slot, which means first we
-		 * gotta fetch it.  We can use the trigger tuple slot.
-		 */
-		if (resultRelInfo->ri_FdwRoutine)
-		{
-			/* FDW must have provided a slot containing the deleted row */
-			Assert(!TupIsNull(slot));
-		}
-		else
-		{
-			slot = ExecGetReturningSlot(estate, resultRelInfo);
-			if (oldtuple != NULL)
-			{
-				ExecForceStoreHeapTuple(oldtuple, slot, false);
-			}
-			else
-			{
-				if (!table_tuple_fetch_row_version(resultRelationDesc, tupleid,
-												   SnapshotAny, slot))
-					elog(ERROR, "failed to fetch deleted tuple for DELETE RETURNING");
-			}
-		}
-		rslot_output = ExecProcessReturning(resultRelInfo, slot, planSlot);
-
-		/*
-		 * Before releasing the target tuple again, make sure rslot has a
-		 * local copy of any pass-by-reference values.
-		 */
-		ExecMaterializeSlot(rslot_output);
-
-		ExecClearTuple(slot);
 	}
 
 	if (resultRelInfo->ri_TrigDesc &&
@@ -1557,7 +1512,7 @@ ldelete:;
 						 ar_delete_trig_tcs);
 
 	/* Process RETURNING if present and if requested */
-	if (processReturning && resultRelInfo->ri_projectReturning && sql_dialect != SQL_DIALECT_TSQL)
+	if (processReturning && resultRelInfo->ri_projectReturning)
 	{
 		/*
 		 * We have to put the target tuple into a slot, which means first we
@@ -1597,9 +1552,6 @@ ldelete:;
 
 		return rslot;
 	}
-
-	if (processReturning && resultRelInfo->ri_projectReturning && rslot_output)
-		return rslot_output;
 
 	return NULL;
 }
@@ -2022,21 +1974,260 @@ lreplace:
 		if (resultRelationDesc->rd_att->constr)
 			ExecConstraints(resultRelInfo, slot, estate);
 
+	/*
+	 * replace the heap tuple
+	 *
+	 * Note: if es_crosscheck_snapshot isn't InvalidSnapshot, we check that
+	 * the row to be updated is visible to that snapshot, and throw a
+	 * can't-serialize error if not. This is a special-case behavior needed
+	 * for referential integrity updates in transaction-snapshot mode
+	 * transactions.
+	 */
+	result = table_tuple_update(resultRelationDesc, tupleid, slot,
+								estate->es_output_cid,
+								estate->es_snapshot,
+								estate->es_crosscheck_snapshot,
+								true /* wait for commit */ ,
+								&context->tmfd, &updateCxt->lockmode,
+								&updateCxt->updateIndexes);
+	if (result == TM_Ok)
+		updateCxt->updated = true;
+
+	return result;
+}
+
+/*
+ * ExecUpdateEpilogue -- subroutine for ExecUpdate
+ *
+ * Closing steps of updating a tuple.  Must be called if ExecUpdateAct
+ * returns indicating that the tuple was updated.
+ */
+static void
+ExecUpdateEpilogue(ModifyTableContext *context, UpdateContext *updateCxt,
+				   ResultRelInfo *resultRelInfo, ItemPointer tupleid,
+				   HeapTuple oldtuple, TupleTableSlot *slot)
+{
+	ModifyTableState *mtstate = context->mtstate;
+	List	   *recheckIndexes = NIL;
+
+	/* insert index entries for tuple if necessary */
+	if (resultRelInfo->ri_NumIndices > 0 && updateCxt->updateIndexes)
+		recheckIndexes = ExecInsertIndexTuples(resultRelInfo,
+											   slot, context->estate,
+											   true, false,
+											   NULL, NIL);
+
+	/* AFTER ROW UPDATE Triggers */
+	ExecARUpdateTriggers(context->estate, resultRelInfo,
+						 NULL, NULL,
+						 tupleid, oldtuple, slot,
+						 recheckIndexes,
+						 mtstate->operation == CMD_INSERT ?
+						 mtstate->mt_oc_transition_capture :
+						 mtstate->mt_transition_capture,
+						 false);
+
+	list_free(recheckIndexes);
+
+	/*
+	 * Check any WITH CHECK OPTION constraints from parent views.  We are
+	 * required to do this after testing all constraints and uniqueness
+	 * violations per the SQL spec, so we do it after actually updating the
+	 * record in the heap and all indexes.
+	 *
+	 * ExecWithCheckOptions() will skip any WCOs which are not of the kind we
+	 * are looking for at this point.
+	 */
+	if (resultRelInfo->ri_WithCheckOptions != NIL)
+		ExecWithCheckOptions(WCO_VIEW_CHECK, resultRelInfo,
+							 slot, context->estate);
+}
+
+/*
+ * Queues up an update event using the target root partitioned table's
+ * trigger to check that a cross-partition update hasn't broken any foreign
+ * keys pointing into it.
+ */
+static void
+ExecCrossPartitionUpdateForeignKey(ModifyTableContext *context,
+								   ResultRelInfo *sourcePartInfo,
+								   ResultRelInfo *destPartInfo,
+								   ItemPointer tupleid,
+								   TupleTableSlot *oldslot,
+								   TupleTableSlot *newslot)
+{
+	ListCell   *lc;
+	ResultRelInfo *rootRelInfo;
+	List	   *ancestorRels;
+
+	rootRelInfo = sourcePartInfo->ri_RootResultRelInfo;
+	ancestorRels = ExecGetAncestorResultRels(context->estate, sourcePartInfo);
+
+	/*
+	 * For any foreign keys that point directly into a non-root ancestors of
+	 * the source partition, we can in theory fire an update event to enforce
+	 * those constraints using their triggers, if we could tell that both the
+	 * source and the destination partitions are under the same ancestor. But
+	 * for now, we simply report an error that those cannot be enforced.
+	 */
+	foreach(lc, ancestorRels)
+	{
+		ResultRelInfo *rInfo = lfirst(lc);
+		TriggerDesc *trigdesc = rInfo->ri_TrigDesc;
+		bool		has_noncloned_fkey = false;
+
+		/* Root ancestor's triggers will be processed. */
+		if (rInfo == rootRelInfo)
+			continue;
+
+		if (trigdesc && trigdesc->trig_update_after_row)
+		{
+			for (int i = 0; i < trigdesc->numtriggers; i++)
+			{
+				Trigger    *trig = &trigdesc->triggers[i];
+
+				if (!trig->tgisclone &&
+					RI_FKey_trigger_type(trig->tgfoid) == RI_TRIGGER_PK)
+				{
+					has_noncloned_fkey = true;
+					break;
+				}
+			}
+		}
+
+		if (has_noncloned_fkey)
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("cannot move tuple across partitions when a non-root ancestor of the source partition is directly referenced in a foreign key"),
+					 errdetail("A foreign key points to ancestor \"%s\" but not the root ancestor \"%s\".",
+							   RelationGetRelationName(rInfo->ri_RelationDesc),
+							   RelationGetRelationName(rootRelInfo->ri_RelationDesc)),
+					 errhint("Consider defining the foreign key on table \"%s\".",
+							 RelationGetRelationName(rootRelInfo->ri_RelationDesc))));
+	}
+
+	/* Perform the root table's triggers. */
+	ExecARUpdateTriggers(context->estate,
+						 rootRelInfo, sourcePartInfo, destPartInfo,
+						 tupleid, NULL, newslot, NIL, NULL, true);
+}
+
+/* ----------------------------------------------------------------
+ *		ExecUpdate
+ *
+ *		note: we can't run UPDATE queries with transactions
+ *		off because UPDATEs are actually INSERTs and our
+ *		scan will mistakenly loop forever, updating the tuple
+ *		it just inserted..  This should be fixed but until it
+ *		is, we don't want to get stuck in an infinite loop
+ *		which corrupts your database..
+ *
+ *		When updating a table, tupleid identifies the tuple to update and
+ *		oldtuple is NULL.  When updating through a view INSTEAD OF trigger,
+ *		oldtuple is passed to the triggers and identifies what to update, and
+ *		tupleid is invalid.  When updating a foreign table, tupleid is
+ *		invalid; the FDW has to figure out which row to update using data from
+ *		the planSlot.  oldtuple is passed to foreign table triggers; it is
+ *		NULL when the foreign table has no relevant triggers.
+ *
+ *		slot contains the new tuple value to be stored.
+ *		planSlot is the output of the ModifyTable's subplan; we use it
+ *		to access values from other input tables (for RETURNING),
+ *		row-ID junk columns, etc.
+ *
+ *		Returns RETURNING result if any, otherwise NULL.  On exit, if tupleid
+ *		had identified the tuple to update, it will identify the tuple
+ *		actually updated after EvalPlanQual.
+ * ----------------------------------------------------------------
+ */
+static TupleTableSlot *
+ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
+		   ItemPointer tupleid, HeapTuple oldtuple, TupleTableSlot *slot,
+		   bool canSetTag)
+{
+	EState	   *estate = context->estate;
+	Relation	resultRelationDesc = resultRelInfo->ri_RelationDesc;
+	UpdateContext updateCxt = {0};
+	TM_Result	result;
+
+	/*
+	 * abort the operation if not running transactions
+	 */
+	if (IsBootstrapProcessingMode())
+		elog(ERROR, "cannot UPDATE during bootstrap");
+
+	/*
+	 * Prepare for the update.  This includes BEFORE ROW triggers, so we're
+	 * done if it says we are.
+	 */
+	if (!ExecUpdatePrologue(context, resultRelInfo, tupleid, oldtuple, slot, NULL))
+		return NULL;
+
+	if (resultRelInfo->ri_TrigDesc &&
+		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&
+		sql_dialect == SQL_DIALECT_TSQL && bbfViewHasInsteadofTrigger_hook && (bbfViewHasInsteadofTrigger_hook)(resultRelationDesc, CMD_UPDATE) &&
+		isTsqlInsteadofTriggerExecution(estate, resultRelInfo, TRIGGER_EVENT_INSTEAD))
+	{
+		ExecIRUpdateTriggersTSQL(estate, resultRelInfo, tupleid, oldtuple, slot, context->mtstate->mt_transition_capture);
+		if (canSetTag)
+			(estate->es_processed)++;
+		return NULL;
+	}
+
+	/* INSTEAD OF ROW UPDATE Triggers */
+	if (resultRelInfo->ri_TrigDesc &&
+		resultRelInfo->ri_TrigDesc->trig_update_instead_row)
+	{
+		if (!ExecIRUpdateTriggers(estate, resultRelInfo,
+								  oldtuple, slot))
+			return NULL;		/* "do nothing" */
+	}
+	else if (resultRelInfo->ri_FdwRoutine)
+	{
+		/* Fill in GENERATEd columns */
+		ExecUpdatePrepareSlot(resultRelInfo, slot, estate);
+
 		/*
-		 * replace the heap tuple
-		 *
-		 * Note: if es_crosscheck_snapshot isn't InvalidSnapshot, we check
-		 * that the row to be updated is visible to that snapshot, and throw a
-		 * can't-serialize error if not. This is a special-case behavior
-		 * needed for referential integrity updates in transaction-snapshot
-		 * mode transactions.
+		 * update in foreign table: let the FDW do it
 		 */
-		result = table_tuple_update(resultRelationDesc, tupleid, slot,
-									estate->es_output_cid,
-									estate->es_snapshot,
-									estate->es_crosscheck_snapshot,
-									true /* wait for commit */ ,
-									&tmfd, &lockmode, &update_indexes);
+		slot = resultRelInfo->ri_FdwRoutine->ExecForeignUpdate(estate,
+															   resultRelInfo,
+															   slot,
+															   context->planSlot);
+
+		if (slot == NULL)		/* "do nothing" */
+			return NULL;
+
+		/*
+		 * AFTER ROW Triggers or RETURNING expressions might reference the
+		 * tableoid column, so (re-)initialize tts_tableOid before evaluating
+		 * them.  (This covers the case where the FDW replaced the slot.)
+		 */
+		slot->tts_tableOid = RelationGetRelid(resultRelationDesc);
+	}
+	else
+	{
+		ItemPointerData lockedtid;
+
+		/*
+		 * If we generate a new candidate tuple after EvalPlanQual testing, we
+		 * must loop back here to try again.  (We don't need to redo triggers,
+		 * however.  If there are any BEFORE triggers then trigger.c will have
+		 * done table_tuple_lock to lock the correct tuple, so there's no need
+		 * to do them again.)
+		 */
+redo_act:
+		lockedtid = *tupleid;
+		result = ExecUpdateAct(context, resultRelInfo, tupleid, oldtuple, slot,
+							   canSetTag, &updateCxt);
+
+		/*
+		 * If ExecUpdateAct reports that a cross-partition update was done,
+		 * then the RETURNING tuple (if any) has been projected and there's
+		 * nothing else for us to do.
+		 */
+		if (updateCxt.crossPartUpdate)
+			return context->cpUpdateReturningSlot;
 
 		switch (result)
 		{
@@ -2218,11 +2409,8 @@ lreplace:
 		ExecWithCheckOptions(WCO_VIEW_CHECK, resultRelInfo, slot, estate);
 
 	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning && sql_dialect != SQL_DIALECT_TSQL)
-		return ExecProcessReturning(resultRelInfo, slot, planSlot);
-
 	if (resultRelInfo->ri_projectReturning)
-		return rslot;
+		return ExecProcessReturning(resultRelInfo, slot, context->planSlot);
 
 	return NULL;
 }
