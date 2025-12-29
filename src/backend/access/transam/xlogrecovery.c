@@ -3613,8 +3613,19 @@ WaitForWALToBecomeAvailable(XLogRecPtr RecPtr, bool randAccess,
 					 * Before we leave XLOG_FROM_STREAM state, make sure that
 					 * walreceiver is not active, so that it won't overwrite
 					 * WAL that we restore from archive.
+					 *
+					 * If walreceiver is actively streaming (or attempting to
+					 * connect), we must shut it down. However, if it's
+					 * already in WAITING state (e.g., due to timeline
+					 * divergence), we only need to reset the install flag to
+					 * allow archive restoration.
 					 */
-					XLogShutdownWalRcv();
+					if (WalRcvStreaming())
+						XLogShutdownWalRcv();
+					else
+					{
+						ResetInstallXLogFileSegmentActive();
+					}
 
 					/*
 					 * Before we sleep, re-scan for possible new timelines if
@@ -4690,9 +4701,20 @@ RecoveryRequiresIntParameter(const char *param_name, int currValue, int minValue
 bool
 check_primary_slot_name(char **newval, void **extra, GucSource source)
 {
+	int			err_code;
+	char	   *err_msg = NULL;
+	char	   *err_hint = NULL;
+
 	if (*newval && strcmp(*newval, "") != 0 &&
-		!ReplicationSlotValidateName(*newval, WARNING))
+		!ReplicationSlotValidateNameInternal(*newval, &err_code, &err_msg,
+											 &err_hint))
+	{
+		GUC_check_errcode(err_code);
+		GUC_check_errdetail("%s", err_msg);
+		if (err_hint != NULL)
+			GUC_check_errhint("%s", err_hint);
 		return false;
+	}
 
 	return true;
 }

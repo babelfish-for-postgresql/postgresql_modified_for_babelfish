@@ -102,6 +102,8 @@ static List *ExpandChecksumStar(ParseState *pstate, FuncCall *fn, int location);
 lookup_param_hook_type lookup_param_hook = NULL;
 handle_constant_literals_hook_type handle_constant_literals_hook = NULL;
 set_common_typmod_case_expr_hook_type set_common_typmod_case_expr_hook = NULL;
+post_transform_expr_recurse_hook_type post_transform_expr_recurse_hook = NULL;
+
 /*
  * transformExpr -
  *	  Analyze and transform expressions. Type checking and type casting is
@@ -349,6 +351,9 @@ transformExprRecurse(ParseState *pstate, Node *expr)
 			result = NULL;		/* keep compiler quiet */
 			break;
 	}
+
+	if (post_transform_expr_recurse_hook)
+		result = (*post_transform_expr_recurse_hook)(pstate, result);
 
 	return result;
 }

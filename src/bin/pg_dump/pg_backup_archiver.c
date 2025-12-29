@@ -69,7 +69,6 @@ static ArchiveHandle *_allocAH(const char *FileSpec, const ArchiveFormat fmt,
 							   SetupWorkerPtrType setupWorkerPtr);
 static void _getObjectDescription(PQExpBuffer buf, const TocEntry *te);
 static void _printTocEntry(ArchiveHandle *AH, TocEntry *te, bool isData);
-static char *sanitize_line(const char *str, bool want_hyphen);
 static void _doSetFixedOutputState(ArchiveHandle *AH);
 static void _doSetSessionAuth(ArchiveHandle *AH, const char *user);
 static void _reconnectToDB(ArchiveHandle *AH, const char *dbname);
@@ -205,6 +204,7 @@ dumpOptionsFromRestoreOptions(RestoreOptions *ropt)
 	dopt->include_everything = ropt->include_everything;
 	dopt->enable_row_security = ropt->enable_row_security;
 	dopt->sequence_data = ropt->sequence_data;
+	dopt->restrict_key = ropt->restrict_key ? pg_strdup(ropt->restrict_key) : NULL;
 
 	return dopt;
 }
@@ -466,6 +466,17 @@ RestoreArchive(Archive *AHX)
 		SetOutput(AH, ropt->filename, ropt->compression_spec);
 
 	ahprintf(AH, "--\n-- PostgreSQL database dump\n--\n\n");
+
+	/*
+	 * If generating plain-text output, enter restricted mode to block any
+	 * unexpected psql meta-commands.  A malicious source might try to inject
+	 * a variety of things via bogus responses to queries.  While we cannot
+	 * prevent such sources from affecting the destination at restore time, we
+	 * can block psql meta-commands so that the client machine that runs psql
+	 * with the dump output remains unaffected.
+	 */
+	if (ropt->restrict_key)
+		ahprintf(AH, "\\restrict %s\n\n", ropt->restrict_key);
 
 	if (AH->archiveRemoteVersion)
 		ahprintf(AH, "-- Dumped from database version %s\n",
@@ -741,6 +752,14 @@ RestoreArchive(Archive *AHX)
 		dumpTimestamp(AH, "Completed on", time(NULL));
 
 	ahprintf(AH, "--\n-- PostgreSQL database dump complete\n--\n\n");
+
+	/*
+	 * If generating plain-text output, exit restricted mode at the very end
+	 * of the script. This is not pro forma; in particular, pg_dumpall
+	 * requires this when transitioning from one database to another.
+	 */
+	if (ropt->restrict_key)
+		ahprintf(AH, "\\unrestrict %s\n\n", ropt->restrict_key);
 
 	/*
 	 * Clean up & we're done.
@@ -1742,8 +1761,8 @@ ahwrite(const void *ptr, size_t size, size_t nmemb, ArchiveHandle *AH)
 	{
 		CompressFileHandle *CFH = (CompressFileHandle *) AH->OF;
 
-		if (CFH->write_func(ptr, size * nmemb, CFH))
-			bytes_written = size * nmemb;
+		CFH->write_func(ptr, size * nmemb, CFH);
+		bytes_written = size * nmemb;
 	}
 
 	if (bytes_written != size * nmemb)
@@ -2842,6 +2861,20 @@ _tocEntryRequired(TocEntry *te, teSection curSection, ArchiveHandle *AH)
 		return 0;
 
 	/*
+	 * If it's a comment on a publication or a subscription, maybe ignore it.
+	 */
+	if (strcmp(te->desc, "COMMENT") == 0)
+	{
+		if (ropt->no_publications &&
+			strncmp(te->tag, "PUBLICATION", strlen("PUBLICATION")) == 0)
+			return 0;
+
+		if (ropt->no_subscriptions &&
+			strncmp(te->tag, "SUBSCRIPTION", strlen("SUBSCRIPTION")) == 0)
+			return 0;
+	}
+
+	/*
 	 * If it's a publication or a table part of a publication, maybe ignore
 	 * it.
 	 */
@@ -2854,6 +2887,21 @@ _tocEntryRequired(TocEntry *te, teSection curSection, ArchiveHandle *AH)
 	/* If it's a security label, maybe ignore it */
 	if (ropt->no_security_labels && strcmp(te->desc, "SECURITY LABEL") == 0)
 		return 0;
+
+	/*
+	 * If it's a security label on a publication or a subscription, maybe
+	 * ignore it.
+	 */
+	if (strcmp(te->desc, "SECURITY LABEL") == 0)
+	{
+		if (ropt->no_publications &&
+			strncmp(te->tag, "PUBLICATION", strlen("PUBLICATION")) == 0)
+			return 0;
+
+		if (ropt->no_subscriptions &&
+			strncmp(te->tag, "SUBSCRIPTION", strlen("SUBSCRIPTION")) == 0)
+			return 0;
+	}
 
 	/* If it's a subscription, maybe ignore it */
 	if (ropt->no_subscriptions && strcmp(te->desc, "SUBSCRIPTION") == 0)
@@ -3101,12 +3149,14 @@ _tocEntryRestorePass(TocEntry *te)
 		return RESTORE_PASS_POST_ACL;
 
 	/*
-	 * Comments need to be emitted in the same pass as their parent objects.
-	 * ACLs haven't got comments, and neither do matview data objects, but
-	 * event triggers do.  (Fortunately, event triggers haven't got ACLs, or
-	 * we'd need yet another weird special case.)
+	 * Comments and security labels need to be emitted in the same pass as
+	 * their parent objects. ACLs haven't got comments and security labels,
+	 * and neither do matview data objects, but event triggers do.
+	 * (Fortunately, event triggers haven't got ACLs, or we'd need yet another
+	 * weird special case.)
 	 */
-	if (strcmp(te->desc, "COMMENT") == 0 &&
+	if ((strcmp(te->desc, "COMMENT") == 0 ||
+		 strcmp(te->desc, "SECURITY LABEL") == 0) &&
 		strncmp(te->tag, "EVENT TRIGGER ", 14) == 0)
 		return RESTORE_PASS_POST_ACL;
 
@@ -3240,11 +3290,21 @@ _reconnectToDB(ArchiveHandle *AH, const char *dbname)
 	else
 	{
 		PQExpBufferData connectbuf;
+		RestoreOptions *ropt = AH->public.ropt;
+
+		/*
+		 * We must temporarily exit restricted mode for \connect, etc.
+		 * Anything added between this line and the following \restrict must
+		 * be careful to avoid any possible meta-command injection vectors.
+		 */
+		ahprintf(AH, "\\unrestrict %s\n", ropt->restrict_key);
 
 		initPQExpBuffer(&connectbuf);
 		appendPsqlMetaConnect(&connectbuf, dbname);
-		ahprintf(AH, "%s\n", connectbuf.data);
+		ahprintf(AH, "%s", connectbuf.data);
 		termPQExpBuffer(&connectbuf);
+
+		ahprintf(AH, "\\restrict %s\n\n", ropt->restrict_key);
 	}
 
 	/*
@@ -3693,42 +3753,6 @@ _printTocEntry(ArchiveHandle *AH, TocEntry *te, bool isData)
 		free(AH->currUser);
 		AH->currUser = NULL;
 	}
-}
-
-/*
- * Sanitize a string to be included in an SQL comment or TOC listing, by
- * replacing any newlines with spaces.  This ensures each logical output line
- * is in fact one physical output line, to prevent corruption of the dump
- * (which could, in the worst case, present an SQL injection vulnerability
- * if someone were to incautiously load a dump containing objects with
- * maliciously crafted names).
- *
- * The result is a freshly malloc'd string.  If the input string is NULL,
- * return a malloc'ed empty string, unless want_hyphen, in which case return a
- * malloc'ed hyphen.
- *
- * Note that we currently don't bother to quote names, meaning that the name
- * fields aren't automatically parseable.  "pg_restore -L" doesn't care because
- * it only examines the dumpId field, but someday we might want to try harder.
- */
-static char *
-sanitize_line(const char *str, bool want_hyphen)
-{
-	char	   *result;
-	char	   *s;
-
-	if (!str)
-		return pg_strdup(want_hyphen ? "-" : "");
-
-	result = pg_strdup(str);
-
-	for (s = result; *s != '\0'; s++)
-	{
-		if (*s == '\n' || *s == '\r')
-			*s = ' ';
-	}
-
-	return result;
 }
 
 /*

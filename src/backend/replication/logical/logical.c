@@ -1830,7 +1830,19 @@ LogicalConfirmReceivedLocation(XLogRecPtr lsn)
 
 		SpinLockAcquire(&MyReplicationSlot->mutex);
 
-		MyReplicationSlot->data.confirmed_flush = lsn;
+		/*
+		 * Prevent moving the confirmed_flush backwards, as this could lead to
+		 * data duplication issues caused by replicating already replicated
+		 * changes.
+		 *
+		 * This can happen when a client acknowledges an LSN it doesn't have
+		 * to do anything for, and thus didn't store persistently. After a
+		 * restart, the client can send the prior LSN that it stored
+		 * persistently as an acknowledgement, but we need to ignore such an
+		 * LSN. See similar case handling in CreateDecodingContext.
+		 */
+		if (lsn > MyReplicationSlot->data.confirmed_flush)
+			MyReplicationSlot->data.confirmed_flush = lsn;
 
 		/* if we're past the location required for bumping xmin, do so */
 		if (MyReplicationSlot->candidate_xmin_lsn != InvalidXLogRecPtr &&
@@ -1868,7 +1880,15 @@ LogicalConfirmReceivedLocation(XLogRecPtr lsn)
 
 		SpinLockRelease(&MyReplicationSlot->mutex);
 
-		/* first write new xmin to disk, so we know what's up after a crash */
+		/*
+		 * First, write new xmin and restart_lsn to disk so we know what's up
+		 * after a crash.  Even when we do this, the checkpointer can see the
+		 * updated restart_lsn value in the shared memory; then, a crash can
+		 * happen before we manage to write that value to the disk.  Thus,
+		 * checkpointer still needs to make special efforts to keep WAL
+		 * segments required by the restart_lsn written to the disk.  See
+		 * CreateCheckPoint() and CreateRestartPoint() for details.
+		 */
 		if (updated_xmin || updated_restart)
 		{
 			ReplicationSlotMarkDirty();
@@ -1895,7 +1915,14 @@ LogicalConfirmReceivedLocation(XLogRecPtr lsn)
 	else
 	{
 		SpinLockAcquire(&MyReplicationSlot->mutex);
-		MyReplicationSlot->data.confirmed_flush = lsn;
+
+		/*
+		 * Prevent moving the confirmed_flush backwards. See comments above
+		 * for the details.
+		 */
+		if (lsn > MyReplicationSlot->data.confirmed_flush)
+			MyReplicationSlot->data.confirmed_flush = lsn;
+
 		SpinLockRelease(&MyReplicationSlot->mutex);
 	}
 }

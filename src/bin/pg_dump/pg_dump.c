@@ -436,6 +436,7 @@ main(int argc, char **argv)
 		{"exclude-table-and-children", required_argument, NULL, 13},
 		{"exclude-table-data-and-children", required_argument, NULL, 14},
 		{"bbf-database-name", required_argument, NULL, 30},
+		{"restrict-key", required_argument, NULL, 25},
 
 		{NULL, 0, NULL, 0}
 	};
@@ -667,6 +668,10 @@ main(int argc, char **argv)
 				dopt.include_everything = false;
 				break;
 
+			case 25:
+				dopt.restrict_key = pg_strdup(optarg);
+				break;
+
 			default:
 				/* getopt_long already emitted a complaint */
 				pg_log_error_hint("Try \"%s --help\" for more information.", progname);
@@ -729,7 +734,21 @@ main(int argc, char **argv)
 
 	/* archiveFormat specific setup */
 	if (archiveFormat == archNull)
+	{
 		plainText = 1;
+
+		/*
+		 * If you don't provide a restrict key, one will be appointed for you.
+		 */
+		if (!dopt.restrict_key)
+			dopt.restrict_key = generate_restrict_key();
+		if (!dopt.restrict_key)
+			pg_fatal("could not generate restrict key");
+		if (!valid_restrict_key(dopt.restrict_key))
+			pg_fatal("invalid restrict key");
+	}
+	else if (dopt.restrict_key)
+		pg_fatal("option --restrict-key can only be used with --format=plain");
 
 	/*
 	 * Custom and directory formats are compressed by default with gzip when
@@ -1033,6 +1052,7 @@ main(int argc, char **argv)
 	ropt->sequence_data = dopt.sequence_data;
 	ropt->binary_upgrade = dopt.binary_upgrade;
 	ropt->babelfish_db = isBabelfishDatabase(fout);
+	ropt->restrict_key = dopt.restrict_key ? pg_strdup(dopt.restrict_key) : NULL;
 
 	ropt->compression_spec = compression_spec;
 
@@ -1136,6 +1156,7 @@ help(const char *progname)
 	printf(_("  --no-unlogged-table-data     do not dump unlogged table data\n"));
 	printf(_("  --on-conflict-do-nothing     add ON CONFLICT DO NOTHING to INSERT commands\n"));
 	printf(_("  --quote-all-identifiers      quote all identifiers, even if not key words\n"));
+	printf(_("  --restrict-key=RESTRICT_KEY  use provided string as psql \\restrict key\n"));
 	printf(_("  --rows-per-insert=NROWS      number of rows per INSERT; implies --inserts\n"));
 	printf(_("  --section=SECTION            dump named section (pre-data, data, or post-data)\n"));
 	printf(_("  --serializable-deferrable    wait until the dump can run without anomalies\n"));
@@ -1988,6 +2009,13 @@ selectDumpableProcLang(ProcLangInfo *plang, Archive *fout)
 static void
 selectDumpableAccessMethod(AccessMethodInfo *method, Archive *fout)
 {
+	/* see getAccessMethods() comment about v9.6. */
+	if (fout->remoteVersion < 90600)
+	{
+		method->dobj.dump = DUMP_COMPONENT_NONE;
+		return;
+	}
+
 	if (checkExtensionMembership(&method->dobj, fout))
 		return;					/* extension membership overrides all else */
 
@@ -2662,11 +2690,14 @@ dumpTableData(Archive *fout, const TableDataInfo *tdinfo)
 		 forcePartitionRootLoad(tbinfo)))
 	{
 		TableInfo  *parentTbinfo;
+		char	   *sanitized;
 
 		parentTbinfo = getRootTableInfo(tbinfo);
 		copyFrom = fmtQualifiedDumpable(parentTbinfo);
+		sanitized = sanitize_line(copyFrom, true);
 		printfPQExpBuffer(copyBuf, "-- load via partition root %s",
-						  copyFrom);
+						  sanitized);
+		free(sanitized);
 		tdDefn = pg_strdup(copyBuf->data);
 	}
 	else
@@ -5720,6 +5751,8 @@ getOperators(Archive *fout, int *numOprs)
 	int			i_oprnamespace;
 	int			i_oprowner;
 	int			i_oprkind;
+	int			i_oprleft;
+	int			i_oprright;
 	int			i_oprcode;
 
 	/*
@@ -5731,6 +5764,8 @@ getOperators(Archive *fout, int *numOprs)
 						 "oprnamespace, "
 						 "oprowner, "
 						 "oprkind, "
+						 "oprleft, "
+						 "oprright, "
 						 "oprcode::oid AS oprcode "
 						 "FROM pg_operator");
 
@@ -5747,6 +5782,8 @@ getOperators(Archive *fout, int *numOprs)
 	i_oprnamespace = PQfnumber(res, "oprnamespace");
 	i_oprowner = PQfnumber(res, "oprowner");
 	i_oprkind = PQfnumber(res, "oprkind");
+	i_oprleft = PQfnumber(res, "oprleft");
+	i_oprright = PQfnumber(res, "oprright");
 	i_oprcode = PQfnumber(res, "oprcode");
 
 	for (i = 0; i < ntups; i++)
@@ -5760,6 +5797,8 @@ getOperators(Archive *fout, int *numOprs)
 			findNamespace(atooid(PQgetvalue(res, i, i_oprnamespace)));
 		oprinfo[i].rolname = getRoleName(PQgetvalue(res, i, i_oprowner));
 		oprinfo[i].oprkind = (PQgetvalue(res, i, i_oprkind))[0];
+		oprinfo[i].oprleft = atooid(PQgetvalue(res, i, i_oprleft));
+		oprinfo[i].oprright = atooid(PQgetvalue(res, i, i_oprright));
 		oprinfo[i].oprcode = atooid(PQgetvalue(res, i, i_oprcode));
 
 		/* Decide whether we want to dump it */
@@ -5793,6 +5832,7 @@ getCollations(Archive *fout, int *numCollations)
 	int			i_collname;
 	int			i_collnamespace;
 	int			i_collowner;
+	int			i_collencoding;
 
 	query = createPQExpBuffer();
 
@@ -5803,7 +5843,8 @@ getCollations(Archive *fout, int *numCollations)
 
 	appendPQExpBufferStr(query, "SELECT tableoid, oid, collname, "
 						 "collnamespace, "
-						 "collowner "
+						 "collowner, "
+						 "collencoding "
 						 "FROM pg_collation");
 
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
@@ -5818,6 +5859,7 @@ getCollations(Archive *fout, int *numCollations)
 	i_collname = PQfnumber(res, "collname");
 	i_collnamespace = PQfnumber(res, "collnamespace");
 	i_collowner = PQfnumber(res, "collowner");
+	i_collencoding = PQfnumber(res, "collencoding");
 
 	for (i = 0; i < ntups; i++)
 	{
@@ -5829,6 +5871,7 @@ getCollations(Archive *fout, int *numCollations)
 		collinfo[i].dobj.namespace =
 			findNamespace(atooid(PQgetvalue(res, i, i_collnamespace)));
 		collinfo[i].rolname = getRoleName(PQgetvalue(res, i, i_collowner));
+		collinfo[i].collencoding = atoi(PQgetvalue(res, i, i_collencoding));
 
 		/* Decide whether we want to dump it */
 		selectDumpableObject(&(collinfo[i].dobj), fout);
@@ -5930,19 +5973,28 @@ getAccessMethods(Archive *fout, int *numAccessMethods)
 	int			i_amhandler;
 	int			i_amtype;
 
-	/* Before 9.6, there are no user-defined access methods */
-	if (fout->remoteVersion < 90600)
-	{
-		*numAccessMethods = 0;
-		return NULL;
-	}
-
 	query = createPQExpBuffer();
 
-	/* Select all access methods from pg_am table */
-	appendPQExpBufferStr(query, "SELECT tableoid, oid, amname, amtype, "
-						 "amhandler::pg_catalog.regproc AS amhandler "
-						 "FROM pg_am");
+	/*
+	 * Select all access methods from pg_am table.  v9.6 introduced CREATE
+	 * ACCESS METHOD, so earlier versions usually have only built-in access
+	 * methods.  v9.6 also changed the access method API, replacing dozens of
+	 * pg_am columns with amhandler.  Even if a user created an access method
+	 * by "INSERT INTO pg_am", we have no way to translate pre-v9.6 pg_am
+	 * columns to a v9.6+ CREATE ACCESS METHOD.  Hence, before v9.6, read
+	 * pg_am just to facilitate findAccessMethodByOid() providing the
+	 * OID-to-name mapping.
+	 */
+	appendPQExpBufferStr(query, "SELECT tableoid, oid, amname, ");
+	if (fout->remoteVersion >= 90600)
+		appendPQExpBufferStr(query,
+							 "amtype, "
+							 "amhandler::pg_catalog.regproc AS amhandler ");
+	else
+		appendPQExpBufferStr(query,
+							 "'i'::pg_catalog.\"char\" AS amtype, "
+							 "'-'::pg_catalog.regproc AS amhandler ");
+	appendPQExpBufferStr(query, "FROM pg_am");
 
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
@@ -5997,6 +6049,7 @@ getOpclasses(Archive *fout, int *numOpclasses)
 	OpclassInfo *opcinfo;
 	int			i_tableoid;
 	int			i_oid;
+	int			i_opcmethod;
 	int			i_opcname;
 	int			i_opcnamespace;
 	int			i_opcowner;
@@ -6006,7 +6059,7 @@ getOpclasses(Archive *fout, int *numOpclasses)
 	 * system-defined opclasses at dump-out time.
 	 */
 
-	appendPQExpBufferStr(query, "SELECT tableoid, oid, opcname, "
+	appendPQExpBufferStr(query, "SELECT tableoid, oid, opcmethod, opcname, "
 						 "opcnamespace, "
 						 "opcowner "
 						 "FROM pg_opclass");
@@ -6020,6 +6073,7 @@ getOpclasses(Archive *fout, int *numOpclasses)
 
 	i_tableoid = PQfnumber(res, "tableoid");
 	i_oid = PQfnumber(res, "oid");
+	i_opcmethod = PQfnumber(res, "opcmethod");
 	i_opcname = PQfnumber(res, "opcname");
 	i_opcnamespace = PQfnumber(res, "opcnamespace");
 	i_opcowner = PQfnumber(res, "opcowner");
@@ -6033,6 +6087,7 @@ getOpclasses(Archive *fout, int *numOpclasses)
 		opcinfo[i].dobj.name = pg_strdup(PQgetvalue(res, i, i_opcname));
 		opcinfo[i].dobj.namespace =
 			findNamespace(atooid(PQgetvalue(res, i, i_opcnamespace)));
+		opcinfo[i].opcmethod = atooid(PQgetvalue(res, i, i_opcmethod));
 		opcinfo[i].rolname = getRoleName(PQgetvalue(res, i, i_opcowner));
 
 		/* Decide whether we want to dump it */
@@ -6063,6 +6118,7 @@ getOpfamilies(Archive *fout, int *numOpfamilies)
 	OpfamilyInfo *opfinfo;
 	int			i_tableoid;
 	int			i_oid;
+	int			i_opfmethod;
 	int			i_opfname;
 	int			i_opfnamespace;
 	int			i_opfowner;
@@ -6074,7 +6130,7 @@ getOpfamilies(Archive *fout, int *numOpfamilies)
 	 * system-defined opfamilies at dump-out time.
 	 */
 
-	appendPQExpBufferStr(query, "SELECT tableoid, oid, opfname, "
+	appendPQExpBufferStr(query, "SELECT tableoid, oid, opfmethod, opfname, "
 						 "opfnamespace, "
 						 "opfowner "
 						 "FROM pg_opfamily");
@@ -6089,6 +6145,7 @@ getOpfamilies(Archive *fout, int *numOpfamilies)
 	i_tableoid = PQfnumber(res, "tableoid");
 	i_oid = PQfnumber(res, "oid");
 	i_opfname = PQfnumber(res, "opfname");
+	i_opfmethod = PQfnumber(res, "opfmethod");
 	i_opfnamespace = PQfnumber(res, "opfnamespace");
 	i_opfowner = PQfnumber(res, "opfowner");
 
@@ -6101,6 +6158,7 @@ getOpfamilies(Archive *fout, int *numOpfamilies)
 		opfinfo[i].dobj.name = pg_strdup(PQgetvalue(res, i, i_opfname));
 		opfinfo[i].dobj.namespace =
 			findNamespace(atooid(PQgetvalue(res, i, i_opfnamespace)));
+		opfinfo[i].opfmethod = atooid(PQgetvalue(res, i, i_opfmethod));
 		opfinfo[i].rolname = getRoleName(PQgetvalue(res, i, i_opfowner));
 
 		/* Decide whether we want to dump it */
@@ -11428,8 +11486,13 @@ dumpDomain(Archive *fout, const TypeInfo *tyinfo)
 	for (i = 0; i < tyinfo->nDomChecks; i++)
 	{
 		ConstraintInfo *domcheck = &(tyinfo->domChecks[i]);
-		PQExpBuffer conprefix = createPQExpBuffer();
+		PQExpBuffer conprefix;
 
+		/* but only if the constraint itself was dumped here */
+		if (domcheck->separate)
+			continue;
+
+		conprefix = createPQExpBuffer();
 		appendPQExpBuffer(conprefix, "CONSTRAINT %s ON DOMAIN",
 						  fmtId(domcheck->dobj.name));
 
@@ -15310,7 +15373,7 @@ collectSecLabels(Archive *fout)
 
 	appendPQExpBufferStr(query,
 						 "SELECT label, provider, classoid, objoid, objsubid "
-						 "FROM pg_catalog.pg_seclabel "
+						 "FROM pg_catalog.pg_seclabels "
 						 "ORDER BY classoid, objoid, objsubid");
 
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
@@ -17113,6 +17176,22 @@ dumpConstraint(Archive *fout, const ConstraintInfo *coninfo)
 										  .section = SECTION_POST_DATA,
 										  .createStmt = q->data,
 										  .dropStmt = delq->data));
+
+			if (coninfo->dobj.dump & DUMP_COMPONENT_COMMENT)
+			{
+				PQExpBuffer conprefix = createPQExpBuffer();
+				char	   *qtypname = pg_strdup(fmtId(tyinfo->dobj.name));
+
+				appendPQExpBuffer(conprefix, "CONSTRAINT %s ON DOMAIN",
+								  fmtId(coninfo->dobj.name));
+
+				dumpComment(fout, conprefix->data, qtypname,
+							tyinfo->dobj.namespace->dobj.name,
+							tyinfo->rolname,
+							coninfo->dobj.catId, 0, coninfo->dobj.dumpId);
+				destroyPQExpBuffer(conprefix);
+				free(qtypname);
+			}
 		}
 	}
 	else
@@ -17799,6 +17878,11 @@ dumpEventTrigger(Archive *fout, const EventTriggerInfo *evtinfo)
 		dumpComment(fout, "EVENT TRIGGER", qevtname,
 					NULL, evtinfo->evtowner,
 					evtinfo->dobj.catId, 0, evtinfo->dobj.dumpId);
+
+	if (evtinfo->dobj.dump & DUMP_COMPONENT_SECLABEL)
+		dumpSecLabel(fout, "EVENT TRIGGER", qevtname,
+					 NULL, evtinfo->evtowner,
+					 evtinfo->dobj.catId, 0, evtinfo->dobj.dumpId);
 
 	destroyPQExpBuffer(query);
 	destroyPQExpBuffer(delqry);
