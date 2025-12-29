@@ -266,6 +266,13 @@ match_pattern_prefix(Node *leftop,
 	FmgrInfo	ltproc;
 	Const	   *greaterstr;
 
+   /*
+    * If the operation is for babelfish, return as the transformation
+    * has been handled already in babelfish side
+    */
+    if (sql_dialect == SQL_DIALECT_TSQL)
+        return NULL;
+
 	/*
 	 * Can't do anything with a non-constant or NULL pattern argument.
 	 *
