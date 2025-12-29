@@ -151,6 +151,9 @@ LD_LIBRARY_PATH=%{_builddir}/%{name}/src/interfaces/libpq $RPM_BUILD_ROOT/usr/bi
 %{_bindir}/bbf_dumpall
 
 %changelog
+* Fri Oct 17 2025 Yashneet Vinayak <yashneet@amazon.com> - 17.7-1
+- Unrestrict psql meta-commands for using backslash command for pg_dump and pg_dumpall in Babelfish
+
 * Fri July 25 2025 Tanya Gupta <tanyagp@amazon.com> - 17.7-1
 - Dump Babelfish operator classes for numeric-fixeddecimal comparisons to support index scan
 
