@@ -668,9 +668,9 @@ modify_subscriber_sysid(const struct CreateSubscriberOptions *opt)
 		int			rc = system(cmd_str);
 
 		if (rc == 0)
-			pg_log_info("subscriber successfully changed the system identifier");
+			pg_log_info("successfully reset WAL on the subscriber");
 		else
-			pg_fatal("could not change system identifier of subscriber: %s", wait_result_to_str(rc));
+			pg_fatal("could not reset WAL on subscriber: %s", wait_result_to_str(rc));
 	}
 
 	pg_free(cf);
@@ -1206,8 +1206,17 @@ setup_recovery(const struct LogicalRepInfo *dbinfo, const char *datadir, const c
 	appendPQExpBuffer(recoveryconfcontents, "recovery_target = ''\n");
 	appendPQExpBuffer(recoveryconfcontents,
 					  "recovery_target_timeline = 'latest'\n");
+
+	/*
+	 * Set recovery_target_inclusive = false to avoid reapplying the
+	 * transaction committed at 'lsn' after subscription is enabled. This is
+	 * because the provided 'lsn' is also used as the replication start point
+	 * for the subscription. So, the server can send the transaction committed
+	 * at that 'lsn' after replication is started which can lead to applying
+	 * the same transaction twice if we keep recovery_target_inclusive = true.
+	 */
 	appendPQExpBuffer(recoveryconfcontents,
-					  "recovery_target_inclusive = true\n");
+					  "recovery_target_inclusive = false\n");
 	appendPQExpBuffer(recoveryconfcontents,
 					  "recovery_target_action = promote\n");
 	appendPQExpBuffer(recoveryconfcontents, "recovery_target_name = ''\n");

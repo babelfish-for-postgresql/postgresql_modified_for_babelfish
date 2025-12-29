@@ -8,7 +8,7 @@
 
 project('postgresql',
   ['c'],
-  version: '17.5',
+  version: '17.7',
   license: 'PostgreSQL',
 
   # We want < 0.56 for python 3.5 compatibility on old platforms. EPEL for
@@ -1055,7 +1055,7 @@ if not perlopt.disabled()
       if cc.get_id() == 'msvc'
         # prevent binary mismatch between MSVC built plperl and Strawberry or
         # msys ucrt perl libraries
-        perl_v = run_command(perl, '-V').stdout()
+        perl_v = run_command(perl, '-V', check: false).stdout()
         if not perl_v.contains('USE_THREAD_SAFE_LOCALE')
           perl_ccflags += ['-DNO_THREAD_SAFE_LOCALE']
         endif
@@ -1458,7 +1458,10 @@ if uuidopt != 'none'
   elif uuidopt == 'ossp'
     # In upstream, the package and library is called just 'uuid', but many
     # distros change it to 'ossp-uuid'.
-    uuid = dependency('ossp-uuid', 'uuid', required: false)
+    uuid = dependency('ossp-uuid', required: false)
+    if not uuid.found()
+      uuid = dependency('uuid', required: false)
+    endif
     uuidfunc = 'uuid_export'
     uuidheader = 'uuid.h'
 
@@ -1888,10 +1891,7 @@ if cc.links('''
   cdata.set('HAVE__BUILTIN_OP_OVERFLOW', 1)
 endif
 
-
-# XXX: The configure.ac check for __cpuid() is broken, we don't copy that
-# here. To prevent problems due to two detection methods working, stop
-# checking after one.
+# Check for __get_cpuid() and __cpuid().
 if cc.links('''
     #include <cpuid.h>
     int main(int arg, char **argv)
@@ -2470,6 +2470,7 @@ decl_checks += [
   ['preadv', 'sys/uio.h'],
   ['pwritev', 'sys/uio.h'],
   ['strchrnul', 'string.h'],
+  ['memset_s', 'string.h', '#define __STDC_WANT_LIB_EXT1__ 1'],
 ]
 
 # Check presence of some optional LLVM functions.
@@ -2483,21 +2484,23 @@ endif
 foreach c : decl_checks
   func = c.get(0)
   header = c.get(1)
-  args = c.get(2, {})
+  prologue = c.get(2, '')
+  args = c.get(3, {})
   varname = 'HAVE_DECL_' + func.underscorify().to_upper()
 
   found = cc.compiles('''
-#include <@0@>
+@0@
+#include <@1@>
 
 int main()
 {
-#ifndef @1@
-    (void) @1@;
+#ifndef @2@
+    (void) @2@;
 #endif
 
 return 0;
 }
-'''.format(header, func),
+'''.format(prologue, header, func),
     name: 'test whether @0@ is declared'.format(func),
     # need to add cflags_warn to get at least
     # -Werror=unguarded-availability-new if applicable
@@ -2726,7 +2729,6 @@ func_checks = [
   ['inet_pton'],
   ['kqueue'],
   ['mbstowcs_l'],
-  ['memset_s'],
   ['mkdtemp'],
   ['posix_fadvise'],
   ['posix_fallocate'],
