@@ -24,6 +24,7 @@
 
 #include "access/sysattr.h"
 #include "access/tableam.h"
+#include "catalog/namespace.h"
 #include "catalog/pg_type.h"
 #include "executor/execdebug.h"
 #include "executor/nodeTidscan.h"
@@ -403,12 +404,30 @@ TidNext(TidScanState *node)
 static bool
 TidRecheck(TidScanState *node, TupleTableSlot *slot)
 {
+	ItemPointer match;
+
 	/*
-	 * XXX shouldn't we check here to make sure tuple matches TID list? In
-	 * runtime-key case this is not certain, is it?  However, in the WHERE
-	 * CURRENT OF case it might not match anyway ...
+	 * For babelfish skip the EPQ recheck condition in favour of previous
+	 * behaviour as it causes regression to output clause.
 	 */
-	return true;
+	if (is_bbf_tds_connection_hook && is_bbf_tds_connection_hook())
+		return true;
+
+	/* WHERE CURRENT OF always intends to resolve to the latest tuple */
+	if (node->tss_isCurrentOf)
+		return true;
+
+	if (node->tss_TidList == NULL)
+		TidListEval(node);
+
+	/*
+	 * Binary search the TidList to see if this ctid is mentioned and return
+	 * true if it is.
+	 */
+	match = (ItemPointer) bsearch(&slot->tts_tid, node->tss_TidList,
+								  node->tss_NumTids, sizeof(ItemPointerData),
+								  itemptr_comparator);
+	return match != NULL;
 }
 
 
