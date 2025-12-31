@@ -29,6 +29,7 @@
 #include "executor/nodeTidscan.h"
 #include "lib/qunique.h"
 #include "miscadmin.h"
+#include "libpq/libpq-be.h"
 #include "nodes/nodeFuncs.h"
 #include "storage/bufmgr.h"
 #include "utils/array.h"
@@ -401,6 +402,13 @@ static bool
 TidRecheck(TidScanState *node, TupleTableSlot *slot)
 {
 	ItemPointer match;
+
+	/*
+	 * For babelfish skip the EPQ recheck condition in favour of previous
+	 * behaviour as it causes regression to output clause.
+	 */
+	if (MyProcPort && MyProcPort->is_tds_conn)
+		return true;
 
 	/* WHERE CURRENT OF always intends to resolve to the latest tuple */
 	if (node->tss_isCurrentOf)
