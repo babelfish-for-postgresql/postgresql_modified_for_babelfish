@@ -55,7 +55,6 @@
 #include "foreign/fdwapi.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
-#include "parser/parser.h"
 #include "optimizer/optimizer.h"
 #include "rewrite/rewriteHandler.h"
 #include "storage/bufmgr.h"
