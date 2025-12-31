@@ -2169,7 +2169,7 @@ lreplace:
 
 	/* Process RETURNING if present */
 	if (resultRelInfo->ri_projectReturning)
-		return ExecProcessReturning(resultRelInfo, slot, context->planSlot);
+		return ExecProcessReturning(resultRelInfo, slot, planSlot);
 
 	return NULL;
 }
