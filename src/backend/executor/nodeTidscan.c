@@ -24,6 +24,7 @@
 
 #include "access/sysattr.h"
 #include "access/tableam.h"
+#include "catalog/namespace.h"
 #include "catalog/pg_type.h"
 #include "executor/execdebug.h"
 #include "executor/nodeTidscan.h"
@@ -404,6 +405,13 @@ static bool
 TidRecheck(TidScanState *node, TupleTableSlot *slot)
 {
 	ItemPointer match;
+
+	/*
+	 * For babelfish skip the EPQ recheck condition in favour of previous
+	 * behaviour as it causes regression to output clause.
+	 */
+	if (is_bbf_tds_connection_hook && is_bbf_tds_connection_hook())
+		return true;
 
 	/* WHERE CURRENT OF always intends to resolve to the latest tuple */
 	if (node->tss_isCurrentOf)
