@@ -744,10 +744,6 @@ ExecInsert(ModifyTableState *mtstate,
 			return NULL;		/* "do nothing" */
 	}
 
-	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning)
-		result = ExecProcessReturning(resultRelInfo, slot, planSlot);
-
 	/* INSTEAD OF ROW INSERT Triggers */
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_insert_instead_row)
@@ -1235,7 +1231,6 @@ ExecDelete(ModifyTableState *mtstate,
 	TM_FailureData tmfd;
 	TupleTableSlot *slot = NULL;
 	TransitionCaptureState *ar_delete_trig_tcs;
-	TupleTableSlot *rslot_output = NULL;
 
 	if (tupleDeleted)
 		*tupleDeleted = false;
@@ -1255,43 +1250,6 @@ ExecDelete(ModifyTableState *mtstate,
 
 		if (!dodelete)			/* "do nothing" */
 			return NULL;
-	}
-
-	/* Process RETURNING if present and if requested */
-	if (processReturning && resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
-	{
-		/*
-		 * We have to put the target tuple into a slot, which means first we
-		 * gotta fetch it.  We can use the trigger tuple slot.
-		 */
-		if (resultRelInfo->ri_FdwRoutine)
-		{
-			/* FDW must have provided a slot containing the deleted row */
-			Assert(!TupIsNull(slot));
-		}
-		else
-		{
-			slot = ExecGetReturningSlot(estate, resultRelInfo);
-			if (oldtuple != NULL)
-			{
-				ExecForceStoreHeapTuple(oldtuple, slot, false);
-			}
-			else
-			{
-				if (!table_tuple_fetch_row_version(resultRelationDesc, tupleid,
-												   SnapshotAny, slot))
-					elog(ERROR, "failed to fetch deleted tuple for DELETE RETURNING");
-			}
-		}
-		rslot_output = ExecProcessReturning(resultRelInfo, slot, planSlot);
-
-		/*
-		 * Before releasing the target tuple again, make sure rslot has a
-		 * local copy of any pass-by-reference values.
-		 */
-		ExecMaterializeSlot(rslot_output);
-
-		ExecClearTuple(slot);
 	}
 
 	if (resultRelInfo->ri_TrigDesc &&
@@ -1557,7 +1515,7 @@ ldelete:;
 						 ar_delete_trig_tcs);
 
 	/* Process RETURNING if present and if requested */
-	if (processReturning && resultRelInfo->ri_projectReturning && sql_dialect != SQL_DIALECT_TSQL)
+	if (processReturning && resultRelInfo->ri_projectReturning)
 	{
 		/*
 		 * We have to put the target tuple into a slot, which means first we
@@ -1597,9 +1555,6 @@ ldelete:;
 
 		return rslot;
 	}
-
-	if (processReturning && resultRelInfo->ri_projectReturning && rslot_output)
-		return rslot_output;
 
 	return NULL;
 }
@@ -1838,7 +1793,6 @@ ExecUpdate(ModifyTableState *mtstate,
 	TM_Result	result;
 	TM_FailureData tmfd;
 	List	   *recheckIndexes = NIL;
-	TupleTableSlot *rslot = NULL;
 
 	/*
 	 * abort the operation if not running transactions
@@ -1868,10 +1822,6 @@ ExecUpdate(ModifyTableState *mtstate,
 								  tupleid, oldtuple, slot))
 			return NULL;		/* "do nothing" */
 	}
-
-	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning && sql_dialect == SQL_DIALECT_TSQL)
-		rslot = ExecProcessReturning(resultRelInfo, slot, planSlot);
 
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&
@@ -2218,11 +2168,8 @@ lreplace:
 		ExecWithCheckOptions(WCO_VIEW_CHECK, resultRelInfo, slot, estate);
 
 	/* Process RETURNING if present */
-	if (resultRelInfo->ri_projectReturning && sql_dialect != SQL_DIALECT_TSQL)
-		return ExecProcessReturning(resultRelInfo, slot, planSlot);
-
 	if (resultRelInfo->ri_projectReturning)
-		return rslot;
+		return ExecProcessReturning(resultRelInfo, slot, planSlot);
 
 	return NULL;
 }
