@@ -28,6 +28,7 @@
 #include "executor/execdebug.h"
 #include "executor/nodeTidscan.h"
 #include "lib/qunique.h"
+#include "miscadmin.h"
 #include "libpq/libpq-be.h"
 #include "nodes/nodeFuncs.h"
 #include "storage/bufmgr.h"
