@@ -1228,6 +1228,9 @@ ExecDelete(ModifyTableState *mtstate,
 {
 	Relation	resultRelationDesc = resultRelInfo->ri_RelationDesc;
 	TM_Result	result;
+	TM_FailureData tmfd;
+	TupleTableSlot *slot = NULL;
+	TransitionCaptureState *ar_delete_trig_tcs;
 
 	if (tupleDeleted)
 		*tupleDeleted = false;
@@ -2410,7 +2413,7 @@ redo_act:
 
 	/* Process RETURNING if present */
 	if (resultRelInfo->ri_projectReturning)
-		return ExecProcessReturning(resultRelInfo, slot, context->planSlot);
+		return ExecProcessReturning(resultRelInfo, slot, planSlot);
 
 	return NULL;
 }
