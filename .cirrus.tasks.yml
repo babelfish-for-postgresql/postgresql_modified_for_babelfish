@@ -62,13 +62,13 @@ task:
   # push-wait-for-ci cycle time a bit when debugging operating system specific
   # failures. Uses skip instead of only_if, as cirrus otherwise warns about
   # only_if conditions not matching.
-  skip: $CIRRUS_CHANGE_MESSAGE =~ '.*\nci-os-only:.*'
+  skip: $CI_SANITYCHECK_ENABLED == false
 
   env:
     CPUS: 4
     BUILD_JOBS: 8
     TEST_JOBS: 8
-    IMAGE_FAMILY: pg-ci-bookworm
+    IMAGE_FAMILY: pg-ci-trixie
     CCACHE_DIR: ${CIRRUS_WORKING_DIR}/ccache_dir
     # no options enabled, should be small
     CCACHE_MAXSIZE: "150M"
@@ -94,6 +94,7 @@ task:
 
   configure_script: |
     su postgres <<-EOF
+      set -e
       meson setup \
         --buildtype=debug \
         --auto-features=disabled \
@@ -102,6 +103,7 @@ task:
     EOF
   build_script: |
     su postgres <<-EOF
+      set -e
       ninja -C build -j${BUILD_JOBS} ${MBUILD_TARGET}
     EOF
   upload_caches: ccache
@@ -111,6 +113,7 @@ task:
   # tap test that exercises both a frontend binary and the backend.
   test_minimal_script: |
     su postgres <<-EOF
+      set -e
       ulimit -c unlimited
       meson test $MTEST_ARGS --num-processes ${TEST_JOBS} \
         tmp_install cube/regress pg_ctl/001_start_stop
@@ -143,7 +146,7 @@ task:
   <<: *freebsd_task_template
 
   depends_on: SanityCheck
-  only_if: $CIRRUS_CHANGE_MESSAGE !=~ '.*\nci-os-only:.*' || $CIRRUS_CHANGE_MESSAGE =~ '.*\nci-os-only:[^\n]*freebsd.*'
+  only_if: $CI_FREEBSD_ENABLED
 
   sysinfo_script: |
     id
@@ -172,6 +175,7 @@ task:
   # already takes longer than other platforms except for windows.
   configure_script: |
     su postgres <<-EOF
+      set -e
       meson setup \
         --buildtype=debug \
         -Dcassert=true -Duuid=bsd -Dtcl_version=tcl86 -Ddtrace=auto \
@@ -184,6 +188,7 @@ task:
 
   test_world_script: |
     su postgres <<-EOF
+      set -e
       ulimit -c unlimited
       meson test $MTEST_ARGS --num-processes ${TEST_JOBS}
     EOF
@@ -208,6 +213,7 @@ task:
     # during upload, as it doesn't expect artifacts to change size
     stop_running_script: |
       su postgres <<-EOF
+        set -e
         build/tmp_install/usr/local/pgsql/bin/pg_ctl -D build/runningcheck stop || true
       EOF
     <<: *on_failure_meson
@@ -244,7 +250,7 @@ task:
     CPUS: 4
     BUILD_JOBS: 4
     TEST_JOBS: 8 # experimentally derived to be a decent choice
-    IMAGE_FAMILY: pg-ci-bookworm
+    IMAGE_FAMILY: pg-ci-trixie
 
     CCACHE_DIR: /tmp/ccache_dir
     DEBUGINFOD_URLS: "https://debuginfod.debian.net"
@@ -265,7 +271,7 @@ task:
     # print_stacktraces=1,verbosity=2, duh
     # detect_leaks=0: too many uninteresting leak errors in short-lived binaries
     UBSAN_OPTIONS: print_stacktrace=1:disable_coredump=0:abort_on_error=1:verbosity=2
-    ASAN_OPTIONS: print_stacktrace=1:disable_coredump=0:abort_on_error=1:detect_leaks=0
+    ASAN_OPTIONS: print_stacktrace=1:disable_coredump=0:abort_on_error=1:detect_leaks=0:detect_stack_use_after_return=0
 
     # SANITIZER_FLAGS is set in the tasks below
     CFLAGS: -Og -ggdb -fno-sanitize-recover=all $SANITIZER_FLAGS
@@ -280,7 +286,7 @@ task:
   <<: *linux_task_template
 
   depends_on: SanityCheck
-  only_if: $CIRRUS_CHANGE_MESSAGE !=~ '.*\nci-os-only:.*' || $CIRRUS_CHANGE_MESSAGE =~ '.*\nci-os-only:[^\n]*linux.*'
+  only_if: $CI_LINUX_ENABLED
 
   ccache_cache:
     folder: ${CCACHE_DIR}
@@ -315,7 +321,7 @@ task:
     #DEBIAN_FRONTEND=noninteractive apt-get -y install ...
 
   matrix:
-    - name: Linux - Debian Bookworm - Autoconf
+    - name: Linux - Debian Trixie - Autoconf
 
       env:
         SANITIZER_FLAGS: -fsanitize=address
@@ -328,6 +334,7 @@ task:
       # that.
       configure_script: |
         su postgres <<-EOF
+          set -e
           ./configure \
             --enable-cassert --enable-debug --enable-tap-tests \
             --enable-nls \
@@ -342,6 +349,7 @@ task:
 
       test_world_script: |
         su postgres <<-EOF
+          set -e
           ulimit -c unlimited # default is 0
           make -s ${CHECK} ${CHECKFLAGS} -j${TEST_JOBS}
         EOF
@@ -349,7 +357,7 @@ task:
       on_failure:
         <<: *on_failure_ac
 
-    - name: Linux - Debian Bookworm - Meson
+    - name: Linux - Debian Trixie - Meson
 
       env:
         CCACHE_MAXSIZE: "400M" # tests two different builds
@@ -357,6 +365,7 @@ task:
 
       configure_script: |
         su postgres <<-EOF
+          set -e
           meson setup \
             --buildtype=debug \
             -Dcassert=true \
@@ -369,6 +378,7 @@ task:
       # locally.
       configure_32_script: |
         su postgres <<-EOF
+          set -e
           export CC='ccache gcc -m32'
           meson setup \
             --buildtype=debug \
@@ -376,7 +386,7 @@ task:
             ${LINUX_MESON_FEATURES} \
             -Dllvm=disabled \
             --pkg-config-path /usr/lib/i386-linux-gnu/pkgconfig/ \
-            -DPERL=perl5.36-i386-linux-gnu \
+            -DPERL=perl5.40-i386-linux-gnu \
             -DPG_TEST_EXTRA="$PG_TEST_EXTRA" \
             build-32
         EOF
@@ -388,6 +398,7 @@ task:
 
       test_world_script: |
         su postgres <<-EOF
+          set -e
           ulimit -c unlimited
           meson test $MTEST_ARGS --num-processes ${TEST_JOBS}
         EOF
@@ -400,6 +411,7 @@ task:
       # from C, prevent that with PYTHONCOERCECLOCALE.
       test_world_32_script: |
         su postgres <<-EOF
+          set -e
           ulimit -c unlimited
           PYTHONCOERCECLOCALE=0 LANG=C meson test $MTEST_ARGS -C build-32 --num-processes ${TEST_JOBS}
         EOF
@@ -412,7 +424,7 @@ task:
 
 
 task:
-  name: macOS - Sonoma - Meson
+  name: macOS - Sequoia - Meson
 
   env:
     CPUS: 4 # always get that much for cirrusci macOS instances
@@ -421,7 +433,7 @@ task:
     # work OK. See
     # https://postgr.es/m/20220927040208.l3shfcidovpzqxfh%40awork3.anarazel.de
     TEST_JOBS: 8
-    IMAGE: ghcr.io/cirruslabs/macos-runner:sonoma
+    IMAGE: ghcr.io/cirruslabs/macos-runner:sequoia
 
     CIRRUS_WORKING_DIR: ${HOME}/pgsql/
     CCACHE_DIR: ${HOME}/ccache
@@ -449,7 +461,7 @@ task:
   <<: *macos_task_template
 
   depends_on: SanityCheck
-  only_if: $CIRRUS_CHANGE_MESSAGE !=~ '.*\nci-os-only:.*' || $CIRRUS_CHANGE_MESSAGE =~ '.*\nci-os-only:[^\n]*(macos|darwin|osx).*'
+  only_if: $CI_MACOS_ENABLED
 
   sysinfo_script: |
     id
@@ -538,7 +550,7 @@ WINDOWS_ENVIRONMENT_BASE: &WINDOWS_ENVIRONMENT_BASE
 
 
 task:
-  name: Windows - Server 2019, VS 2019 - Meson & ninja
+  name: Windows - Server 2022, VS 2019 - Meson & ninja
   << : *WINDOWS_ENVIRONMENT_BASE
 
   env:
@@ -556,7 +568,7 @@ task:
   <<: *windows_task_template
 
   depends_on: SanityCheck
-  only_if: $CIRRUS_CHANGE_MESSAGE !=~ '.*\nci-os-only:.*' || $CIRRUS_CHANGE_MESSAGE =~ '.*\nci-os-only:[^\n]*windows.*'
+  only_if: $CI_WINDOWS_ENABLED
 
   setup_additional_packages_script: |
     REM choco install -y --no-progress ...
@@ -567,10 +579,9 @@ task:
     echo 127.0.0.3 pg-loadbalancetest >> c:\Windows\System32\Drivers\etc\hosts
     type c:\Windows\System32\Drivers\etc\hosts
 
-  # Use /DEBUG:FASTLINK to avoid high memory usage during linking
   configure_script: |
     vcvarsall x64
-    meson setup --backend ninja --buildtype debug -Dc_link_args=/DEBUG:FASTLINK -Dcassert=true -Db_pch=true -Dextra_lib_dirs=c:\openssl\1.1\lib -Dextra_include_dirs=c:\openssl\1.1\include -DTAR=%TAR% -DPG_TEST_EXTRA="%PG_TEST_EXTRA%" build
+    meson setup --backend ninja --buildtype debug -Dcassert=true -Db_pch=true -Dextra_lib_dirs=c:\openssl\1.1\lib -Dextra_include_dirs=c:\openssl\1.1\include -DTAR=%TAR% -DPG_TEST_EXTRA="%PG_TEST_EXTRA%" build
 
   build_script: |
     vcvarsall x64
@@ -589,15 +600,13 @@ task:
 
 task:
   << : *WINDOWS_ENVIRONMENT_BASE
-  name: Windows - Server 2019, MinGW64 - Meson
+  name: Windows - Server 2022, MinGW64 - Meson
 
-  # due to resource constraints we don't run this task by default for now
-  trigger_type: manual
-  # worth using only_if despite being manual, otherwise this task will show up
-  # when e.g. ci-os-only: linux is used.
-  only_if: $CIRRUS_CHANGE_MESSAGE !=~ '.*\nci-os-only:.*' || $CIRRUS_CHANGE_MESSAGE =~ '.*\nci-os-only:[^\n]*mingw.*'
-  # otherwise it'll be sorted before other tasks
+  # See REPO_CI_AUTOMATIC_TRIGGER_TASKS in .cirrus.star.
+  trigger_type: $CI_TRIGGER_TYPE_MINGW
+
   depends_on: SanityCheck
+  only_if: $CI_MINGW_ENABLED
 
   env:
     TEST_JOBS: 4 # higher concurrency causes occasional failures
@@ -651,15 +660,14 @@ task:
 
   # To limit unnecessary work only run this once the SanityCheck
   # succeeds. This is particularly important for this task as we intentionally
-  # use always: to continue after failures. Task that did not run count as a
-  # success, so we need to recheck SanityChecks's condition here ...
+  # use always: to continue after failures.
   depends_on: SanityCheck
-  only_if: $CIRRUS_CHANGE_MESSAGE !=~ '.*\nci-os-only:.*'
+  only_if: $CI_COMPILERWARNINGS_ENABLED
 
   env:
     CPUS: 4
     BUILD_JOBS: 4
-    IMAGE_FAMILY: pg-ci-bookworm
+    IMAGE_FAMILY: pg-ci-trixie
 
     # Use larger ccache cache, as this task compiles with multiple compilers /
     # flag combinations
@@ -745,11 +753,11 @@ task:
   always:
     mingw_cross_warning_script: |
       time ./configure \
-        --host=x86_64-w64-mingw32 \
+        --host=x86_64-w64-mingw32ucrt \
         --enable-cassert \
         --without-icu \
-        CC="ccache x86_64-w64-mingw32-gcc" \
-        CXX="ccache x86_64-w64-mingw32-g++"
+        CC="ccache x86_64-w64-mingw32ucrt-gcc" \
+        CXX="ccache x86_64-w64-mingw32ucrt-g++"
       make -s -j${BUILD_JOBS} clean
       time make -s -j${BUILD_JOBS} world-bin
 
