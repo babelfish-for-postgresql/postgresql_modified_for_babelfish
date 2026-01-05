@@ -223,7 +223,7 @@ dumpBabelGUCs(Archive *fout)
 	 * session_replication_role session GUC to temporarily disable the triggers
 	 * for the data-only dump so as to allow non-superuser to perform the restore.
 	 */
-	if(!fout->dopt->binary_upgrade && fout->dopt->dumpData)
+	if(!fout->dopt->binary_upgrade && !fout->dopt->dumpSchema)
 		appendPQExpBufferStr(qry, "SET session_replication_role = replica;\n");
 
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
@@ -421,7 +421,7 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 							 * are not marked to be dumped so catalog table data explicitly
 							 * need to be marked as dumpable.
 							 */
-							if (isBabelfishConfigTable(fout, tbinfo) && !fout->dopt->dumpData)
+							if (isBabelfishConfigTable(fout, tbinfo) && fout->dopt->dumpSchema)
 							{
 								tbinfo->dobj.dump |= DUMP_COMPONENT_DATA;
 								/* also prepare the dumpable object upfront */
@@ -1035,7 +1035,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	TableInfo		*sysdb_table = NULL;
 	DumpableObject		*refdobj = NULL;
 
-	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade || fout->dopt->dumpData)
+	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade || !fout->dopt->dumpSchema)
 		return;
 
 	/* Get the OID of sys.babelfish_sysdatabases catalog */
