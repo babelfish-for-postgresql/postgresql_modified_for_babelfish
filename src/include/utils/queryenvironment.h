@@ -171,4 +171,7 @@ extern bool has_existing_enr_relations(void);
 typedef EphemeralNamedRelation (*pltsql_get_tsql_enr_from_oid_hook_type) (Oid oid);
 extern PGDLLIMPORT pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook;
 
+typedef EphemeralNamedRelation (*find_object_in_enr_hook_type) (Oid catalog_oid, Oid object_id);
+extern PGDLLIMPORT find_object_in_enr_hook_type find_object_in_enr_hook;
+
 #endif							/* QUERYENVIRONMENT_H */
