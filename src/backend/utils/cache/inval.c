@@ -590,10 +590,12 @@ RegisterCatcacheInvalidation(int cacheId,
 static void
 RegisterENRCatcacheInvalidation(int cacheId,
 							 uint32 hashValue,
-							 Oid dbId)
+							 Oid dbId,
+							 void *context)
 {
+	InvalidationInfo *info = (InvalidationInfo *) context;
 	SaveCatcacheMessage(cacheId, hashValue, dbId);
-	AddCatcacheInvalidationMessage(&transInvalInfo->CurrentCmdInvalidMsgs,
+	AddCatcacheInvalidationMessage(&info->CurrentCmdInvalidMsgs,
 								   cacheId, hashValue, dbId);
 }
 
@@ -1516,16 +1518,17 @@ CacheInvalidateHeapTupleInplace(Relation relation,
 }
 
 /*
- * This is nearly identical to CacheInvalidateHeapTuple but specifically called from
- * ENR codepaths. This helps us avoid a larger refactor.
- * 
- * We call our new callback RegisterENRCatcacheInvalidation instead.
+ * CacheInvalidateENRHeapTupleCommon
+ * 		Common logic for end-of-command and inplace variants in CacheInvalidateENRHeapTuple,
+ * 		similar to CacheInvalidateHeapTupleCommon for CacheInvalidateHeapTuple
  */
-void
-CacheInvalidateENRHeapTuple(Relation relation,
+static void
+CacheInvalidateENRHeapTupleCommon(Relation relation,
 						 HeapTuple tuple,
-						 HeapTuple newtuple)
+						 HeapTuple newtuple,
+						 InvalidationInfo *(*prepare_callback) (void))
 {
+	InvalidationInfo *info;
 	Oid			tupleRelId;
 	Oid			databaseId;
 	Oid			relationId;
@@ -1549,11 +1552,8 @@ CacheInvalidateENRHeapTuple(Relation relation,
 	if (IsToastRelation(relation))
 		return;
 
-	/*
-	 * If we're not prepared to queue invalidation messages for this
-	 * subtransaction level, get ready now.
-	 */
-	PrepareInvalidationState();
+	/* Allocate any required resources. */
+	info = PrepareInvalidationState();
 
 	/*
 	 * First let the catcache do its thing
@@ -1562,11 +1562,12 @@ CacheInvalidateENRHeapTuple(Relation relation,
 	if (RelationInvalidatesSnapshotsOnly(tupleRelId))
 	{
 		databaseId = IsSharedRelation(tupleRelId) ? InvalidOid : MyDatabaseId;
-		RegisterSnapshotInvalidation(databaseId, tupleRelId);
+		RegisterSnapshotInvalidation(info, databaseId, tupleRelId);
 	}
 	else
 		PrepareToInvalidateCacheTuple(relation, tuple, newtuple,
-									  RegisterENRCatcacheInvalidation);
+									  RegisterENRCatcacheInvalidation,
+									  info);
 
 	/*
 	 * Now, is this tuple one of the primary definers of a relcache entry? See
@@ -1639,7 +1640,21 @@ CacheInvalidateENRHeapTuple(Relation relation,
 	/*
 	 * Yes.  We need to register a relcache invalidation event.
 	 */
-	RegisterRelcacheInvalidation(databaseId, relationId);
+	RegisterRelcacheInvalidation(info, databaseId, relationId);
+}
+
+/*
+ * This is nearly identical to CacheInvalidateHeapTuple but specifically called from
+ * ENR codepaths. This helps us avoid a larger refactor.
+ * 
+ * We call our new callback RegisterENRCatcacheInvalidation instead.
+ */
+void
+CacheInvalidateENRHeapTuple(Relation relation,
+						 HeapTuple tuple,
+						 HeapTuple newtuple)
+{
+	CacheInvalidateENRHeapTupleCommon(relation, tuple, newtuple, PrepareInvalidationState);
 }
 
 /*
