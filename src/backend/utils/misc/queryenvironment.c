@@ -59,18 +59,6 @@ pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook = NULL;
 find_object_in_enr_hook_type find_object_in_enr_hook = NULL;
 
 /*
- * Private state of a query environment.
- */
-struct QueryEnvironment
-{
-	List	   *namedRelList;
-	List	   *dropped_namedRelList;
-	List 	   *savedCatcacheMessages;
-	struct QueryEnvironment *parentEnv;
-	MemoryContext	memctx;
-};
-
-/*
  * This list must match ENRCatalogTupleType in queryenvironment.h.
  *
  * These are the pg catalogs which we are placing in

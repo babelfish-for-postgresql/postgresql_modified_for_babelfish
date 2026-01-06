@@ -28,6 +28,18 @@ typedef enum EphemeralNameRelationType
 	ENR_TSQL_TEMP,		/* Temp table created in procedure/function */
 } EphemeralNameRelationType;
 
+/*
+ * Private state of a query environment.
+ */
+struct QueryEnvironment
+{
+	List	   *namedRelList;
+	List	   *dropped_namedRelList;
+	List 	   *savedCatcacheMessages;
+	struct QueryEnvironment *parentEnv;
+	MemoryContext	memctx;
+};
+
 typedef enum ENRCatalogTupleType
 {
 	ENR_CATTUP_CLASS = 0,
