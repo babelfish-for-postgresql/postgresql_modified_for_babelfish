@@ -414,6 +414,7 @@ do_like_escape(text *pat, text *esc)
 					 errhint("Escape string must be empty or one character.")));
 
 		e = VARDATA_ANY(esc);
+		elen = VARSIZE_ANY_EXHDR(esc);
 
 		if (sql_dialect == SQL_DIALECT_TSQL)
 		{
@@ -423,7 +424,7 @@ do_like_escape(text *pat, text *esc)
 			afterescape = false;
 			while (plen > 0)
 			{
-				if (CHAREQ(p, e) && !afterescape)
+				if (CHAREQ(p, plen, e, elen) && !afterescape)
 				{
 					/* check if direct copy string (unicode char) is valid */
 					
@@ -459,7 +460,7 @@ do_like_escape(text *pat, text *esc)
 			afterescape = false;
 			while (plen > 0)
 			{
-				if (CHAREQ(p, e) && !afterescape)
+				if (CHAREQ(p, plen, e, elen) && !afterescape)
 				{
 					*r++ = '\\';
 					NextChar(p, plen);
