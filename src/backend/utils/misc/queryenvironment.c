@@ -56,18 +56,7 @@
 #define NUM_ENR_CATALOGS 11
 
 pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook = NULL;
-
-/*
- * Private state of a query environment.
- */
-struct QueryEnvironment
-{
-	List	   *namedRelList;
-	List	   *dropped_namedRelList;
-	List 	   *savedCatcacheMessages;
-	struct QueryEnvironment *parentEnv;
-	MemoryContext	memctx;
-};
+find_object_in_enr_hook_type find_object_in_enr_hook = NULL;
 
 /*
  * This list must match ENRCatalogTupleType in queryenvironment.h.
