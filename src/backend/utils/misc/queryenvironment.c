@@ -1019,7 +1019,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 								break;
 							case ENR_OP_DROP:
 							case ENR_OP_UPDATE:
-								if (tf2->oid >= tf1->oid)
+								if (tf2->oid == tf1->oid)
 									lc = curlc;
 								break;
 							default:
