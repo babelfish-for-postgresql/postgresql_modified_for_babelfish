@@ -1010,21 +1010,27 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 
 					list_ptr = &enr->md.cattups[ENR_CATTUP_CONSTRAINT];
 					tf1 = (Form_pg_constraint) GETSTRUCT(tup);
-					foreach(curlc, enr->md.cattups[ENR_CATTUP_CONSTRAINT]) {
-						tf2 = (Form_pg_constraint) GETSTRUCT((HeapTuple) lfirst(curlc));
-						switch (op)
-						{
-							case ENR_OP_ADD:
-								insert_at = foreach_current_index(curlc) + 1; // will simply be the end of list after iteration
-								break;
-							case ENR_OP_DROP:
-							case ENR_OP_UPDATE:
+					
+					switch (op)
+					{
+						case ENR_OP_ADD:
+							/* For ADD, simply append to the end of the list */
+							insert_at = list_length(enr->md.cattups[ENR_CATTUP_CONSTRAINT]);
+							break;
+						case ENR_OP_DROP:
+						case ENR_OP_UPDATE:
+							/* For DROP/UPDATE, find the matching tuple by OID */
+							foreach(curlc, enr->md.cattups[ENR_CATTUP_CONSTRAINT]) {
+								tf2 = (Form_pg_constraint) GETSTRUCT((HeapTuple) lfirst(curlc));
 								if (tf2->oid == tf1->oid)
+								{
 									lc = curlc;
-								break;
-							default:
-								break;
-						}
+									break;
+								}
+							}
+							break;
+						default:
+							break;
 					}
 					ret = true;
 				}
