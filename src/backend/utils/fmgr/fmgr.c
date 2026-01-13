@@ -698,7 +698,6 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	int			tsql_dialect = SQL_DIALECT_TSQL;
 	int			sys_func_count = 0;
 	int			non_tsql_proc_count = 0;
-	void	   *newextra = NULL;
 	char 	   *cacheTupleProcname = NULL;
 
 	if (get_func_language_oids_hook)
