@@ -1030,6 +1030,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 							}
 							break;
 						default:
+							elog(ERROR, "Unexpected operation type for ENR_tuple_operation: %d", op);
 							break;
 					}
 					ret = true;
