@@ -698,6 +698,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 	int			tsql_dialect = SQL_DIALECT_TSQL;
 	int			sys_func_count = 0;
 	int			non_tsql_proc_count = 0;
+	void	   *newextra = NULL;
 	char 	   *cacheTupleProcname = NULL;
 
 	if (get_func_language_oids_hook)
@@ -830,10 +831,8 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		}
 
 		sql_dialect_value_old = sql_dialect;
-		set_config_option("babelfishpg_tsql.sql_dialect",
-						  (sql_dialect_value == tsql_dialect ? "tsql" : "postgres"),
-						  GUC_CONTEXT_CONFIG,
-						  PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);
+		sql_dialect = sql_dialect_value;
+		assign_sql_dialect(sql_dialect_value, newextra);
 	}
 
 	/* function manager hook */
@@ -906,10 +905,8 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		 */
 		if (set_sql_dialect)
 		{
-			set_config_option("babelfishpg_tsql.sql_dialect", 
-						  (sql_dialect_value_old == tsql_dialect ? "tsql" : "postgres"),
-						  GUC_CONTEXT_CONFIG,
-						  PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);
+			sql_dialect = sql_dialect_value_old;
+			assign_sql_dialect(sql_dialect_value_old, newextra);
 		}
 
 		PG_RE_THROW();
@@ -922,10 +919,8 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		AtEOXact_GUC(true, save_nestlevel);
 	if (set_sql_dialect)
 	{
-		set_config_option("babelfishpg_tsql.sql_dialect",
-						  (sql_dialect_value_old == tsql_dialect ? "tsql" : "postgres"),
-						  GUC_CONTEXT_CONFIG,
-						  PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);
+		sql_dialect = sql_dialect_value_old;
+		assign_sql_dialect(sql_dialect_value_old, newextra);
 
 		if (sql_dialect_value == pg_dialect)
 			non_tsql_proc_entry_hook(non_tsql_proc_count * -1, sys_func_count * -1);
