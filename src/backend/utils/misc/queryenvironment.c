@@ -914,7 +914,27 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				rel_oid = ((Form_pg_index) GETSTRUCT(tup))->indrelid;
 				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_INDEX];
+					if (op ==ENR_OP_DROP || op==ENR_OP_UPDATE){
+						Form_pg_index idxform1 = (Form_pg_index) GETSTRUCT(tup);
+						ListCell *curlc;
+						lc=NULL;
+						foreach(curlc, enr->md.cattups[ENR_CATTUP_INDEX]){
+							Form_pg_index idxform2 = (Form_pg_index) GETSTRUCT((HeapTuple)lfirst(curlc));
+							if( idxform1->indexrelid == idxform2->indexrelid){
+								lc=curlc;
+								break;
+
+							}
+
+						}
+						if (lc==NULL){
+							ret=false;
+							break;
+						}
+					}
+					else{
 					lc = list_head(enr->md.cattups[ENR_CATTUP_INDEX]);
+					}
 					ret = true;
 
 					if ((op == ENR_OP_ADD || op == ENR_OP_UPDATE) && HeapTupleIsValid(tup))
@@ -996,6 +1016,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					Form_pg_constraint tf1, tf2; /* tuple forms*/
 					ListCell *curlc;
+
 
 					list_ptr = &enr->md.cattups[ENR_CATTUP_CONSTRAINT];
 					tf1 = (Form_pg_constraint) GETSTRUCT(tup);
