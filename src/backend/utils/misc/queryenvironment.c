@@ -1081,7 +1081,30 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				rel_oid = ((Form_pg_attrdef) GETSTRUCT(tup))->adrelid;
 				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL];
-					lc = list_head(enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]);
+					if (op ==ENR_OP_DROP || op ==ENR_OP_UPDATE)
+					{ 
+						Form_pg_attrdef tf1 = (Form_pg_attrdef) GETSTRUCT(tup);
+						ListCell *curlc;
+						lc= NULL;
+						foreach(curlc, enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]){
+							Form_pg_attrdef tf2 = (Form_pg_attrdef) GETSTRUCT((HeapTuple)lfirst(curlc));
+							if( tf1->oid==tf2->oid){
+								lc=curlc;
+								break;
+
+							}
+
+						}
+						if (lc==NULL){
+							ret=false;
+							break;
+						}
+
+					}
+					else{
+						lc = list_head(enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]);
+					}
+					
 					ret = true;
 				}
 				break;
