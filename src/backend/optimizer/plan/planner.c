@@ -900,7 +900,7 @@ subquery_planner(PlannerGlobal *glob, Query *parse, PlannerInfo *parent_root,
 	preprocess_qual_conditions(root, (Node *) parse->jointree);
 
 	if(planner_node_transformer_hook)
-		parse->havingQual = planner_node_transformer_hook(root, parse->havingQual, EXPRKIND_QUAL);
+		parse->havingQual = planner_node_transformer_hook(root, parse->havingQual, EXPRKIND_QUAL, NULL);
 
 	parse->havingQual = preprocess_expression(root, parse->havingQual,
 											  EXPRKIND_QUAL);
@@ -1166,6 +1166,7 @@ subquery_planner(PlannerGlobal *glob, Query *parse, PlannerInfo *parent_root,
 static Node *
 preprocess_expression(PlannerInfo *root, Node *expr, int kind)
 {
+	int			prev_expr_kind;
 	/*
 	 * Fall out quickly if expression is empty.  This occurs often enough to
 	 * be worth checking.  Note that null->null is the correct conversion for
@@ -1191,7 +1192,7 @@ preprocess_expression(PlannerInfo *root, Node *expr, int kind)
 		expr = flatten_join_alias_vars(root, root->parse, expr);
 
 	if(EXPRKIND_TARGET == kind && planner_node_transformer_hook)
-		expr = planner_node_transformer_hook(root, expr, kind);
+		expr = planner_node_transformer_hook(root, expr, kind, &prev_expr_kind);
 
 	/*
 	 * Simplify constant expressions.  For function RTEs, this was already
@@ -1217,7 +1218,7 @@ preprocess_expression(PlannerInfo *root, Node *expr, int kind)
 
 	/* Reset context of expression */
 	if(EXPRKIND_TARGET == kind && planner_node_transformer_hook)
-		(void) planner_node_transformer_hook(root, NULL, -1);
+		(void) planner_node_transformer_hook(root, NULL, -1, &prev_expr_kind);
 
 	/*
 	 * If it's a qual or havingQual, canonicalize it.
@@ -1290,7 +1291,7 @@ preprocess_qual_conditions(PlannerInfo *root, Node *jtnode)
 			preprocess_qual_conditions(root, lfirst(l));
 
 		if(planner_node_transformer_hook)
-			f->quals = planner_node_transformer_hook(root, f->quals, EXPRKIND_QUAL);
+			f->quals = planner_node_transformer_hook(root, f->quals, EXPRKIND_QUAL, NULL);
 
 		f->quals = preprocess_expression(root, f->quals, EXPRKIND_QUAL);
 	}
@@ -1302,7 +1303,7 @@ preprocess_qual_conditions(PlannerInfo *root, Node *jtnode)
 		preprocess_qual_conditions(root, j->rarg);
 
 		if(planner_node_transformer_hook)
-			j->quals = planner_node_transformer_hook(root, j->quals, EXPRKIND_QUAL);
+			j->quals = planner_node_transformer_hook(root, j->quals, EXPRKIND_QUAL, NULL);
 
 		j->quals = preprocess_expression(root, j->quals, EXPRKIND_QUAL);
 	}
