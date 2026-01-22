@@ -914,34 +914,44 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				rel_oid = ((Form_pg_index) GETSTRUCT(tup))->indrelid;
 				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_INDEX];
-					if (op ==ENR_OP_DROP || op==ENR_OP_UPDATE){
-						Form_pg_index idxform1 = (Form_pg_index) GETSTRUCT(tup);
-						ListCell *curlc;
-						lc=NULL;
-						foreach(curlc, enr->md.cattups[ENR_CATTUP_INDEX]){
-							Form_pg_index idxform2 = (Form_pg_index) GETSTRUCT((HeapTuple)lfirst(curlc));
-							if( idxform1->indexrelid == idxform2->indexrelid){
-								lc=curlc;
-								break;
-
+					
+					switch (op) {
+						case ENR_OP_DROP:
+						case ENR_OP_UPDATE:
+						{
+							/*For DROP/UPDATE operations, search for the exact pg_index 
+							 tuple by matching indexrelid. */
+							Form_pg_index idxform1 = (Form_pg_index) GETSTRUCT(tup);
+							ListCell *curlc;
+							lc = NULL;
+							
+							foreach(curlc, enr->md.cattups[ENR_CATTUP_INDEX]) {
+								Form_pg_index idxform2 = (Form_pg_index) GETSTRUCT((HeapTuple)lfirst(curlc));
+								if (idxform1->indexrelid == idxform2->indexrelid) {
+									lc = curlc;
+									break;
+								}
 							}
-
-						}
-						if (lc==NULL){
-							ret=false;
+							
+							if (lc == NULL) {
+								ret = false;
+							}
+							else {
+								ret = true;
+							}
 							break;
 						}
+						case ENR_OP_ADD:
+						default:
+							lc = list_head(enr->md.cattups[ENR_CATTUP_INDEX]);
+							ret = true;
+							break;
 					}
-					else{
-					lc = list_head(enr->md.cattups[ENR_CATTUP_INDEX]);
-					}
-					ret = true;
 
 					if ((op == ENR_OP_ADD || op == ENR_OP_UPDATE) && HeapTupleIsValid(tup))
 					{
 						Form_pg_index indexForm = (Form_pg_index) GETSTRUCT(tup);
-
-						if(indexForm->indisreplident)
+						if (indexForm->indisreplident)
 							elog(ERROR, "Invalid pg_index ENR entry.");
 					}
 				}
@@ -1017,7 +1027,6 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					Form_pg_constraint tf1, tf2; /* tuple forms*/
 					ListCell *curlc;
 
-
 					list_ptr = &enr->md.cattups[ENR_CATTUP_CONSTRAINT];
 					tf1 = (Form_pg_constraint) GETSTRUCT(tup);
 					foreach(curlc, enr->md.cattups[ENR_CATTUP_CONSTRAINT]) {
@@ -1081,31 +1090,39 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 				rel_oid = ((Form_pg_attrdef) GETSTRUCT(tup))->adrelid;
 				if ((enr = get_ENR_withoid(queryEnv, rel_oid, ENR_TSQL_TEMP, false))) {
 					list_ptr = &enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL];
-					if (op ==ENR_OP_DROP || op ==ENR_OP_UPDATE)
-					{ 
-						Form_pg_attrdef tf1 = (Form_pg_attrdef) GETSTRUCT(tup);
-						ListCell *curlc;
-						lc= NULL;
-						foreach(curlc, enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]){
-							Form_pg_attrdef tf2 = (Form_pg_attrdef) GETSTRUCT((HeapTuple)lfirst(curlc));
-							if( tf1->oid==tf2->oid){
-								lc=curlc;
-								break;
-
+					
+					switch (op) {
+						case ENR_OP_DROP:
+						case ENR_OP_UPDATE:
+						{
+							/* For DROP/UPDATE operations, search for the exact pg_attrdef 
+							tuple by matching oid.*/
+							Form_pg_attrdef tf1 = (Form_pg_attrdef) GETSTRUCT(tup);
+							ListCell *curlc;
+							lc = NULL;
+							
+							foreach(curlc, enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]) {
+								Form_pg_attrdef tf2 = (Form_pg_attrdef) GETSTRUCT((HeapTuple)lfirst(curlc));
+								if (tf1->oid == tf2->oid) {
+									lc = curlc;
+									break;
+								}
 							}
-
-						}
-						if (lc==NULL){
-							ret=false;
+							
+							if (lc == NULL) {
+								ret = false;
+							}
+							else {
+								ret = true;
+							}
 							break;
 						}
-
+						case ENR_OP_ADD:
+						default:
+							lc = list_head(enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]);
+							ret = true;
+							break;
 					}
-					else{
-						lc = list_head(enr->md.cattups[ENR_CATTUP_ATTR_DEF_REL]);
-					}
-					
-					ret = true;
 				}
 				break;
 			default:
