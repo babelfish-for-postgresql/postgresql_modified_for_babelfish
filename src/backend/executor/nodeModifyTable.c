@@ -2681,14 +2681,6 @@ ExecOnConflictUpdate(ModifyTableContext *context,
 						 errmsg("could not serialize access due to concurrent update")));
 
 			/*
-			 * As long as we don't support an UPDATE of INSERT ON CONFLICT for
-			 * a partitioned table we shouldn't reach to a case where tuple to
-			 * be lock is moved to another partition due to concurrent update
-			 * of the partition key.
-			 */
-			Assert(!ItemPointerIndicatesMovedPartitions(&tmfd.ctid));
-
-			/*
 			 * Tell caller to try again from the very start.
 			 *
 			 * It does not make sense to use the usual EvalPlanQual() style
@@ -2705,7 +2697,6 @@ ExecOnConflictUpdate(ModifyTableContext *context,
 						 errmsg("could not serialize access due to concurrent delete")));
 
 			/* see TM_Updated case */
-			Assert(!ItemPointerIndicatesMovedPartitions(&tmfd.ctid));
 			ExecClearTuple(existing);
 			return false;
 
