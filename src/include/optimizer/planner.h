@@ -32,8 +32,7 @@ extern PGDLLEXPORT planner_hook_type planner_hook;
 /* Hook for plugins to transform qual nodes in planner */
 typedef Node* (*planner_node_transformer_hook_type) (PlannerInfo *root,
 												  Node *expr,
-												  int kind,
-												  int *prev_kind);
+												  int kind);
 extern PGDLLEXPORT planner_node_transformer_hook_type planner_node_transformer_hook;
 
 /* Hook for plugins to get control when grouping_planner() plans upper rels */
