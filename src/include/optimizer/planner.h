@@ -35,6 +35,12 @@ typedef Node* (*planner_node_transformer_hook_type) (PlannerInfo *root,
 												  int kind);
 extern PGDLLEXPORT planner_node_transformer_hook_type planner_node_transformer_hook;
 
+/* Hook for plugins to simplify constant expressions in planner */
+typedef Node* (*planner_simplify_const_expression_type) (PlannerInfo *root,
+												  Node *expr,
+												  int kind);
+extern PGDLLEXPORT planner_simplify_const_expression_type planner_simplify_const_expression_hook;
+
 /* Hook for plugins to get control when grouping_planner() plans upper rels */
 typedef void (*create_upper_paths_hook_type) (PlannerInfo *root,
 											  UpperRelationKind stage,
