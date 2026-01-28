@@ -76,7 +76,7 @@ planner_node_transformer_hook_type planner_node_transformer_hook = NULL;
 /* Hook for plugins to get control when grouping_planner() plans upper rels */
 create_upper_paths_hook_type create_upper_paths_hook = NULL;
 /* Hook for plugins to flag whether parameters are dynamic */
-planner_simplify_const_expression_type planner_simplify_const_expression_hook = NULL;
+eval_const_expressions_in_preprocess_hook_type eval_const_expressions_in_preprocess_hook = NULL;
 
 
 /* Expression kind codes for preprocess_expression */
@@ -1192,6 +1192,9 @@ preprocess_expression(PlannerInfo *root, Node *expr, int kind)
 		  kind == EXPRKIND_TABLEFUNC))
 		expr = flatten_join_alias_vars(root, root->parse, expr);
 
+	if(EXPRKIND_TARGET == kind && planner_node_transformer_hook)
+		expr = planner_node_transformer_hook(root, expr, kind);
+
 	/*
 	 * Simplify constant expressions.  For function RTEs, this was already
 	 * done by preprocess_function_rtes.  (But note we must do it again for
@@ -1213,8 +1216,8 @@ preprocess_expression(PlannerInfo *root, Node *expr, int kind)
 	 */
 	if (kind != EXPRKIND_RTFUNC)
 	{
-		if (planner_simplify_const_expression_hook)
-			expr = planner_simplify_const_expression_hook(root, expr, kind);
+		if (eval_const_expressions_in_preprocess_hook)
+			expr = eval_const_expressions_in_preprocess_hook(root, expr, kind);
 		else
 			expr = eval_const_expressions(root, expr);
 	}
