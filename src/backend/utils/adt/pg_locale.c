@@ -1437,6 +1437,9 @@ make_icu_collator(const char *iculocstr,
 			ereport(ERROR,
 					(errmsg("could not open collator for locale \"%s\" with rules \"%s\": %s",
 							iculocstr, icurules, u_errorName(status))));
+
+		pfree(my_rules);
+		pfree(agg_rules);
 	}
 
 	/* We will leak this string if the caller errors later :-( */
@@ -2249,6 +2252,9 @@ pg_strnxfrm_prefix_icu_no_utf8(char *dest, const char *src, int32_t srclen,
 		ereport(ERROR,
 				(errmsg("sort key generation failed: %s",
 						u_errorName(status))));
+
+	if (buf != sbuf)
+		pfree(buf);
 
 	return result_bsize;
 }
