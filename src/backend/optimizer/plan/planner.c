@@ -81,6 +81,8 @@ planner_hook_type planner_hook = NULL;
 planner_node_transformer_hook_type planner_node_transformer_hook = NULL;
 /* Hook for plugins to get control when grouping_planner() plans upper rels */
 create_upper_paths_hook_type create_upper_paths_hook = NULL;
+/* Hook for plugins to flag whether parameters are dynamic */
+eval_const_expressions_in_preprocess_hook_type eval_const_expressions_in_preprocess_hook = NULL;
 
 
 /* Expression kind codes for preprocess_expression */
@@ -1188,11 +1190,12 @@ preprocess_expression(PlannerInfo *root, Node *expr, int kind)
 	 * with AND directly under AND, nor OR directly under OR.
 	 */
 	if (kind != EXPRKIND_RTFUNC)
-		expr = eval_const_expressions(root, expr);
-
-	/* Reset context of expression */
-	if(EXPRKIND_TARGET == kind && planner_node_transformer_hook)
-		(void) planner_node_transformer_hook(root, NULL, -1);
+	{
+		if (eval_const_expressions_in_preprocess_hook)
+			expr = eval_const_expressions_in_preprocess_hook(root, expr, kind);
+		else
+			expr = eval_const_expressions(root, expr);
+	}
 
 	/*
 	 * If it's a qual or havingQual, canonicalize it.
