@@ -6617,17 +6617,23 @@ InsteadofTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 
 			if(event == TRIGGER_EVENT_DELETE)
 			{
-				old_tuplestore = transition_capture->tcs_private->old_del_tuplestore;
+				old_tuplestore = transition_capture->tcs_delete_private->old_tuplestore;
 			}
 			else if (event == TRIGGER_EVENT_UPDATE)
 			{
-				old_tuplestore = transition_capture->tcs_private->old_upd_tuplestore;
+				old_tuplestore = transition_capture->tcs_update_private->old_tuplestore;
 			}
 
 			if (map != NULL)
 			{
-				AfterTriggersTableData *table = transition_capture->tcs_private;
+				AfterTriggersTableData *table;
 				TupleTableSlot *storeslot;
+
+				/* Use appropriate private based on event type */
+				if (event == TRIGGER_EVENT_DELETE)
+					table = transition_capture->tcs_delete_private;
+				else
+					table = transition_capture->tcs_update_private;
 
 				storeslot = GetAfterTriggersStoreSlot(table, map->outdesc);
 				execute_attr_map_slot(map->attrMap, oldslot, storeslot);
@@ -6645,11 +6651,11 @@ InsteadofTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 
 			if(event == TRIGGER_EVENT_INSERT)
 			{
-				new_tuplestore = transition_capture->tcs_private->new_ins_tuplestore;
+				new_tuplestore = transition_capture->tcs_insert_private->new_tuplestore;
 			}
 			else if (event == TRIGGER_EVENT_UPDATE)
 			{
-				new_tuplestore = transition_capture->tcs_private->new_upd_tuplestore;
+				new_tuplestore = transition_capture->tcs_update_private->new_tuplestore;
 			}
 
 			if (original_insert_tuple != NULL)
@@ -6657,8 +6663,14 @@ InsteadofTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 										original_insert_tuple);
 			else if (map != NULL)
 			{
-				AfterTriggersTableData *table = transition_capture->tcs_private;
+				AfterTriggersTableData *table;
 				TupleTableSlot *storeslot;
+
+				/* Use appropriate private based on event type */
+				if (event == TRIGGER_EVENT_INSERT)
+					table = transition_capture->tcs_insert_private;
+				else
+					table = transition_capture->tcs_update_private;
 
 				storeslot = GetAfterTriggersStoreSlot(table, map->outdesc);
 				execute_attr_map_slot(map->attrMap, newslot, storeslot);
@@ -6741,7 +6753,24 @@ InsteadofTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 		new_shared.ats_firing_id = 0;
 		if ((trigger->tgoldtable || trigger->tgnewtable) &&
 			transition_capture != NULL)
-			new_shared.ats_table = transition_capture->tcs_private;
+		{
+			/* Use appropriate private based on event type */
+			switch (event)
+			{
+				case TRIGGER_EVENT_INSERT:
+					new_shared.ats_table = transition_capture->tcs_insert_private;
+					break;
+				case TRIGGER_EVENT_UPDATE:
+					new_shared.ats_table = transition_capture->tcs_update_private;
+					break;
+				case TRIGGER_EVENT_DELETE:
+					new_shared.ats_table = transition_capture->tcs_delete_private;
+					break;
+				default:
+					new_shared.ats_table = NULL;
+					break;
+			}
+		}
 		else
 			new_shared.ats_table = NULL;
 		new_shared.ats_modifiedcols = modifiedCols;
