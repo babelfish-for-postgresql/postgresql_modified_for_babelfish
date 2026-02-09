@@ -114,6 +114,8 @@ enum SysCacheIdentifier
 	TYPEOID,
 	USERMAPPINGOID,
 	USERMAPPINGUSERSERVER,
+	/* intentionally out of alphabetical order, to avoid an ABI break: */
+	EXTENSIONOID,
 	/* 
 	 * Below are cache IDs for extensions. We need to have them defined here
 	 * instead of their respective extension modules because we do not want 
@@ -125,7 +127,7 @@ enum SysCacheIdentifier
 	SYSNAMESPACENAME,
 	AUTHIDUSEREXTROLENAME
 
-#define SysCacheNoExtensionSize (USERMAPPINGUSERSERVER+ 1)
+#define SysCacheNoExtensionSize (EXTENSIONOID + 1)
 #define SysCacheSize (AUTHIDUSEREXTROLENAME + 1)
 };
 
