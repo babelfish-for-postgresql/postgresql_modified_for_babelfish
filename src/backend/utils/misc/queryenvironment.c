@@ -1046,19 +1046,15 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					list_ptr = &enr->md.cattups[ENR_CATTUP_CONSTRAINT];
 					ret = true;
 					
-					if (op == ENR_OP_DROP || op == ENR_OP_UPDATE) {
-						lc = find_tuple_in_enr_catalog(*list_ptr, tup, catalog_oid);
-					} else if (op == ENR_OP_ADD) {
-						Form_pg_constraint tf1 = (Form_pg_constraint) GETSTRUCT(tup);
-						ListCell *curlc;
-						foreach(curlc, enr->md.cattups[ENR_CATTUP_CONSTRAINT]) {
-							Form_pg_constraint tf2 = (Form_pg_constraint) GETSTRUCT((HeapTuple) lfirst(curlc));
-							if (tf2->oid >= tf1->oid) {
-								lc = curlc;
-								insert_at = foreach_current_index(curlc);
-								break;
-							}
-						}
+					switch (op)
+					{
+						case ENR_OP_ADD:
+							insert_at = list_length(enr->md.cattups[ENR_CATTUP_CONSTRAINT]);
+							break;
+						case ENR_OP_DROP:
+						case ENR_OP_UPDATE:
+							lc = find_tuple_in_enr_catalog(*list_ptr, tup, catalog_oid);
+							break;
 					}
 				}
 				break;
