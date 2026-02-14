@@ -92,6 +92,7 @@ static void ENRDeleteUncommittedTupleData(SubTransactionId subid, EphemeralNamed
 static void ENRRollbackUncommittedTuple(QueryEnvironment *queryEnv, ENRUncommittedTuple uncommitted_tup);
 static bool IsCatalogOidENR(Oid reloid, bool extended);
 static EphemeralNamedRelation find_enr(Form_pg_depend entry);
+static EphemeralNamedRelation find_pg_depend_tuple(Form_pg_depend tf);
 
 QueryEnvironment *
 create_queryEnv(void)
@@ -920,6 +921,38 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 						}
 						ret = true;
 					}
+					else
+					{
+						/*
+						 * While deletion, we first drop the object and then delete all its outgoing edges.
+						 * See: deleteOneObject in dependency.c
+						 * 
+						 * In which case, we can run into a situation where the associated ENR cannot be 
+						 * identified because pg_depend tuple does not contain enough information; for example 
+						 * a arraytype to ENR temp table pg_depend tuple - in this case, the arraytype is removed
+						 * from ENR, hence find_associated_enr will return NULL; but in that case, we can simply directly 
+						 * look for the pg_depend entry by matching the exact tuple (classid, objid, refclassid, refobjid).
+						 */
+						ListCell *tmplc;
+						if ((enr = find_pg_depend_tuple(tf1)))
+						{
+							list_ptr = &enr->md.cattups[ENR_CATTUP_DEPEND];
+							foreach(tmplc, enr->md.cattups[ENR_CATTUP_DEPEND]) {
+								Form_pg_depend tup = (Form_pg_depend) GETSTRUCT((HeapTuple) lfirst(tmplc));
+								if (tup->classid == tf1->classid &&
+									tup->objid == tf1->objid && 
+									tup->objsubid == tf1->objsubid && 
+									tup->refclassid == tf1->refclassid &&
+									tup->refobjid == tf1->refobjid && 
+									tup->refobjsubid== tf1->refobjsubid)
+								{
+									lc = tmplc;
+									break;
+								}
+							}
+							ret = true;
+						}
+					}
 					break;
 				}
 			case SharedDependRelationId:
@@ -1221,6 +1254,36 @@ static EphemeralNamedRelation find_enr(Form_pg_depend entry)
 
 			default:
 				break;
+		}
+		queryEnv = queryEnv->parentEnv;
+	}
+	return NULL;
+}
+
+static 
+EphemeralNamedRelation find_pg_depend_tuple(Form_pg_depend tf)
+{
+	QueryEnvironment 	*queryEnv = currentQueryEnv;
+	ListCell 			*outerlc, *innerlc;
+	
+	while (queryEnv)
+	{
+		foreach(outerlc, queryEnv->namedRelList)
+		{
+			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(outerlc);
+			if (enr->md.enrtype != ENR_TSQL_TEMP)
+				continue;
+
+			foreach(innerlc, enr->md.cattups[ENR_CATTUP_DEPEND]) {
+				Form_pg_depend tup = (Form_pg_depend) GETSTRUCT((HeapTuple) lfirst(innerlc));
+				if (tup->classid == tf->classid &&
+					tup->objid == tf->objid && 
+					tup->objsubid == tf->objsubid && 
+					tup->refclassid == tf->refclassid &&
+					tup->refobjid == tf->refobjid && 
+					tup->refobjsubid== tf->refobjsubid)
+					return enr;
+			}
 		}
 		queryEnv = queryEnv->parentEnv;
 	}
