@@ -93,7 +93,7 @@ static void ENRDeleteUncommittedTupleData(SubTransactionId subid, EphemeralNamed
 static void ENRRollbackUncommittedTuple(QueryEnvironment *queryEnv, ENRUncommittedTuple uncommitted_tup);
 static bool IsCatalogOidENR(Oid reloid, bool extended);
 static EphemeralNamedRelation find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry);
-static EphemeralNamedRelation find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tf, ListCell *lc);
+static EphemeralNamedRelation find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tf, ListCell **lc);
 
 QueryEnvironment *
 create_queryEnv(void)
@@ -948,7 +948,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 						 * look for the pg_depend entry by matching the exact tuple (classid, objid, refclassid, refobjid).
 						 */
 						ListCell *tmplc = NULL;
-						if ((enr = find_pg_depend_tuple(queryEnv, tup, tmplc)))
+						if ((enr = find_pg_depend_tuple(queryEnv, tup, &tmplc)))
 						{
 							list_ptr = &enr->md.cattups[ENR_CATTUP_DEPEND];
 							lc = tmplc;
@@ -1261,7 +1261,7 @@ find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry)
 }
 
 static EphemeralNamedRelation
-find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tf, ListCell* lc)
+find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tf, ListCell** lc)
 {
 	ListCell *outerlc;
 	
@@ -1271,8 +1271,8 @@ find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tf, ListCell* lc)
 		if (enr->md.enrtype != ENR_TSQL_TEMP)
 			continue;
 
-		lc = find_tuple_in_enr_catalog(enr->md.cattups[ENR_CATTUP_DEPEND], tf, DependRelationId);
-		if (lc)
+		*lc = find_tuple_in_enr_catalog(enr->md.cattups[ENR_CATTUP_DEPEND], tf, DependRelationId);
+		if ((*lc))
 			return enr;
 	}
 	return NULL;
