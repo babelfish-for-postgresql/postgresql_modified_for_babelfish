@@ -935,7 +935,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 						}
 						ret = true;
 					}
-					else
+					else if (op == ENR_OP_DROP)
 					{
 						/*
 						 * While deletion, we first drop the object and then delete all its outgoing edges.
@@ -1211,46 +1211,49 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 static EphemeralNamedRelation
 find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry)
 {
+	EphemeralNamedRelation depender_object_enr = NULL;
 	/*
-	 * pg_depend entry shows relation/type/constraint depends on a given object.
-	 * Find the associated ENR for this pg_depend tuple. If found, make sure
-	 * to register the dependency of the ENR relation to this object.
+	 * If the babelfishpg extension is not active, we shouldn't be coming into this
+	 * codepath at all. We will silently return NULL and let the caller handler it.
 	 */
+	if (!find_object_in_enr_hook)
+		return NULL;
+	
+	/*
+	 * pg_depend entry depicts a depender object depends on a referenced object.
+	 * If the depender object is a non-ENR, we will simply skip adding anything and
+	 * return NULL.
+	 */
+	depender_object_enr = (*find_object_in_enr_hook) (entry->classid, entry->objid, queryEnv);
+
+	if (!depender_object_enr)
+		return NULL;
+
 	switch (entry->classid) {
 		case RelationRelationId:
-			return get_ENR_withoid(queryEnv, entry->objid, ENR_TSQL_TEMP, false);
 		case TypeRelationId:
-			{
-				if (find_object_in_enr_hook)
-					return (*find_object_in_enr_hook) (entry->classid, entry->objid, queryEnv);
-				break;
-			}
+		{
+			return depender_object_enr;
+		}
 		case ConstraintRelationId:
 		case AttrDefaultRelationId:
 		{
-			EphemeralNamedRelation ref_obj_enr = NULL, obj_enr = NULL;
+			EphemeralNamedRelation referenced_object_enr = (*find_object_in_enr_hook) (entry->refclassid, entry->refobjid, queryEnv);
 
-			if (find_object_in_enr_hook)
-			{
-				ref_obj_enr = (*find_object_in_enr_hook) (entry->refclassid, entry->refobjid, queryEnv);
-				obj_enr = (*find_object_in_enr_hook) (entry->classid, entry->objid, queryEnv);
-			}
 			/*
 			 * If both the dependency and dependent objects are in ENR, then we simply return this ENR
+			 * so that the caller can add this tuple in ENR's pg_depend catalog.
 			 */
-			if (ref_obj_enr && obj_enr)
+			if (referenced_object_enr)
 			{
-				Assert(ref_obj_enr == obj_enr);
-				return ref_obj_enr;
+				Assert(referenced_object_enr == depender_object_enr);
+				return referenced_object_enr;
 			}
-			else if (obj_enr)
+			else
 			{
-				
-				/*
-				 * If the dependent object is an ENR and dependency is a non-ENR which is also not a system object,
-				 * we will not allow this creation.
-				 */
-				elog(ERROR, "Cannot create dependency on a non-ENR object");
+				ereport(ERROR,
+						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						errmsg("temporary objects cannot reference permanent non-system objects")));
 			}
 			break;
 		}
