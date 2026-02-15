@@ -93,7 +93,7 @@ static void ENRDeleteUncommittedTupleData(SubTransactionId subid, EphemeralNamed
 static void ENRRollbackUncommittedTuple(QueryEnvironment *queryEnv, ENRUncommittedTuple uncommitted_tup);
 static bool IsCatalogOidENR(Oid reloid, bool extended);
 static EphemeralNamedRelation find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry);
-static EphemeralNamedRelation find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tf, ListCell **lc);
+static EphemeralNamedRelation find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tosearch, ListCell **lc);
 
 QueryEnvironment *
 create_queryEnv(void)
@@ -1214,7 +1214,7 @@ find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry)
 	EphemeralNamedRelation depender_object_enr = NULL;
 	/*
 	 * If the babelfishpg extension is not active, we shouldn't be coming into this
-	 * codepath at all. We will silently return NULL and let the caller handler it.
+	 * codepath at all. We will silently return NULL and let the caller handle it.
 	 */
 	if (!find_object_in_enr_hook)
 		return NULL;
@@ -1222,7 +1222,7 @@ find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry)
 	/*
 	 * pg_depend entry depicts a depender object depends on a referenced object.
 	 * If the depender object is a non-ENR, we will simply skip adding anything and
-	 * return NULL.
+	 * return NULL. The caller handles the rest.
 	 */
 	depender_object_enr = (*find_object_in_enr_hook) (entry->classid, entry->objid, queryEnv);
 
@@ -1263,8 +1263,12 @@ find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry)
 	return NULL;
 }
 
+/*
+ * Finds the ENR and the tuple which matches the passed in tuple tosearch by searching
+ * the pg_depend catalog by traversing through all the ENRs in the given queryEnvironment.
+ */
 static EphemeralNamedRelation
-find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tf, ListCell** lc)
+find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tosearch, ListCell** lc)
 {
 	ListCell *outerlc;
 	
@@ -1274,7 +1278,7 @@ find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tf, ListCell** lc)
 		if (enr->md.enrtype != ENR_TSQL_TEMP)
 			continue;
 
-		*lc = find_tuple_in_enr_catalog(enr->md.cattups[ENR_CATTUP_DEPEND], tf, DependRelationId);
+		*lc = find_tuple_in_enr_catalog(enr->md.cattups[ENR_CATTUP_DEPEND], tosearch, DependRelationId);
 		if ((*lc))
 			return enr;
 	}
