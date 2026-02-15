@@ -108,6 +108,10 @@ recordMultipleDependencies(const ObjectAddress *depender,
 		if (isObjectPinned(referenced))
 			continue;
 		
+		/*
+		 * If the depender object is an ENR and the referenced object is a system object
+		 * we do not need to record this dependency since system objects cannot be altered.
+		 */
 		if (is_enr_to_sys_object_dependency_hook && (*is_enr_to_sys_object_dependency_hook) (depender, referenced))
 			continue;
 
