@@ -1251,6 +1251,13 @@ find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry)
 			}
 			else
 			{
+				/*
+				 * Control ENR <-> non-ENR dependency creation. By default, the GUC will be set
+				 * to false, meaning we will not be allowing pg_depend entries from ENR to non-ENR, however,
+				 * since we previously supported this, this GUC acts as a escape hatch.
+				 */
+				if (pltsql_allow_enr_to_non_enr_dependency)
+					break;
 				ereport(ERROR,
 						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 						errmsg("temporary objects cannot reference permanent non-system objects")));
