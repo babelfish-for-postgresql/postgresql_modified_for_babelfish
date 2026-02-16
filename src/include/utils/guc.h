@@ -280,8 +280,6 @@ extern PGDLLIMPORT int num_temp_buffers;
 extern PGDLLIMPORT int temp_oid_buffer_start;
 extern PGDLLIMPORT int temp_oid_buffer_size;
 
-extern PGDLLIMPORT bool pltsql_allow_enr_to_non_enr_dependency;
-
 extern PGDLLIMPORT bool temp_table_xact_support;
 
 extern PGDLLIMPORT char *cluster_name;

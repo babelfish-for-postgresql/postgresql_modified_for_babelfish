@@ -95,6 +95,9 @@ static bool IsCatalogOidENR(Oid reloid, bool extended);
 static EphemeralNamedRelation find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry);
 static EphemeralNamedRelation find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tosearch, ListCell **lc);
 
+/* Control if we want to allow ENR <-> non-ENR dependency creation */
+bool pltsql_allow_enr_to_non_enr_dependency;
+
 QueryEnvironment *
 create_queryEnv(void)
 {

@@ -104,9 +104,6 @@ int			temp_oid_buffer_size;
  */
 bool		temp_table_xact_support;
 
-/* Control if we want to allow ENR <-> non-ENR dependency creation */
-bool pltsql_allow_enr_to_non_enr_dependency;
-
 /*
  * Unit conversion tables.
  *

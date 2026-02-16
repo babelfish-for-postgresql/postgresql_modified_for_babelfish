@@ -190,4 +190,6 @@ extern PGDLLIMPORT find_object_in_enr_hook_type find_object_in_enr_hook;
 typedef bool (*is_enr_to_sys_object_dependency_hook_type) (const ObjectAddress *depender, const ObjectAddress *referenced);
 extern PGDLLIMPORT is_enr_to_sys_object_dependency_hook_type is_enr_to_sys_object_dependency_hook;
 
+extern PGDLLIMPORT bool pltsql_allow_enr_to_non_enr_dependency;
+
 #endif							/* QUERYENVIRONMENT_H */
