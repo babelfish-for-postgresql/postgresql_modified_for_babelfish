@@ -1186,27 +1186,24 @@ void ENRDropEntry(Oid id)
 	MemoryContext oldcxt;
 	QueryEnvironment *queryEnv;
 
-	if (sql_dialect != SQL_DIALECT_TSQL || !currentQueryEnv)
+	if ((sql_dialect != SQL_DIALECT_TSQL && !(is_bbf_tds_connection_hook && is_bbf_tds_connection_hook())) || !currentQueryEnv)
 		return;
 
-	if ((enr = GetENRTempTableWithOid(id, true)) == NULL)
-		return;
-
-	/* Find which query environment actually contains this ENR */
+	/* Find the ENR and which query environment contains it */
 	queryEnv = currentQueryEnv;
 	while (queryEnv)
 	{
-		if (list_member(queryEnv->namedRelList, enr))
+		if ((enr = get_ENR_withoid(queryEnv, id, ENR_TSQL_TEMP, false)) != NULL)
 			break;
 		queryEnv = queryEnv->parentEnv;
 	}
 
 	/* ENR not found in any environment */
-	if (!queryEnv)
+	if (!enr)
 		return;
 
 	oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
-	queryEnv->namedRelList = list_delete(queryEnv->namedRelList, enr);
+	queryEnv->namedRelList = list_delete_ptr(queryEnv->namedRelList, enr);
 
 	/* If we are dropping a committed ENR, wait until COMMIT to free it. */
 	if (temp_table_xact_support && enr->md.is_bbf_temp_table)
