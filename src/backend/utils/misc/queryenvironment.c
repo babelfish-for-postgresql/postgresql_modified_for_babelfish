@@ -95,9 +95,6 @@ static bool IsCatalogOidENR(Oid reloid, bool extended);
 static EphemeralNamedRelation find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry);
 static EphemeralNamedRelation find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tosearch, ListCell **lc);
 
-/* Control if we want to allow ENR <-> non-ENR dependency creation */
-bool pltsql_allow_enr_to_non_enr_dependency;
-
 QueryEnvironment *
 create_queryEnv(void)
 {
@@ -1254,13 +1251,6 @@ find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry)
 			}
 			else
 			{
-				/*
-				 * Control ENR <-> non-ENR dependency creation. By default, the GUC will be set
-				 * to false, meaning we will not be allowing pg_depend entries from ENR to non-ENR, however,
-				 * since we previously supported this, this GUC acts as a escape hatch.
-				 */
-				if (pltsql_allow_enr_to_non_enr_dependency)
-					break;
 				ereport(ERROR,
 						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 						errmsg("temporary objects cannot reference permanent non-system objects")));
