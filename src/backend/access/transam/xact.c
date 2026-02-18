@@ -41,6 +41,7 @@
 #include "common/pg_prng.h"
 #include "executor/spi.h"
 #include "libpq/be-fsstubs.h"
+#include "libpq/libpq.h"
 #include "libpq/pqsignal.h"
 #include "miscadmin.h"
 #include "pg_trace.h"
@@ -2032,13 +2033,26 @@ AtSubCleanup_Memory(void)
 
 	Assert(s->parent != NULL);
 
-	/*
-	 * Return to the memory context that was current before we started the
-	 * subtransaction.  (In principle, this could not be any of the contexts
-	 * we are about to delete.  If it somehow is, assertions in mcxt.c will
-	 * complain.)
-	 */
-	MemoryContextSwitchTo(s->priorContext);
+	if (MyProcPort && MyProcPort->is_tds_conn && sql_dialect == SQL_DIALECT_TSQL)
+	{
+		/*
+		* For TDS/T-SQL connections, use parent's transaction context instead of
+		* priorContext. This avoids using stale priorContext pointers that may
+		* reference deleted SPI memory contexts, which can cause assertion failures
+		* when the memory is reused and creates circular parent-child relationships.
+		*/
+		MemoryContextSwitchTo(s->parent->curTransactionContext);
+	}
+	else
+	{
+		/*
+		* Return to the memory context that was current before we started the
+		* subtransaction.  (In principle, this could not be any of the contexts
+		* we are about to delete.  If it somehow is, assertions in mcxt.c will
+		* complain.)
+		*/
+		MemoryContextSwitchTo(s->priorContext);
+	}
 
 	/* Update CurTransactionContext (might not be same as priorContext) */
 	CurTransactionContext = s->parent->curTransactionContext;
