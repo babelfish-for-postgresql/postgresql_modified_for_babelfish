@@ -909,7 +909,7 @@ LockAcquireExtended(const LOCKTAG *locktag,
 	bool		log_lock = false;
 	bool		is_temp_relation_lock = pltsql_get_tsql_enr_from_oid_hook && locktag->locktag_type == LOCKTAG_RELATION && 
 										(*pltsql_get_tsql_enr_from_oid_hook)(locktag->locktag_field2);
-	bool		is_temp_object_lock = find_object_in_enr_hook && locktag->locktag_type == LOCKTAG_OBJECT && (*find_object_in_enr_hook) (locktag->locktag_field2, locktag->locktag_field3);
+	bool		is_temp_object_lock = find_object_in_enr_hook && locktag->locktag_type == LOCKTAG_OBJECT && (*find_object_in_enr_hook) (locktag->locktag_field2, locktag->locktag_field3, NULL);
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
