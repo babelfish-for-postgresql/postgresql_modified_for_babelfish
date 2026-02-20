@@ -1292,21 +1292,32 @@ void ENRDropEntry(Oid id)
 {
 	EphemeralNamedRelation	enr;
 	MemoryContext oldcxt;
+	QueryEnvironment *queryEnv;
 
-	if (sql_dialect != SQL_DIALECT_TSQL || !currentQueryEnv)
+	if ((sql_dialect != SQL_DIALECT_TSQL && !(is_bbf_tds_connection_hook && is_bbf_tds_connection_hook())) || !currentQueryEnv)
 		return;
 
-	if ((enr = GetENRTempTableWithOid(id, false)) == NULL)
+	/* Find the ENR and which query environment contains it */
+	queryEnv = currentQueryEnv;
+	while (queryEnv)
+	{
+		if ((enr = get_ENR_withoid(queryEnv, id, ENR_TSQL_TEMP, false)) != NULL)
+			break;
+		queryEnv = queryEnv->parentEnv;
+	}
+
+	/* ENR not found in any environment */
+	if (!enr)
 		return;
 
-	oldcxt = MemoryContextSwitchTo(currentQueryEnv->memctx);
-	currentQueryEnv->namedRelList = list_delete(currentQueryEnv->namedRelList, enr);
+	oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
+	queryEnv->namedRelList = list_delete_ptr(queryEnv->namedRelList, enr);
 
 	/* If we are dropping a committed ENR, wait until COMMIT to free it. */
 	if (temp_table_xact_support && enr->md.is_bbf_temp_table)
 	{
 		enr->md.dropped_subid = GetCurrentSubTransactionId();
-		currentQueryEnv->dropped_namedRelList = lappend(currentQueryEnv->dropped_namedRelList, enr);
+		queryEnv->dropped_namedRelList = lappend(queryEnv->dropped_namedRelList, enr);
 	}
 	else
 	{
