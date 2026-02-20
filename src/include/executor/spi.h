@@ -3,7 +3,7 @@
  * spi.h
  *				Server Programming Interface public declarations
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/executor/spi.h
@@ -208,4 +208,7 @@ extern bool SPI_inside_nonatomic_context(void);
 
 extern PGDLLEXPORT void SPI_setCurrentInternalTxnMode(bool mode);
 extern int  SPI_get_depth(void);
+
+typedef bool (*validateCachedPlanSearchPath_hook_type) (SPIPlanPtr plan);
+extern PGDLLIMPORT validateCachedPlanSearchPath_hook_type validateCachedPlanSearchPath_hook;
 #endif							/* SPI_H */

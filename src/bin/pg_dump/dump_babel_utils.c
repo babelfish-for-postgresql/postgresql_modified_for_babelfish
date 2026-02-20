@@ -52,6 +52,18 @@ typedef enum {
 
 static babelfish_status bbf_status = NONE;
 
+static char *default_bbf_db_principals =
+			"('master_dbo', 'master_db_owner', 'master_guest', "
+			"'master_db_accessadmin', 'master_db_securityadmin', "
+			"'master_db_datareader', 'master_db_datawriter', 'master_db_ddladmin', "
+			"'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
+			"'msdb_db_accessadmin', 'msdb_db_securityadmin', "
+			"'msdb_db_datareader', 'msdb_db_datawriter', 'msdb_db_ddladmin', "
+			"'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', "
+			"'tempdb_db_accessadmin', 'tempdb_db_securityadmin', "
+			"'tempdb_db_datareader', 'tempdb_db_datawriter', 'tempdb_db_ddladmin')";
+
+
 
 static char *
 getMinOid(Archive *fout)
@@ -211,7 +223,7 @@ dumpBabelGUCs(Archive *fout)
 	 * session_replication_role session GUC to temporarily disable the triggers
 	 * for the data-only dump so as to allow non-superuser to perform the restore.
 	 */
-	if(!fout->dopt->binary_upgrade && fout->dopt->dataOnly)
+	if(!fout->dopt->binary_upgrade && fout->dopt->dumpData)
 		appendPQExpBufferStr(qry, "SET session_replication_role = replica;\n");
 
 	ArchiveEntry(fout, nilCatalogId, createDumpId(),
@@ -401,7 +413,7 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 							 * are not marked to be dumped so catalog table data explicitly
 							 * need to be marked as dumpable.
 							 */
-							if (isBabelfishConfigTable(fout, tbinfo) && !fout->dopt->dataOnly)
+							if (isBabelfishConfigTable(fout, tbinfo) && !fout->dopt->dumpData)
 							{
 								tbinfo->dobj.dump |= DUMP_COMPONENT_DATA;
 								/* also prepare the dumpable object upfront */
@@ -1015,7 +1027,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	TableInfo		*sysdb_table = NULL;
 	DumpableObject		*refdobj = NULL;
 
-	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade || fout->dopt->dataOnly)
+	if (!isBabelfishDatabase(fout) || fout->dopt->binary_upgrade || fout->dopt->dumpData)
 		return;
 
 	/* Get the OID of sys.babelfish_sysdatabases catalog */
@@ -1123,11 +1135,8 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						  "INNER JOIN sys.babelfish_sysdatabases b "
 						  "ON a.database_name = b.name COLLATE \"C\" "
 						  "WHERE b.dbid = %d "
-						  "AND a.rolname NOT IN "
-						  "('master_dbo', 'master_db_owner', 'master_guest', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest') ",
-						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
+						  "AND a.rolname NOT IN %s",
+						  fmtQualifiedDumpable(tbinfo), bbf_db_id, default_bbf_db_principals);
 	}
 	else
 	{
@@ -1169,15 +1178,17 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 	{
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
-						  "WHERE a.rolname NOT IN "
-						  "('master_dbo', 'master_db_owner', 'master_guest', "
-						  "'tempdb_dbo', 'tempdb_db_owner', 'tempdb_guest', "
-						  "'msdb_dbo', 'msdb_db_owner', 'msdb_guest')",
-						  fmtQualifiedDumpable(tbinfo));
+						  "WHERE a.rolname NOT IN %s",
+						  fmtQualifiedDumpable(tbinfo), default_bbf_db_principals);
 	}
+	/* 
+	 * Do not dump sysadmin, bbf_role_admin, securityadmin,
+	 * dbcreator and Babelfish initialize user 
+	 */
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
-						"WHERE a.rolname NOT IN ('sysadmin', 'bbf_role_admin', '%s')", /* Do not dump sysadmin, bbf_role_admin and Babelfish initialize user */
+						"WHERE a.rolname NOT IN ('sysadmin', 'bbf_role_admin', "
+						"'securityadmin', 'dbcreator', '%s')",
 						fmtQualifiedDumpable(tbinfo), babel_init_user);
 	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
@@ -1760,7 +1771,15 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric\"" : "sys.int2_numeric") != 0 &&
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2\"" : "sys.numeric_int2") != 0 &&
 		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric\"" : "sys.int8_numeric") != 0 &&
-		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8\"" : "sys.numeric_int8") != 0)
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8\"" : "sys.numeric_int8") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric_ops\"" : "sys.int2_numeric_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2_ops\"" : "sys.numeric_int2_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int4_numeric_ops\"" : "sys.int4_numeric_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int4_ops\"" : "sys.numeric_int4_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric_ops\"" : "sys.int8_numeric_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8_ops\"" : "sys.numeric_int8_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_fixeddecimal_cmp_ops\"" : "sys.numeric_fixeddecimal_cmp_ops") != 0 &&
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"fixeddecimal_numeric_cmp_ops\"" : "sys.fixeddecimal_numeric_cmp_ops") != 0)
 		return;
 
 	query = createPQExpBuffer();
@@ -1789,7 +1808,7 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 	}
 
 	if (strcasecmp(opfnamespace, "\"pg_catalog\"") != 0 ||
-		strcasecmp(opfname, "integer_ops") != 0)
+		(strcasecmp(opfname, "integer_ops") != 0 && strcasecmp(opfname, "numeric_ops") != 0))
 	{
 		PQclear(res);
 		return;
@@ -1797,7 +1816,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 
 	PQclear(res);
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int_numeric\"" : "sys.int_numeric") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int_numeric\"" : "sys.int_numeric") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int4_numeric_ops\"" : "sys.int4_numeric_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (int4, numeric) ,\n	"
@@ -1814,7 +1834,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"FUNCTION 1 sys.int4_numeric_cmp(int4, numeric) ";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int\"" : "sys.numeric_int") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int\"" : "sys.numeric_int") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int4_ops\"" : "sys.numeric_int4_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (numeric, int4) ,\n	"
@@ -1831,7 +1852,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"FUNCTION 1 sys.numeric_int4_cmp(numeric, int4) ";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric\"" : "sys.int2_numeric") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric\"" : "sys.int2_numeric") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int2_numeric_ops\"" : "sys.int2_numeric_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 			"OPERATOR 1 \"sys\".< (int2, numeric) ,\n	"
@@ -1848,7 +1870,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 			"FUNCTION 1 sys.int2_numeric_cmp(int2, numeric) ";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2\"" : "sys.numeric_int2") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2\"" : "sys.numeric_int2") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int2_ops\"" : "sys.numeric_int2_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (numeric, int2) ,\n	"
@@ -1865,7 +1888,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"FUNCTION 1 sys.numeric_int2_cmp(numeric, int2)	";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric\"" : "sys.int8_numeric") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric\"" : "sys.int8_numeric") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"int8_numeric_ops\"" : "sys.int8_numeric_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (int8, numeric) ,\n	"
@@ -1882,7 +1906,8 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"FUNCTION 1 sys.int8_numeric_cmp(int8, numeric) ";
 	}
 
-	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8\"" : "sys.numeric_int8") == 0)
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8\"" : "sys.numeric_int8") == 0 ||
+		pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_int8_ops\"" : "sys.numeric_int8_ops") == 0)
 	{
 		str = quote_all_identifiers ?
 				"OPERATOR 1 \"sys\".< (numeric, int8) ,\n	"
@@ -1897,6 +1922,40 @@ babelfishDumpOpclassHelper(Archive *fout, const OpclassInfo *opcinfo, PQExpBuffe
 				"OPERATOR 4 sys.>= (numeric, int8) ,\n	"
 				"OPERATOR 5 sys.> (numeric, int8) ,\n	"
 				"FUNCTION 1 sys.numeric_int8_cmp(numeric, int8) ";
+	}
+
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"numeric_fixeddecimal_cmp_ops\"" : "sys.numeric_fixeddecimal_cmp_ops") == 0)
+	{
+		str = quote_all_identifiers ?
+				"OPERATOR 1 \"sys\".< (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 2 \"sys\".<= (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 3 \"sys\".= (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 4 \"sys\".>= (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"OPERATOR 5 \"sys\".> (numeric, \"sys\".\"fixeddecimal\") ,\n	"
+				"FUNCTION 1 \"sys\".\"numeric_fixeddecimal_cmp\"(numeric, \"sys\".\"fixeddecimal\") " :
+				"OPERATOR 1 sys.< (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 2 sys.<= (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 3 sys.= (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 4 sys.>= (numeric, sys.fixeddecimal) ,\n	"
+				"OPERATOR 5 sys.> (numeric, sys.fixeddecimal) ,\n	"
+				"FUNCTION 1 sys.numeric_fixeddecimal_cmp(numeric, sys.fixeddecimal) ";
+	}
+
+	if (pg_strcasecmp(opclass, quote_all_identifiers ? "\"sys\".\"fixeddecimal_numeric_cmp_ops\"" : "sys.fixeddecimal_numeric_cmp_ops") == 0)
+	{
+		str = quote_all_identifiers ?
+				"OPERATOR 1 \"sys\".< (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 2 \"sys\".<= (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 3 \"sys\".= (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 4 \"sys\".>= (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"OPERATOR 5 \"sys\".> (\"sys\".\"fixeddecimal\", numeric) ,\n	"
+				"FUNCTION 1 \"sys\".\"fixeddecimal_numeric_cmp\"(\"sys\".\"fixeddecimal\", numeric) " :
+				"OPERATOR 1 sys.< (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 2 sys.<= (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 3 sys.= (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 4 sys.>= (sys.fixeddecimal, numeric) ,\n	"
+				"OPERATOR 5 sys.> (sys.fixeddecimal, numeric) ,\n	"
+				"FUNCTION 1 sys.fixeddecimal_numeric_cmp(sys.fixeddecimal, numeric) ";
 	}
 
 	if(str != NULL)
@@ -1991,7 +2050,7 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 					"\n	SET LOCAL ROLE sysadmin;"
 					"\n	FOR rolname, original_name IN ("
 					"\n		SELECT a.rolname, a.orig_username FROM sys.babelfish_authid_user_ext a"
-					"\n			WHERE orig_username IN ('dbo') AND"
+					"\n			WHERE orig_username IN ('dbo','db_accessadmin','db_securityadmin','db_ddladmin') AND"
 					"\n			database_name NOT IN ('master', 'tempdb', 'msdb')");
 
 	if (bbf_db_name)
@@ -2002,6 +2061,8 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 					"\n	) LOOP"
 					"\n		CASE WHEN original_name = 'dbo' THEN"
 					"\n			EXECUTE format('GRANT CREATE, CONNECT, TEMPORARY ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
+					"\n		WHEN original_name IN ('db_securityadmin','db_accessadmin','db_ddladmin') THEN"
+					"\n			EXECUTE format('GRANT CREATE ON DATABASE \"%%s\" TO \"%%s\"; ', CURRENT_DATABASE(), rolname);"
 					"\n		END CASE;"
 					"\n	END LOOP;"
 					"\n	RESET ROLE;"

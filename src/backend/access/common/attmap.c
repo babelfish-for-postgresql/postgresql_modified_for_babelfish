@@ -10,7 +10,7 @@
  * columns in a different order, taking into account dropped columns.
  * They are also used by the tuple conversion routines in tupconvert.c.
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -98,36 +98,34 @@ build_attrmap_by_position(TupleDesc indesc,
 	same = true;
 	for (i = 0; i < n; i++)
 	{
-		Form_pg_attribute att = TupleDescAttr(outdesc, i);
-		Oid			atttypid;
-		int32		atttypmod;
+		Form_pg_attribute outatt = TupleDescAttr(outdesc, i);
 
-		if (att->attisdropped)
+		if (outatt->attisdropped)
 			continue;			/* attrMap->attnums[i] is already 0 */
 		noutcols++;
-		atttypid = att->atttypid;
-		atttypmod = att->atttypmod;
 		for (; j < indesc->natts; j++)
 		{
-			att = TupleDescAttr(indesc, j);
-			if (att->attisdropped)
+			Form_pg_attribute inatt = TupleDescAttr(indesc, j);
+
+			if (inatt->attisdropped)
 				continue;
 			nincols++;
 
 			/* Found matching column, now check type */
 			/* skip check type if it's tsql insert exec or if it is for tsql inline table valued function */
-			if ((atttypid != att->atttypid ||
-				(atttypmod != att->atttypmod && atttypmod >= 0)) &&
+			if ((outatt->atttypid != inatt->atttypid ||
+				(outatt->atttypmod != inatt->atttypmod && outatt->atttypmod >= 0)) &&
 				!(called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook()) &&
 				!(called_for_tsql_itvf_func_hook && called_for_tsql_itvf_func_hook()))
 				ereport(ERROR,
 						(errcode(ERRCODE_DATATYPE_MISMATCH),
 						 errmsg_internal("%s", _(msg)),
-						 errdetail("Returned type %s does not match expected type %s in column %d.",
-								   format_type_with_typemod(att->atttypid,
-															att->atttypmod),
-								   format_type_with_typemod(atttypid,
-															atttypmod),
+						 errdetail("Returned type %s does not match expected type %s in column \"%s\" (position %d).",
+								   format_type_with_typemod(inatt->atttypid,
+															inatt->atttypmod),
+								   format_type_with_typemod(outatt->atttypid,
+															outatt->atttypmod),
+								   NameStr(outatt->attname),
 								   noutcols)));
 			attrMap->attnums[i] = (AttrNumber) (j + 1);
 			j++;
@@ -140,7 +138,7 @@ build_attrmap_by_position(TupleDesc indesc,
 	/* Check for unused input columns */
 	for (; j < indesc->natts; j++)
 	{
-		if (TupleDescAttr(indesc, j)->attisdropped)
+		if (TupleDescCompactAttr(indesc, j)->attisdropped)
 			continue;
 		nincols++;
 		same = false;			/* we'll complain below */
@@ -304,8 +302,14 @@ check_attrmap_match(TupleDesc indesc,
 
 	for (i = 0; i < attrMap->maplen; i++)
 	{
-		Form_pg_attribute inatt = TupleDescAttr(indesc, i);
-		Form_pg_attribute outatt = TupleDescAttr(outdesc, i);
+		CompactAttribute *inatt = TupleDescCompactAttr(indesc, i);
+		CompactAttribute *outatt;
+		/*
+		 * APG needs member variable atttypid, and hence we need to get the entire form data
+		 * and not just the compact attributes
+		 */
+		Form_pg_attribute inatt_form_attributes = TupleDescAttr(indesc, i);
+		Form_pg_attribute outatt_form_attributes = TupleDescAttr(outdesc, i);
 
 		/*
 		 * If the input column has a missing attribute, we need a conversion.
@@ -318,22 +322,23 @@ check_attrmap_match(TupleDesc indesc,
 		 */
 		if (((called_from_tsql_insert_exec_hook && called_from_tsql_insert_exec_hook()) 
 				|| (called_for_tsql_itvf_func_hook && called_for_tsql_itvf_func_hook()))
-		 	&& (inatt->atttypid != outatt->atttypid ||
-			inatt->atttypmod != outatt->atttypmod))
+		 	&& (inatt_form_attributes->atttypid != outatt_form_attributes->atttypid ||
+			inatt_form_attributes->atttypmod != outatt_form_attributes->atttypmod))
 			return false;
 
 		if (attrMap->attnums[i] == (i + 1))
 			continue;
 
+		outatt = TupleDescCompactAttr(outdesc, i);
 		/*
 		 * If it's a dropped column and the corresponding input column is also
-		 * dropped, we don't need a conversion.  However, attlen and attalign
-		 * must agree.
+		 * dropped, we don't need a conversion.  However, attlen and
+		 * attalignby must agree.
 		 */
 		if (attrMap->attnums[i] == 0 &&
 			inatt->attisdropped &&
 			inatt->attlen == outatt->attlen &&
-			inatt->attalign == outatt->attalign)
+			inatt->attalignby == outatt->attalignby)
 			continue;
 
 		return false;

@@ -4,7 +4,7 @@
  *	  prototypes for functions in backend/catalog/namespace.c
  *
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/catalog/namespace.h
@@ -90,6 +90,9 @@ typedef bool (*match_pltsql_func_call_hook_type) (HeapTuple proctup, int nargs, 
 												  bool *use_defaults, bool *any_special,
 												  bool *variadic, Oid *va_elem_type);
 extern PGDLLEXPORT match_pltsql_func_call_hook_type match_pltsql_func_call_hook;
+
+typedef bool (*is_bbf_tds_connection_hook_type) ();
+extern PGDLLEXPORT is_bbf_tds_connection_hook_type is_bbf_tds_connection_hook;
 
 #define RangeVarGetRelid(relation, lockmode, missing_ok) \
 	RangeVarGetRelidExtended(relation, lockmode, \

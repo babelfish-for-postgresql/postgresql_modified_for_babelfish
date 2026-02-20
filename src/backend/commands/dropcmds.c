@@ -3,7 +3,7 @@
  * dropcmds.c
  *	  handle various "DROP" operations
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -18,10 +18,12 @@
 #include "access/xact.h"
 #include "catalog/dependency.h"
 #include "catalog/namespace.h"
+#include "catalog/objectaccess.h"
 #include "catalog/objectaddress.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_proc.h"
 #include "commands/defrem.h"
+#include "commands/tablecmds.h"
 #include "miscadmin.h"
 #include "parser/parser.h"
 #include "parser/parse_type.h"
@@ -104,8 +106,11 @@ RemoveObjects(DropStmt *stmt)
 
 		/* Check permissions. */
 		namespaceId = get_object_namespace(&address);
-		if (!OidIsValid(namespaceId) ||
-			!object_ownercheck(NamespaceRelationId, namespaceId, GetUserId()))
+		if ((!OidIsValid(namespaceId) ||
+			!object_ownercheck(NamespaceRelationId, namespaceId, GetUserId())) &&
+			!(OidIsValid(namespaceId) && IS_BBF_DB_DDLADMIN(namespaceId)) &&
+			!(stmt->removeType == OBJECT_SCHEMA && IS_BBF_DB_DDLADMIN(address.objectId)) &&
+			!(relation != NULL && IS_BBF_DB_DDLADMIN(RelationGetNamespace(relation))))
 			check_object_ownership(GetUserId(), stmt->removeType, address,
 								   object, relation);
 
@@ -128,6 +133,11 @@ RemoveObjects(DropStmt *stmt)
 			table_close(relation, NoLock);
 
 		add_exact_object_address(&address, objects);
+
+		if (object_access_hook && (stmt->removeType == OBJECT_FUNCTION) && sql_dialect == SQL_DIALECT_TSQL)
+		{
+			InvokeObjectDropHook(ProcedureRelationId, address.objectId, -1);
+		}
 	}
 
 	/* Here we really delete them. */

@@ -17,7 +17,7 @@
  * the backend's "backend/libpq" is quite separate from "interfaces/libpq".
  * All that remains is similarities of names to trap the unwary...
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *	src/backend/libpq/pqcomm.c
@@ -77,6 +77,7 @@
 #include "miscadmin.h"
 #include "port/pg_bswap.h"
 #include "postmaster/protocol_extension.h"
+#include "postmaster/postmaster.h"
 #include "storage/ipc.h"
 #include "utils/guc_hooks.h"
 #include "utils/memutils.h"
@@ -150,7 +151,7 @@ static int	socket_flush_if_writable(void);
 static bool socket_is_send_pending(void);
 static int	socket_putmessage(char msgtype, const char *s, size_t len);
 static void socket_putmessage_noblock(char msgtype, const char *s, size_t len);
-static inline int internal_putbytes(const char *s, size_t len);
+static inline int internal_putbytes(const void *b, size_t len);
 static inline int internal_flush(void);
 static pg_noinline int internal_flush_buffer(const char *buf, size_t *start,
 											 size_t *end);
@@ -572,7 +573,7 @@ ListenServerPort(int family, const char *hostName, unsigned short portNumber,
 			{
 				ereport(LOG,
 						(errcode_for_socket_access(),
-				/* translator: third %s is IPv4, IPv6, or Unix */
+				/* translator: third %s is IPv4 or IPv6 */
 						 errmsg("%s(%s) failed for %s address \"%s\": %m",
 								"setsockopt", "SO_REUSEADDR",
 								familyDesc, addrDesc)));
@@ -590,7 +591,7 @@ ListenServerPort(int family, const char *hostName, unsigned short portNumber,
 			{
 				ereport(LOG,
 						(errcode_for_socket_access(),
-				/* translator: third %s is IPv4, IPv6, or Unix */
+				/* translator: third %s is IPv6 */
 						 errmsg("%s(%s) failed for %s address \"%s\": %m",
 								"setsockopt", "IPV6_V6ONLY",
 								familyDesc, addrDesc)));
@@ -1060,8 +1061,9 @@ pq_getbyte_if_available(unsigned char *c)
  * --------------------------------
  */
 int
-pq_getbytes(char *s, size_t len)
+pq_getbytes(void *b, size_t len)
 {
+	char	   *s = b;
 	size_t		amount;
 
 	Assert(PqCommReadingMsg || IsNonLibpqClient);
@@ -1209,7 +1211,7 @@ pq_getmessage(StringInfo s, int maxlen)
 	resetStringInfo(s);
 
 	/* Read message length word */
-	if (pq_getbytes((char *) &len, 4) == EOF)
+	if (pq_getbytes(&len, 4) == EOF)
 	{
 		ereport(COMMERROR,
 				(errcode(ERRCODE_PROTOCOL_VIOLATION),
@@ -1274,8 +1276,10 @@ pq_getmessage(StringInfo s, int maxlen)
 
 
 static inline int
-internal_putbytes(const char *s, size_t len)
+internal_putbytes(const void *b, size_t len)
 {
+	const char *s = b;
+
 	while (len > 0)
 	{
 		/* If buffer is full, then flush it out */
@@ -1368,7 +1372,7 @@ internal_flush_buffer(const char *buf, size_t *start, size_t *end)
 	{
 		int			r;
 
-		r = secure_write(MyProcPort, (char *) bufptr, bufend - bufptr);
+		r = secure_write(MyProcPort, bufptr, bufend - bufptr);
 
 		if (r <= 0)
 		{
@@ -1499,7 +1503,7 @@ socket_putmessage(char msgtype, const char *s, size_t len)
 		goto fail;
 
 	n32 = pg_hton32((uint32) (len + 4));
-	if (internal_putbytes((char *) &n32, 4))
+	if (internal_putbytes(&n32, 4))
 		goto fail;
 
 	if (internal_putbytes(s, len))

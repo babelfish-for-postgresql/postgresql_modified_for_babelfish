@@ -3,7 +3,7 @@
  * parallel.h
  *	  Infrastructure for launching parallel workers
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/access/parallel.h
@@ -71,7 +71,7 @@ extern void DestroyParallelContext(ParallelContext *pcxt);
 extern bool ParallelContextActive(void);
 
 extern void HandleParallelMessageInterrupt(void);
-extern void HandleParallelMessages(void);
+extern void ProcessParallelMessages(void);
 extern void AtEOXact_Parallel(bool isCommit);
 extern void AtEOSubXact_Parallel(bool isCommit, SubTransactionId mySubId);
 extern void ParallelWorkerReportLastRecEnd(XLogRecPtr last_xlog_end);
@@ -81,15 +81,11 @@ extern void ParallelWorkerMain(Datum main_arg);
 /* Below helpers are added to support parallel workers in Babelfish context */
 extern bool IsBabelfishParallelWorker(void);
 
-/* Key for BabelfishFixedParallelState */
-#define BABELFISH_PARALLEL_KEY_FIXED        UINT64CONST(0xBBF0000000000001)
-
 /* Hooks for communicating babelfish related information to parallel worker */
 typedef void (*bbf_InitializeParallelDSM_hook_type)(ParallelContext *pcxt, bool estimate);
 extern PGDLLIMPORT bbf_InitializeParallelDSM_hook_type bbf_InitializeParallelDSM_hook;
 
 typedef void (*bbf_ParallelWorkerMain_hook_type)(shm_toc *toc);
 extern PGDLLIMPORT bbf_ParallelWorkerMain_hook_type bbf_ParallelWorkerMain_hook;
-
 
 #endif							/* PARALLEL_H */

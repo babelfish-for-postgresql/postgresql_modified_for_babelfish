@@ -17,7 +17,7 @@ jobs:
           sudo apt install -y libipc-run-perl
       - name: build-postgres
         run: |
-          ./configure --with-icu --enable-cassert --enable-tap-tests
+          ./configure --with-icu --enable-cassert --enable-tap-tests --without-readline
           make world-bin -j8 COPT='-Werror -Wno-error=maybe-uninitialized'
       - name: run-tests
         run: |

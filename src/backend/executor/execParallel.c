@@ -3,7 +3,7 @@
  * execParallel.c
  *	  Support routines for parallel execution.
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * This file contains routines that are intended to support setting up,
@@ -28,6 +28,7 @@
 #include "executor/nodeAgg.h"
 #include "executor/nodeAppend.h"
 #include "executor/nodeBitmapHeapscan.h"
+#include "executor/nodeBitmapIndexscan.h"
 #include "executor/nodeCustom.h"
 #include "executor/nodeForeignscan.h"
 #include "executor/nodeHash.h"
@@ -122,6 +123,9 @@ typedef struct ExecParallelInitializeDSMContext
 	int			nnodes;
 } ExecParallelInitializeDSMContext;
 
+ExecInitParallelPlan_hook_type ExecInitParallelPlan_hook = NULL;
+ParallelQueryMain_hook_type ParallelQueryMain_hook = NULL;
+
 /* Helper functions that run in the parallel leader. */
 static char *ExecSerializePlan(Plan *plan, EState *estate);
 static bool ExecParallelEstimate(PlanState *planstate,
@@ -174,6 +178,7 @@ ExecSerializePlan(Plan *plan, EState *estate)
 	pstmt = makeNode(PlannedStmt);
 	pstmt->commandType = CMD_SELECT;
 	pstmt->queryId = pgstat_get_my_query_id();
+	pstmt->planId = pgstat_get_my_plan_id();
 	pstmt->hasReturning = false;
 	pstmt->hasModifyingCTE = false;
 	pstmt->canSetTag = true;
@@ -181,7 +186,9 @@ ExecSerializePlan(Plan *plan, EState *estate)
 	pstmt->dependsOnRole = false;
 	pstmt->parallelModeNeeded = false;
 	pstmt->planTree = plan;
+	pstmt->partPruneInfos = estate->es_part_prune_infos;
 	pstmt->rtable = estate->es_range_table;
+	pstmt->unprunableRelids = estate->es_unpruned_relids;
 	pstmt->permInfos = estate->es_rteperminfos;
 	pstmt->resultRelations = NIL;
 	pstmt->appendRelations = NIL;
@@ -242,14 +249,19 @@ ExecParallelEstimate(PlanState *planstate, ExecParallelEstimateContext *e)
 									e->pcxt);
 			break;
 		case T_IndexScanState:
-			if (planstate->plan->parallel_aware)
-				ExecIndexScanEstimate((IndexScanState *) planstate,
-									  e->pcxt);
+			/* even when not parallel-aware, for EXPLAIN ANALYZE */
+			ExecIndexScanEstimate((IndexScanState *) planstate,
+								  e->pcxt);
 			break;
 		case T_IndexOnlyScanState:
-			if (planstate->plan->parallel_aware)
-				ExecIndexOnlyScanEstimate((IndexOnlyScanState *) planstate,
-										  e->pcxt);
+			/* even when not parallel-aware, for EXPLAIN ANALYZE */
+			ExecIndexOnlyScanEstimate((IndexOnlyScanState *) planstate,
+									  e->pcxt);
+			break;
+		case T_BitmapIndexScanState:
+			/* even when not parallel-aware, for EXPLAIN ANALYZE */
+			ExecBitmapIndexScanEstimate((BitmapIndexScanState *) planstate,
+										e->pcxt);
 			break;
 		case T_ForeignScanState:
 			if (planstate->plan->parallel_aware)
@@ -466,14 +478,17 @@ ExecParallelInitializeDSM(PlanState *planstate,
 										 d->pcxt);
 			break;
 		case T_IndexScanState:
-			if (planstate->plan->parallel_aware)
-				ExecIndexScanInitializeDSM((IndexScanState *) planstate,
-										   d->pcxt);
+			/* even when not parallel-aware, for EXPLAIN ANALYZE */
+			ExecIndexScanInitializeDSM((IndexScanState *) planstate, d->pcxt);
 			break;
 		case T_IndexOnlyScanState:
-			if (planstate->plan->parallel_aware)
-				ExecIndexOnlyScanInitializeDSM((IndexOnlyScanState *) planstate,
-											   d->pcxt);
+			/* even when not parallel-aware, for EXPLAIN ANALYZE */
+			ExecIndexOnlyScanInitializeDSM((IndexOnlyScanState *) planstate,
+										   d->pcxt);
+			break;
+		case T_BitmapIndexScanState:
+			/* even when not parallel-aware, for EXPLAIN ANALYZE */
+			ExecBitmapIndexScanInitializeDSM((BitmapIndexScanState *) planstate, d->pcxt);
 			break;
 		case T_ForeignScanState:
 			if (planstate->plan->parallel_aware)
@@ -683,6 +698,10 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 						   mul_size(PARALLEL_TUPLE_QUEUE_SIZE, pcxt->nworkers));
 	shm_toc_estimate_keys(&pcxt->estimator, 1);
 
+	/* Let extension estimate a dynamic shared memory needed to communicate additional context */
+	if (ExecInitParallelPlan_hook)
+		(*ExecInitParallelPlan_hook)(estate, pcxt, true);
+
 	/*
 	 * Give parallel-aware nodes a chance to add to the estimates, and get a
 	 * count of how many PlanState nodes there are.
@@ -772,6 +791,12 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 									  mul_size(sizeof(WalUsage), pcxt->nworkers));
 	shm_toc_insert(pcxt->toc, PARALLEL_KEY_WAL_USAGE, walusage_space);
 	pei->wal_usage = walusage_space;
+
+	/* Give extension a chance to share additional context */
+	if (ExecInitParallelPlan_hook)
+	{
+		(*ExecInitParallelPlan_hook)(estate, pcxt,false);
+	}
 
 	/* Set up the tuple queues that the workers will write into. */
 	pei->tqueue = ExecParallelSetupTupleQueues(pcxt, false);
@@ -1000,6 +1025,7 @@ ExecParallelReInitializeDSM(PlanState *planstate,
 				ExecHashJoinReInitializeDSM((HashJoinState *) planstate,
 											pcxt);
 			break;
+		case T_BitmapIndexScanState:
 		case T_HashState:
 		case T_SortState:
 		case T_IncrementalSortState:
@@ -1061,6 +1087,15 @@ ExecParallelRetrieveInstrumentation(PlanState *planstate,
 	/* Perform any node-type-specific work that needs to be done. */
 	switch (nodeTag(planstate))
 	{
+		case T_IndexScanState:
+			ExecIndexScanRetrieveInstrumentation((IndexScanState *) planstate);
+			break;
+		case T_IndexOnlyScanState:
+			ExecIndexOnlyScanRetrieveInstrumentation((IndexOnlyScanState *) planstate);
+			break;
+		case T_BitmapIndexScanState:
+			ExecBitmapIndexScanRetrieveInstrumentation((BitmapIndexScanState *) planstate);
+			break;
 		case T_SortState:
 			ExecSortRetrieveInstrumentation((SortState *) planstate);
 			break;
@@ -1075,6 +1110,9 @@ ExecParallelRetrieveInstrumentation(PlanState *planstate,
 			break;
 		case T_MemoizeState:
 			ExecMemoizeRetrieveInstrumentation((MemoizeState *) planstate);
+			break;
+		case T_BitmapHeapScanState:
+			ExecBitmapHeapRetrieveInstrumentation((BitmapHeapScanState *) planstate);
 			break;
 		default:
 			break;
@@ -1318,14 +1356,18 @@ ExecParallelInitializeWorker(PlanState *planstate, ParallelWorkerContext *pwcxt)
 				ExecSeqScanInitializeWorker((SeqScanState *) planstate, pwcxt);
 			break;
 		case T_IndexScanState:
-			if (planstate->plan->parallel_aware)
-				ExecIndexScanInitializeWorker((IndexScanState *) planstate,
-											  pwcxt);
+			/* even when not parallel-aware, for EXPLAIN ANALYZE */
+			ExecIndexScanInitializeWorker((IndexScanState *) planstate, pwcxt);
 			break;
 		case T_IndexOnlyScanState:
-			if (planstate->plan->parallel_aware)
-				ExecIndexOnlyScanInitializeWorker((IndexOnlyScanState *) planstate,
-												  pwcxt);
+			/* even when not parallel-aware, for EXPLAIN ANALYZE */
+			ExecIndexOnlyScanInitializeWorker((IndexOnlyScanState *) planstate,
+											  pwcxt);
+			break;
+		case T_BitmapIndexScanState:
+			/* even when not parallel-aware, for EXPLAIN ANALYZE */
+			ExecBitmapIndexScanInitializeWorker((BitmapIndexScanState *) planstate,
+												pwcxt);
 			break;
 		case T_ForeignScanState:
 			if (planstate->plan->parallel_aware)
@@ -1433,6 +1475,12 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 	area_space = shm_toc_lookup(toc, PARALLEL_KEY_DSA, false);
 	area = dsa_attach_in_place(area_space, seg);
 
+	/* Give extension chance to retrieve additional context shared by leader node */
+	if (ParallelQueryMain_hook)
+	{
+		(*ParallelQueryMain_hook)(toc);
+	}
+
 	/* Start up the executor */
 	queryDesc->plannedstmt->jitFlags = fpes->jit_flags;
 	ExecutorStart(queryDesc, fpes->eflags);
@@ -1468,8 +1516,7 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 	 */
 	ExecutorRun(queryDesc,
 				ForwardScanDirection,
-				fpes->tuples_needed < 0 ? (int64) 0 : fpes->tuples_needed,
-				true);
+				fpes->tuples_needed < 0 ? (int64) 0 : fpes->tuples_needed);
 
 	/* Shut down the executor */
 	ExecutorFinish(queryDesc);

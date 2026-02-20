@@ -2,7 +2,7 @@
  * execParallel.h
  *		POSTGRES parallel execution interface
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
@@ -47,5 +47,16 @@ extern void ExecParallelReinitialize(PlanState *planstate,
 									 ParallelExecutorInfo *pei, Bitmapset *sendParams);
 
 extern void ParallelQueryMain(dsm_segment *seg, shm_toc *toc);
+
+typedef void (*ParallelQueryMain_hook_type)(shm_toc *toc);
+extern PGDLLIMPORT ParallelQueryMain_hook_type ParallelQueryMain_hook;
+
+/*
+ * When estimate = true passed then caller wants extension to estimate a dynamic shared memory (DSM)
+ * needed by that extension to communicate additional context with Parallel worker.
+ * When estimate = false then caller wants to insert additional context to DSM.
+ */
+typedef void (*ExecInitParallelPlan_hook_type)(EState *estate, ParallelContext *pcxt, bool estimate);
+extern PGDLLIMPORT ExecInitParallelPlan_hook_type ExecInitParallelPlan_hook;
 
 #endif							/* EXECPARALLEL_H */

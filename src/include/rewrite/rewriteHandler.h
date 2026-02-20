@@ -4,7 +4,7 @@
  *		External interface to query rewriter.
  *
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/rewrite/rewriteHandler.h
@@ -37,5 +37,17 @@ extern void error_view_not_updatable(Relation view,
 									 CmdType command,
 									 List *mergeActionList,
 									 const char *detail);
+
+/* View repair hook */
+typedef bool (*pre_QueryRewrite_hook_type) (Query *parsetree);
+extern PGDLLEXPORT pre_QueryRewrite_hook_type pre_QueryRewrite_hook;
+
+typedef void (*walk_view_rule_hook_type) (Query *rule_action, Oid view_owner);
+extern PGDLLEXPORT walk_view_rule_hook_type walk_view_rule_hook;
+
+typedef void (*handle_target_view_hook_type) (RTEPermissionInfo *new_perminfo, RangeTblEntry *view_rte, Oid view_owner, Oid base_rel_owner);
+extern PGDLLEXPORT handle_target_view_hook_type handle_target_view_hook;
+extern Node *expand_generated_columns_in_expr(Node *node, Relation rel, int rt_index);
+extern Node *build_generation_expression(Relation rel, int attrno);
 
 #endif							/* REWRITEHANDLER_H */

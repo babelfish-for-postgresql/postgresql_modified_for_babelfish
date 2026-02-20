@@ -4,7 +4,7 @@
  *		parse analysis for optimizable statements
  *
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/parser/analyze.h
@@ -30,7 +30,7 @@ typedef void (*pre_parse_analyze_hook_type) (ParseState *pstate, RawStmt *parseT
 extern PGDLLEXPORT pre_parse_analyze_hook_type pre_parse_analyze_hook;
 
 /* Hook to handle qualifiers in returning list for output clause */
-typedef void (*pre_transform_returning_hook_type) (Query *query, List *returningList, ParseState *pstate);
+typedef void (*pre_transform_returning_hook_type) (Query *query, ReturningClause *ReturningClause, ParseState *pstate);
 extern PGDLLEXPORT pre_transform_returning_hook_type pre_transform_returning_hook;
 
 typedef void (*post_transform_delete_hook_type) (ParseState *pstate, DeleteStmt *stmt, Query *query);
@@ -68,6 +68,11 @@ extern PGDLLEXPORT pre_transform_setop_sort_clause_hook_type pre_transform_setop
 typedef void (*transform_pivot_clause_hook_type)(ParseState *pstate, SelectStmt *stmt);
 extern PGDLLEXPORT transform_pivot_clause_hook_type transform_pivot_clause_hook;
 
+/* Hook for transform unpivot clause in tsql select stmt */
+typedef void (*transform_tsql_select_stmt_hook_type)(ParseState *pstate, SelectStmt *stmt);
+extern PGDLLEXPORT transform_tsql_select_stmt_hook_type transform_tsql_select_stmt_hook;
+
+
 extern Query *parse_analyze_fixedparams(RawStmt *parseTree, const char *sourceText,
 										const Oid *paramTypes, int numParams, QueryEnvironment *queryEnv);
 extern Query *parse_analyze(RawStmt *parseTree, const char *sourceText,
@@ -89,13 +94,15 @@ extern List *transformInsertRow(ParseState *pstate, List *exprlist,
 								bool strip_indirection);
 extern List *transformUpdateTargetList(ParseState *pstate,
 									   List *origTlist);
-extern List *transformReturningList(ParseState *pstate, List *returningList,
-									ParseExprKind exprKind);
+extern void transformReturningClause(ParseState *pstate, Query *qry,
+									 ReturningClause *returningClause,
+									 ParseExprKind exprKind);
 extern Query *transformTopLevelStmt(ParseState *pstate, RawStmt *parseTree);
 extern Query *transformStmt(ParseState *pstate, Node *parseTree);
 
 extern bool stmt_requires_parse_analysis(RawStmt *parseTree);
 extern bool analyze_requires_snapshot(RawStmt *parseTree);
+extern bool query_requires_rewrite_plan(Query *query);
 
 extern const char *LCS_asString(LockClauseStrength strength);
 extern void CheckSelectLocking(Query *qry, LockClauseStrength strength);

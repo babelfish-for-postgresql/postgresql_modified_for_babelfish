@@ -3,7 +3,7 @@
  * rewriteDefine.c
  *	  routines for defining a rewrite rule
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -271,7 +271,8 @@ DefineQueryRewrite(const char *rulename,
 	/*
 	 * Check user has permission to apply rules to this relation.
 	 */
-	if (!object_ownercheck(RelationRelationId, event_relid, GetUserId()))
+	if (!object_ownercheck(RelationRelationId, event_relid, GetUserId()) &&
+		!IS_BBF_DB_DDLADMIN(RelationGetNamespace(event_relation)))
 		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(event_relation->rd_rel->relkind),
 					   RelationGetRelationName(event_relation));
 
@@ -644,7 +645,7 @@ setRuleCheckAsUser_walker(Node *node, Oid *context)
 		return false;
 	}
 	return expression_tree_walker(node, setRuleCheckAsUser_walker,
-								  (void *) context);
+								  context);
 }
 
 static void
@@ -679,7 +680,7 @@ setRuleCheckAsUser_Query(Query *qry, Oid userid)
 
 	/* If there are sublinks, search for them and process their RTEs */
 	if (qry->hasSubLinks)
-		query_tree_walker(qry, setRuleCheckAsUser_walker, (void *) &userid,
+		query_tree_walker(qry, setRuleCheckAsUser_walker, &userid,
 						  QTW_IGNORE_RC_SUBQUERIES);
 }
 

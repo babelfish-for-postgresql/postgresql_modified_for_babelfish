@@ -3,7 +3,7 @@
  * parse_coerce.c
  *		handle type coercions/conversions for parser
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -35,6 +35,7 @@
 
 find_coercion_pathway_hook_type find_coercion_pathway_hook = NULL;
 determine_datatype_precedence_hook_type determine_datatype_precedence_hook = NULL;
+is_tsql_base_datatype_hook_type is_tsql_base_datatype_hook = NULL;
 coerce_string_literal_hook_type coerce_string_literal_hook = NULL;
 validate_implicit_conversion_from_string_literal_hook_type validate_implicit_conversion_from_string_literal_hook = NULL;
 select_common_type_hook_type select_common_type_hook = NULL;
@@ -796,7 +797,9 @@ coerce_to_domain(Node *arg, Oid baseTypeId, int32 baseTypeMod, Oid typeId,
 		 strcmp(type_name, "nchar") == 0 ||
 		 strcmp(type_name, "varbinary") == 0 ||
 		 strcmp(type_name, "binary") == 0 ||
-		 strcmp(type_name, "decimal") == 0))
+		 strcmp(type_name, "decimal") == 0 ||
+		 strcmp(type_name, "smallmoney") == 0||
+		 strcmp(type_name, "money") == 0))
 		result->resulttypmod = baseTypeMod;
 
 	return (Node *) result;
@@ -1342,6 +1345,43 @@ coerce_to_specific_type(ParseState *pstate, Node *node,
 }
 
 /*
+ * coerce_null_to_domain()
+ *		Build a NULL constant, then wrap it in CoerceToDomain
+ *		if the desired type is a domain type.  This allows any
+ *		NOT NULL domain constraint to be enforced at runtime.
+ */
+Node *
+coerce_null_to_domain(Oid typid, int32 typmod, Oid collation,
+					  int typlen, bool typbyval)
+{
+	Node	   *result;
+	Oid			baseTypeId;
+	int32		baseTypeMod = typmod;
+
+	/*
+	 * The constant must appear to have the domain's base type/typmod, else
+	 * coerce_to_domain() will apply a length coercion which is useless.
+	 */
+	baseTypeId = getBaseTypeAndTypmod(typid, &baseTypeMod);
+	result = (Node *) makeConst(baseTypeId,
+								baseTypeMod,
+								collation,
+								typlen,
+								(Datum) 0,
+								true,	/* isnull */
+								typbyval);
+	if (typid != baseTypeId)
+		result = coerce_to_domain(result,
+								  baseTypeId, baseTypeMod,
+								  typid,
+								  COERCION_IMPLICIT,
+								  COERCE_IMPLICIT_CAST,
+								  -1,
+								  false);
+	return result;
+}
+
+/*
  * parser_coercion_errposition - report coercion error location, if possible
  *
  * We prefer to point at the coercion request (CAST, ::, etc) if possible;
@@ -1504,8 +1544,37 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 				pcategory = ncategory;
 				pispreferred = nispreferred;
 			}
+		} else if (sql_dialect == SQL_DIALECT_TSQL && ntype == ptype)
+		{
+			/*
+			 * For the columns which have the same base type, we choose the
+			 * expression with higher precedence type in T-SQL.
+			 * For example, smallmoney UNION money, the base type of
+			 * them are both fixeddecimal. But we shouldn't use smallmoney as
+			 * the result type, it could loss precision.
+			 * Here we don't need to update other variables since they are the
+			 * same.
+			 */
+			if (is_tsql_base_datatype_hook &&
+				(*is_tsql_base_datatype_hook)(exprType(nexpr)) &&
+				determine_datatype_precedence_hook &&
+				determine_datatype_precedence_hook(exprType(nexpr),
+												   exprType(pexpr)))
+				pexpr = nexpr;
 		}
 	}
+
+	/*
+	 * If the preferred type is not the result type of corresponding
+	 * expression, it means the result type is a domain type in Postgres. Some
+	 * base data types in T-SQL are implemented as domain types in Babelfish.
+	 * From SQL Server's perspective, we should try to retain those types as
+	 * result types.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL && ptype != exprType(pexpr) &&
+		is_tsql_base_datatype_hook &&
+		(*is_tsql_base_datatype_hook)(exprType(pexpr)))
+		ptype = exprType(pexpr);
 
 	/*
 	 * If all the inputs were UNKNOWN type --- ie, unknown-type literals ---

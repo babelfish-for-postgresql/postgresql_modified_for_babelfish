@@ -5,7 +5,7 @@
  *		bits of hard-wired knowledge
  *
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -34,6 +34,7 @@
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_parameter_acl.h"
 #include "catalog/pg_replication_origin.h"
+#include "catalog/pg_seclabel.h"
 #include "catalog/pg_shdepend.h"
 #include "catalog/pg_shdescription.h"
 #include "catalog/pg_shseclabel.h"
@@ -148,8 +149,47 @@ IsCatalogRelationOid(Oid relid)
 }
 
 /*
+ * IsCatalogTextUniqueIndexOid
+ *		True iff the relation identified by this OID is a catalog UNIQUE index
+ *		having a column of type "text".
+ *
+ *		The relcache must not use these indexes.  Inserting into any UNIQUE
+ *		index compares index keys while holding BUFFER_LOCK_EXCLUSIVE.
+ *		bttextcmp() can search the COLLOID catcache.  Depending on concurrent
+ *		invalidation traffic, catcache can reach relcache builds.  A backend
+ *		would self-deadlock on LWLocks if the relcache build read the
+ *		exclusive-locked buffer.
+ *
+ *		To avoid being itself the cause of self-deadlock, this doesn't read
+ *		catalogs.  Instead, it uses a hard-coded list with a supporting
+ *		regression test.
+ */
+bool
+IsCatalogTextUniqueIndexOid(Oid relid)
+{
+	switch (relid)
+	{
+		case ParameterAclParnameIndexId:
+		case ReplicationOriginNameIndex:
+		case SecLabelObjectIndexId:
+		case SharedSecLabelObjectIndexId:
+			return true;
+	}
+	return false;
+}
+
+/*
  * IsInplaceUpdateRelation
  *		True iff core code performs inplace updates on the relation.
+ *
+ *		This is used for assertions and for making the executor follow the
+ *		locking protocol described at README.tuplock section "Locking to write
+ *		inplace-updated tables".  Extensions may inplace-update other heap
+ *		tables, but concurrent SQL UPDATE on the same table may overwrite
+ *		those modifications.
+ *
+ *		The executor can assume these are not partitions or partitioned and
+ *		have no triggers.
  */
 bool
 IsInplaceUpdateRelation(Relation relation)
@@ -320,16 +360,12 @@ IsSharedRelation(Oid relationId)
 		relationId == TablespaceOidIndexId)
 		return true;
 	/* These are their toast tables and toast indexes */
-	if (relationId == PgAuthidToastTable ||
-		relationId == PgAuthidToastIndex ||
-		relationId == PgDatabaseToastTable ||
+	if (relationId == PgDatabaseToastTable ||
 		relationId == PgDatabaseToastIndex ||
 		relationId == PgDbRoleSettingToastTable ||
 		relationId == PgDbRoleSettingToastIndex ||
 		relationId == PgParameterAclToastTable ||
 		relationId == PgParameterAclToastIndex ||
-		relationId == PgReplicationOriginToastTable ||
-		relationId == PgReplicationOriginToastIndex ||
 		relationId == PgShdescriptionToastTable ||
 		relationId == PgShdescriptionToastIndex ||
 		relationId == PgShseclabelToastTable ||
@@ -487,10 +523,10 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
 			ereport(LOG,
 					(errmsg("still searching for an unused OID in relation \"%s\"",
 							RelationGetRelationName(relation)),
-					 errdetail_plural("OID candidates have been checked %llu time, but no unused OID has been found yet.",
-									  "OID candidates have been checked %llu times, but no unused OID has been found yet.",
+					 errdetail_plural("OID candidates have been checked %" PRIu64 " time, but no unused OID has been found yet.",
+									  "OID candidates have been checked %" PRIu64 " times, but no unused OID has been found yet.",
 									  retries,
-									  (unsigned long long) retries)));
+									  retries)));
 
 			/*
 			 * Double the number of retries to do before logging next until it
@@ -512,10 +548,10 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
 	if (retries > GETNEWOID_LOG_THRESHOLD)
 	{
 		ereport(LOG,
-				(errmsg_plural("new OID has been assigned in relation \"%s\" after %llu retry",
-							   "new OID has been assigned in relation \"%s\" after %llu retries",
+				(errmsg_plural("new OID has been assigned in relation \"%s\" after %" PRIu64 " retry",
+							   "new OID has been assigned in relation \"%s\" after %" PRIu64 " retries",
 							   retries,
-							   RelationGetRelationName(relation), (unsigned long long) retries)));
+							   RelationGetRelationName(relation), retries)));
 	}
 
 	return newOid;
@@ -541,7 +577,7 @@ RelFileNumber
 GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 {
 	RelFileLocatorBackend rlocator;
-	char	   *rpath;
+	RelPathStr	rpath;
 	bool		collides;
 	ProcNumber	procNumber;
 	int			tries = 0;
@@ -592,8 +628,11 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 		{
 			/* Temp tables use temp OID logic */
 			if (use_bbf_oid_buffer)
+			{
 				rlocator.locator.relNumber = GetNewTempOidWithIndex_hook(pg_class, ClassOidIndexId,
 													Anum_pg_class_oid);
+				elog(DEBUG1, "New OID generated from the temp oid buffer: %u for backend with id: %d and with pg_class", rlocator.locator.relNumber, procNumber);
+			}
 			else
 				rlocator.locator.relNumber = GetNewOidWithIndex(pg_class, ClassOidIndexId,
 															Anum_pg_class_oid);
@@ -602,7 +641,10 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 		{
 			/* Temp tables use temp OID logic */
 			if (use_bbf_oid_buffer)
+			{
 				rlocator.locator.relNumber = GetNewTempObjectId_hook();
+				elog(DEBUG1, "New OID generated from the temp oid buffer: %u for backend with id: %d and without pg_class", rlocator.locator.relNumber, procNumber);
+			}
 			else
 				rlocator.locator.relNumber = GetNewObjectId();
 		}
@@ -610,7 +652,7 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 		/* Check for existing file of same name */
 		rpath = relpath(rlocator, MAIN_FORKNUM);
 
-		if (access(rpath, F_OK) == 0)
+		if (access(rpath.str, F_OK) == 0)
 		{
 			/* definite collision */
 			collides = true;
@@ -631,7 +673,6 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 			ereport(ERROR,
 				(errmsg("Unable to allocate oid for temp table. Drop some temporary tables or start a new session.")));
 
-		pfree(rpath);
 		tries++;
 	} while (collides);
 

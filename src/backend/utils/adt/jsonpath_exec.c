@@ -49,7 +49,7 @@
  * we calculate operands first.  Then we check that results are numeric
  * singleton lists, calculate the result and pass it to the next path item.
  *
- * Copyright (c) 2019-2024, PostgreSQL Global Development Group
+ * Copyright (c) 2019-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
  *	src/backend/utils/adt/jsonpath_exec.c
@@ -61,7 +61,6 @@
 
 #include "catalog/pg_collation.h"
 #include "catalog/pg_type.h"
-#include "executor/execExpr.h"
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "parser/parser.h"
@@ -73,13 +72,13 @@
 #include "utils/datetime.h"
 #include "utils/float.h"
 #include "utils/formatting.h"
+#include "utils/json.h"
 #include "utils/jsonpath.h"
-#include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/timestamp.h"
 
 /*
- * Represents "base object" and it's "id" for .keyvalue() evaluation.
+ * Represents "base object" and its "id" for .keyvalue() evaluation.
  */
 typedef struct JsonBaseObjectInfo
 {
@@ -1413,8 +1412,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					if (escontext.error_occurred)
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type double precision",
-													 tmp, jspOperationName(jsp->type)))));
+											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type %s",
+													 tmp, jspOperationName(jsp->type), "double precision"))));
 					if (isinf(val) || isnan(val))
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
@@ -1439,8 +1438,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					if (escontext.error_occurred)
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type double precision",
-													 tmp, jspOperationName(jsp->type)))));
+											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type %s",
+													 tmp, jspOperationName(jsp->type), "double precision"))));
 					if (isinf(val) || isnan(val))
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
@@ -1527,10 +1526,11 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					if (have_error)
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type bigint",
+											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type %s",
 													 DatumGetCString(DirectFunctionCall1(numeric_out,
 																						 NumericGetDatum(jb->val.numeric))),
-													 jspOperationName(jsp->type)))));
+													 jspOperationName(jsp->type),
+													 "bigint"))));
 
 					datum = Int64GetDatum(val);
 					res = jperOk;
@@ -1551,8 +1551,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					if (!noerr || escontext.error_occurred)
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type bigint",
-													 tmp, jspOperationName(jsp->type)))));
+											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type %s",
+													 tmp, jspOperationName(jsp->type), "bigint"))));
 					res = jperOk;
 				}
 
@@ -1603,8 +1603,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					if (!noerr || escontext.error_occurred)
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type boolean",
-													 tmp, jspOperationName(jsp->type)))));
+											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type %s",
+													 tmp, jspOperationName(jsp->type), "boolean"))));
 
 					ival = DatumGetInt32(datum);
 					if (ival == 0)
@@ -1623,8 +1623,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					if (!parse_bool(tmp, &bval))
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type boolean",
-													 tmp, jspOperationName(jsp->type)))));
+											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type %s",
+													 tmp, jspOperationName(jsp->type), "boolean"))));
 
 					res = jperOk;
 				}
@@ -1632,7 +1632,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 				if (res == jperNotFound)
 					RETURN_ERROR(ereport(ERROR,
 										 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-										  errmsg("jsonpath item method .%s() can only be applied to a bool, string, or numeric value",
+										  errmsg("jsonpath item method .%s() can only be applied to a boolean, string, or numeric value",
 												 jspOperationName(jsp->type)))));
 
 				jb = &jbv;
@@ -1685,8 +1685,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					if (!noerr || escontext.error_occurred)
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type numeric",
-													 numstr, jspOperationName(jsp->type)))));
+											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type %s",
+													 numstr, jspOperationName(jsp->type), "numeric"))));
 
 					num = DatumGetNumeric(datum);
 					if (numeric_is_nan(num) || numeric_is_inf(num))
@@ -1774,8 +1774,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					if (!noerr || escontext.error_occurred)
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type numeric",
-													 numstr, jspOperationName(jsp->type)))));
+											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type %s",
+													 numstr, jspOperationName(jsp->type), "numeric"))));
 
 					num = DatumGetNumeric(numdatum);
 					pfree(arrtypmod);
@@ -1807,10 +1807,10 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					if (have_error)
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type integer",
+											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type %s",
 													 DatumGetCString(DirectFunctionCall1(numeric_out,
 																						 NumericGetDatum(jb->val.numeric))),
-													 jspOperationName(jsp->type)))));
+													 jspOperationName(jsp->type), "integer"))));
 
 					datum = Int32GetDatum(val);
 					res = jperOk;
@@ -1831,8 +1831,8 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					if (!noerr || escontext.error_occurred)
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type integer",
-													 tmp, jspOperationName(jsp->type)))));
+											  errmsg("argument \"%s\" of jsonpath item method .%s() is invalid for type %s",
+													 tmp, jspOperationName(jsp->type), "integer"))));
 					res = jperOk;
 				}
 
@@ -1879,32 +1879,13 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 						break;
 					case jbvDatetime:
 						{
-							switch (jb->val.datetime.typid)
-							{
-								case DATEOID:
-									tmp = DatumGetCString(DirectFunctionCall1(date_out,
-																			  jb->val.datetime.value));
-									break;
-								case TIMEOID:
-									tmp = DatumGetCString(DirectFunctionCall1(time_out,
-																			  jb->val.datetime.value));
-									break;
-								case TIMETZOID:
-									tmp = DatumGetCString(DirectFunctionCall1(timetz_out,
-																			  jb->val.datetime.value));
-									break;
-								case TIMESTAMPOID:
-									tmp = DatumGetCString(DirectFunctionCall1(timestamp_out,
-																			  jb->val.datetime.value));
-									break;
-								case TIMESTAMPTZOID:
-									tmp = DatumGetCString(DirectFunctionCall1(timestamptz_out,
-																			  jb->val.datetime.value));
-									break;
-								default:
-									elog(ERROR, "unrecognized SQL/JSON datetime type oid: %u",
-										 jb->val.datetime.typid);
-							}
+							char		buf[MAXDATELEN + 1];
+
+							JsonEncodeDateTime(buf,
+											   jb->val.datetime.value,
+											   jb->val.datetime.typid,
+											   &jb->val.datetime.tz);
+							tmp = pstrdup(buf);
 						}
 						break;
 					case jbvNull:
@@ -1913,7 +1894,7 @@ executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					case jbvBinary:
 						RETURN_ERROR(ereport(ERROR,
 											 (errcode(ERRCODE_NON_NUMERIC_SQL_JSON_ITEM),
-											  errmsg("jsonpath item method .%s() can only be applied to a bool, string, numeric, or datetime value",
+											  errmsg("jsonpath item method .%s() can only be applied to a boolean, string, numeric, or datetime value",
 													 jspOperationName(jsp->type)))));
 						break;
 				}
@@ -2957,12 +2938,27 @@ executeDateTimeMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 			break;
 		case jpiTimestampTz:
 			{
+				struct pg_tm tm;
+				fsec_t		fsec;
+
 				/* Convert result type to timestamp with time zone */
 				switch (typid)
 				{
 					case DATEOID:
 						checkTimezoneIsUsedForCast(cxt->useTz,
 												   "date", "timestamptz");
+
+						/*
+						 * Get the timezone value explicitly since JsonbValue
+						 * keeps that separate.
+						 */
+						j2date(DatumGetDateADT(value) + POSTGRES_EPOCH_JDATE,
+							   &(tm.tm_year), &(tm.tm_mon), &(tm.tm_mday));
+						tm.tm_hour = 0;
+						tm.tm_min = 0;
+						tm.tm_sec = 0;
+						tz = DetermineTimeZoneOffset(&tm, session_timezone);
+
 						value = DirectFunctionCall1(date_timestamptz,
 													value);
 						break;
@@ -2976,6 +2972,16 @@ executeDateTimeMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
 					case TIMESTAMPOID:
 						checkTimezoneIsUsedForCast(cxt->useTz,
 												   "timestamp", "timestamptz");
+
+						/*
+						 * Get the timezone value explicitly since JsonbValue
+						 * keeps that separate.
+						 */
+						if (timestamp2tm(DatumGetTimestamp(value), NULL, &tm,
+										 &fsec, NULL, NULL) == 0)
+							tz = DetermineTimeZoneOffset(&tm,
+														 session_timezone);
+
 						value = DirectFunctionCall1(timestamp_timestamptz,
 													value);
 						break;
@@ -3860,7 +3866,7 @@ JsonbType(JsonbValue *jb)
 
 	if (jb->type == jbvBinary)
 	{
-		JsonbContainer *jbc = (void *) jb->val.binary.data;
+		JsonbContainer *jbc = jb->val.binary.data;
 
 		/* Scalars should be always extracted during jsonpath execution. */
 		Assert(!JsonContainerIsScalar(jbc));
@@ -4172,7 +4178,24 @@ JsonPathQuery(Datum jb, JsonPath *jp, JsonWrapper wrapper, bool *empty,
 		return (Datum) 0;
 	}
 
-	/* WRAP or not? */
+	/*
+	 * Determine whether to wrap the result in a JSON array or not.
+	 *
+	 * First, count the number of SQL/JSON items in the returned
+	 * JsonValueList. If the list is empty (singleton == NULL), no wrapping is
+	 * necessary.
+	 *
+	 * If the wrapper mode is JSW_NONE or JSW_UNSPEC, wrapping is explicitly
+	 * disabled. This enforces a WITHOUT WRAPPER clause, which is also the
+	 * default when no WRAPPER clause is specified.
+	 *
+	 * If the mode is JSW_UNCONDITIONAL, wrapping is enforced regardless of
+	 * the number of SQL/JSON items, enforcing a WITH WRAPPER or WITH
+	 * UNCONDITIONAL WRAPPER clause.
+	 *
+	 * For JSW_CONDITIONAL, wrapping occurs only if there is more than one
+	 * SQL/JSON item in the list, enforcing a WITH CONDITIONAL WRAPPER clause.
+	 */
 	count = JsonValueListLength(&found);
 	singleton = count > 0 ? JsonValueListHead(&found) : NULL;
 	if (singleton == NULL)
@@ -4182,10 +4205,7 @@ JsonPathQuery(Datum jb, JsonPath *jp, JsonWrapper wrapper, bool *empty,
 	else if (wrapper == JSW_UNCONDITIONAL)
 		wrap = true;
 	else if (wrapper == JSW_CONDITIONAL)
-		wrap = count > 1 ||
-			IsAJsonbScalar(singleton) ||
-			(singleton->type == jbvBinary &&
-			 JsonContainerIsScalar(singleton->val.binary.data));
+		wrap = count > 1;
 	else
 	{
 		elog(ERROR, "unrecognized json wrapper %d", (int) wrapper);
@@ -4207,14 +4227,14 @@ JsonPathQuery(Datum jb, JsonPath *jp, JsonWrapper wrapper, bool *empty,
 		if (column_name)
 			ereport(ERROR,
 					(errcode(ERRCODE_MORE_THAN_ONE_SQL_JSON_ITEM),
-					 errmsg("JSON path expression for column \"%s\" should return single item without wrapper",
+					 errmsg("JSON path expression for column \"%s\" must return single item when no wrapper is requested",
 							column_name),
-					 errhint("Use WITH WRAPPER clause to wrap SQL/JSON items into array.")));
+					 errhint("Use the WITH WRAPPER clause to wrap SQL/JSON items into an array.")));
 		else
 			ereport(ERROR,
 					(errcode(ERRCODE_MORE_THAN_ONE_SQL_JSON_ITEM),
-					 errmsg("JSON path expression in JSON_QUERY should return single item without wrapper"),
-					 errhint("Use WITH WRAPPER clause to wrap SQL/JSON items into array.")));
+					 errmsg("JSON path expression in JSON_QUERY must return single item when no wrapper is requested"),
+					 errhint("Use the WITH WRAPPER clause to wrap SQL/JSON items into an array.")));
 	}
 
 	if (singleton)
@@ -4271,12 +4291,12 @@ JsonPathValue(Datum jb, JsonPath *jp, bool *empty, bool *error, List *vars,
 		if (column_name)
 			ereport(ERROR,
 					(errcode(ERRCODE_MORE_THAN_ONE_SQL_JSON_ITEM),
-					 errmsg("JSON path expression for column \"%s\" should return single scalar item",
+					 errmsg("JSON path expression for column \"%s\" must return single scalar item",
 							column_name)));
 		else
 			ereport(ERROR,
 					(errcode(ERRCODE_MORE_THAN_ONE_SQL_JSON_ITEM),
-					 errmsg("JSON path expression in JSON_VALUE should return single scalar item")));
+					 errmsg("JSON path expression in JSON_VALUE must return single scalar item")));
 	}
 
 	res = JsonValueListHead(&found);
@@ -4295,12 +4315,12 @@ JsonPathValue(Datum jb, JsonPath *jp, bool *empty, bool *error, List *vars,
 		if (column_name)
 			ereport(ERROR,
 					(errcode(ERRCODE_SQL_JSON_SCALAR_REQUIRED),
-					 errmsg("JSON path expression for column \"%s\" should return single scalar item",
+					 errmsg("JSON path expression for column \"%s\" must return single scalar item",
 							column_name)));
 		else
 			ereport(ERROR,
 					(errcode(ERRCODE_SQL_JSON_SCALAR_REQUIRED),
-					 errmsg("JSON path expression in JSON_VALUE should return single scalar item")));
+					 errmsg("JSON path expression in JSON_VALUE must return single scalar item")));
 	}
 
 	if (res->type == jbvNull)

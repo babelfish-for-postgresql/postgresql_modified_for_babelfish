@@ -4,7 +4,7 @@
  *	Routines for type coercion.
  *
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/parser/parse_coerce.h
@@ -63,6 +63,9 @@ extern Node *coerce_to_specific_type_typmod(ParseState *pstate, Node *node,
 											Oid targetTypeId, int32 targetTypmod,
 											const char *constructName);
 
+extern Node *coerce_null_to_domain(Oid typid, int32 typmod, Oid collation,
+								   int typlen, bool typbyval);
+
 extern int	parser_coercion_errposition(ParseState *pstate,
 										int coerce_location,
 										Node *input_expr);
@@ -112,6 +115,11 @@ typedef CoercionPathType (*find_coercion_pathway_hook_type) (Oid sourceTypeId,
  * Return true if typeId1 precedes typeId2
  */
 typedef bool (*determine_datatype_precedence_hook_type) (Oid typeId1, Oid typeId2);
+
+/*
+ * Hook interface to determine if a data type is a base type in T-SQL
+ */
+typedef bool (*is_tsql_base_datatype_hook_type) (Oid typeId);
 
 /*
  * T-SQL has different rules for string literal datatype coercions

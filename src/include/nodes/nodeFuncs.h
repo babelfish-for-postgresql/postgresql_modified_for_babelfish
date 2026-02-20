@@ -3,7 +3,7 @@
  * nodeFuncs.h
  *		Various general-purpose manipulations of Node trees
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * src/include/nodes/nodeFuncs.h
@@ -14,6 +14,7 @@
 #define NODEFUNCS_H
 
 #include "nodes/parsenodes.h"
+#include "nodes/plannodes.h"
 
 struct PlanState;				/* avoid including execnodes.h too */
 
@@ -30,6 +31,8 @@ struct PlanState;				/* avoid including execnodes.h too */
 											 * contents */
 #define QTW_DONT_COPY_QUERY			0x40	/* do not copy top Query */
 #define QTW_EXAMINE_SORTGROUP		0x80	/* include SortGroupClause lists */
+
+#define QTW_IGNORE_GROUPEXPRS		0x100	/* GROUP expressions list */
 
 /* callback function for check_functions_in_node */
 typedef bool (*check_function_callback) (Oid func_id, void *context);
@@ -221,5 +224,8 @@ extern bool planstate_tree_walker_impl(struct PlanState *planstate,
 
 typedef int32 (*coalesce_typmod_hook_type) (const CoalesceExpr *cexpr);
 extern PGDLLEXPORT coalesce_typmod_hook_type coalesce_typmod_hook;
+
+typedef int32 (*exprTypmod_hook_type)(Plan *plan, Node *expr);
+extern PGDLLIMPORT exprTypmod_hook_type exprTypmod_hook;
 
 #endif							/* NODEFUNCS_H */

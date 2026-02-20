@@ -33,14 +33,15 @@ extern int	libpq_close(pgsocket server_fd);
 extern Port	*libpq_init(ClientSocket *client_sock);
 extern int	libpq_start(Port *port);
 extern void	libpq_authenticate(Port *port, const char **username);
-extern void	libpq_mainfunc(Port *port)pg_attribute_noreturn();
+pg_noreturn extern void	libpq_mainfunc(Port *port);
 extern void	libpq_send_message(ErrorData *edata);
-extern void	libpq_send_cancel_key(int pid, int32 key);
+extern void	libpq_send_cancel_key(int pid, char *key, int key_len);
 extern void	libpq_comm_reset(void);
 extern bool	libpq_is_reading_msg(void);
 extern void	libpq_send_ready_for_query(CommandDest dest);
 extern int	libpq_read_command(StringInfo inBuf);
 extern void	libpq_end_command(QueryCompletion *qc, CommandDest dest);
 extern void	libpq_report_param_status(const char *name, char *val);
+extern int	libpq_direct_ssl_handshake(struct Port *port);
 
 #endif							/* _PROTOCOL_EXTENSION_H */

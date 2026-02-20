@@ -3,7 +3,7 @@
  * view.c
  *	  use rewrite rules to construct views
  *
- * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
@@ -51,7 +51,6 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 {
 	Oid			viewOid;
 	LOCKMODE	lockmode;
-	CreateStmt *createStmt = makeNode(CreateStmt);
 	List	   *attrList;
 	ListCell   *t;
 
@@ -230,6 +229,7 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 	}
 	else
 	{
+		CreateStmt *createStmt = makeNode(CreateStmt);
 		ObjectAddress address;
 
 		/*
@@ -524,4 +524,14 @@ StoreViewQuery(Oid viewOid, Query *viewParse, bool replace)
 	 * Now create the rules associated with the view.
 	 */
 	DefineViewRules(viewOid, viewParse, replace);
+}
+
+/*
+ * Wrapper function for DefineVirtualRelation used by Babelfish view repair
+ */
+ObjectAddress
+bbf_define_virtual_relation(RangeVar *relation, List *tlist, bool replace,
+							List *options, Query *viewParse)
+{
+    return DefineVirtualRelation(relation, tlist, replace, options, viewParse);
 }
