@@ -907,6 +907,9 @@ LockAcquireExtended(const LOCKTAG *locktag,
 	bool		found_conflict;
 	ProcWaitStatus waitResult;
 	bool		log_lock = false;
+	bool		is_temp_relation_lock = pltsql_get_tsql_enr_from_oid_hook && locktag->locktag_type == LOCKTAG_RELATION && 
+										(*pltsql_get_tsql_enr_from_oid_hook)(locktag->locktag_field2);
+	bool		is_temp_object_lock = find_object_in_enr_hook && locktag->locktag_type == LOCKTAG_OBJECT && (*find_object_in_enr_hook) (locktag->locktag_field2, locktag->locktag_field3, NULL);
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
@@ -924,8 +927,7 @@ LockAcquireExtended(const LOCKTAG *locktag,
 						lockMethodTable->lockModeNames[lockmode]),
 				 errhint("Only RowExclusiveLock or less can be acquired on database objects during recovery.")));
 
-	if (pltsql_get_tsql_enr_from_oid_hook && locktag->locktag_type == LOCKTAG_RELATION && 
-		(*pltsql_get_tsql_enr_from_oid_hook)(locktag->locktag_field2))
+	if (is_temp_relation_lock || is_temp_object_lock)
 	{
 		/*
 		 * Normally, opening a relation with AccessExclusiveLock will automatically trigger for an XID

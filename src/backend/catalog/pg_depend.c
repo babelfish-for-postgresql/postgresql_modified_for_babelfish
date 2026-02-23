@@ -106,6 +106,9 @@ recordMultipleDependencies(const ObjectAddress *depender,
 		 */
 		if (isObjectPinned(referenced))
 			continue;
+		
+		if (is_enr_to_sys_object_dependency_hook && (*is_enr_to_sys_object_dependency_hook) (depender, referenced))
+			continue;
 
 		if (slot_init_count < max_slots)
 		{

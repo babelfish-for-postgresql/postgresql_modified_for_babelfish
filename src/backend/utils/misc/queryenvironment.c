@@ -56,18 +56,8 @@
 #define NUM_ENR_CATALOGS 11
 
 pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook = NULL;
-
-/*
- * Private state of a query environment.
- */
-struct QueryEnvironment
-{
-	List	   *namedRelList;
-	List	   *dropped_namedRelList;
-	List 	   *savedCatcacheMessages;
-	struct QueryEnvironment *parentEnv;
-	MemoryContext	memctx;
-};
+find_object_in_enr_hook_type find_object_in_enr_hook = NULL;
+is_enr_to_sys_object_dependency_hook_type is_enr_to_sys_object_dependency_hook = NULL;
 
 /*
  * This list must match ENRCatalogTupleType in queryenvironment.h.
@@ -102,7 +92,8 @@ static void ENRAddUncommittedTupleData(EphemeralNamedRelation enr, Oid catoid, E
 static void ENRDeleteUncommittedTupleData(SubTransactionId subid, EphemeralNamedRelation enr);
 static void ENRRollbackUncommittedTuple(QueryEnvironment *queryEnv, ENRUncommittedTuple uncommitted_tup);
 static bool IsCatalogOidENR(Oid reloid, bool extended);
-static EphemeralNamedRelation find_enr(Form_pg_depend entry);
+static EphemeralNamedRelation find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry);
+static EphemeralNamedRelation find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tosearch, ListCell **lc);
 
 QueryEnvironment *
 create_queryEnv(void)
@@ -803,10 +794,10 @@ bool ENRUpdateTuple(Relation rel, HeapTuple tup)
  * Find matching tuple in ENR catalog list for DROP/UPDATE operations.
  * Returns the ListCell containing the matching tuple, or NULL if not found.
  */
-static ListCell *
+static ListCell*
 find_tuple_in_enr_catalog(List *cattups, HeapTuple search_tup, Oid catalog_oid)
 {
-	ListCell *lc;
+	ListCell *lc = NULL;
 
 	foreach(lc, cattups)
 	{
@@ -816,25 +807,38 @@ find_tuple_in_enr_catalog(List *cattups, HeapTuple search_tup, Oid catalog_oid)
 		{
 			case IndexRelationId:
 			{
-				Form_pg_index idx1 = (Form_pg_index) GETSTRUCT(search_tup);
-				Form_pg_index idx2 = (Form_pg_index) GETSTRUCT(enr_tup);
-				if (idx1->indexrelid == idx2->indexrelid)
+				Form_pg_index tofind = (Form_pg_index) GETSTRUCT(search_tup);
+				Form_pg_index with = (Form_pg_index) GETSTRUCT(enr_tup);
+				if (tofind->indexrelid == with->indexrelid)
 					return lc;
 				break;
 			}
 			case AttrDefaultRelationId:
 			{
-				Form_pg_attrdef def1 = (Form_pg_attrdef) GETSTRUCT(search_tup);
-				Form_pg_attrdef def2 = (Form_pg_attrdef) GETSTRUCT(enr_tup);
-				if (def1->oid == def2->oid)
+				Form_pg_attrdef tofind = (Form_pg_attrdef) GETSTRUCT(search_tup);
+				Form_pg_attrdef with = (Form_pg_attrdef) GETSTRUCT(enr_tup);
+				if (tofind->oid == with->oid)
 					return lc;
 				break;
 			}
 			case ConstraintRelationId:
 			{
-				Form_pg_constraint con1 = (Form_pg_constraint) GETSTRUCT(search_tup);
-				Form_pg_constraint con2 = (Form_pg_constraint) GETSTRUCT(enr_tup);
-				if (con1->oid == con2->oid)
+				Form_pg_constraint tofind = (Form_pg_constraint) GETSTRUCT(search_tup);
+				Form_pg_constraint with = (Form_pg_constraint) GETSTRUCT(enr_tup);
+				if (tofind->oid == with->oid)
+					return lc;
+				break;
+			}
+			case DependRelationId:
+			{
+				Form_pg_depend tofind = (Form_pg_depend) GETSTRUCT(search_tup);
+				Form_pg_depend with = (Form_pg_depend) GETSTRUCT(enr_tup);
+				if (tofind->classid == with->classid &&
+					tofind->objid == with->objid && 
+					tofind->objsubid == with->objsubid && 
+					tofind->refclassid == with->refclassid &&
+					tofind->refobjid == with->refobjid && 
+					tofind->refobjsubid == with->refobjsubid)
 					return lc;
 				break;
 			}
@@ -902,7 +906,7 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 			case DependRelationId:
 				{
 					Form_pg_depend tf1 = (Form_pg_depend) GETSTRUCT((HeapTuple)tup);
-					if ((enr = find_enr(tf1))) {
+					if ((enr = find_associated_enr(queryEnv, tf1))) {
 						ListCell *curlc;
 						Form_pg_depend tf2; /* tuple forms*/
 
@@ -930,6 +934,26 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 							}
 						}
 						ret = true;
+					}
+					else if (op == ENR_OP_DROP)
+					{
+						/*
+						 * While deletion, we first drop the object and then delete all its outgoing edges.
+						 * See: deleteOneObject in dependency.c
+						 * 
+						 * In which case, we can run into a situation where the associated ENR cannot be 
+						 * identified because pg_depend tuple does not contain enough information; for example 
+						 * a arraytype to ENR temp table pg_depend tuple - in this case, the arraytype is removed
+						 * from ENR, hence find_associated_enr will return NULL; but in that case, we can simply directly 
+						 * look for the pg_depend entry by matching the exact tuple (classid, objid, refclassid, refobjid).
+						 */
+						ListCell *tmplc = NULL;
+						if ((enr = find_pg_depend_tuple(queryEnv, tup, &tmplc)))
+						{
+							list_ptr = &enr->md.cattups[ENR_CATTUP_DEPEND];
+							lc = tmplc;
+							ret = true;
+						}
 					}
 					break;
 				}
@@ -1184,56 +1208,79 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 /*
  * Helper for _ENR_tuple_operation
  */
-static EphemeralNamedRelation find_enr(Form_pg_depend entry)
+static EphemeralNamedRelation
+find_associated_enr(QueryEnvironment *queryEnv, Form_pg_depend entry)
 {
-	QueryEnvironment *queryEnv = currentQueryEnv;
-	Oid catalog_oid = entry->classid;
+	EphemeralNamedRelation depender_object_enr = NULL;
+	/*
+	 * If the babelfishpg extension is not active, we shouldn't be coming into this
+	 * codepath at all. We will silently return NULL and let the caller handle it.
+	 */
+	if (!find_object_in_enr_hook)
+		return NULL;
+	
+	/*
+	 * pg_depend entry depicts a depender object depends on a referenced object.
+	 * If the depender object is a non-ENR, we will simply skip adding anything and
+	 * return NULL. The caller handles the rest.
+	 */
+	depender_object_enr = (*find_object_in_enr_hook) (entry->classid, entry->objid, queryEnv);
 
-	ListCell         *curlc;
+	if (!depender_object_enr)
+		return NULL;
 
-	while (queryEnv)
-	{
-		switch (catalog_oid) {
-			/*
-			* pg_depend entry shows relation/type/constraint depends on a given object.
-			* Find the relation from ENR. If found, make sure
-			* to register the dependency of the ENR relation to this object.
-			*/
-			case RelationRelationId:
-				return get_ENR_withoid(queryEnv, entry->objid, ENR_TSQL_TEMP, false);
-
-			case TypeRelationId:
-				foreach(curlc, queryEnv->namedRelList) {
-					EphemeralNamedRelation tmp_enr;
-					ListCell *type_lc;
-
-					tmp_enr = (EphemeralNamedRelation) lfirst(curlc);
-					if (tmp_enr->md.enrtype != ENR_TSQL_TEMP)
-						continue;
-
-					foreach(type_lc, tmp_enr->md.cattups[ENR_CATTUP_TYPE])
-					{
-						Form_pg_type tup = ((Form_pg_type)GETSTRUCT((HeapTuple)lfirst(type_lc)));
-						if (tup->oid == entry->objid)
-							return tmp_enr;
-					}
-					foreach(type_lc, tmp_enr->md.cattups[ENR_CATTUP_ARRAYTYPE])
-					{
-						Form_pg_type tup = ((Form_pg_type)GETSTRUCT((HeapTuple)lfirst(type_lc)));
-						if (tup->oid == entry->objid)
-							return tmp_enr;
-					}
-				}
-				break;
-
-			case ConstraintRelationId:
-			case AttrDefaultRelationId:
-				return get_ENR_withoid(queryEnv, entry->refobjid, ENR_TSQL_TEMP, false);
-
-			default:
-				break;
+	switch (entry->classid) {
+		case RelationRelationId:
+		case TypeRelationId:
+		{
+			return depender_object_enr;
 		}
-		queryEnv = queryEnv->parentEnv;
+		case ConstraintRelationId:
+		case AttrDefaultRelationId:
+		{
+			EphemeralNamedRelation referenced_object_enr = (*find_object_in_enr_hook) (entry->refclassid, entry->refobjid, queryEnv);
+
+			/*
+			 * If both the dependency and dependent objects are in ENR, then we simply return this ENR
+			 * so that the caller can add this tuple in ENR's pg_depend catalog.
+			 */
+			if (referenced_object_enr)
+			{
+				Assert(referenced_object_enr == depender_object_enr);
+				return referenced_object_enr;
+			}
+			else
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						errmsg("temporary objects cannot reference permanent non-system objects")));
+			}
+			break;
+		}
+		default:
+			break;
+	}
+	return NULL;
+}
+
+/*
+ * Finds the ENR and the tuple which matches the passed in tuple tosearch by searching
+ * the pg_depend catalog by traversing through all the ENRs in the given queryEnvironment.
+ */
+static EphemeralNamedRelation
+find_pg_depend_tuple(QueryEnvironment *qe, HeapTuple tosearch, ListCell** lc)
+{
+	ListCell *outerlc;
+	
+	foreach(outerlc, qe->namedRelList)
+	{
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(outerlc);
+		if (enr->md.enrtype != ENR_TSQL_TEMP)
+			continue;
+
+		*lc = find_tuple_in_enr_catalog(enr->md.cattups[ENR_CATTUP_DEPEND], tosearch, DependRelationId);
+		if ((*lc))
+			return enr;
 	}
 	return NULL;
 }
@@ -1245,21 +1292,32 @@ void ENRDropEntry(Oid id)
 {
 	EphemeralNamedRelation	enr;
 	MemoryContext oldcxt;
+	QueryEnvironment *queryEnv;
 
-	if (sql_dialect != SQL_DIALECT_TSQL || !currentQueryEnv)
+	if ((sql_dialect != SQL_DIALECT_TSQL && !(is_bbf_tds_connection_hook && is_bbf_tds_connection_hook())) || !currentQueryEnv)
 		return;
 
-	if ((enr = GetENRTempTableWithOid(id, false)) == NULL)
+	/* Find the ENR and which query environment contains it */
+	queryEnv = currentQueryEnv;
+	while (queryEnv)
+	{
+		if ((enr = get_ENR_withoid(queryEnv, id, ENR_TSQL_TEMP, false)) != NULL)
+			break;
+		queryEnv = queryEnv->parentEnv;
+	}
+
+	/* ENR not found in any environment */
+	if (!enr)
 		return;
 
-	oldcxt = MemoryContextSwitchTo(currentQueryEnv->memctx);
-	currentQueryEnv->namedRelList = list_delete(currentQueryEnv->namedRelList, enr);
+	oldcxt = MemoryContextSwitchTo(queryEnv->memctx);
+	queryEnv->namedRelList = list_delete_ptr(queryEnv->namedRelList, enr);
 
 	/* If we are dropping a committed ENR, wait until COMMIT to free it. */
 	if (temp_table_xact_support && enr->md.is_bbf_temp_table)
 	{
 		enr->md.dropped_subid = GetCurrentSubTransactionId();
-		currentQueryEnv->dropped_namedRelList = lappend(currentQueryEnv->dropped_namedRelList, enr);
+		queryEnv->dropped_namedRelList = lappend(queryEnv->dropped_namedRelList, enr);
 	}
 	else
 	{

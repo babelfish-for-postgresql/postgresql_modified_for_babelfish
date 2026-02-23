@@ -17,6 +17,7 @@
 #include "access/tupdesc.h"
 #include "access/htup.h"
 #include "access/skey.h"
+#include "catalog/objectaddress.h"
 #include "utils/memutils.h"
 #include "utils/relcache.h"
 #include "storage/sinval.h"
@@ -27,6 +28,18 @@ typedef enum EphemeralNameRelationType
 	ENR_NAMED_TUPLESTORE,		/* named tuplestore relation; e.g., deltas */
 	ENR_TSQL_TEMP,		/* Temp table created in procedure/function */
 } EphemeralNameRelationType;
+
+/*
+ * Private state of a query environment.
+ */
+struct QueryEnvironment
+{
+	List	   *namedRelList;
+	List	   *dropped_namedRelList;
+	List 	   *savedCatcacheMessages;
+	struct QueryEnvironment *parentEnv;
+	MemoryContext	memctx;
+};
 
 typedef enum ENRCatalogTupleType
 {
@@ -170,5 +183,11 @@ extern bool has_existing_enr_relations(void);
 /* Hooks */
 typedef EphemeralNamedRelation (*pltsql_get_tsql_enr_from_oid_hook_type) (Oid oid);
 extern PGDLLIMPORT pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook;
+
+typedef EphemeralNamedRelation (*find_object_in_enr_hook_type) (Oid catalog_oid, Oid object_id, QueryEnvironment *qe);
+extern PGDLLIMPORT find_object_in_enr_hook_type find_object_in_enr_hook;
+
+typedef bool (*is_enr_to_sys_object_dependency_hook_type) (const ObjectAddress *depender, const ObjectAddress *referenced);
+extern PGDLLIMPORT is_enr_to_sys_object_dependency_hook_type is_enr_to_sys_object_dependency_hook;
 
 #endif							/* QUERYENVIRONMENT_H */
