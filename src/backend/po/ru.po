@@ -10,8 +10,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: postgres (PostgreSQL current)\n"
 "Report-Msgid-Bugs-To: pgsql-bugs@lists.postgresql.org\n"
-"POT-Creation-Date: 2026-02-07 08:58+0200\n"
-"PO-Revision-Date: 2026-02-07 10:42+0200\n"
+"POT-Creation-Date: 2026-02-21 05:20+0200\n"
+"PO-Revision-Date: 2026-02-21 05:29+0200\n"
 "Last-Translator: Alexander Lakhin <exclusion@gmail.com>\n"
 "Language-Team: Russian <pgsql-ru-general@postgresql.org>\n"
 "Language: ru\n"
@@ -83,7 +83,7 @@ msgid "not recorded"
 msgstr "не записано"
 
 #: ../common/controldata_utils.c:79 ../common/controldata_utils.c:83
-#: commands/copyfrom.c:1687 commands/extension.c:3480 utils/adt/genfile.c:123
+#: commands/copyfrom.c:1687 commands/extension.c:3610 utils/adt/genfile.c:123
 #, c-format
 msgid "could not open file \"%s\" for reading: %m"
 msgstr "не удалось открыть файл \"%s\" для чтения: %m"
@@ -94,7 +94,7 @@ msgstr "не удалось открыть файл \"%s\" для чтения: 
 #: access/transam/xlog.c:4000 access/transam/xlogrecovery.c:1235
 #: access/transam/xlogrecovery.c:1327 access/transam/xlogrecovery.c:1364
 #: access/transam/xlogrecovery.c:1424 backup/basebackup.c:1846
-#: commands/extension.c:3490 libpq/hba.c:769 replication/logical/origin.c:745
+#: commands/extension.c:3620 libpq/hba.c:769 replication/logical/origin.c:745
 #: replication/logical/origin.c:781 replication/logical/reorderbuffer.c:5184
 #: replication/logical/snapbuild.c:2087 replication/slot.c:2029
 #: replication/slot.c:2070 replication/walsender.c:660
@@ -229,8 +229,8 @@ msgstr "не удалось синхронизировать с ФС файл \"
 #: utils/adt/formatting.c:1812 utils/adt/formatting.c:1935
 #: utils/adt/pg_locale.c:497 utils/adt/pg_locale.c:661 utils/fmgr/dfmgr.c:229
 #: utils/hash/dynahash.c:515 utils/hash/dynahash.c:615
-#: utils/hash/dynahash.c:1112 utils/mb/mbutils.c:403 utils/mb/mbutils.c:431
-#: utils/mb/mbutils.c:816 utils/mb/mbutils.c:843 utils/misc/guc.c:640
+#: utils/hash/dynahash.c:1112 utils/mb/mbutils.c:411 utils/mb/mbutils.c:439
+#: utils/mb/mbutils.c:824 utils/mb/mbutils.c:851 utils/misc/guc.c:640
 #: utils/misc/guc.c:665 utils/misc/guc.c:1053 utils/misc/guc.c:4404
 #: utils/misc/tzparser.c:476 utils/mmgr/aset.c:445 utils/mmgr/dsa.c:714
 #: utils/mmgr/dsa.c:736 utils/mmgr/dsa.c:817 utils/mmgr/generation.c:205
@@ -303,7 +303,7 @@ msgstr "попытка дублирования нулевого указате�
 #: ../common/file_utils.c:451 access/transam/twophase.c:1315
 #: access/transam/xlogarchive.c:112 access/transam/xlogarchive.c:236
 #: backup/basebackup.c:346 backup/basebackup.c:544 backup/basebackup.c:615
-#: commands/copyfrom.c:1697 commands/copyto.c:706 commands/extension.c:3469
+#: commands/copyfrom.c:1697 commands/copyto.c:706 commands/extension.c:3599
 #: commands/tablespace.c:810 commands/tablespace.c:899 postmaster/pgarch.c:590
 #: replication/logical/snapbuild.c:1705 storage/file/fd.c:1922
 #: storage/file/fd.c:2008 storage/file/fd.c:3511 utils/adt/dbsize.c:106
@@ -1072,7 +1072,7 @@ msgid "To fix this, do REINDEX INDEX \"%s\"."
 msgstr "Для исправления выполните REINDEX INDEX \"%s\"."
 
 #: access/gin/ginutil.c:146 executor/execExpr.c:2177
-#: utils/adt/arrayfuncs.c:4052 utils/adt/arrayfuncs.c:6741
+#: utils/adt/arrayfuncs.c:4058 utils/adt/arrayfuncs.c:6747
 #: utils/adt/rowtypes.c:984
 #, c-format
 msgid "could not identify a comparison function for type %s"
@@ -1175,7 +1175,7 @@ msgstr ""
 "семейство операторов \"%s\" метода доступа %s содержит некорректное "
 "определение ORDER BY для оператора %s"
 
-#: access/hash/hashfunc.c:279 access/hash/hashfunc.c:335
+#: access/hash/hashfunc.c:281 access/hash/hashfunc.c:337
 #: utils/adt/varchar.c:1009 utils/adt/varchar.c:1066
 #, c-format
 msgid "could not determine which collation to use for string hashing"
@@ -1183,13 +1183,13 @@ msgstr ""
 "не удалось определить, какое правило сортировки использовать для хеширования "
 "строк"
 
-#: access/hash/hashfunc.c:280 access/hash/hashfunc.c:336 catalog/heap.c:672
+#: access/hash/hashfunc.c:282 access/hash/hashfunc.c:338 catalog/heap.c:672
 #: catalog/heap.c:678 commands/createas.c:206 commands/createas.c:515
 #: commands/indexcmds.c:2022 commands/tablecmds.c:17775 commands/view.c:86
 #: regex/regc_pg_locale.c:243 utils/adt/formatting.c:1648
 #: utils/adt/formatting.c:1770 utils/adt/formatting.c:1893 utils/adt/like.c:191
 #: utils/adt/like_support.c:1025 utils/adt/varchar.c:739
-#: utils/adt/varchar.c:1010 utils/adt/varchar.c:1067 utils/adt/varlena.c:1518
+#: utils/adt/varchar.c:1010 utils/adt/varchar.c:1067 utils/adt/varlena.c:1563
 #, c-format
 msgid "Use the COLLATE clause to set the collation explicitly."
 msgstr "Задайте правило сортировки явно в предложении COLLATE."
@@ -1999,7 +1999,7 @@ msgstr ""
 "выполнить усечение до мультитранзакции %u нельзя из-за некорректного "
 "смещения, усечение пропускается"
 
-#: access/transam/multixact.c:3494
+#: access/transam/multixact.c:3485
 #, c-format
 msgid "invalid MultiXactId: %u"
 msgstr "неверный MultiXactId: %u"
@@ -5541,8 +5541,8 @@ msgstr "отношение \"%s.%s\" не существует"
 msgid "relation \"%s\" does not exist"
 msgstr "отношение \"%s\" не существует"
 
-#: catalog/namespace.c:502 catalog/namespace.c:3073 commands/extension.c:1611
-#: commands/extension.c:1617
+#: catalog/namespace.c:502 catalog/namespace.c:3076 commands/extension.c:1741
+#: commands/extension.c:1747
 #, c-format
 msgid "no schema has been selected to create in"
 msgstr "схема для создания объектов не выбрана"
@@ -6407,23 +6407,23 @@ msgstr "преобразование \"%s\" уже существует"
 msgid "default conversion for %s to %s already exists"
 msgstr "преобразование по умолчанию из %s в %s уже существует"
 
-#: catalog/pg_depend.c:222 commands/extension.c:3368
+#: catalog/pg_depend.c:224 commands/extension.c:3498
 #, c-format
 msgid "%s is already a member of extension \"%s\""
 msgstr "%s уже относится к расширению \"%s\""
 
-#: catalog/pg_depend.c:229 catalog/pg_depend.c:280 commands/extension.c:3408
+#: catalog/pg_depend.c:231 catalog/pg_depend.c:282 commands/extension.c:3538
 #, c-format
 msgid "%s is not a member of extension \"%s\""
 msgstr "%s не относится к расширению \"%s\""
 
-#: catalog/pg_depend.c:232
+#: catalog/pg_depend.c:234
 #, c-format
 msgid "An extension is not allowed to replace an object that it does not own."
 msgstr ""
 "Расширениям не разрешается заменять объекты, которые им не принадлежат."
 
-#: catalog/pg_depend.c:283
+#: catalog/pg_depend.c:285
 #, c-format
 msgid ""
 "An extension may only use CREATE ... IF NOT EXISTS to skip object creation "
@@ -6432,7 +6432,7 @@ msgstr ""
 "Расширение может выполнять CREATE ... IF NOT EXISTS только для того, чтобы "
 "не создавать объект, когда оно уже владеет конфликтующим объектом."
 
-#: catalog/pg_depend.c:646
+#: catalog/pg_depend.c:648
 #, c-format
 msgid "cannot remove dependency on %s because it is a system object"
 msgstr ""
@@ -6523,7 +6523,7 @@ msgstr "имя \"%s\" недопустимо для оператора"
 msgid "only binary operators can have commutators"
 msgstr "коммутативную операцию можно определить только для бинарных операторов"
 
-#: catalog/pg_operator.c:374 commands/operatorcmds.c:509
+#: catalog/pg_operator.c:374 commands/operatorcmds.c:542
 #, c-format
 msgid "only binary operators can have join selectivity"
 msgstr ""
@@ -6545,13 +6545,13 @@ msgstr "поддержку хеша можно обозначить только
 msgid "only boolean operators can have negators"
 msgstr "обратную операцию можно определить только для логических операторов"
 
-#: catalog/pg_operator.c:397 commands/operatorcmds.c:517
+#: catalog/pg_operator.c:397 commands/operatorcmds.c:550
 #, c-format
 msgid "only boolean operators can have restriction selectivity"
 msgstr ""
 "функцию оценки ограничения можно определить только для логических операторов"
 
-#: catalog/pg_operator.c:401 commands/operatorcmds.c:521
+#: catalog/pg_operator.c:401 commands/operatorcmds.c:554
 #, c-format
 msgid "only boolean operators can have join selectivity"
 msgstr ""
@@ -7763,7 +7763,7 @@ msgstr "Генерируемые столбцы нельзя использов�
 #: commands/tablecmds.c:3655 parser/parse_relation.c:3698
 #: parser/parse_relation.c:3708 parser/parse_relation.c:3726
 #: parser/parse_relation.c:3733 parser/parse_relation.c:3747
-#: utils/adt/tsvector_op.c:2855
+#: utils/adt/tsvector_op.c:2859
 #, c-format
 msgid "column \"%s\" does not exist"
 msgstr "столбец \"%s\" не существует"
@@ -7860,7 +7860,7 @@ msgstr "столбец FORCE_NOT_NULL \"%s\" не фигурирует в COPY"
 msgid "FORCE_NULL column \"%s\" not referenced by COPY"
 msgstr "столбец FORCE_NULL \"%s\" не фигурирует в COPY"
 
-#: commands/copyfrom.c:1490 utils/mb/mbutils.c:387
+#: commands/copyfrom.c:1490 utils/mb/mbutils.c:395
 #, c-format
 msgid ""
 "default conversion function for encoding \"%s\" to \"%s\" does not exist"
@@ -8933,75 +8933,75 @@ msgstr ""
 "параметры ANALYZE и GENERIC_PLAN оператора EXPLAIN нельзя использовать "
 "одновременно"
 
-#: commands/extension.c:177 commands/extension.c:3033
+#: commands/extension.c:199 commands/extension.c:3163
 #, c-format
 msgid "extension \"%s\" does not exist"
 msgstr "расширение \"%s\" не существует"
 
-#: commands/extension.c:276 commands/extension.c:285 commands/extension.c:297
-#: commands/extension.c:307
+#: commands/extension.c:406 commands/extension.c:415 commands/extension.c:427
+#: commands/extension.c:437
 #, c-format
 msgid "invalid extension name: \"%s\""
 msgstr "неверное имя расширения: \"%s\""
 
-#: commands/extension.c:277
+#: commands/extension.c:407
 #, c-format
 msgid "Extension names must not be empty."
 msgstr "Имя расширения не может быть пустым."
 
-#: commands/extension.c:286
+#: commands/extension.c:416
 #, c-format
 msgid "Extension names must not contain \"--\"."
 msgstr "Имя расширения не может содержать \"--\"."
 
-#: commands/extension.c:298
+#: commands/extension.c:428
 #, c-format
 msgid "Extension names must not begin or end with \"-\"."
 msgstr "Имя расширения не может начинаться или заканчиваться символом \"-\"."
 
-#: commands/extension.c:308
+#: commands/extension.c:438
 #, c-format
 msgid "Extension names must not contain directory separator characters."
 msgstr "Имя расширения не может содержать разделители пути."
 
-#: commands/extension.c:323 commands/extension.c:332 commands/extension.c:341
-#: commands/extension.c:351
+#: commands/extension.c:453 commands/extension.c:462 commands/extension.c:471
+#: commands/extension.c:481
 #, c-format
 msgid "invalid extension version name: \"%s\""
 msgstr "неверный идентификатор версии расширения: \"%s\""
 
-#: commands/extension.c:324
+#: commands/extension.c:454
 #, c-format
 msgid "Version names must not be empty."
 msgstr "Идентификатор версии не может быть пустым."
 
-#: commands/extension.c:333
+#: commands/extension.c:463
 #, c-format
 msgid "Version names must not contain \"--\"."
 msgstr "Идентификатор версии не может содержать \"--\"."
 
-#: commands/extension.c:342
+#: commands/extension.c:472
 #, c-format
 msgid "Version names must not begin or end with \"-\"."
 msgstr ""
 "Идентификатор версии не может начинаться или заканчиваться символом \"-\"."
 
-#: commands/extension.c:352
+#: commands/extension.c:482
 #, c-format
 msgid "Version names must not contain directory separator characters."
 msgstr "Идентификатор версии не может содержать разделители пути."
 
-#: commands/extension.c:506
+#: commands/extension.c:636
 #, c-format
 msgid "extension \"%s\" is not available"
 msgstr "расширение \"%s\" отсутствует"
 
-#: commands/extension.c:507
+#: commands/extension.c:637
 #, c-format
 msgid "Could not open extension control file \"%s\": %m."
 msgstr "Не удалось открыть управляющий файл расширения \"%s\": %m."
 
-#: commands/extension.c:509
+#: commands/extension.c:639
 #, c-format
 msgid ""
 "The extension must first be installed on the system where PostgreSQL is "
@@ -9009,91 +9009,91 @@ msgid ""
 msgstr ""
 "Сначала расширение нужно установить в системе, где работает PostgreSQL."
 
-#: commands/extension.c:513
+#: commands/extension.c:643
 #, c-format
 msgid "could not open extension control file \"%s\": %m"
 msgstr "не удалось открыть управляющий файл расширения \"%s\": %m"
 
-#: commands/extension.c:536 commands/extension.c:546
+#: commands/extension.c:666 commands/extension.c:676
 #, c-format
 msgid "parameter \"%s\" cannot be set in a secondary extension control file"
 msgstr ""
 "параметр \"%s\" нельзя задавать в дополнительном управляющем файле расширения"
 
-#: commands/extension.c:568 commands/extension.c:576 commands/extension.c:584
+#: commands/extension.c:698 commands/extension.c:706 commands/extension.c:714
 #: utils/misc/guc.c:3100
 #, c-format
 msgid "parameter \"%s\" requires a Boolean value"
 msgstr "параметр \"%s\" требует логическое значение"
 
-#: commands/extension.c:593
+#: commands/extension.c:723
 #, c-format
 msgid "\"%s\" is not a valid encoding name"
 msgstr "\"%s\" не является верным названием кодировки"
 
-#: commands/extension.c:607 commands/extension.c:622
+#: commands/extension.c:737 commands/extension.c:752
 #, c-format
 msgid "parameter \"%s\" must be a list of extension names"
 msgstr "параметр \"%s\" должен содержать список имён расширений"
 
-#: commands/extension.c:629
+#: commands/extension.c:759
 #, c-format
 msgid "unrecognized parameter \"%s\" in file \"%s\""
 msgstr "нераспознанный параметр \"%s\" в файле \"%s\""
 
-#: commands/extension.c:638
+#: commands/extension.c:768
 #, c-format
 msgid "parameter \"schema\" cannot be specified when \"relocatable\" is true"
 msgstr ""
 "параметр \"schema\" не может быть указан вместе с \"relocatable\" = true"
 
-#: commands/extension.c:816
+#: commands/extension.c:946
 #, c-format
 msgid ""
 "transaction control statements are not allowed within an extension script"
 msgstr "в скрипте расширения не должно быть операторов управления транзакциями"
 
-#: commands/extension.c:896
+#: commands/extension.c:1026
 #, c-format
 msgid "permission denied to create extension \"%s\""
 msgstr "нет прав для создания расширения \"%s\""
 
-#: commands/extension.c:899
+#: commands/extension.c:1029
 #, c-format
 msgid ""
 "Must have CREATE privilege on current database to create this extension."
 msgstr "Для создания этого расширения нужно иметь право CREATE в текущей базе."
 
-#: commands/extension.c:900
+#: commands/extension.c:1030
 #, c-format
 msgid "Must be superuser to create this extension."
 msgstr "Для создания этого расширения нужно быть суперпользователем."
 
-#: commands/extension.c:904
+#: commands/extension.c:1034
 #, c-format
 msgid "permission denied to update extension \"%s\""
 msgstr "нет прав для изменения расширения \"%s\""
 
-#: commands/extension.c:907
+#: commands/extension.c:1037
 #, c-format
 msgid ""
 "Must have CREATE privilege on current database to update this extension."
 msgstr ""
 "Для обновления этого расширения нужно иметь право CREATE в текущей базе."
 
-#: commands/extension.c:908
+#: commands/extension.c:1038
 #, c-format
 msgid "Must be superuser to update this extension."
 msgstr "Для изменения этого расширения нужно быть суперпользователем."
 
-#: commands/extension.c:1046
+#: commands/extension.c:1176
 #, c-format
 msgid "invalid character in extension owner: must not contain any of \"%s\""
 msgstr ""
 "недопустимый символ в имени владельца расширения: имя не должно содержать "
 "\"%s\""
 
-#: commands/extension.c:1070 commands/extension.c:1097
+#: commands/extension.c:1200 commands/extension.c:1227
 #, c-format
 msgid ""
 "invalid character in extension \"%s\" schema: must not contain any of \"%s\""
@@ -9101,7 +9101,7 @@ msgstr ""
 "недопустимый символ в имени схемы расширения \"%s\": имя не должно содержать "
 "\"%s\""
 
-#: commands/extension.c:1292
+#: commands/extension.c:1422
 #, c-format
 msgid ""
 "extension \"%s\" has no update path from version \"%s\" to version \"%s\""
@@ -9109,12 +9109,12 @@ msgstr ""
 "для расширения \"%s\" не определён путь обновления с версии \"%s\" до версии "
 "\"%s\""
 
-#: commands/extension.c:1500 commands/extension.c:3091
+#: commands/extension.c:1630 commands/extension.c:3221
 #, c-format
 msgid "version to install must be specified"
 msgstr "нужно указать версию для установки"
 
-#: commands/extension.c:1537
+#: commands/extension.c:1667
 #, c-format
 msgid ""
 "extension \"%s\" has no installation script nor update path for version "
@@ -9123,71 +9123,71 @@ msgstr ""
 "для расширения \"%s\" не определён путь установки или обновления для версии "
 "\"%s\""
 
-#: commands/extension.c:1571
+#: commands/extension.c:1701
 #, c-format
 msgid "extension \"%s\" must be installed in schema \"%s\""
 msgstr "расширение \"%s\" должно устанавливаться в схему \"%s\""
 
-#: commands/extension.c:1731
+#: commands/extension.c:1861
 #, c-format
 msgid "cyclic dependency detected between extensions \"%s\" and \"%s\""
 msgstr "выявлена циклическая зависимость между расширениями \"%s\" и \"%s\""
 
-#: commands/extension.c:1736
+#: commands/extension.c:1866
 #, c-format
 msgid "installing required extension \"%s\""
 msgstr "установка требуемого расширения \"%s\""
 
-#: commands/extension.c:1759
+#: commands/extension.c:1889
 #, c-format
 msgid "required extension \"%s\" is not installed"
 msgstr "требуемое расширение \"%s\" не установлено"
 
-#: commands/extension.c:1762
+#: commands/extension.c:1892
 #, c-format
 msgid "Use CREATE EXTENSION ... CASCADE to install required extensions too."
 msgstr ""
 "Выполните CREATE EXTENSION ... CASCADE, чтобы установить также требуемые "
 "расширения."
 
-#: commands/extension.c:1797
+#: commands/extension.c:1927
 #, c-format
 msgid "extension \"%s\" already exists, skipping"
 msgstr "расширение \"%s\" уже существует, пропускается"
 
-#: commands/extension.c:1804
+#: commands/extension.c:1934
 #, c-format
 msgid "extension \"%s\" already exists"
 msgstr "расширение \"%s\" уже существует"
 
-#: commands/extension.c:1815
+#: commands/extension.c:1945
 #, c-format
 msgid "nested CREATE EXTENSION is not supported"
 msgstr "вложенные операторы CREATE EXTENSION не поддерживаются"
 
-#: commands/extension.c:1979
+#: commands/extension.c:2109
 #, c-format
 msgid "cannot drop extension \"%s\" because it is being modified"
 msgstr "удалить расширение \"%s\" нельзя, так как это модифицируемый объект"
 
-#: commands/extension.c:2454
+#: commands/extension.c:2584
 #, c-format
 msgid "%s can only be called from an SQL script executed by CREATE EXTENSION"
 msgstr ""
 "%s можно вызывать только из SQL-скрипта, запускаемого командой CREATE "
 "EXTENSION"
 
-#: commands/extension.c:2466
+#: commands/extension.c:2596
 #, c-format
 msgid "OID %u does not refer to a table"
 msgstr "OID %u не относится к таблице"
 
-#: commands/extension.c:2471
+#: commands/extension.c:2601
 #, c-format
 msgid "table \"%s\" is not a member of the extension being created"
 msgstr "таблица \"%s\" не относится к созданному расширению"
 
-#: commands/extension.c:2817
+#: commands/extension.c:2947
 #, c-format
 msgid ""
 "cannot move extension \"%s\" into schema \"%s\" because the extension "
@@ -9196,12 +9196,12 @@ msgstr ""
 "переместить расширение \"%s\" в схему \"%s\" нельзя, так как оно содержит "
 "схему"
 
-#: commands/extension.c:2858 commands/extension.c:2952
+#: commands/extension.c:2988 commands/extension.c:3082
 #, c-format
 msgid "extension \"%s\" does not support SET SCHEMA"
 msgstr "расширение \"%s\" не поддерживает SET SCHEMA"
 
-#: commands/extension.c:2915
+#: commands/extension.c:3045
 #, c-format
 msgid ""
 "cannot SET SCHEMA of extension \"%s\" because other extensions prevent it"
@@ -9209,32 +9209,32 @@ msgstr ""
 "выполнить SET SCHEMA для расширения \"%s\" нельзя, так как этому "
 "препятствуют другие расширения"
 
-#: commands/extension.c:2917
+#: commands/extension.c:3047
 #, c-format
 msgid "Extension \"%s\" requests no relocation of extension \"%s\"."
 msgstr "Расширение \"%s\" не допускает перемещения расширения \"%s\"."
 
-#: commands/extension.c:2954
+#: commands/extension.c:3084
 #, c-format
 msgid "%s is not in the extension's schema \"%s\""
 msgstr "объект %s не принадлежит схеме расширения \"%s\""
 
-#: commands/extension.c:3013
+#: commands/extension.c:3143
 #, c-format
 msgid "nested ALTER EXTENSION is not supported"
 msgstr "вложенные операторы ALTER EXTENSION не поддерживаются"
 
-#: commands/extension.c:3102
+#: commands/extension.c:3232
 #, c-format
 msgid "version \"%s\" of extension \"%s\" is already installed"
 msgstr "версия \"%s\" расширения \"%s\" уже установлена"
 
-#: commands/extension.c:3314
+#: commands/extension.c:3444
 #, c-format
 msgid "cannot add an object of this type to an extension"
 msgstr "добавить объект этого типа к расширению нельзя"
 
-#: commands/extension.c:3380
+#: commands/extension.c:3510
 #, c-format
 msgid ""
 "cannot add schema \"%s\" to extension \"%s\" because the schema contains the "
@@ -9243,7 +9243,7 @@ msgstr ""
 "добавить схему \"%s\" к расширению \"%s\" нельзя, так как схема содержит "
 "расширение"
 
-#: commands/extension.c:3474
+#: commands/extension.c:3604
 #, c-format
 msgid "file \"%s\" is too large"
 msgstr "файл \"%s\" слишком большой"
@@ -10386,7 +10386,7 @@ msgstr ""
 msgid "SETOF type not allowed for operator argument"
 msgstr "аргументом оператора не может быть тип SETOF"
 
-#: commands/operatorcmds.c:154 commands/operatorcmds.c:481
+#: commands/operatorcmds.c:154 commands/operatorcmds.c:514
 #, c-format
 msgid "operator attribute \"%s\" not recognized"
 msgstr "атрибут оператора \"%s\" не распознан"
@@ -10411,22 +10411,37 @@ msgstr "нужно указать тип правого аргумента оп�
 msgid "Postfix operators are not supported."
 msgstr "Постфиксные операторы не поддерживаются."
 
-#: commands/operatorcmds.c:292
+#: commands/operatorcmds.c:291
 #, c-format
 msgid "restriction estimator function %s must return type %s"
 msgstr "функция оценки ограничения %s должна возвращать тип %s"
 
-#: commands/operatorcmds.c:335
+#: commands/operatorcmds.c:309
+#, c-format
+msgid ""
+"must be superuser to specify a non-built-in restriction estimator function"
+msgstr ""
+"для указания дополнительной функции оценки ограничения нужно быть "
+"суперпользователем"
+
+#: commands/operatorcmds.c:355
 #, c-format
 msgid "join estimator function %s has multiple matches"
 msgstr "функция оценки соединения %s присутствует в нескольких экземплярах"
 
-#: commands/operatorcmds.c:350
+#: commands/operatorcmds.c:370
 #, c-format
 msgid "join estimator function %s must return type %s"
 msgstr "функция оценки соединения %s должна возвращать тип %s"
 
-#: commands/operatorcmds.c:475
+#: commands/operatorcmds.c:379
+#, c-format
+msgid "must be superuser to specify a non-built-in join estimator function"
+msgstr ""
+"для указания дополнительной функции оценки соединения нужно быть "
+"суперпользователем"
+
+#: commands/operatorcmds.c:508
 #, c-format
 msgid "operator attribute \"%s\" cannot be changed"
 msgstr "атрибут оператора \"%s\" нельзя изменить"
@@ -10490,7 +10505,7 @@ msgstr ""
 "HOLD"
 
 #: commands/portalcmds.c:189 commands/portalcmds.c:242
-#: executor/execCurrent.c:70 utils/adt/xml.c:2919 utils/adt/xml.c:3089
+#: executor/execCurrent.c:70 utils/adt/xml.c:2918 utils/adt/xml.c:3088
 #, c-format
 msgid "cursor \"%s\" does not exist"
 msgstr "курсор \"%s\" не существует"
@@ -14832,8 +14847,8 @@ msgstr ""
 
 #: executor/execExprInterp.c:2835 utils/adt/arrayfuncs.c:266
 #: utils/adt/arrayfuncs.c:576 utils/adt/arrayfuncs.c:1330
-#: utils/adt/arrayfuncs.c:3539 utils/adt/arrayfuncs.c:5623
-#: utils/adt/arrayfuncs.c:6142 utils/adt/arraysubs.c:150
+#: utils/adt/arrayfuncs.c:3539 utils/adt/arrayfuncs.c:5629
+#: utils/adt/arrayfuncs.c:6148 utils/adt/arraysubs.c:150
 #: utils/adt/arraysubs.c:488
 #, c-format
 msgid "number of array dimensions (%d) exceeds the maximum allowed (%d)"
@@ -14853,8 +14868,8 @@ msgstr ""
 #: utils/adt/arrayfuncs.c:2654 utils/adt/arrayfuncs.c:2670
 #: utils/adt/arrayfuncs.c:2931 utils/adt/arrayfuncs.c:2985
 #: utils/adt/arrayfuncs.c:3000 utils/adt/arrayfuncs.c:3341
-#: utils/adt/arrayfuncs.c:3569 utils/adt/arrayfuncs.c:6234
-#: utils/adt/arrayfuncs.c:6575 utils/adt/arrayutils.c:98
+#: utils/adt/arrayfuncs.c:3569 utils/adt/arrayfuncs.c:6240
+#: utils/adt/arrayfuncs.c:6581 utils/adt/arrayutils.c:98
 #: utils/adt/arrayutils.c:107 utils/adt/arrayutils.c:114
 #, c-format
 msgid "array size exceeds the maximum allowed (%d)"
@@ -15166,8 +15181,8 @@ msgstr "параллельное удаление; следует повторн
 
 #: executor/execReplication.c:311 parser/parse_cte.c:309
 #: parser/parse_oper.c:233 utils/adt/array_userfuncs.c:1348
-#: utils/adt/array_userfuncs.c:1491 utils/adt/arrayfuncs.c:3888
-#: utils/adt/arrayfuncs.c:4443 utils/adt/arrayfuncs.c:6455
+#: utils/adt/array_userfuncs.c:1491 utils/adt/arrayfuncs.c:3894
+#: utils/adt/arrayfuncs.c:4449 utils/adt/arrayfuncs.c:6461
 #: utils/adt/rowtypes.c:1230
 #, c-format
 msgid "could not identify an equality operator for type %s"
@@ -16939,7 +16954,7 @@ msgstr "неверное регулярное выражение \"%s\": %s"
 #: libpq/hba.c:2110 libpq/hba.c:2123 libpq/hba.c:2135 libpq/hba.c:2154
 #: libpq/hba.c:2240 libpq/hba.c:2258 libpq/hba.c:2352 libpq/hba.c:2371
 #: libpq/hba.c:2400 libpq/hba.c:2413 libpq/hba.c:2436 libpq/hba.c:2458
-#: libpq/hba.c:2472 tsearch/ts_locale.c:243
+#: libpq/hba.c:2472 tsearch/ts_locale.c:206
 #, c-format
 msgid "line %d of configuration file \"%s\""
 msgstr "строка %d файла конфигурации \"%s\""
@@ -20820,7 +20835,7 @@ msgstr "неверный символ спецкода Unicode"
 msgid "invalid Unicode escape value"
 msgstr "неверное значение спецкода Unicode"
 
-#: parser/parser.c:494 utils/adt/varlena.c:6505 scan.l:716
+#: parser/parser.c:494 utils/adt/varlena.c:6553 scan.l:716
 #, c-format
 msgid "invalid Unicode escape"
 msgstr "неверный спецкод Unicode"
@@ -20830,7 +20845,7 @@ msgstr "неверный спецкод Unicode"
 msgid "Unicode escapes must be \\XXXX or \\+XXXXXX."
 msgstr "Спецкоды Unicode должны иметь вид \\XXXX или \\+XXXXXX."
 
-#: parser/parser.c:523 utils/adt/varlena.c:6530 scan.l:677 scan.l:693
+#: parser/parser.c:523 utils/adt/varlena.c:6578 scan.l:677 scan.l:693
 #: scan.l:709
 #, c-format
 msgid "invalid Unicode surrogate pair"
@@ -25702,55 +25717,55 @@ msgstr "нераспознанный параметр тезауруса: \"%s\"
 msgid "missing Dictionary parameter"
 msgstr "отсутствует параметр Dictionary"
 
-#: tsearch/spell.c:382 tsearch/spell.c:399 tsearch/spell.c:408
-#: tsearch/spell.c:1045
+#: tsearch/spell.c:383 tsearch/spell.c:400 tsearch/spell.c:409
+#: tsearch/spell.c:1040
 #, c-format
 msgid "invalid affix flag \"%s\""
 msgstr "неверный флаг аффиксов \"%s\""
 
-#: tsearch/spell.c:386 tsearch/spell.c:1049
+#: tsearch/spell.c:387 tsearch/spell.c:1044
 #, c-format
 msgid "affix flag \"%s\" is out of range"
 msgstr "флаг аффикса \"%s\" вне диапазона"
 
-#: tsearch/spell.c:416
+#: tsearch/spell.c:417
 #, c-format
 msgid "invalid character in affix flag \"%s\""
 msgstr "неверный символ во флаге аффикса \"%s\""
 
-#: tsearch/spell.c:436
+#: tsearch/spell.c:437
 #, c-format
 msgid "invalid affix flag \"%s\" with \"long\" flag value"
 msgstr "неверный флаг аффиксов \"%s\" со значением флага \"long\""
 
-#: tsearch/spell.c:526
+#: tsearch/spell.c:527
 #, c-format
 msgid "could not open dictionary file \"%s\": %m"
 msgstr "не удалось открыть файл словаря \"%s\": %m"
 
-#: tsearch/spell.c:750 utils/adt/regexp.c:224 jsonpath_gram.y:559
+#: tsearch/spell.c:751 utils/adt/regexp.c:224 jsonpath_gram.y:560
 #, c-format
 msgid "invalid regular expression: %s"
 msgstr "неверное регулярное выражение: %s"
 
-#: tsearch/spell.c:964 tsearch/spell.c:981 tsearch/spell.c:998
-#: tsearch/spell.c:1015 tsearch/spell.c:1081 gram.y:18137 gram.y:18154
+#: tsearch/spell.c:962 tsearch/spell.c:978 tsearch/spell.c:994
+#: tsearch/spell.c:1010 tsearch/spell.c:1075 gram.y:18137 gram.y:18154
 #, c-format
 msgid "syntax error"
 msgstr "ошибка синтаксиса"
 
-#: tsearch/spell.c:1173 tsearch/spell.c:1185 tsearch/spell.c:1746
-#: tsearch/spell.c:1751 tsearch/spell.c:1756
+#: tsearch/spell.c:1167 tsearch/spell.c:1179 tsearch/spell.c:1739
+#: tsearch/spell.c:1744 tsearch/spell.c:1749
 #, c-format
 msgid "invalid affix alias \"%s\""
 msgstr "неверное указание аффикса \"%s\""
 
-#: tsearch/spell.c:1226 tsearch/spell.c:1297 tsearch/spell.c:1446
+#: tsearch/spell.c:1220 tsearch/spell.c:1291 tsearch/spell.c:1440
 #, c-format
 msgid "could not open affix file \"%s\": %m"
 msgstr "не удалось открыть файл аффиксов \"%s\": %m"
 
-#: tsearch/spell.c:1280
+#: tsearch/spell.c:1274
 #, c-format
 msgid ""
 "Ispell dictionary supports only \"default\", \"long\", and \"num\" flag "
@@ -25759,17 +25774,17 @@ msgstr ""
 "словарь Ispell поддерживает для флага только значения \"default\", \"long\" "
 "и \"num\""
 
-#: tsearch/spell.c:1324
+#: tsearch/spell.c:1318
 #, c-format
 msgid "invalid number of flag vector aliases"
 msgstr "неверное количество векторов флагов"
 
-#: tsearch/spell.c:1347
+#: tsearch/spell.c:1341
 #, c-format
 msgid "number of aliases exceeds specified number %d"
 msgstr "количество псевдонимов превышает заданное число %d"
 
-#: tsearch/spell.c:1562
+#: tsearch/spell.c:1555
 #, c-format
 msgid "affix file contains both old-style and new-style commands"
 msgstr "файл аффиксов содержит команды и в старом, и в новом стиле"
@@ -25779,12 +25794,12 @@ msgstr "файл аффиксов содержит команды и в стар
 msgid "string is too long for tsvector (%d bytes, max %d bytes)"
 msgstr "строка слишком длинна для tsvector (%d Б, при максимуме %d)"
 
-#: tsearch/ts_locale.c:238
+#: tsearch/ts_locale.c:201
 #, c-format
 msgid "line %d of configuration file \"%s\": \"%s\""
 msgstr "строка %d файла конфигурации \"%s\": \"%s\""
 
-#: tsearch/ts_locale.c:317
+#: tsearch/ts_locale.c:280
 #, c-format
 msgid "conversion from wchar_t to server encoding failed: %m"
 msgstr "преобразовать wchar_t в кодировку сервера не удалось: %m"
@@ -25816,27 +25831,27 @@ msgstr "не удалось открыть файл стоп-слов \"%s\": %m
 msgid "text search parser does not support headline creation"
 msgstr "анализатор текстового поиска не поддерживает создание выдержек"
 
-#: tsearch/wparser_def.c:2663
+#: tsearch/wparser_def.c:2664
 #, c-format
 msgid "unrecognized headline parameter: \"%s\""
 msgstr "нераспознанный параметр функции выдержки: \"%s\""
 
-#: tsearch/wparser_def.c:2673
+#: tsearch/wparser_def.c:2674
 #, c-format
 msgid "MinWords should be less than MaxWords"
 msgstr "Значение MinWords должно быть меньше MaxWords"
 
-#: tsearch/wparser_def.c:2677
+#: tsearch/wparser_def.c:2678
 #, c-format
 msgid "MinWords should be positive"
 msgstr "Значение MinWords должно быть положительным"
 
-#: tsearch/wparser_def.c:2681
+#: tsearch/wparser_def.c:2682
 #, c-format
 msgid "ShortWord should be >= 0"
 msgstr "Значение ShortWord должно быть >= 0"
 
-#: tsearch/wparser_def.c:2685
+#: tsearch/wparser_def.c:2686
 #, c-format
 msgid "MaxFragments should be >= 0"
 msgstr "Значение MaxFragments должно быть >= 0"
@@ -26007,16 +26022,16 @@ msgstr "тип входных данных не является массиво�
 
 #: utils/adt/array_userfuncs.c:151 utils/adt/array_userfuncs.c:203
 #: utils/adt/float.c:1228 utils/adt/float.c:1302 utils/adt/float.c:4117
-#: utils/adt/float.c:4155 utils/adt/int.c:778 utils/adt/int.c:800
-#: utils/adt/int.c:814 utils/adt/int.c:828 utils/adt/int.c:859
-#: utils/adt/int.c:880 utils/adt/int.c:997 utils/adt/int.c:1011
-#: utils/adt/int.c:1025 utils/adt/int.c:1058 utils/adt/int.c:1072
-#: utils/adt/int.c:1086 utils/adt/int.c:1117 utils/adt/int.c:1199
-#: utils/adt/int.c:1263 utils/adt/int.c:1331 utils/adt/int.c:1337
+#: utils/adt/float.c:4155 utils/adt/int.c:807 utils/adt/int.c:829
+#: utils/adt/int.c:843 utils/adt/int.c:857 utils/adt/int.c:888
+#: utils/adt/int.c:909 utils/adt/int.c:1026 utils/adt/int.c:1040
+#: utils/adt/int.c:1054 utils/adt/int.c:1087 utils/adt/int.c:1101
+#: utils/adt/int.c:1115 utils/adt/int.c:1146 utils/adt/int.c:1228
+#: utils/adt/int.c:1292 utils/adt/int.c:1360 utils/adt/int.c:1366
 #: utils/adt/int8.c:1272 utils/adt/numeric.c:1917 utils/adt/numeric.c:4404
 #: utils/adt/rangetypes.c:1481 utils/adt/rangetypes.c:1494
-#: utils/adt/varbit.c:1195 utils/adt/varbit.c:1596 utils/adt/varlena.c:1132
-#: utils/adt/varlena.c:3134
+#: utils/adt/varbit.c:1195 utils/adt/varbit.c:1596 utils/adt/varlena.c:1175
+#: utils/adt/varlena.c:3179
 #, c-format
 msgid "integer out of range"
 msgstr "целое вне диапазона"
@@ -26057,7 +26072,7 @@ msgid "Arrays with differing dimensions are not compatible for concatenation."
 msgstr "Массивы с разными размерностями несовместимы для соединения."
 
 #: utils/adt/array_userfuncs.c:987 utils/adt/array_userfuncs.c:995
-#: utils/adt/arrayfuncs.c:5646 utils/adt/arrayfuncs.c:5652
+#: utils/adt/arrayfuncs.c:5652 utils/adt/arrayfuncs.c:5658
 #, c-format
 msgid "cannot accumulate arrays of different dimensionality"
 msgstr "аккумулировать массивы различной размерности нельзя"
@@ -26166,7 +26181,7 @@ msgid "Junk after closing right brace."
 msgstr "Мусор после закрывающей фигурной скобки."
 
 #: utils/adt/arrayfuncs.c:1326 utils/adt/arrayfuncs.c:3535
-#: utils/adt/arrayfuncs.c:6138
+#: utils/adt/arrayfuncs.c:6144
 #, c-format
 msgid "invalid number of dimensions: %d"
 msgstr "неверное число размерностей: %d"
@@ -26207,8 +26222,8 @@ msgstr "разрезание массивов постоянной длины н
 
 #: utils/adt/arrayfuncs.c:2281 utils/adt/arrayfuncs.c:2303
 #: utils/adt/arrayfuncs.c:2352 utils/adt/arrayfuncs.c:2606
-#: utils/adt/arrayfuncs.c:2951 utils/adt/arrayfuncs.c:6124
-#: utils/adt/arrayfuncs.c:6150 utils/adt/arrayfuncs.c:6161
+#: utils/adt/arrayfuncs.c:2951 utils/adt/arrayfuncs.c:6130
+#: utils/adt/arrayfuncs.c:6156 utils/adt/arrayfuncs.c:6167
 #: utils/adt/json.c:1511 utils/adt/json.c:1583 utils/adt/jsonb.c:1416
 #: utils/adt/jsonb.c:1500 utils/adt/jsonfuncs.c:4434 utils/adt/jsonfuncs.c:4587
 #: utils/adt/jsonfuncs.c:4698 utils/adt/jsonfuncs.c:4746
@@ -26256,75 +26271,75 @@ msgstr "исходный массив слишком мал"
 msgid "null array element not allowed in this context"
 msgstr "элемент массива null недопустим в данном контексте"
 
-#: utils/adt/arrayfuncs.c:3864 utils/adt/arrayfuncs.c:4035
-#: utils/adt/arrayfuncs.c:4426
+#: utils/adt/arrayfuncs.c:3870 utils/adt/arrayfuncs.c:4041
+#: utils/adt/arrayfuncs.c:4432
 #, c-format
 msgid "cannot compare arrays of different element types"
 msgstr "нельзя сравнивать массивы с элементами разных типов"
 
-#: utils/adt/arrayfuncs.c:4213 utils/adt/multirangetypes.c:2807
+#: utils/adt/arrayfuncs.c:4219 utils/adt/multirangetypes.c:2807
 #: utils/adt/multirangetypes.c:2879 utils/adt/rangetypes.c:1354
 #: utils/adt/rangetypes.c:1418 utils/adt/rowtypes.c:1885
 #, c-format
 msgid "could not identify a hash function for type %s"
 msgstr "не удалось найти функцию хеширования для типа %s"
 
-#: utils/adt/arrayfuncs.c:4341 utils/adt/rowtypes.c:2006
+#: utils/adt/arrayfuncs.c:4347 utils/adt/rowtypes.c:2006
 #, c-format
 msgid "could not identify an extended hash function for type %s"
 msgstr "не удалось найти функцию расширенного хеширования для типа %s"
 
-#: utils/adt/arrayfuncs.c:5536
+#: utils/adt/arrayfuncs.c:5542
 #, c-format
 msgid "data type %s is not an array type"
 msgstr "тип данных %s не является типом массива"
 
-#: utils/adt/arrayfuncs.c:5591
+#: utils/adt/arrayfuncs.c:5597
 #, c-format
 msgid "cannot accumulate null arrays"
 msgstr "аккумулировать NULL-массивы нельзя"
 
-#: utils/adt/arrayfuncs.c:5619
+#: utils/adt/arrayfuncs.c:5625
 #, c-format
 msgid "cannot accumulate empty arrays"
 msgstr "аккумулировать пустые массивы нельзя"
 
-#: utils/adt/arrayfuncs.c:6022 utils/adt/arrayfuncs.c:6062
+#: utils/adt/arrayfuncs.c:6028 utils/adt/arrayfuncs.c:6068
 #, c-format
 msgid "dimension array or low bound array cannot be null"
 msgstr "массив размерностей или массив нижних границ не может быть null"
 
-#: utils/adt/arrayfuncs.c:6125 utils/adt/arrayfuncs.c:6151
+#: utils/adt/arrayfuncs.c:6131 utils/adt/arrayfuncs.c:6157
 #, c-format
 msgid "Dimension array must be one dimensional."
 msgstr "Массив размерностей должен быть одномерным."
 
-#: utils/adt/arrayfuncs.c:6130 utils/adt/arrayfuncs.c:6156
+#: utils/adt/arrayfuncs.c:6136 utils/adt/arrayfuncs.c:6162
 #, c-format
 msgid "dimension values cannot be null"
 msgstr "значения размерностей не могут быть null"
 
-#: utils/adt/arrayfuncs.c:6162
+#: utils/adt/arrayfuncs.c:6168
 #, c-format
 msgid "Low bound array has different size than dimensions array."
 msgstr "Массив нижних границ и массив размерностей имеют разные размеры."
 
-#: utils/adt/arrayfuncs.c:6440
+#: utils/adt/arrayfuncs.c:6446
 #, c-format
 msgid "removing elements from multidimensional arrays is not supported"
 msgstr "удаление элементов из многомерных массивов не поддерживается"
 
-#: utils/adt/arrayfuncs.c:6717
+#: utils/adt/arrayfuncs.c:6723
 #, c-format
 msgid "thresholds must be one-dimensional array"
 msgstr "границы должны задаваться одномерным массивом"
 
-#: utils/adt/arrayfuncs.c:6722
+#: utils/adt/arrayfuncs.c:6728
 #, c-format
 msgid "thresholds array must not contain NULLs"
 msgstr "массив границ не должен содержать NULL"
 
-#: utils/adt/arrayfuncs.c:6955
+#: utils/adt/arrayfuncs.c:6961
 #, c-format
 msgid "number of elements to trim must be between 0 and %d"
 msgstr "число удаляемых элементов должно быть от 0 до %d"
@@ -26371,7 +26386,7 @@ msgstr "преобразование кодировки из %s в ASCII не п
 #: utils/adt/geo_ops.c:250 utils/adt/geo_ops.c:335 utils/adt/geo_ops.c:974
 #: utils/adt/geo_ops.c:1417 utils/adt/geo_ops.c:1454 utils/adt/geo_ops.c:1462
 #: utils/adt/geo_ops.c:3428 utils/adt/geo_ops.c:4650 utils/adt/geo_ops.c:4665
-#: utils/adt/geo_ops.c:4672 utils/adt/int.c:174 utils/adt/int.c:186
+#: utils/adt/geo_ops.c:4672 utils/adt/int.c:198 utils/adt/int.c:210
 #: utils/adt/jsonpath.c:183 utils/adt/mac.c:94 utils/adt/mac8.c:225
 #: utils/adt/network.c:99 utils/adt/numeric.c:802 utils/adt/numeric.c:7152
 #: utils/adt/numeric.c:7355 utils/adt/numeric.c:8302 utils/adt/numutils.c:357
@@ -26391,8 +26406,8 @@ msgid "money out of range"
 msgstr "денежное значение вне диапазона"
 
 #: utils/adt/cash.c:161 utils/adt/cash.c:723 utils/adt/float.c:105
-#: utils/adt/int.c:843 utils/adt/int.c:959 utils/adt/int.c:1039
-#: utils/adt/int.c:1101 utils/adt/int.c:1139 utils/adt/int.c:1167
+#: utils/adt/int.c:872 utils/adt/int.c:988 utils/adt/int.c:1068
+#: utils/adt/int.c:1130 utils/adt/int.c:1168 utils/adt/int.c:1196
 #: utils/adt/int8.c:515 utils/adt/int8.c:573 utils/adt/int8.c:958
 #: utils/adt/int8.c:1038 utils/adt/int8.c:1100 utils/adt/int8.c:1180
 #: utils/adt/numeric.c:3191 utils/adt/numeric.c:3214 utils/adt/numeric.c:3299
@@ -26404,7 +26419,7 @@ msgid "division by zero"
 msgstr "деление на ноль"
 
 #: utils/adt/cash.c:292 utils/adt/cash.c:317 utils/adt/cash.c:327
-#: utils/adt/cash.c:367 utils/adt/int.c:180 utils/adt/numutils.c:351
+#: utils/adt/cash.c:367 utils/adt/int.c:204 utils/adt/numutils.c:351
 #: utils/adt/numutils.c:613 utils/adt/numutils.c:875 utils/adt/numutils.c:926
 #: utils/adt/numutils.c:965 utils/adt/numutils.c:1012
 #, c-format
@@ -26445,7 +26460,7 @@ msgid "date out of range: \"%s\""
 msgstr "дата вне диапазона: \"%s\""
 
 #: utils/adt/date.c:221 utils/adt/date.c:519 utils/adt/date.c:543
-#: utils/adt/rangetypes.c:1577 utils/adt/rangetypes.c:1592 utils/adt/xml.c:2535
+#: utils/adt/rangetypes.c:1577 utils/adt/rangetypes.c:1592 utils/adt/xml.c:2534
 #, c-format
 msgid "date out of range"
 msgstr "дата вне диапазона"
@@ -26516,8 +26531,8 @@ msgstr "единица \"%s\" для типа %s не распознана"
 #: utils/adt/timestamp.c:5609 utils/adt/timestamp.c:5696
 #: utils/adt/timestamp.c:5737 utils/adt/timestamp.c:5741
 #: utils/adt/timestamp.c:5795 utils/adt/timestamp.c:5799
-#: utils/adt/timestamp.c:5805 utils/adt/timestamp.c:5839 utils/adt/xml.c:2557
-#: utils/adt/xml.c:2564 utils/adt/xml.c:2584 utils/adt/xml.c:2591
+#: utils/adt/timestamp.c:5805 utils/adt/timestamp.c:5839 utils/adt/xml.c:2556
+#: utils/adt/xml.c:2563 utils/adt/xml.c:2583 utils/adt/xml.c:2590
 #, c-format
 msgid "timestamp out of range"
 msgstr "timestamp вне диапазона"
@@ -26533,8 +26548,8 @@ msgid "time field value out of range: %d:%02d:%02g"
 msgstr "значение поля типа time вне диапазона: %d:%02d:%02g"
 
 #: utils/adt/date.c:2107 utils/adt/date.c:2647 utils/adt/float.c:1042
-#: utils/adt/float.c:1118 utils/adt/int.c:635 utils/adt/int.c:682
-#: utils/adt/int.c:717 utils/adt/int8.c:414 utils/adt/numeric.c:2595
+#: utils/adt/float.c:1118 utils/adt/int.c:664 utils/adt/int.c:711
+#: utils/adt/int.c:746 utils/adt/int8.c:414 utils/adt/numeric.c:2595
 #: utils/adt/timestamp.c:3513 utils/adt/timestamp.c:3540
 #: utils/adt/timestamp.c:3571
 #, c-format
@@ -26662,7 +26677,7 @@ msgstr ""
 "Входные данные лишены выравнивания, обрезаны или повреждены иным образом."
 
 #: utils/adt/encode.c:492 utils/adt/encode.c:557 utils/adt/jsonfuncs.c:648
-#: utils/adt/varlena.c:331 utils/adt/varlena.c:372 jsonpath_gram.y:528
+#: utils/adt/varlena.c:332 utils/adt/varlena.c:373 jsonpath_gram.y:528
 #: jsonpath_scan.l:629 jsonpath_scan.l:640 jsonpath_scan.l:650
 #: jsonpath_scan.l:701
 #, c-format
@@ -26722,9 +26737,9 @@ msgstr "\"%s\" вне диапазона для типа real"
 msgid "\"%s\" is out of range for type double precision"
 msgstr "\"%s\" вне диапазона для типа double precision"
 
-#: utils/adt/float.c:1253 utils/adt/float.c:1327 utils/adt/int.c:355
-#: utils/adt/int.c:893 utils/adt/int.c:915 utils/adt/int.c:929
-#: utils/adt/int.c:943 utils/adt/int.c:975 utils/adt/int.c:1213
+#: utils/adt/float.c:1253 utils/adt/float.c:1327 utils/adt/int.c:384
+#: utils/adt/int.c:922 utils/adt/int.c:944 utils/adt/int.c:958
+#: utils/adt/int.c:972 utils/adt/int.c:1004 utils/adt/int.c:1242
 #: utils/adt/int8.c:1293 utils/adt/numeric.c:4516 utils/adt/numeric.c:4521
 #, c-format
 msgid "smallint out of range"
@@ -27056,12 +27071,12 @@ msgstr "Используйте 24-часовой формат или перед�
 msgid "cannot calculate day of year without year information"
 msgstr "нельзя рассчитать день года без информации о годе"
 
-#: utils/adt/formatting.c:5621
+#: utils/adt/formatting.c:5623
 #, c-format
 msgid "\"EEEE\" not supported for input"
 msgstr "\"EEEE\" не поддерживается при вводе"
 
-#: utils/adt/formatting.c:5633
+#: utils/adt/formatting.c:5635
 #, c-format
 msgid "\"RN\" not supported for input"
 msgstr "\"RN\" не поддерживается при вводе"
@@ -27077,8 +27092,8 @@ msgid "path must be in or below the data directory"
 msgstr "путь должен указывать на каталог данных или вложенный в него"
 
 #: utils/adt/genfile.c:114 utils/adt/oracle_compat.c:190
-#: utils/adt/oracle_compat.c:288 utils/adt/oracle_compat.c:839
-#: utils/adt/oracle_compat.c:1142
+#: utils/adt/oracle_compat.c:288 utils/adt/oracle_compat.c:848
+#: utils/adt/oracle_compat.c:1151
 #, c-format
 msgid "requested length too large"
 msgstr "запрошенная длина слишком велика"
@@ -27149,12 +27164,17 @@ msgstr "круг с нулевым радиусом нельзя преобра�
 msgid "must request at least 2 points"
 msgstr "точек должно быть минимум 2"
 
-#: utils/adt/int.c:264
+#: utils/adt/int.c:158
+#, c-format
+msgid "array is not a valid int2vector"
+msgstr "массив не подходит для типа int2vector"
+
+#: utils/adt/int.c:292
 #, c-format
 msgid "invalid int2vector data"
 msgstr "неверные данные int2vector"
 
-#: utils/adt/int.c:1529 utils/adt/int8.c:1419 utils/adt/numeric.c:1764
+#: utils/adt/int.c:1558 utils/adt/int8.c:1419 utils/adt/numeric.c:1764
 #: utils/adt/timestamp.c:5889 utils/adt/timestamp.c:5971
 #, c-format
 msgid "step size cannot equal zero"
@@ -27747,7 +27767,7 @@ msgid "Use *_tz() function for time zone support."
 msgstr "Для передачи часового пояса используйте функцию *_tz()."
 
 # well-spelled: симв
-#: utils/adt/levenshtein.c:132
+#: utils/adt/levenshtein.c:134
 #, c-format
 msgid "levenshtein argument exceeds maximum length of %d characters"
 msgstr "длина аргумента levenshtein() превышает максимум (%d симв.)"
@@ -27772,12 +27792,12 @@ msgstr "недетерминированные правила сортировк
 msgid "LIKE pattern must not end with escape character"
 msgstr "шаблон LIKE не должен заканчиваться защитным символом"
 
-#: utils/adt/like_match.c:293 utils/adt/regexp.c:804
+#: utils/adt/like_match.c:293 utils/adt/regexp.c:805
 #, c-format
 msgid "invalid escape string"
 msgstr "неверный защитный символ"
 
-#: utils/adt/like_match.c:294 utils/adt/regexp.c:805
+#: utils/adt/like_match.c:294 utils/adt/regexp.c:806
 #, c-format
 msgid "Escape string must be empty or one character."
 msgstr "Защитный символ должен быть пустым или состоять из одного байта."
@@ -28103,32 +28123,37 @@ msgid "A field with precision %d, scale %d cannot hold an infinite value."
 msgstr ""
 "Поле с точностью %d, порядком %d не может содержать значение бесконечности."
 
-#: utils/adt/oid.c:216
+#: utils/adt/oid.c:130
+#, c-format
+msgid "array is not a valid oidvector"
+msgstr "массив не подходит для типа oidvector"
+
+#: utils/adt/oid.c:244
 #, c-format
 msgid "invalid oidvector data"
 msgstr "неверные данные oidvector"
 
-#: utils/adt/oracle_compat.c:976
+#: utils/adt/oracle_compat.c:985
 #, c-format
 msgid "requested character too large"
 msgstr "запрошенный символ больше допустимого"
 
-#: utils/adt/oracle_compat.c:1020
+#: utils/adt/oracle_compat.c:1029
 #, c-format
 msgid "character number must be positive"
 msgstr "номер символа должен быть положительным"
 
-#: utils/adt/oracle_compat.c:1024
+#: utils/adt/oracle_compat.c:1033
 #, c-format
 msgid "null character not permitted"
 msgstr "символ не может быть null"
 
-#: utils/adt/oracle_compat.c:1042 utils/adt/oracle_compat.c:1095
+#: utils/adt/oracle_compat.c:1051 utils/adt/oracle_compat.c:1104
 #, c-format
 msgid "requested character too large for encoding: %u"
 msgstr "код запрошенного символа слишком велик для кодировки: %u"
 
-#: utils/adt/oracle_compat.c:1083
+#: utils/adt/oracle_compat.c:1092
 #, c-format
 msgid "requested character not valid for encoding: %u"
 msgstr "запрошенный символ не подходит для кодировки: %u"
@@ -28325,12 +28350,12 @@ msgstr ""
 msgid "invalid command name: \"%s\""
 msgstr "неверное имя команды: \"%s\""
 
-#: utils/adt/pgstatfuncs.c:1774
+#: utils/adt/pgstatfuncs.c:1786
 #, c-format
 msgid "unrecognized reset target: \"%s\""
 msgstr "запрошен сброс неизвестного счётчика: \"%s\""
 
-#: utils/adt/pgstatfuncs.c:1775
+#: utils/adt/pgstatfuncs.c:1787
 #, c-format
 msgid ""
 "Target must be \"archiver\", \"bgwriter\", \"io\", \"recovery_prefetch\", or "
@@ -28339,7 +28364,7 @@ msgstr ""
 "Допустимые счётчики: \"archiver\", \"bgwriter\", \"io\", "
 "\"recovery_prefetch\" и \"wal\"."
 
-#: utils/adt/pgstatfuncs.c:1857
+#: utils/adt/pgstatfuncs.c:1869
 #, c-format
 msgid "invalid subscription OID %u"
 msgstr "неверный OID подписки %u"
@@ -28424,17 +28449,17 @@ msgstr "Слишком много запятых."
 msgid "Junk after right parenthesis or bracket."
 msgstr "Мусор после правой скобки."
 
-#: utils/adt/regexp.c:305 utils/adt/regexp.c:2023 utils/adt/varlena.c:4270
+#: utils/adt/regexp.c:305 utils/adt/regexp.c:2069 utils/adt/varlena.c:4315
 #, c-format
 msgid "regular expression failed: %s"
 msgstr "ошибка в регулярном выражении: %s"
 
-#: utils/adt/regexp.c:446 utils/adt/regexp.c:681
+#: utils/adt/regexp.c:446 utils/adt/regexp.c:682
 #, c-format
 msgid "invalid regular expression option: \"%.*s\""
 msgstr "неверный параметр регулярного выражения: \"%.*s\""
 
-#: utils/adt/regexp.c:683
+#: utils/adt/regexp.c:684
 #, c-format
 msgid ""
 "If you meant to use regexp_replace() with a start parameter, cast the fourth "
@@ -28443,15 +28468,15 @@ msgstr ""
 "Если вы хотите вызвать regexp_replace() с параметром start, явно приведите "
 "четвёртый аргумент к целочисленному типу."
 
-#: utils/adt/regexp.c:717 utils/adt/regexp.c:726 utils/adt/regexp.c:1109
-#: utils/adt/regexp.c:1173 utils/adt/regexp.c:1182 utils/adt/regexp.c:1191
-#: utils/adt/regexp.c:1200 utils/adt/regexp.c:1880 utils/adt/regexp.c:1889
-#: utils/adt/regexp.c:1898 utils/misc/guc.c:6674 utils/misc/guc.c:6708
+#: utils/adt/regexp.c:718 utils/adt/regexp.c:727 utils/adt/regexp.c:1155
+#: utils/adt/regexp.c:1219 utils/adt/regexp.c:1228 utils/adt/regexp.c:1237
+#: utils/adt/regexp.c:1246 utils/adt/regexp.c:1926 utils/adt/regexp.c:1935
+#: utils/adt/regexp.c:1944 utils/misc/guc.c:6674 utils/misc/guc.c:6708
 #, c-format
 msgid "invalid value for parameter \"%s\": %d"
 msgstr "неверное значение параметра \"%s\": %d"
 
-#: utils/adt/regexp.c:940
+#: utils/adt/regexp.c:952
 #, c-format
 msgid ""
 "SQL regular expression may not contain more than two escape-double-quote "
@@ -28461,19 +28486,19 @@ msgstr ""
 "(экранированных кавычек)"
 
 #. translator: %s is a SQL function name
-#: utils/adt/regexp.c:1120 utils/adt/regexp.c:1211 utils/adt/regexp.c:1298
-#: utils/adt/regexp.c:1337 utils/adt/regexp.c:1725 utils/adt/regexp.c:1780
-#: utils/adt/regexp.c:1909
+#: utils/adt/regexp.c:1166 utils/adt/regexp.c:1257 utils/adt/regexp.c:1344
+#: utils/adt/regexp.c:1383 utils/adt/regexp.c:1771 utils/adt/regexp.c:1826
+#: utils/adt/regexp.c:1955
 #, c-format
 msgid "%s does not support the \"global\" option"
 msgstr "%s не поддерживает режим \"global\""
 
-#: utils/adt/regexp.c:1339
+#: utils/adt/regexp.c:1385
 #, c-format
 msgid "Use the regexp_matches function instead."
 msgstr "Вместо неё используйте функцию regexp_matches."
 
-#: utils/adt/regexp.c:1527
+#: utils/adt/regexp.c:1573
 #, c-format
 msgid "too many regular expression matches"
 msgstr "слишком много совпадений для регулярного выражения"
@@ -28511,7 +28536,7 @@ msgid "Provide two argument types for operator."
 msgstr "Предоставьте для оператора два типа аргументов."
 
 #: utils/adt/regproc.c:1544 utils/adt/regproc.c:1661 utils/adt/regproc.c:1790
-#: utils/adt/regproc.c:1795 utils/adt/varlena.c:3410 utils/adt/varlena.c:3415
+#: utils/adt/regproc.c:1795 utils/adt/varlena.c:3455 utils/adt/varlena.c:3460
 #, c-format
 msgid "invalid name syntax"
 msgstr "ошибка синтаксиса в имени"
@@ -28956,37 +28981,37 @@ msgstr "нераспознанный вес: \"%c\""
 msgid "ts_stat query must return one tsvector column"
 msgstr "запрос ts_stat должен вернуть один столбец tsvector"
 
-#: utils/adt/tsvector_op.c:2790
+#: utils/adt/tsvector_op.c:2794
 #, c-format
 msgid "tsvector column \"%s\" does not exist"
 msgstr "столбец \"%s\" типа tsvector не существует"
 
-#: utils/adt/tsvector_op.c:2797
+#: utils/adt/tsvector_op.c:2801
 #, c-format
 msgid "column \"%s\" is not of tsvector type"
 msgstr "столбец \"%s\" должен иметь тип tsvector"
 
-#: utils/adt/tsvector_op.c:2809
+#: utils/adt/tsvector_op.c:2813
 #, c-format
 msgid "configuration column \"%s\" does not exist"
 msgstr "столбец конфигурации \"%s\" не существует"
 
-#: utils/adt/tsvector_op.c:2815
+#: utils/adt/tsvector_op.c:2819
 #, c-format
 msgid "column \"%s\" is not of regconfig type"
 msgstr "столбец \"%s\" должен иметь тип regconfig"
 
-#: utils/adt/tsvector_op.c:2822
+#: utils/adt/tsvector_op.c:2826
 #, c-format
 msgid "configuration column \"%s\" must not be null"
 msgstr "значение столбца конфигурации \"%s\" не должно быть null"
 
-#: utils/adt/tsvector_op.c:2835
+#: utils/adt/tsvector_op.c:2839
 #, c-format
 msgid "text search configuration name \"%s\" must be schema-qualified"
 msgstr "имя конфигурации текстового поиска \"%s\" должно указываться со схемой"
 
-#: utils/adt/tsvector_op.c:2860
+#: utils/adt/tsvector_op.c:2864
 #, c-format
 msgid "column \"%s\" is not of a character type"
 msgstr "столбец \"%s\" имеет не символьный тип"
@@ -28997,12 +29022,12 @@ msgid "syntax error in tsvector: \"%s\""
 msgstr "ошибка синтаксиса в tsvector: \"%s\""
 
 # skip-rule: capital-letter-first
-#: utils/adt/tsvector_parser.c:221
+#: utils/adt/tsvector_parser.c:220
 #, c-format
 msgid "there is no escaped character: \"%s\""
 msgstr "нет спец. символа \"%s\""
 
-#: utils/adt/tsvector_parser.c:339
+#: utils/adt/tsvector_parser.c:334
 #, c-format
 msgid "wrong position info in tsvector: \"%s\""
 msgstr "неверная информация о позиции в tsvector: \"%s\""
@@ -29052,9 +29077,9 @@ msgstr "неверная длина во внешней строке битов"
 msgid "bit string too long for type bit varying(%d)"
 msgstr "строка битов не умещается в тип bit varying(%d)"
 
-#: utils/adt/varbit.c:1081 utils/adt/varbit.c:1191 utils/adt/varlena.c:908
-#: utils/adt/varlena.c:971 utils/adt/varlena.c:1128 utils/adt/varlena.c:3052
-#: utils/adt/varlena.c:3130
+#: utils/adt/varbit.c:1081 utils/adt/varbit.c:1191 utils/adt/varlena.c:912
+#: utils/adt/varlena.c:976 utils/adt/varlena.c:1171 utils/adt/varlena.c:3097
+#: utils/adt/varlena.c:3175
 #, c-format
 msgid "negative substring length not allowed"
 msgstr "подстрока должна иметь неотрицательную длину"
@@ -29080,7 +29105,7 @@ msgstr ""
 msgid "bit index %d out of valid range (0..%d)"
 msgstr "индекс бита %d вне диапазона 0..%d"
 
-#: utils/adt/varbit.c:1833 utils/adt/varlena.c:3334
+#: utils/adt/varbit.c:1833 utils/adt/varlena.c:3379
 #, c-format
 msgid "new bit must be 0 or 1"
 msgstr "значением бита должен быть 0 или 1"
@@ -29095,91 +29120,91 @@ msgstr "значение не умещается в тип character(%d)"
 msgid "value too long for type character varying(%d)"
 msgstr "значение не умещается в тип character varying(%d)"
 
-#: utils/adt/varchar.c:738 utils/adt/varlena.c:1517
+#: utils/adt/varchar.c:738 utils/adt/varlena.c:1562
 #, c-format
 msgid "could not determine which collation to use for string comparison"
 msgstr ""
 "не удалось определить, какое правило сортировки использовать для сравнения "
 "строк"
 
-#: utils/adt/varlena.c:1227 utils/adt/varlena.c:1806
+#: utils/adt/varlena.c:1270 utils/adt/varlena.c:1851
 #, c-format
 msgid "nondeterministic collations are not supported for substring searches"
 msgstr ""
 "недетерминированные правила сортировки не поддерживаются для поиска подстрок"
 
-#: utils/adt/varlena.c:3218 utils/adt/varlena.c:3285
+#: utils/adt/varlena.c:3263 utils/adt/varlena.c:3330
 #, c-format
 msgid "index %d out of valid range, 0..%d"
 msgstr "индекс %d вне диапазона 0..%d"
 
-#: utils/adt/varlena.c:3249 utils/adt/varlena.c:3321
+#: utils/adt/varlena.c:3294 utils/adt/varlena.c:3366
 #, c-format
 msgid "index %lld out of valid range, 0..%lld"
 msgstr "индекс %lld вне диапазона 0..%lld"
 
-#: utils/adt/varlena.c:4382
+#: utils/adt/varlena.c:4427
 #, c-format
 msgid "field position must not be zero"
 msgstr "позиция поля должна быть отлична от 0"
 
-#: utils/adt/varlena.c:5554
+#: utils/adt/varlena.c:5602
 #, c-format
 msgid "unterminated format() type specifier"
 msgstr "незавершённый спецификатор типа format()"
 
-#: utils/adt/varlena.c:5555 utils/adt/varlena.c:5689 utils/adt/varlena.c:5810
+#: utils/adt/varlena.c:5603 utils/adt/varlena.c:5737 utils/adt/varlena.c:5858
 #, c-format
 msgid "For a single \"%%\" use \"%%%%\"."
 msgstr "Для представления одного знака \"%%\" запишите \"%%%%\"."
 
-#: utils/adt/varlena.c:5687 utils/adt/varlena.c:5808
+#: utils/adt/varlena.c:5735 utils/adt/varlena.c:5856
 #, c-format
 msgid "unrecognized format() type specifier \"%.*s\""
 msgstr "нераспознанный спецификатор типа format(): \"%.*s\""
 
-#: utils/adt/varlena.c:5700 utils/adt/varlena.c:5757
+#: utils/adt/varlena.c:5748 utils/adt/varlena.c:5805
 #, c-format
 msgid "too few arguments for format()"
 msgstr "мало аргументов для format()"
 
-#: utils/adt/varlena.c:5853 utils/adt/varlena.c:6035
+#: utils/adt/varlena.c:5901 utils/adt/varlena.c:6083
 #, c-format
 msgid "number is out of range"
 msgstr "число вне диапазона"
 
-#: utils/adt/varlena.c:5916 utils/adt/varlena.c:5944
+#: utils/adt/varlena.c:5964 utils/adt/varlena.c:5992
 #, c-format
 msgid "format specifies argument 0, but arguments are numbered from 1"
 msgstr "формат ссылается на аргумент 0, но аргументы нумеруются с 1"
 
-#: utils/adt/varlena.c:5937
+#: utils/adt/varlena.c:5985
 #, c-format
 msgid "width argument position must be ended by \"$\""
 msgstr "указание аргумента ширины должно оканчиваться \"$\""
 
-#: utils/adt/varlena.c:5982
+#: utils/adt/varlena.c:6030
 #, c-format
 msgid "null values cannot be formatted as an SQL identifier"
 msgstr "значения null нельзя представить в виде SQL-идентификатора"
 
-#: utils/adt/varlena.c:6190
+#: utils/adt/varlena.c:6238
 #, c-format
 msgid "Unicode normalization can only be performed if server encoding is UTF8"
 msgstr ""
 "нормализацию Unicode можно выполнять, только если кодировка сервера — UTF8"
 
-#: utils/adt/varlena.c:6203
+#: utils/adt/varlena.c:6251
 #, c-format
 msgid "invalid normalization form: %s"
 msgstr "неверная форма нормализации: %s"
 
-#: utils/adt/varlena.c:6406 utils/adt/varlena.c:6441 utils/adt/varlena.c:6476
+#: utils/adt/varlena.c:6454 utils/adt/varlena.c:6489 utils/adt/varlena.c:6524
 #, c-format
 msgid "invalid Unicode code point: %04X"
 msgstr "неверный код символа Unicode: %04X"
 
-#: utils/adt/varlena.c:6506
+#: utils/adt/varlena.c:6554
 #, c-format
 msgid "Unicode escapes must be \\XXXX, \\+XXXXXX, \\uXXXX, or \\UXXXXXXXX."
 msgstr ""
@@ -29215,7 +29240,7 @@ msgstr "XML-функции не поддерживаются"
 msgid "This functionality requires the server to be built with libxml support."
 msgstr "Для этой функциональности в сервере не хватает поддержки libxml."
 
-#: utils/adt/xml.c:258 utils/mb/mbutils.c:629
+#: utils/adt/xml.c:258 utils/mb/mbutils.c:637
 #, c-format
 msgid "invalid encoding name \"%s\""
 msgstr "неверное имя кодировки: \"%s\""
@@ -29306,70 +29331,70 @@ msgstr "Ошибка при разборе XML-объявления: ожида�
 msgid "Unrecognized libxml error code: %d."
 msgstr "Нераспознанный код ошибки libxml: %d."
 
-#: utils/adt/xml.c:2536
+#: utils/adt/xml.c:2535
 #, c-format
 msgid "XML does not support infinite date values."
 msgstr "XML не поддерживает бесконечность в датах."
 
-#: utils/adt/xml.c:2558 utils/adt/xml.c:2585
+#: utils/adt/xml.c:2557 utils/adt/xml.c:2584
 #, c-format
 msgid "XML does not support infinite timestamp values."
 msgstr "XML не поддерживает бесконечность в timestamp."
 
-#: utils/adt/xml.c:3001
+#: utils/adt/xml.c:3000
 #, c-format
 msgid "invalid query"
 msgstr "неверный запрос"
 
-#: utils/adt/xml.c:3093
+#: utils/adt/xml.c:3092
 #, c-format
 msgid "portal \"%s\" does not return tuples"
 msgstr "портал \"%s\" не возвращает кортежи"
 
-#: utils/adt/xml.c:4345
+#: utils/adt/xml.c:4344
 #, c-format
 msgid "invalid array for XML namespace mapping"
 msgstr "неправильный массив с сопоставлениями пространств имён XML"
 
-#: utils/adt/xml.c:4346
+#: utils/adt/xml.c:4345
 #, c-format
 msgid ""
 "The array must be two-dimensional with length of the second axis equal to 2."
 msgstr "Массив должен быть двухмерным и содержать 2 элемента по второй оси."
 
-#: utils/adt/xml.c:4370
+#: utils/adt/xml.c:4369
 #, c-format
 msgid "empty XPath expression"
 msgstr "пустое выражение XPath"
 
-#: utils/adt/xml.c:4422
+#: utils/adt/xml.c:4421
 #, c-format
 msgid "neither namespace name nor URI may be null"
 msgstr "ни префикс, ни URI пространства имён не может быть null"
 
-#: utils/adt/xml.c:4429
+#: utils/adt/xml.c:4428
 #, c-format
 msgid "could not register XML namespace with name \"%s\" and URI \"%s\""
 msgstr ""
 "не удалось зарегистрировать пространство имён XML с префиксом \"%s\" и URI "
 "\"%s\""
 
-#: utils/adt/xml.c:4778
+#: utils/adt/xml.c:4777
 #, c-format
 msgid "DEFAULT namespace is not supported"
 msgstr "пространство имён DEFAULT не поддерживается"
 
-#: utils/adt/xml.c:4807
+#: utils/adt/xml.c:4806
 #, c-format
 msgid "row path filter must not be empty string"
 msgstr "путь отбираемых строк не должен быть пустым"
 
-#: utils/adt/xml.c:4841
+#: utils/adt/xml.c:4840
 #, c-format
 msgid "column path filter must not be empty string"
 msgstr "путь отбираемого столбца не должен быть пустым"
 
-#: utils/adt/xml.c:4988
+#: utils/adt/xml.c:4987
 #, c-format
 msgid "more than one value returned by column XPath expression"
 msgstr "выражение XPath, отбирающее столбец, возвратило более одного значения"
@@ -30143,48 +30168,48 @@ msgstr "неожиданный ID кодировки %d для наборов с
 msgid "unexpected encoding ID %d for WIN character sets"
 msgstr "неожиданный ID кодировки %d для наборов символов WIN"
 
-#: utils/mb/mbutils.c:299 utils/mb/mbutils.c:902
+#: utils/mb/mbutils.c:307 utils/mb/mbutils.c:910
 #, c-format
 msgid "conversion between %s and %s is not supported"
 msgstr "преобразование %s <-> %s не поддерживается"
 
-#: utils/mb/mbutils.c:404 utils/mb/mbutils.c:432 utils/mb/mbutils.c:817
-#: utils/mb/mbutils.c:844
+#: utils/mb/mbutils.c:412 utils/mb/mbutils.c:440 utils/mb/mbutils.c:825
+#: utils/mb/mbutils.c:852
 #, c-format
 msgid "String of %d bytes is too long for encoding conversion."
 msgstr "Строка из %d байт слишком длинна для преобразования кодировки."
 
-#: utils/mb/mbutils.c:570
+#: utils/mb/mbutils.c:578
 #, c-format
 msgid "invalid source encoding name \"%s\""
 msgstr "неверное имя исходной кодировки: \"%s\""
 
-#: utils/mb/mbutils.c:575
+#: utils/mb/mbutils.c:583
 #, c-format
 msgid "invalid destination encoding name \"%s\""
 msgstr "неверное имя кодировки результата: \"%s\""
 
-#: utils/mb/mbutils.c:715
+#: utils/mb/mbutils.c:723
 #, c-format
 msgid "invalid byte value for encoding \"%s\": 0x%02x"
 msgstr "недопустимое байтовое значение для кодировки \"%s\": 0x%02x"
 
-#: utils/mb/mbutils.c:879
+#: utils/mb/mbutils.c:887
 #, c-format
 msgid "invalid Unicode code point"
 msgstr "неверный код Unicode"
 
-#: utils/mb/mbutils.c:1205
+#: utils/mb/mbutils.c:1330
 #, c-format
 msgid "bind_textdomain_codeset failed"
 msgstr "ошибка в bind_textdomain_codeset"
 
-#: utils/mb/mbutils.c:1726
+#: utils/mb/mbutils.c:1858
 #, c-format
 msgid "invalid byte sequence for encoding \"%s\": %s"
 msgstr "неверная последовательность байт для кодировки \"%s\": %s"
 
-#: utils/mb/mbutils.c:1767
+#: utils/mb/mbutils.c:1905
 #, c-format
 msgid ""
 "character with byte sequence %s in encoding \"%s\" has no equivalent in "
@@ -33794,7 +33819,7 @@ msgstr ""
 msgid "Unrecognized flag character \"%.*s\" in LIKE_REGEX predicate."
 msgstr "Нераспознанный символ флага \"%.*s\" в предикате LIKE_REGEX."
 
-#: jsonpath_gram.y:607
+#: jsonpath_gram.y:608
 #, c-format
 msgid "XQuery \"x\" flag (expanded regular expressions) is not implemented"
 msgstr ""
