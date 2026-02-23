@@ -907,8 +907,7 @@ LockAcquireExtended(const LOCKTAG *locktag,
 	bool		found_conflict;
 	ProcWaitStatus waitResult;
 	bool		log_lock = false;
-	bool		is_temp_relation_lock = pltsql_get_tsql_enr_from_oid_hook && locktag->locktag_type == LOCKTAG_RELATION && 
-										(*pltsql_get_tsql_enr_from_oid_hook)(locktag->locktag_field2);
+	bool		is_temp_relation_lock = find_object_in_enr_hook && locktag->locktag_type == LOCKTAG_RELATION && (*find_object_in_enr_hook) (RelationRelationId, locktag->locktag_field2, NULL);
 	bool		is_temp_object_lock = find_object_in_enr_hook && locktag->locktag_type == LOCKTAG_OBJECT && (*find_object_in_enr_hook) (locktag->locktag_field2, locktag->locktag_field3, NULL);
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
@@ -2154,6 +2153,7 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 	PROCLOCK   *proclock;
 	LWLock	   *partitionLock;
 	bool		wakeupNeeded;
+	bool		is_temp_relation_lock = find_object_in_enr_hook && locktag->locktag_type == LOCKTAG_RELATION && (*find_object_in_enr_hook) (RelationRelationId, locktag->locktag_field2, NULL);
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
@@ -2161,8 +2161,7 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 	if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
 		elog(ERROR, "unrecognized lock mode: %d", lockmode);
 	
-	if (pltsql_get_tsql_enr_from_oid_hook && locktag->locktag_type == LOCKTAG_RELATION && 
-		(*pltsql_get_tsql_enr_from_oid_hook)(locktag->locktag_field2))
+	if (is_temp_relation_lock)
 		return true;
 
 #ifdef LOCK_DEBUG
