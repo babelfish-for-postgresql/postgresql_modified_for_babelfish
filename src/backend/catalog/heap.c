@@ -1402,37 +1402,27 @@ heap_create_with_catalog(const char *relname,
 		enr->md.parent_oid = InvalidOid;
 
 		/*
-		 * For toast tables, register the ENR in the same queryEnv as the parent table
+		 * For toast tables, register the ENR in the same queryEnv as the parent table.
+		 * Toast table name format: #pg_toast_<parent_oid>
 		 */
-		if (relkind == RELKIND_TOASTVALUE)
+		if (relkind == RELKIND_TOASTVALUE && strncmp(relname, "#pg_toast_", 10) == 0)
 		{
-			Oid parent_oid = InvalidOid;
-			const char *oid_start = NULL;
+			Oid parent_oid = (Oid) strtoul(relname + 10, NULL, 10);
 
-			/* Extract parent OID from name pattern */
-			if (strncmp(relname, "#pg_toast_", 10) == 0)
-				oid_start = relname + 10;
-			else if (strncmp(relname, "@pg_toast_", 10) == 0)
-				oid_start = relname + 10;
-
-			if (oid_start)
+			if (OidIsValid(parent_oid))
 			{
-				parent_oid = (Oid) strtoul(oid_start, NULL, 10);
-				if (OidIsValid(parent_oid))
-				{
-					QueryEnvironment *qe = currentQueryEnv;
-					enr->md.parent_oid = parent_oid;
+				QueryEnvironment *qe = currentQueryEnv;
+				enr->md.parent_oid = parent_oid;
 
-					/* Find queryEnv where parent table is registered */
-					while (qe)
+				/* Find queryEnv where parent table is registered */
+				while (qe)
+				{
+					if (get_ENR_withoid(qe, parent_oid, ENR_TSQL_TEMP, false))
 					{
-						if (get_ENR_withoid(qe, parent_oid, ENR_TSQL_TEMP, false))
-						{
-							target_queryEnv = qe;
-							break;
-						}
-						qe = qe->parentEnv;
+						target_queryEnv = qe;
+						break;
 					}
+					qe = qe->parentEnv;
 				}
 			}
 		}
