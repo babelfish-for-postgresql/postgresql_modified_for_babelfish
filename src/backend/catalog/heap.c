@@ -79,6 +79,7 @@
 #include "utils/inval.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
+#include "utils/queryenvironment.h"
 
 InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook = NULL;
 transform_check_constraint_expr_hook_type transform_check_constraint_expr_hook = NULL;
@@ -1392,12 +1393,51 @@ heap_create_with_catalog(const char *relname,
 	{
 		MemoryContext oldcontext = MemoryContextSwitchTo(CacheMemoryContext);
 		EphemeralNamedRelation enr = palloc0(sizeof(EphemeralNamedRelationData));
+		QueryEnvironment *target_queryEnv = currentQueryEnv;
+
 		enr->md.name = palloc0(strlen(relname) + 1);
 		strncpy(enr->md.name, relname, strlen(relname) + 1);
 		enr->md.reliddesc = relid;
 		enr->md.enrtype = ENR_TSQL_TEMP;
 		enr->md.parent_oid = InvalidOid;
-		register_ENR(currentQueryEnv, enr);
+
+		/*
+		 * For toast tables, register the ENR in the same queryEnv as the parent table
+		 */
+		if (relkind == RELKIND_TOASTVALUE)
+		{
+			Oid parent_oid = InvalidOid;
+			const char *oid_start = NULL;
+
+			/* Extract parent OID from name pattern */
+			if (strncmp(relname, "#pg_toast_", 10) == 0)
+				oid_start = relname + 10;
+			else if (strncmp(relname, "@pg_toast_", 10) == 0)
+				oid_start = relname + 10;
+
+			if (oid_start)
+			{
+				parent_oid = (Oid) strtoul(oid_start, NULL, 10);
+				if (OidIsValid(parent_oid))
+				{
+					QueryEnvironment *qe = currentQueryEnv;
+					enr->md.parent_oid = parent_oid;
+
+					/* Find queryEnv where parent table is registered */
+					while (qe)
+					{
+						if (get_ENR_withoid(qe, parent_oid, ENR_TSQL_TEMP, false))
+						{
+							target_queryEnv = qe;
+							break;
+						}
+						qe = qe->parentEnv;
+					}
+				}
+			}
+		}
+
+		register_ENR(target_queryEnv, enr);
 		MemoryContextSwitchTo(oldcontext);
 	}
 

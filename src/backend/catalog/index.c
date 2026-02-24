@@ -79,6 +79,7 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 #include "utils/tuplesort.h"
+#include "utils/queryenvironment.h"
 
 /* Potentially set by pg_upgrade_support functions */
 Oid			binary_upgrade_next_index_pg_class_oid = InvalidOid;
@@ -1010,12 +1011,32 @@ index_create(Relation heapRelation,
 	{
 		MemoryContext oldcontext = MemoryContextSwitchTo(CacheMemoryContext);
 		EphemeralNamedRelation enr = palloc0(sizeof(EphemeralNamedRelationData));
+		QueryEnvironment *target_queryEnv = currentQueryEnv;
+
 		enr->md.name = palloc0(strlen(indexRelationName) + 1);
 		strncpy(enr->md.name, indexRelationName, strlen(indexRelationName) + 1);
 		enr->md.reliddesc = indexRelationId;
 		enr->md.enrtype = ENR_TSQL_TEMP;
 		enr->md.parent_oid = heapRelationId;
-		register_ENR(currentQueryEnv, enr);
+
+		/*
+		 * Find the query environment where the parent temp table's ENR lives.
+		 */
+		if (currentQueryEnv)
+		{
+			QueryEnvironment *qe = currentQueryEnv;
+			while (qe)
+			{
+				if (get_ENR_withoid(qe, heapRelationId, ENR_TSQL_TEMP, false))
+				{
+					target_queryEnv = qe;
+					break;
+				}
+				qe = qe->parentEnv;
+			}
+		}
+
+		register_ENR(target_queryEnv, enr);
 		MemoryContextSwitchTo(oldcontext);
 	}
 
