@@ -55,7 +55,6 @@
 
 #define NUM_ENR_CATALOGS 11
 
-pltsql_get_tsql_enr_from_oid_hook_type pltsql_get_tsql_enr_from_oid_hook = NULL;
 find_object_in_enr_hook_type find_object_in_enr_hook = NULL;
 is_enr_to_sys_object_dependency_hook_type is_enr_to_sys_object_dependency_hook = NULL;
 

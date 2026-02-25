@@ -460,7 +460,7 @@ AddRelcacheInvalidationMessage(InvalidationMsgsGroup *group,
 	msg.rc.id = SHAREDINVALRELCACHE_ID;
 	msg.rc.dbId = dbId;
 	msg.rc.relId = relId;
-	msg.rc.local_only = (pltsql_get_tsql_enr_from_oid_hook && (*pltsql_get_tsql_enr_from_oid_hook)(relId));
+	msg.rc.local_only = (find_object_in_enr_hook && (*find_object_in_enr_hook)(RelationRelationId, relId, NULL));
 	/* check AddCatcacheInvalidationMessage() for an explanation */
 	VALGRIND_MAKE_MEM_DEFINED(&msg, sizeof(msg));
 
