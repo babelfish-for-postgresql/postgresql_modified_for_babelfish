@@ -1403,7 +1403,6 @@ heap_create_with_catalog(const char *relname,
 
 		/*
 		 * For toast tables, register the ENR in the same queryEnv as the parent table.
-		 * Toast table name format: #pg_toast_<parent_oid>
 		 */
 		if (relkind == RELKIND_TOASTVALUE && strncmp(relname, "#pg_toast_", 10) == 0)
 		{
