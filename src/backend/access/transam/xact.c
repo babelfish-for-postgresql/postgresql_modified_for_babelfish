@@ -1606,13 +1606,26 @@ AtCommit_Memory(void)
 {
 	TransactionState s = CurrentTransactionState;
 
-	/*
-	 * Return to the memory context that was current before we started the
-	 * transaction.  (In principle, this could not be any of the contexts we
-	 * are about to delete.  If it somehow is, assertions in mcxt.c will
-	 * complain.)
-	 */
-	MemoryContextSwitchTo(s->priorContext);
+	if (is_bbf_tds_connection_hook && is_bbf_tds_connection_hook())
+	{
+		/*
+		 * For TDS/T-SQL connections, use top memory context instead of
+		 * priorContext. This avoids using stale priorContext pointers that may
+		 * reference deleted SPI memory contexts.
+		 */
+		MemoryContextSwitchTo(TopMemoryContext);
+	}
+	else
+	{
+		/*
+		 * Return to the memory context that was current before we started the
+		 * transaction.  (In principle, this could not be any of the contexts we
+		 * are about to delete.  If it somehow is, assertions in mcxt.c will
+		 * complain.)
+		 */
+		MemoryContextSwitchTo(s->priorContext);
+	}
+	
 
 	/*
 	 * Release all transaction-local memory.  TopTransactionContext survives
@@ -1985,13 +1998,25 @@ AtCleanup_Memory(void)
 	/* Should be at top level */
 	Assert(s->parent == NULL);
 
-	/*
-	 * Return to the memory context that was current before we started the
-	 * transaction.  (In principle, this could not be any of the contexts we
-	 * are about to delete.  If it somehow is, assertions in mcxt.c will
-	 * complain.)
-	 */
-	MemoryContextSwitchTo(s->priorContext);
+	if (is_bbf_tds_connection_hook && is_bbf_tds_connection_hook())
+	{
+		/*
+		 * For TDS/T-SQL connections, use top memory context instead of
+		 * priorContext. This avoids using stale priorContext pointers that may
+		 * reference deleted SPI memory contexts.
+		 */
+		MemoryContextSwitchTo(TopMemoryContext);
+	}
+	else
+	{
+		/*
+		 * Return to the memory context that was current before we started the
+		 * transaction.  (In principle, this could not be any of the contexts we
+		 * are about to delete.  If it somehow is, assertions in mcxt.c will
+		 * complain.)
+		 */
+		MemoryContextSwitchTo(s->priorContext);
+	}
 
 	/*
 	 * Clear the special abort context for next time.
@@ -2032,13 +2057,26 @@ AtSubCleanup_Memory(void)
 
 	Assert(s->parent != NULL);
 
-	/*
-	 * Return to the memory context that was current before we started the
-	 * subtransaction.  (In principle, this could not be any of the contexts
-	 * we are about to delete.  If it somehow is, assertions in mcxt.c will
-	 * complain.)
-	 */
-	MemoryContextSwitchTo(s->priorContext);
+	if (is_bbf_tds_connection_hook && is_bbf_tds_connection_hook())
+	{
+		/*
+		 * For TDS/T-SQL connections, use parent's transaction context instead of
+		 * priorContext. This avoids using stale priorContext pointers that may
+		 * reference deleted SPI memory contexts, which can cause assertion failures
+		 * when the memory is reused and creates circular parent-child relationships.
+		 */
+		MemoryContextSwitchTo(s->parent->curTransactionContext);
+	}
+	else
+	{
+		/*
+		* Return to the memory context that was current before we started the
+		* subtransaction.  (In principle, this could not be any of the contexts
+		* we are about to delete.  If it somehow is, assertions in mcxt.c will
+		* complain.)
+		*/
+		MemoryContextSwitchTo(s->priorContext);
+	}
 
 	/* Update CurTransactionContext (might not be same as priorContext) */
 	CurTransactionContext = s->parent->curTransactionContext;
