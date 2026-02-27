@@ -179,6 +179,7 @@ extern bool IsTsqlTempTable(char relpersistence);
 extern bool UseTempOidBuffer(void);
 extern bool UseTempOidBufferForOid(Oid relId);
 extern bool has_existing_enr_relations(void);
+extern QueryEnvironment *find_ENR_queryEnv(Oid relid);
 
 /* Hooks */
 

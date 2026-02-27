@@ -1011,7 +1011,7 @@ index_create(Relation heapRelation,
 	{
 		MemoryContext oldcontext = MemoryContextSwitchTo(CacheMemoryContext);
 		EphemeralNamedRelation enr = palloc0(sizeof(EphemeralNamedRelationData));
-		QueryEnvironment *target_queryEnv = currentQueryEnv;
+		QueryEnvironment *target_queryEnv;
 
 		enr->md.name = palloc0(strlen(indexRelationName) + 1);
 		strncpy(enr->md.name, indexRelationName, strlen(indexRelationName) + 1);
@@ -1020,21 +1020,14 @@ index_create(Relation heapRelation,
 		enr->md.parent_oid = heapRelationId;
 
 		/*
-		 * Find the query environment where the parent temp table's ENR lives.
+		 * Register the index ENR in the same queryEnv as its parent table.
+		 * This is important for SP_EXECUTESQL scenarios where the temp table
+		 * is created in an outer scope but the index is created in a nested
+		 * query environment.
 		 */
-		if (currentQueryEnv)
-		{
-			QueryEnvironment *qe = currentQueryEnv;
-			while (qe)
-			{
-				if (get_ENR_withoid(qe, heapRelationId, ENR_TSQL_TEMP, false))
-				{
-					target_queryEnv = qe;
-					break;
-				}
-				qe = qe->parentEnv;
-			}
-		}
+		target_queryEnv = find_ENR_queryEnv(heapRelationId);
+		if (target_queryEnv == NULL)
+			target_queryEnv = currentQueryEnv;
 
 		register_ENR(target_queryEnv, enr);
 		MemoryContextSwitchTo(oldcontext);

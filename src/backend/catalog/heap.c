@@ -1410,19 +1410,11 @@ heap_create_with_catalog(const char *relname,
 
 			if (OidIsValid(parent_oid))
 			{
-				QueryEnvironment *qe = currentQueryEnv;
-				enr->md.parent_oid = parent_oid;
+				QueryEnvironment *parent_queryEnv = find_ENR_queryEnv(parent_oid);
 
-				/* Find queryEnv where parent table is registered */
-				while (qe)
-				{
-					if (get_ENR_withoid(qe, parent_oid, ENR_TSQL_TEMP, false))
-					{
-						target_queryEnv = qe;
-						break;
-					}
-					qe = qe->parentEnv;
-				}
+				enr->md.parent_oid = parent_oid;
+				if (parent_queryEnv != NULL)
+					target_queryEnv = parent_queryEnv;
 			}
 		}
 
