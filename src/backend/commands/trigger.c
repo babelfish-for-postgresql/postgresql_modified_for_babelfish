@@ -5445,6 +5445,28 @@ MakeTransitionCaptureState(TriggerDesc *trigdesc, Oid relid, CmdType cmdType)
 	if (need_new_ins && ins_table->new_tuplestore == NULL)
 		ins_table->new_tuplestore = tuplestore_begin_heap(false, false, work_mem);
 
+	/*
+	 * BABELFISH: TSQL triggers are implicitly created with and old and new
+	 * transition tables called "deleted" and "inserted" respectively. Since
+	 * we've replaced the tcs_private field with individual ins, upd, del
+	 * fields, with INSERTs we no longer create an empty tuplestore for old
+	 * transition table and similarly for DELETEs we don't create a new one.
+	 * However, since these transition tables are atleast accessible from a
+	 * TSQL trigger, we should have an empty tuplestore for both of them
+	 * anyway.
+	 *
+	 * Since these will be empty as per behaviour of INSERT and DELETE
+	 * triggers, we are okay with simply creating an empty tuplestore for
+	 * them.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL)
+	{
+		if (ins_table && ins_table->old_tuplestore == NULL)
+			ins_table->old_tuplestore = tuplestore_begin_heap(false, false, work_mem);
+		if (del_table && del_table->new_tuplestore == NULL)
+			del_table->new_tuplestore = tuplestore_begin_heap(false, false, work_mem);
+	}
+
 	CurrentResourceOwner = saveResourceOwner;
 	MemoryContextSwitchTo(oldcxt);
 
