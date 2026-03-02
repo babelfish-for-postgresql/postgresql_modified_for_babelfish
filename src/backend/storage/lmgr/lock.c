@@ -37,6 +37,7 @@
 #include "access/twophase_rmgr.h"
 #include "access/xlog.h"
 #include "access/xlogutils.h"
+#include "catalog/pg_class.h"
 #include "miscadmin.h"
 #include "pg_trace.h"
 #include "storage/proc.h"
