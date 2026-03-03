@@ -1296,17 +1296,14 @@ void ENRDropEntry(Oid id)
 	if ((sql_dialect != SQL_DIALECT_TSQL && !(is_bbf_tds_connection_hook && is_bbf_tds_connection_hook())) || !currentQueryEnv)
 		return;
 
-	/* Find the ENR and which query environment contains it */
-	queryEnv = currentQueryEnv;
-	while (queryEnv)
-	{
-		if ((enr = get_ENR_withoid(queryEnv, id, ENR_TSQL_TEMP, false)) != NULL)
-			break;
-		queryEnv = queryEnv->parentEnv;
-	}
+	/* Find the query environment containing the ENR */
+	queryEnv = find_ENR_queryEnv(id);
+	if (queryEnv == NULL)
+		return;
 
-	/* ENR not found in any environment */
-	if (!enr)
+	/* Get the ENR from the found query environment */
+	enr = get_ENR_withoid(queryEnv, id, ENR_TSQL_TEMP, false);
+	if (enr == NULL)
 		return;
 
 	oldcxt = MemoryContextSwitchTo(queryEnv->memctx);

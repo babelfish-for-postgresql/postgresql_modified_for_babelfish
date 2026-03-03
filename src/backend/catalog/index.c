@@ -1021,9 +1021,6 @@ index_create(Relation heapRelation,
 
 		/*
 		 * Register the index ENR in the same queryEnv as its parent table.
-		 * This is important for SP_EXECUTESQL scenarios where the temp table
-		 * is created in an outer scope but the index is created in a nested
-		 * query environment.
 		 */
 		target_queryEnv = find_ENR_queryEnv(heapRelationId);
 		if (target_queryEnv == NULL)

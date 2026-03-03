@@ -1407,15 +1407,14 @@ heap_create_with_catalog(const char *relname,
 		if (relkind == RELKIND_TOASTVALUE && strncmp(relname, "#pg_toast_", 10) == 0)
 		{
 			Oid parent_oid = (Oid) strtoul(relname + 10, NULL, 10);
+			QueryEnvironment *parent_queryEnv;
 
-			if (OidIsValid(parent_oid))
-			{
-				QueryEnvironment *parent_queryEnv = find_ENR_queryEnv(parent_oid);
+			Assert(OidIsValid(parent_oid));
 
-				enr->md.parent_oid = parent_oid;
-				if (parent_queryEnv != NULL)
-					target_queryEnv = parent_queryEnv;
-			}
+			enr->md.parent_oid = parent_oid;
+			parent_queryEnv = find_ENR_queryEnv(parent_oid);
+			if (parent_queryEnv != NULL)
+				target_queryEnv = parent_queryEnv;
 		}
 
 		register_ENR(target_queryEnv, enr);
