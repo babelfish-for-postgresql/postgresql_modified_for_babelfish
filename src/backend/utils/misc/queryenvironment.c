@@ -1298,12 +1298,12 @@ void ENRDropEntry(Oid id)
 
 	/* Find the query environment containing the ENR */
 	queryEnv = find_ENR_queryEnv(id);
-	if (queryEnv == NULL)
+	if (!queryEnv)
 		return;
 
 	/* Get the ENR from the found query environment */
 	enr = get_ENR_withoid(queryEnv, id, ENR_TSQL_TEMP, false);
-	if (enr == NULL)
+	if (!enr)
 		return;
 
 	oldcxt = MemoryContextSwitchTo(queryEnv->memctx);

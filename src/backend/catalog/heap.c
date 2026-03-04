@@ -1404,17 +1404,16 @@ heap_create_with_catalog(const char *relname,
 		/*
 		 * For toast tables, register the ENR in the same queryEnv as the parent table.
 		 */
-		if (relkind == RELKIND_TOASTVALUE && strncmp(relname, "#pg_toast_", 10) == 0)
+		if (relkind == RELKIND_TOASTVALUE)
 		{
-			Oid parent_oid = (Oid) strtoul(relname + 10, NULL, 10);
-			QueryEnvironment *parent_queryEnv;
+			Oid parent_oid = get_toast_parent_oid(relname);
 
 			Assert(OidIsValid(parent_oid));
 
 			enr->md.parent_oid = parent_oid;
-			parent_queryEnv = find_ENR_queryEnv(parent_oid);
-			if (parent_queryEnv != NULL)
-				target_queryEnv = parent_queryEnv;
+			target_queryEnv = find_ENR_queryEnv(parent_oid);
+			if (!target_queryEnv)
+				target_queryEnv = currentQueryEnv;
 		}
 
 		register_ENR(target_queryEnv, enr);
