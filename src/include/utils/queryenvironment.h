@@ -190,22 +190,27 @@ typedef bool (*is_enr_to_sys_object_dependency_hook_type) (const ObjectAddress *
 extern PGDLLIMPORT is_enr_to_sys_object_dependency_hook_type is_enr_to_sys_object_dependency_hook;
 
 /*
- * Babelfish temp toast table name prefix and length.
- * Toast tables for temp tables are named "#pg_toast_<parent_oid>".
+ * Babelfish toast table name prefixes and length.
+ * Toast tables for temp tables are named "#pg_toast_<parent_rel_oid>".
+ * Toast tables for table variables are named "@pg_toast_<parent_rel_oid>".
+ * Both prefixes have the same length (10 characters).
  */
 #define BBF_TEMP_TOAST_PREFIX		"#pg_toast_"
-#define BBF_TEMP_TOAST_PREFIX_LEN	10
+#define BBF_TABLEVAR_TOAST_PREFIX	"@pg_toast_"
+#define BBF_TOAST_PREFIX_LEN		10
 
 /*
  * Extract parent table OID from temp toast table name.
- * Toast table names follow the pattern "#pg_toast_<parent_oid>".
- * Returns the parent OID, or InvalidOid if the name doesn't match the pattern.
+ * Toast table names follow the pattern "#pg_toast_<parent_rel_oid>" for temp tables
+ * or "@pg_toast_<parent_rel_oid>" for table variables.
+ * Returns the parent OID, or InvalidOid if the name doesn't match either pattern.
  */
 static inline Oid
 get_toast_parent_oid(const char *relname)
 {
-	if (strncmp(relname, BBF_TEMP_TOAST_PREFIX, BBF_TEMP_TOAST_PREFIX_LEN) == 0)
-		return (Oid) strtoul(relname + BBF_TEMP_TOAST_PREFIX_LEN, NULL, 10);
+	if (strncmp(relname, BBF_TEMP_TOAST_PREFIX, BBF_TOAST_PREFIX_LEN) == 0 ||
+		strncmp(relname, BBF_TABLEVAR_TOAST_PREFIX, BBF_TOAST_PREFIX_LEN) == 0)
+		return (Oid) strtoul(relname + BBF_TOAST_PREFIX_LEN, NULL, 10);
 	return InvalidOid;
 }
 

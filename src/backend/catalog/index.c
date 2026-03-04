@@ -1012,7 +1012,7 @@ index_create(Relation heapRelation,
 		MemoryContext oldcontext = MemoryContextSwitchTo(CacheMemoryContext);
 		EphemeralNamedRelation enr = palloc0(sizeof(EphemeralNamedRelationData));
 
-		/* Register the index ENR in the same queryEnv as its parent table */
+		/* Register the index as ENR in the same queryEnv as its parent relation table. */
 		QueryEnvironment *target_queryEnv = find_ENR_queryEnv(heapRelationId);
 		Assert(target_queryEnv != NULL);
 

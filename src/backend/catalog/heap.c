@@ -1402,16 +1402,16 @@ heap_create_with_catalog(const char *relname,
 		enr->md.parent_oid = InvalidOid;
 
 		/*
-		 * For toast tables, register the ENR in the same queryEnv as the parent table.
+		 * For toast tables, register the relation as ENR in the same queryEnv as the parent relation table.
 		 */
 		if (relkind == RELKIND_TOASTVALUE)
 		{
-			Oid parent_oid = get_toast_parent_oid(relname);
+			Oid parent_rel_oid = get_toast_parent_oid(relname);
 
-			Assert(OidIsValid(parent_oid));
+			Assert(OidIsValid(parent_rel_oid));
 
-			enr->md.parent_oid = parent_oid;
-			target_queryEnv = find_ENR_queryEnv(parent_oid);
+			enr->md.parent_oid = parent_rel_oid;
+			target_queryEnv = find_ENR_queryEnv(parent_rel_oid);
 			if (!target_queryEnv)
 				target_queryEnv = currentQueryEnv;
 		}
