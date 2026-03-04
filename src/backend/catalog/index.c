@@ -1011,20 +1011,17 @@ index_create(Relation heapRelation,
 	{
 		MemoryContext oldcontext = MemoryContextSwitchTo(CacheMemoryContext);
 		EphemeralNamedRelation enr = palloc0(sizeof(EphemeralNamedRelationData));
-		QueryEnvironment *target_queryEnv;
+
+		/* Register the index ENR in the same queryEnv as its parent table */
+		QueryEnvironment *target_queryEnv = find_ENR_queryEnv(heapRelationId);
+		if (!target_queryEnv)
+			target_queryEnv = currentQueryEnv;
 
 		enr->md.name = palloc0(strlen(indexRelationName) + 1);
 		strncpy(enr->md.name, indexRelationName, strlen(indexRelationName) + 1);
 		enr->md.reliddesc = indexRelationId;
 		enr->md.enrtype = ENR_TSQL_TEMP;
 		enr->md.parent_oid = heapRelationId;
-
-		/*
-		 * Register the index ENR in the same queryEnv as its parent table.
-		 */
-		target_queryEnv = find_ENR_queryEnv(heapRelationId);
-		if (target_queryEnv == NULL)
-			target_queryEnv = currentQueryEnv;
 
 		register_ENR(target_queryEnv, enr);
 		MemoryContextSwitchTo(oldcontext);
