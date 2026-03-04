@@ -1014,8 +1014,7 @@ index_create(Relation heapRelation,
 
 		/* Register the index ENR in the same queryEnv as its parent table */
 		QueryEnvironment *target_queryEnv = find_ENR_queryEnv(heapRelationId);
-		if (!target_queryEnv)
-			target_queryEnv = currentQueryEnv;
+		Assert(target_queryEnv != NULL);
 
 		enr->md.name = palloc0(strlen(indexRelationName) + 1);
 		strncpy(enr->md.name, indexRelationName, strlen(indexRelationName) + 1);
