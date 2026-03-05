@@ -1412,8 +1412,7 @@ heap_create_with_catalog(const char *relname,
 
 			enr->md.parent_oid = parent_rel_oid;
 			target_queryEnv = find_ENR_queryEnv(parent_rel_oid);
-			if (!target_queryEnv)
-				target_queryEnv = currentQueryEnv;
+			Assert(target_queryEnv != NULL);
 		}
 
 		register_ENR(target_queryEnv, enr);
