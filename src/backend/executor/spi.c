@@ -216,6 +216,55 @@ SPI_finish(void)
 }
 
 /*
+ * Modified version of SPI_finish for Babelfish, which safely handles
+ * the case where the current SPI connection was not fully initialized.
+ * For fully initialized connections, delegates to SPI_finish.
+ */
+int
+SPI_finish_safe(void)
+{
+	int			res;
+
+	/* Check if there is an active SPI connection */
+	res = _SPI_begin_call(false);
+	if (res < 0)
+		return res;
+
+	/* Fully initialized */
+	if (_SPI_current->procCxt != NULL &&
+		_SPI_current->execCxt != NULL)
+	{
+		return SPI_finish();
+	}
+
+	/* Clean up any partially allocated context */
+	if (_SPI_current->execCxt)
+	{
+		MemoryContextDelete(_SPI_current->execCxt);
+		_SPI_current->execCxt = NULL;
+	}
+	if (_SPI_current->procCxt)
+	{
+		MemoryContextDelete(_SPI_current->procCxt);
+		_SPI_current->procCxt = NULL;
+	}
+
+	/* Restore outer API variables */
+	SPI_processed = _SPI_current->outer_processed;
+	SPI_tuptable = _SPI_current->outer_tuptable;
+	SPI_result = _SPI_current->outer_result;
+
+	/* Pop the stack */
+	_SPI_connected--;
+	if (_SPI_connected < 0)
+		_SPI_current = NULL;
+	else
+		_SPI_current = &(_SPI_stack[_SPI_connected]);
+
+	return SPI_OK_FINISH;
+}
+
+/*
  * SPI_start_transaction is a no-op, kept for backwards compatibility.
  * SPI callers are *always* inside a transaction.
  */
