@@ -179,7 +179,6 @@ extern bool IsTsqlTempTable(char relpersistence);
 extern bool UseTempOidBuffer(void);
 extern bool UseTempOidBufferForOid(Oid relId);
 extern bool has_existing_enr_relations(void);
-extern QueryEnvironment *find_ENR_queryEnv(Oid relid);
 
 /* Hooks */
 
@@ -212,6 +211,28 @@ get_toast_parent_oid(const char *relname)
 		strncmp(relname, BBF_TABLEVAR_TOAST_PREFIX, BBF_TOAST_PREFIX_LEN) == 0)
 		return (Oid) strtoul(relname + BBF_TOAST_PREFIX_LEN, NULL, 10);
 	return InvalidOid;
+}
+
+/*
+ * find_ENR_queryEnv
+ *
+ * Find the query environment where an ENR with the given OID is registered.
+ * Searches from currentQueryEnv up through parent environments.
+ * Returns the queryEnv where the ENR is found, or NULL if not found.
+ */
+static inline QueryEnvironment *
+find_ENR_queryEnv(Oid relid)
+{
+	QueryEnvironment *qe = currentQueryEnv;
+
+	while (qe)
+	{
+		if (get_ENR_withoid(qe, relid, ENR_TSQL_TEMP, false))
+			return qe;
+		qe = qe->parentEnv;
+	}
+
+	return NULL;
 }
 
 #endif							/* QUERYENVIRONMENT_H */

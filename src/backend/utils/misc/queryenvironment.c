@@ -1966,25 +1966,3 @@ bool has_existing_enr_relations()
 
 	return false;
 }
-
-/*
- * find_ENR_queryEnv
- *
- * Find the query environment where an ENR with the given OID is registered.
- * Searches from currentQueryEnv up through parent environments.
- * Returns the queryEnv where the ENR is found, or NULL if not found.
- */
-QueryEnvironment *
-find_ENR_queryEnv(Oid relid)
-{
-	QueryEnvironment *qe = currentQueryEnv;
-
-	while (qe)
-	{
-		if (get_ENR_withoid(qe, relid, ENR_TSQL_TEMP, false))
-			return qe;
-		qe = qe->parentEnv;
-	}
-
-	return NULL;
-}
