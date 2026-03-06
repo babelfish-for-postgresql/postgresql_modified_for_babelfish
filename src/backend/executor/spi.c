@@ -226,9 +226,8 @@ SPI_finish_safe(void)
 	int			res;
 
 	/* Check if there is an active SPI connection */
-	res = _SPI_begin_call(false);
-	if (res < 0)
-		return res;
+	if (_SPI_current == NULL)
+		return SPI_ERROR_UNCONNECTED;
 
 	/* Fully initialized */
 	if (_SPI_current->procCxt != NULL &&
