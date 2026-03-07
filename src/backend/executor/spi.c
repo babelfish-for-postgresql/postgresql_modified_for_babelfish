@@ -429,19 +429,6 @@ void
 AtEOXact_SPI(bool isCommit)
 {
 	bool		found = false;
-	
-	if (!isCommit)
-	{
-		while (_SPI_current && !_SPI_current->internal_xact)
-		{
-			_SPI_connected--;
-			if (_SPI_connected < 0)
-				_SPI_current = NULL;
-			else
-				_SPI_current = &(_SPI_stack[_SPI_connected]);
-		}
-	}
-
 
 	/*
 	 * Pop stack entries, stopping if we find one marked internal_xact (that
@@ -3490,6 +3477,9 @@ SPI_finish_safe(void)
 	{
 		return SPI_finish();
 	}
+	
+	if (_SPI_current->internal_xact)
+    	elog(FATAL, "SPI_finish_safe: unexpected state - partially initialized SPI connection should not have internal_xact set");
 
 	/* Clean up any partially allocated context */
 	if (_SPI_current->execCxt)
