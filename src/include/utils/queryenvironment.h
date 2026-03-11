@@ -190,14 +190,4 @@ extern PGDLLIMPORT find_object_in_enr_hook_type find_object_in_enr_hook;
 typedef bool (*is_enr_to_sys_object_dependency_hook_type) (const ObjectAddress *depender, const ObjectAddress *referenced);
 extern PGDLLIMPORT is_enr_to_sys_object_dependency_hook_type is_enr_to_sys_object_dependency_hook;
 
-/*
- * Babelfish toast table name prefixes and length.
- * Toast tables for temp tables are named "#pg_toast_<parent_rel_oid>".
- * Toast tables for table variables are named "@pg_toast_<parent_rel_oid>".
- * Both prefixes have the same length (10 characters).
- */
-#define BBF_TEMP_TOAST_PREFIX		"#pg_toast_"
-#define BBF_TABLEVAR_TOAST_PREFIX	"@pg_toast_"
-#define BBF_TOAST_PREFIX_LEN		10
-
 #endif							/* QUERYENVIRONMENT_H */
