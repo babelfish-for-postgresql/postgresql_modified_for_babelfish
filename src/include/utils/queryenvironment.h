@@ -157,8 +157,8 @@ extern bool ENRGetSystableScan(Relation rel, Oid indexoid, int nkeys, ScanKey ke
 extern bool ENRAddTuple(Relation rel, HeapTuple tup);
 extern bool ENRDropTuple(Relation rel, HeapTuple tup);
 extern bool ENRUpdateTuple(Relation rel, HeapTuple tup);
-extern Oid get_toast_parent_oid(const char *relname);
-extern QueryEnvironment *find_ENR_queryEnv(Oid relid);
+extern inline Oid get_toast_parent_oid(const char *relname);
+extern inline QueryEnvironment *find_ENR_queryEnv(Oid relid);
 
 extern void ENRDropEntry(Oid id);
 extern PGDLLEXPORT void ENRDropTempTables(QueryEnvironment *queryEnv);
