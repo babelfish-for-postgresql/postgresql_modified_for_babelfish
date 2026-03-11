@@ -79,6 +79,7 @@
 #include "utils/inval.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
+#include "utils/queryenvironment.h"
 
 InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook = NULL;
 transform_check_constraint_expr_hook_type transform_check_constraint_expr_hook = NULL;
@@ -1409,12 +1410,29 @@ heap_create_with_catalog(const char *relname,
 	{
 		MemoryContext oldcontext = MemoryContextSwitchTo(CacheMemoryContext);
 		EphemeralNamedRelation enr = palloc0(sizeof(EphemeralNamedRelationData));
+		QueryEnvironment *target_queryEnv = currentQueryEnv;
+
 		enr->md.name = palloc0(strlen(relname) + 1);
 		strncpy(enr->md.name, relname, strlen(relname) + 1);
 		enr->md.reliddesc = relid;
 		enr->md.enrtype = ENR_TSQL_TEMP;
 		enr->md.parent_oid = InvalidOid;
-		register_ENR(currentQueryEnv, enr);
+
+		/*
+		 * For toast tables, register the relation as ENR in the same queryEnv as the parent relation table.
+		 */
+		if (relkind == RELKIND_TOASTVALUE)
+		{
+			Oid parent_rel_oid = get_toast_parent_oid(relname);
+
+			Assert(OidIsValid(parent_rel_oid));
+
+			enr->md.parent_oid = parent_rel_oid;
+			target_queryEnv = find_ENR_queryEnv(parent_rel_oid);
+			Assert(target_queryEnv != NULL);
+		}
+
+		register_ENR(target_queryEnv, enr);
 		MemoryContextSwitchTo(oldcontext);
 	}
 

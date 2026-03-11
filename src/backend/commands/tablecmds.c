@@ -16813,7 +16813,7 @@ ATExecSetRelOptions(Relation rel, List *defList, AlterTableType operation,
 
 	/* Fetch heap tuple */
 	relid = RelationGetRelid(rel);
-	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relid, ENR_TSQL_TEMP, false));
+	is_enr = (sql_dialect == SQL_DIALECT_TSQL && get_ENR_withoid(currentQueryEnv, relid, ENR_TSQL_TEMP, true));
 	if (is_enr)
 		tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 	else
