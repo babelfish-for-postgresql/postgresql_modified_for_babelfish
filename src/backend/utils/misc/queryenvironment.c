@@ -54,6 +54,9 @@
 #include "utils/rel.h"
 
 #define NUM_ENR_CATALOGS 11
+#define BBF_TEMP_TOAST_PREFIX		"#pg_toast_"
+#define BBF_TABLEVAR_TOAST_PREFIX	"@pg_toast_"
+#define BBF_TOAST_PREFIX_LEN		10
 
 find_object_in_enr_hook_type find_object_in_enr_hook = NULL;
 is_enr_to_sys_object_dependency_hook_type is_enr_to_sys_object_dependency_hook = NULL;
@@ -1965,4 +1968,43 @@ bool has_existing_enr_relations()
 	}
 
 	return false;
+}
+
+/*
+ * get_toast_parent_oid
+ *
+ * Extract parent table OID from temp toast table name.
+ * Toast table names follow the pattern "#pg_toast_<parent_rel_oid>" for temp tables
+ * or "@pg_toast_<parent_rel_oid>" for table variables.
+ * Returns the parent OID, or InvalidOid if the name doesn't match either pattern.
+ */
+inline Oid
+get_toast_parent_oid(const char *relname)
+{
+	if (strncmp(relname, BBF_TEMP_TOAST_PREFIX, BBF_TOAST_PREFIX_LEN) == 0 ||
+		strncmp(relname, BBF_TABLEVAR_TOAST_PREFIX, BBF_TOAST_PREFIX_LEN) == 0)
+		return (Oid) strtoul(relname + BBF_TOAST_PREFIX_LEN, NULL, 10);
+	return InvalidOid;
+}
+
+/*
+ * find_ENR_queryEnv
+ *
+ * Find the query environment where an ENR with the given OID is registered.
+ * Searches from currentQueryEnv up through parent environments.
+ * Returns the queryEnv where the ENR is found, or NULL if not found.
+ */
+inline QueryEnvironment *
+find_ENR_queryEnv(Oid relid)
+{
+	QueryEnvironment *qe = currentQueryEnv;
+
+	while (qe)
+	{
+		if (get_ENR_withoid(qe, relid, ENR_TSQL_TEMP, false))
+			return qe;
+		qe = qe->parentEnv;
+	}
+
+	return NULL;
 }
