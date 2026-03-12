@@ -114,6 +114,7 @@ extern PGDLLIMPORT int SPI_result;
 extern int	SPI_connect(void);
 extern int	SPI_connect_ext(int options);
 extern int	SPI_finish(void);
+extern int	SPI_finish_safe(void);
 extern int	SPI_execute(const char *src, bool read_only, long tcount);
 extern int	SPI_execute_extended(const char *src,
 								 const SPIExecuteOptions *options);
