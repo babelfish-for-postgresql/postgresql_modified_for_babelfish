@@ -429,19 +429,6 @@ void
 AtEOXact_SPI(bool isCommit)
 {
 	bool		found = false;
-	
-	if (!isCommit)
-	{
-		while (_SPI_current && !_SPI_current->internal_xact)
-		{
-			_SPI_connected--;
-			if (_SPI_connected < 0)
-				_SPI_current = NULL;
-			else
-				_SPI_current = &(_SPI_stack[_SPI_connected]);
-		}
-	}
-
 
 	/*
 	 * Pop stack entries, stopping if we find one marked internal_xact (that
@@ -3470,4 +3457,53 @@ int
 SPI_get_depth(void)
 {
 	return _SPI_connected;
+}
+
+/*
+ * Modified version of SPI_finish for Babelfish, which safely handles
+ * the case where the current SPI connection was not fully initialized.
+ * For fully initialized connections, delegates to SPI_finish.
+ */
+int
+SPI_finish_safe(void)
+{
+	/* Check if there is an active SPI connection */
+	if (_SPI_current == NULL)
+		return SPI_ERROR_UNCONNECTED;
+
+	/* Fully initialized */
+	if (_SPI_current->procCxt != NULL &&
+		_SPI_current->execCxt != NULL)
+	{
+		return SPI_finish();
+	}
+	
+	if (_SPI_current->internal_xact)
+    	elog(FATAL, "SPI_finish_safe: unexpected state - partially initialized SPI connection should not have internal_xact set");
+
+	/* Clean up any partially allocated context */
+	if (_SPI_current->execCxt)
+	{
+		MemoryContextDelete(_SPI_current->execCxt);
+		_SPI_current->execCxt = NULL;
+	}
+	if (_SPI_current->procCxt)
+	{
+		MemoryContextDelete(_SPI_current->procCxt);
+		_SPI_current->procCxt = NULL;
+	}
+
+	/* Restore outer API variables */
+	SPI_processed = _SPI_current->outer_processed;
+	SPI_tuptable = _SPI_current->outer_tuptable;
+	SPI_result = _SPI_current->outer_result;
+
+	/* Pop the stack */
+	_SPI_connected--;
+	if (_SPI_connected < 0)
+		_SPI_current = NULL;
+	else
+		_SPI_current = &(_SPI_stack[_SPI_connected]);
+
+	return SPI_OK_FINISH;
 }
