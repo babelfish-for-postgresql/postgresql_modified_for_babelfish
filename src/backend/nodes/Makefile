@@ -25,6 +25,7 @@ OBJS = \
 	nodeFuncs.o \
 	outfuncs.o \
 	params.o \
+	pltsql_node_stubs.o \
 	print.o \
 	queryjumblefuncs.o \
 	read.o \
@@ -60,7 +61,9 @@ node_headers = \
 	nodes/replnodes.h \
 	nodes/supportnodes.h \
 	nodes/value.h \
-	utils/rel.h
+	utils/rel.h \
+	pltsql/pltsql_serializable_1.h \
+	pltsql/pltsql_serializable_2.h
 
 # see also catalog/Makefile for an explanation of these make rules
 

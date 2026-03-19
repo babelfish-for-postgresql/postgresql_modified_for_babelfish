@@ -73,6 +73,8 @@ my @all_input_files = qw(
   nodes/supportnodes.h
   nodes/value.h
   utils/rel.h
+  pltsql/pltsql_serializable_1.h
+  pltsql/pltsql_serializable_2.h
 );
 
 # Nodes from these input files are automatically treated as nodetag_only.
@@ -107,7 +109,7 @@ my @nodetag_only_files = qw(
 # ABI stability during development.
 
 my $last_nodetag = 'WindowObjectData';
-my $last_nodetag_no = 475;
+my $last_nodetag_no = 555;
 
 # output file names
 my @output_files;
@@ -182,6 +184,15 @@ my %manual_nodetag_number;
 # This is a struct, so we can copy it by assignment.  Equal support is
 # currently not required.
 push @scalar_types, qw(QualCost);
+
+# PLtsql-specific types that are copied by straight assignment.
+# These are enums/scalars defined in babelfish_extensions pltsql.h/pltsql-2.h.
+# gen_node_support.pl needs to know about them to serialize PLtsql node fields.
+push @scalar_types, qw(
+  PLtsql_stmt_type PLtsql_datum_type PLtsql_nsitem_type
+  PLtsql_promise_type PLtsql_type_type PLtsql_dbcc_stmt_type
+  PLtsql_exec_sp_type_code PLtsql_sp_type_code TransactionStmtKind
+);
 
 
 ## check that we have the expected number of files on the command line
