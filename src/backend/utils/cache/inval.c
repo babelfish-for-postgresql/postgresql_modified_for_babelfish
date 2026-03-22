@@ -590,10 +590,13 @@ RegisterCatcacheInvalidation(int cacheId,
 static void
 RegisterENRCatcacheInvalidation(int cacheId,
 							 uint32 hashValue,
-							 Oid dbId)
+							 Oid dbId,
+							 void *context)
 {
+	InvalidationInfo *info = (InvalidationInfo *) context;
+
 	SaveCatcacheMessage(cacheId, hashValue, dbId);
-	AddCatcacheInvalidationMessage(&transInvalInfo->CurrentCmdInvalidMsgs,
+	AddCatcacheInvalidationMessage(&info->CurrentCmdInvalidMsgs,
 								   cacheId, hashValue, dbId);
 }
 
@@ -1562,11 +1565,12 @@ CacheInvalidateENRHeapTuple(Relation relation,
 	if (RelationInvalidatesSnapshotsOnly(tupleRelId))
 	{
 		databaseId = IsSharedRelation(tupleRelId) ? InvalidOid : MyDatabaseId;
-		RegisterSnapshotInvalidation(databaseId, tupleRelId);
+		RegisterSnapshotInvalidation((InvalidationInfo *) transInvalInfo, databaseId, tupleRelId);
 	}
 	else
 		PrepareToInvalidateCacheTuple(relation, tuple, newtuple,
-									  RegisterENRCatcacheInvalidation);
+									  RegisterENRCatcacheInvalidation,
+									  (void *) transInvalInfo);
 
 	/*
 	 * Now, is this tuple one of the primary definers of a relcache entry? See
@@ -1639,7 +1643,7 @@ CacheInvalidateENRHeapTuple(Relation relation,
 	/*
 	 * Yes.  We need to register a relcache invalidation event.
 	 */
-	RegisterRelcacheInvalidation(databaseId, relationId);
+	RegisterRelcacheInvalidation((InvalidationInfo *) transInvalInfo, databaseId, relationId);
 }
 
 /*
