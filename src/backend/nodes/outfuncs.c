@@ -23,10 +23,14 @@
 #include "nodes/bitmapset.h"
 #include "nodes/nodes.h"
 #include "nodes/pg_list.h"
+#include "nodes/readfuncs.h"
 #include "utils/datum.h"
 
 /* State flag that determines how nodeToStringInternal() should treat location fields */
 static bool write_location_fields = false;
+
+/* Hook for extensions to serialize custom node types */
+outNode_hook_type outNode_hook = NULL;
 
 static void outChar(StringInfo str, char c);
 static void outDouble(StringInfo str, double d);
@@ -753,13 +757,17 @@ outNode(StringInfo str, const void *obj)
 #include "outfuncs.switch.c"
 
 			default:
-
-				/*
-				 * This should be an ERROR, but it's too useful to be able to
-				 * dump structures that outNode only understands part of.
-				 */
-				elog(WARNING, "could not dump unrecognized node type: %d",
-					 (int) nodeTag(obj));
+				if (outNode_hook)
+					outNode_hook(str, obj);
+				else
+				{
+					/*
+					 * This should be an ERROR, but it's too useful to be able to
+					 * dump structures that outNode only understands part of.
+					 */
+					elog(WARNING, "could not dump unrecognized node type: %d",
+						 (int) nodeTag(obj));
+				}
 				break;
 		}
 		appendStringInfoChar(str, '}');

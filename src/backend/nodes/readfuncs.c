@@ -32,6 +32,9 @@
 #include "nodes/bitmapset.h"
 #include "nodes/readfuncs.h"
 
+/* Hook for extensions to deserialize custom node types */
+parseNodeString_hook_type parseNodeString_hook = NULL;
+
 
 /*
  * Macros to simplify reading of different kinds of fields.  Use these
@@ -572,6 +575,14 @@ parseNodeString(void)
 	(length == namelen && memcmp(token, tokname, namelen) == 0)
 
 #include "readfuncs.switch.c"
+
+	/* Let extensions handle custom node types before erroring out */
+	if (parseNodeString_hook)
+	{
+		Node *result = parseNodeString_hook(token, length);
+		if (result)
+			return result;
+	}
 
 	elog(ERROR, "badly formatted node string \"%.32s\"...", token);
 	return NULL;				/* keep compiler quiet */
