@@ -35,4 +35,14 @@ extern void *nodeRead(const char *token, int tok_len);
  */
 extern Node *parseNodeString(void);
 
+/*
+ * Hook for extensions to handle custom node types in outNode/parseNodeString.
+ * Same pattern as planner_hook, ProcessUtility_hook, etc.
+ */
+typedef void (*outNode_hook_type)(StringInfo str, const void *obj);
+extern PGDLLIMPORT outNode_hook_type outNode_hook;
+
+typedef Node *(*parseNodeString_hook_type)(const char *token, int length);
+extern PGDLLIMPORT parseNodeString_hook_type parseNodeString_hook;
+
 #endif							/* READFUNCS_H */
