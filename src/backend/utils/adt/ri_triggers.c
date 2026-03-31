@@ -2430,6 +2430,11 @@ ri_LoadConstraintInfo(Oid constraintOid)
 						  &riinfo->period_intersect_oper);
 	}
 
+	/* Metadata used by fast path. */
+	riinfo->conindid = conForm->conindid;
+	riinfo->pk_is_partitioned =
+		(get_rel_relkind(riinfo->pk_relid) == RELKIND_PARTITIONED_TABLE);
+
 	ReleaseSysCache(tup);
 
 	/*
@@ -2439,10 +2444,6 @@ ri_LoadConstraintInfo(Oid constraintOid)
 	dclist_push_tail(&ri_constraint_cache_valid_list, &riinfo->valid_link);
 
 	riinfo->valid = true;
-
-	riinfo->conindid = conForm->conindid;
-	riinfo->pk_is_partitioned =
-		(get_rel_relkind(riinfo->pk_relid) == RELKIND_PARTITIONED_TABLE);
 
 	riinfo->fpmeta = NULL;
 
