@@ -3216,6 +3216,7 @@ TriggerDesc
 TriggerEvent
 TriggerFlags
 TriggerInfo
+TriggerInstrumentation
 TriggerTransition
 TruncateStmt
 TsmRoutine
