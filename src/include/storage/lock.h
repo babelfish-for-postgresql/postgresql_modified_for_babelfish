@@ -379,8 +379,6 @@ extern PGDLLEXPORT applock_release_func_handler_type applock_release_func_handle
 /*
  * function prototypes
  */
-extern void LockManagerShmemInit(void);
-extern Size LockManagerShmemSize(void);
 extern void InitLockManagerAccess(void);
 extern LockMethod GetLocksMethodTable(const LOCK *lock);
 extern LockMethod GetLockTagsMethodTable(const LOCKTAG *locktag);
