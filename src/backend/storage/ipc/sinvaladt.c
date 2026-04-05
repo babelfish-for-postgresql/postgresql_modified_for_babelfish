@@ -25,6 +25,7 @@
 #include "storage/shmem.h"
 #include "storage/sinvaladt.h"
 #include "storage/spin.h"
+#include "storage/subsystems.h"
 
 /* hooks */
 pltsql_is_local_only_inval_msg_hook_type pltsql_is_local_only_inval_msg_hook = NULL;
@@ -208,6 +209,14 @@ typedef struct SISeg
 
 static SISeg *shmInvalBuffer;	/* pointer to the shared inval buffer */
 
+static void SharedInvalShmemRequest(void *arg);
+static void SharedInvalShmemInit(void *arg);
+
+const ShmemCallbacks SharedInvalShmemCallbacks = {
+	.request_fn = SharedInvalShmemRequest,
+	.init_fn = SharedInvalShmemInit,
+};
+
 
 static LocalTransactionId nextLocalTransactionId;
 
@@ -215,10 +224,11 @@ static void CleanupInvalidationState(int status, Datum arg);
 
 
 /*
- * SharedInvalShmemSize --- return shared-memory space needed
+ * SharedInvalShmemRequest
+ *		Register shared memory needs for the SI message buffer
  */
-Size
-SharedInvalShmemSize(void)
+static void
+SharedInvalShmemRequest(void *arg)
 {
 	Size		size;
 
@@ -226,26 +236,18 @@ SharedInvalShmemSize(void)
 	size = add_size(size, mul_size(sizeof(ProcState), NumProcStateSlots));	/* procState */
 	size = add_size(size, mul_size(sizeof(int), NumProcStateSlots));	/* pgprocnos */
 
-	return size;
+	ShmemRequestStruct(.name = "shmInvalBuffer",
+					   .size = size,
+					   .ptr = (void **) &shmInvalBuffer,
+		);
 }
 
-/*
- * SharedInvalShmemInit
- *		Create and initialize the SI message buffer
- */
-void
-SharedInvalShmemInit(void)
+static void
+SharedInvalShmemInit(void *arg)
 {
 	int			i;
-	bool		found;
 
-	/* Allocate space in shared memory */
-	shmInvalBuffer = (SISeg *)
-		ShmemInitStruct("shmInvalBuffer", SharedInvalShmemSize(), &found);
-	if (found)
-		return;
-
-	/* Clear message counters, save size of procState array, init spinlock */
+	/* Clear message counters, init spinlock */
 	shmInvalBuffer->minMsgNum = 0;
 	shmInvalBuffer->maxMsgNum = 0;
 	shmInvalBuffer->nextThreshold = CLEANUP_MIN;
