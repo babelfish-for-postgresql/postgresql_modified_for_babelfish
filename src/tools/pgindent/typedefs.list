@@ -2113,6 +2113,7 @@ PVIndStats
 PVIndVacStatus
 PVOID
 PVShared
+PVSharedCostParams
 PVWorkerUsage
 PVWorkerStats
 PX_Alias
