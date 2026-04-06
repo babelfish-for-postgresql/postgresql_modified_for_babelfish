@@ -3589,6 +3589,9 @@ ProcessInterrupts(void)
 
 	if (ParallelApplyMessagePending)
 		ProcessParallelApplyMessages();
+
+	if (RepackMessagePending)
+		ProcessRepackMessages();
 }
 
 /*
