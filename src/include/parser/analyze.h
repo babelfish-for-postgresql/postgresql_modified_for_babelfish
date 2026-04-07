@@ -21,7 +21,7 @@
 /* Hook for plugins to get control at end of parse analysis */
 typedef void (*post_parse_analyze_hook_type) (ParseState *pstate,
 											  Query *query,
-											  JumbleState *jstate);
+											  const JumbleState *jstate);
 extern PGDLLEXPORT post_parse_analyze_hook_type post_parse_analyze_hook;
 
 /* Hook for plugins to get control with the raw parse tree */
