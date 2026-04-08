@@ -89,6 +89,7 @@ PG_LWLOCK(54, AioWorkerSubmissionQueue)
 PG_LWLOCK(55, WaitLSN)
 PG_LWLOCK(56, LogicalDecodingControl)
 PG_LWLOCK(57, DataChecksumsWorker)
+PG_LWLOCK(58, AioWorkerControl)
 
 /*
  * There also exist several built-in LWLock tranches.  As with the predefined

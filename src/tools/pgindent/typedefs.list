@@ -2272,6 +2272,7 @@ PgAioUringCaps
 PgAioUringContext
 PgAioWaitRef
 PgAioWorkerControl
+PgAioWorkerSet
 PgAioWorkerSlot
 PgAioWorkerSubmissionQueue
 PgArchData
