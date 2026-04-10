@@ -4145,7 +4145,7 @@ typedef struct AfterTriggersData
 	List	   *batch_callbacks;	/* List of AfterTriggerCallbackItem; for
 									 * deferred constraints */
 	bool		firing_batch_callbacks; /* true when in
-										 * FireAfterTriggersBatchCallbacks() */
+										 * FireAfterTriggerBatchCallbacks() */
 } AfterTriggersData;
 
 struct AfterTriggersQueryData
