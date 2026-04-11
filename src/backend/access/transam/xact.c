@@ -6544,6 +6544,17 @@ SetTopTransactionName(const char *name)
 }
 
 /*
+ *	ResetTopTransactionName
+ *	Reset top transaction name to avoid dangling pointer
+ *	after transaction memory context is destroyed.
+ */
+void
+ResetTopTransactionName(void)
+{
+	CurrentTransactionState->name = NULL;
+}
+
+/*
  * IsTrasactionBlockActive
  * If a transaction block is already in progress
  *

@@ -535,6 +535,7 @@ extern bool IsInParallelMode(void);
 
 extern PGDLLEXPORT bool IsTopTransactionName(const char *name);
 extern PGDLLEXPORT void SetTopTransactionName(const char *name);
+extern PGDLLEXPORT void ResetTopTransactionName(void);
 extern PGDLLEXPORT bool IsTransactionBlockActive(void);
 extern PGDLLEXPORT void RollbackAndReleaseSavepoint(const char *name);
 
