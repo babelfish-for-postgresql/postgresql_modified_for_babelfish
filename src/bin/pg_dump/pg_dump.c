@@ -4794,7 +4794,7 @@ dumpPublication(Archive *fout, const PublicationInfo *pubinfo)
 			appendPQExpBuffer(query, "TABLE ONLY %s", fmtQualifiedDumpable(tbinfo));
 		}
 		if (n_except > 0)
-			appendPQExpBufferStr(query, ")");
+			appendPQExpBufferChar(query, ')');
 
 		if (pubinfo->puballsequences)
 			appendPQExpBufferStr(query, ", ALL SEQUENCES");
@@ -5346,8 +5346,7 @@ getSubscriptions(Archive *fout)
 		appendPQExpBufferStr(query,
 							 " s.submaxretention,\n");
 	else
-		appendPQExpBuffer(query,
-						  " 0 AS submaxretention,\n");
+		appendPQExpBufferStr(query, " 0 AS submaxretention,\n");
 
 	if (fout->remoteVersion >= 190000)
 		appendPQExpBufferStr(query,
@@ -5666,7 +5665,7 @@ dumpSubscription(Archive *fout, const SubscriptionInfo *subinfo)
 	}
 	else
 	{
-		appendPQExpBuffer(query, "CONNECTION ");
+		appendPQExpBufferStr(query, "CONNECTION ");
 		appendStringLiteralAH(query, subinfo->subconninfo, fout);
 	}
 
