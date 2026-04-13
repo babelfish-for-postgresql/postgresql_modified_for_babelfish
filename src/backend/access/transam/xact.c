@@ -6543,6 +6543,12 @@ SetTopTransactionName(const char *name)
 	s->name = MemoryContextStrdup(TopTransactionContext, name);
 }
 
+void
+ResetTopTransactionName(void)
+{
+	CurrentTransactionState->name = NULL;
+}
+
 /*
  * IsTrasactionBlockActive
  * If a transaction block is already in progress
