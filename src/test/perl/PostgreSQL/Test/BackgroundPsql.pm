@@ -89,7 +89,8 @@ sub new
 		'stdin' => '',
 		'stdout' => '',
 		'stderr' => '',
-		'query_timer_restart' => undef
+		'query_timer_restart' => undef,
+		'query_cnt' => 1,
 	};
 	my $run;
 
@@ -148,6 +149,8 @@ sub wait_connect
 	# connection failures are caught here, relieving callers of the need to
 	# handle those.  (Right now, we have no particularly good handling for
 	# errors anyway, but that might be added later.)
+	#
+	# See query() for details about why/how the banner is used.
 	my $banner = "background_psql: ready";
 	my $banner_match = qr/$banner\r?\n/;
 	$self->{stdin} .= "\\echo '$banner'\n\\warn '$banner'\n";
@@ -277,11 +280,8 @@ sub query
 	# would not be one if consuming an empty query result).
 	$banner_match = qr/\r?\n?$banner\r?\n/;
 	$output = $self->{stdout};
-
-	# Remove banner again, our caller doesn't care.  The first newline is
-	# optional, as there would not be one if consuming an empty query
-	# result.
-	$output =~ s/\n?$banner\n$//s;
+	$output =~ s/$banner_match//;
+	$self->{stderr} =~ s/$banner_match//;
 
 	# clear out output for the next query
 	$self->{stdout} = '';
