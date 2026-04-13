@@ -6543,11 +6543,6 @@ SetTopTransactionName(const char *name)
 	s->name = MemoryContextStrdup(TopTransactionContext, name);
 }
 
-/*
- *	ResetTopTransactionName
- *	Reset top transaction name to avoid dangling pointer
- *	after transaction memory context is destroyed.
- */
 void
 ResetTopTransactionName(void)
 {
