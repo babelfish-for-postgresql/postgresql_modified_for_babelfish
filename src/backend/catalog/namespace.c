@@ -199,7 +199,7 @@ typedef struct SearchPathCacheEntry
  * we either haven't made the TEMP namespace yet, or have successfully
  * committed its creation, depending on whether myTempNamespace is valid.
  */
-static Oid	myTempNamespace = InvalidOid;
+ Oid	myTempNamespace = InvalidOid;
 
 static Oid	myTempToastNamespace = InvalidOid;
 
@@ -3945,6 +3945,10 @@ SetTempNamespaceState(Oid tempNamespaceId, Oid tempToastNamespaceId)
 	searchPathCacheValid = false;
 }
 
+Oid get_myTempNamespace(void)
+{
+	return myTempNamespace;
+}
 
 /*
  * GetSearchPathMatcher - fetch current search path definition.

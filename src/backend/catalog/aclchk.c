@@ -125,7 +125,6 @@ static void SetDefaultACL(InternalDefaultACL *iacls);
 static List *objectNamesToOids(ObjectType objtype, List *objnames,
 							   bool is_grant);
 static List *objectsInSchemaToOids(ObjectType objtype, List *nspnames);
-static List *getRelationsInNamespace(Oid namespaceId, char relkind);
 static void expand_col_privileges(List *colnames, Oid table_oid,
 								  AclMode this_privileges,
 								  AclMode *col_privileges,
@@ -937,7 +936,7 @@ objectsInSchemaToOids(ObjectType objtype, List *nspnames)
  *
  * Return Oid list of relations in given namespace filtered by relation kind
  */
-static List *
+List *
 getRelationsInNamespace(Oid namespaceId, char relkind)
 {
 	List	   *relations = NIL;

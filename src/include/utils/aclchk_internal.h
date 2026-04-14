@@ -41,5 +41,5 @@ typedef struct
 	DropBehavior behavior;
 } InternalGrant;
 
-
+List *getRelationsInNamespace(Oid namespaceId, char relkind);
 #endif							/* ACLCHK_INTERNAL_H */
