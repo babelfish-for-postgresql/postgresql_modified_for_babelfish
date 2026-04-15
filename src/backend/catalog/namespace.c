@@ -199,7 +199,7 @@ typedef struct SearchPathCacheEntry
  * we either haven't made the TEMP namespace yet, or have successfully
  * committed its creation, depending on whether myTempNamespace is valid.
  */
- Oid	myTempNamespace = InvalidOid;
+static Oid	myTempNamespace = InvalidOid;
 
 static Oid	myTempToastNamespace = InvalidOid;
 
@@ -3899,6 +3899,13 @@ GetTempToastNamespace(void)
 	return myTempToastNamespace;
 }
 
+/* GetTempNamespace - get the OID of my temporary-table namespace */
+Oid 
+GetTempNamespace(void)
+{
+	return myTempNamespace;
+}
+
 
 /*
  * GetTempNamespaceState - fetch status of session's temporary namespace
@@ -3943,11 +3950,6 @@ SetTempNamespaceState(Oid tempNamespaceId, Oid tempToastNamespaceId)
 
 	baseSearchPathValid = false;	/* may need to rebuild list */
 	searchPathCacheValid = false;
-}
-
-Oid get_myTempNamespace(void)
-{
-	return myTempNamespace;
 }
 
 /*

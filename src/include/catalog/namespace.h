@@ -205,6 +205,6 @@ extern PGDLLIMPORT char *namespace_search_path;
 
 extern List *fetch_search_path(bool includeImplicit);
 extern int	fetch_search_path_array(Oid *sarray, int sarray_len);
-extern Oid get_myTempNamespace(void);
+Oid GetTempNamespace(void);
 
 #endif							/* NAMESPACE_H */
