@@ -3952,6 +3952,7 @@ SetTempNamespaceState(Oid tempNamespaceId, Oid tempToastNamespaceId)
 	searchPathCacheValid = false;
 }
 
+
 /*
  * GetSearchPathMatcher - fetch current search path definition.
  *
