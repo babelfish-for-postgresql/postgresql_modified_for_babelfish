@@ -87,6 +87,7 @@
 #include "tcop/tcopprot.h"
 #include "utils/guc_hooks.h"
 #include "utils/memutils.h"
+#include "utils/pg_locale.h"
 #include "utils/ps_status.h"
 #include "utils/varlena.h"
 
