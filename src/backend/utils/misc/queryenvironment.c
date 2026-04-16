@@ -2009,3 +2009,36 @@ find_ENR_queryEnv(Oid relid)
 
 	return NULL;
 }
+
+/*
+ * get_namedRelListByRelkind
+ *
+ * Returns a list of ENR temp tables filtered by relkind.
+ */
+List *
+get_namedRelListByRelkind(char relkind)
+{
+	List	   *result = NIL;
+	List	   *enrList = get_namedRelList();
+	ListCell   *lc;
+
+	foreach(lc, enrList)
+	{
+		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
+
+		if (enr != NULL && enr->md.enrtype == ENR_TSQL_TEMP)
+		{
+			Relation	rel = RelationIdGetRelation(enr->md.reliddesc);
+
+			if (rel != NULL)
+			{
+				if (rel->rd_rel->relkind == relkind)
+					result = lappend(result, enr);
+				RelationClose(rel);
+			}
+		}
+	}
+
+	list_free(enrList);
+	return result;
+}
