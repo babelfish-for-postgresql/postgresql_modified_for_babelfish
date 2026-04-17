@@ -2015,7 +2015,6 @@ find_ENR_queryEnv(Oid relid)
  * getEnrByRelkind
  *
  * Returns a list of ENRs filtered by relkind.
- * Caller is responsible for freeing the returned list.
  */
 List *
 getEnrByRelkind(char relkind)
