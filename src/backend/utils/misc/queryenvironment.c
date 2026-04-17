@@ -49,6 +49,7 @@
 #include "storage/smgr.h"
 #include "utils/inval.h"
 #include "utils/guc.h"
+#include "utils/lsyscache.h"
 #include "utils/syscache.h"
 #include "utils/queryenvironment.h"
 #include "utils/rel.h"
@@ -2011,34 +2012,28 @@ find_ENR_queryEnv(Oid relid)
 }
 
 /*
- * get_namedRelListByRelkind
+ * getEnrByRelkind
  *
- * Returns a list of ENR temp tables filtered by relkind.
+ * Returns a list of ENRs filtered by relkind.
+ * Caller is responsible for freeing the returned list.
  */
 List *
-get_namedRelListByRelkind(char relkind)
+getEnrByRelkind(char relkind)
 {
-	List	   *result = NIL;
-	List	   *enrList = get_namedRelList();
-	ListCell   *lc;
+	List			   *result = NIL;
+	QueryEnvironment   *qe = currentQueryEnv;
+	ListCell		   *lc;
 
-	foreach(lc, enrList)
+	while (qe)
 	{
-		EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
-
-		if (enr != NULL && enr->md.enrtype == ENR_TSQL_TEMP)
+		foreach(lc, qe->namedRelList)
 		{
-			Relation	rel = RelationIdGetRelation(enr->md.reliddesc);
+			EphemeralNamedRelation enr = (EphemeralNamedRelation) lfirst(lc);
 
-			if (rel != NULL)
-			{
-				if (rel->rd_rel->relkind == relkind)
-					result = lappend(result, enr);
-				RelationClose(rel);
-			}
+			if (get_rel_relkind(enr->md.reliddesc) == relkind)
+				result = lappend(result, enr);
 		}
+		qe = qe->parentEnv;
 	}
-
-	list_free(enrList);
 	return result;
 }
