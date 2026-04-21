@@ -105,7 +105,7 @@ typedef struct ChangeContext
 	/* The relation the changes are applied to. */
 	Relation	cc_rel;
 
-	/* Needed to update indexes of rel_dst. */
+	/* Needed to update indexes of cc_rel. */
 	ResultRelInfo *cc_rri;
 	EState	   *cc_estate;
 
