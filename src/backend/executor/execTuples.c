@@ -2350,7 +2350,8 @@ TupleDesc
 BlessTupleDesc(TupleDesc tupdesc)
 {
 	/* Did someone forget to call TupleDescFinalize()? */
-	Assert(tupdesc->firstNonCachedOffsetAttr >= 0);
+	if (tupdesc->firstNonCachedOffsetAttr < 0)
+		TupleDescFinalize(tupdesc);
 
 	if (tupdesc->tdtypeid == RECORDOID &&
 		tupdesc->tdtypmod < 0)
