@@ -2162,6 +2162,7 @@ expression_tree_walker_impl(Node *node,
 		case T_RangeTblRef:
 		case T_SortGroupClause:
 		case T_CTESearchClause:
+		case T_GraphLabelRef:
 		case T_GraphPropertyRef:
 		case T_MergeSupportFunc:
 			/* primitive node types with no expression subnodes */
@@ -2725,6 +2726,8 @@ expression_tree_walker_impl(Node *node,
 			{
 				GraphElementPattern *gep = (GraphElementPattern *) node;
 
+				if (WALK(gep->labelexpr))
+					return true;
 				if (WALK(gep->subexpr))
 					return true;
 				if (WALK(gep->whereClause))
@@ -3088,6 +3091,8 @@ expression_tree_mutator_impl(Node *node,
 		case T_RangeTblRef:
 		case T_SortGroupClause:
 		case T_CTESearchClause:
+		case T_GraphLabelRef:
+		case T_GraphPropertyRef:
 		case T_MergeSupportFunc:
 			return copyObject(node);
 		case T_WithCheckOption:
@@ -3838,6 +3843,30 @@ expression_tree_mutator_impl(Node *node,
 				MUTATE(newnode->coldefexprs, tf->coldefexprs, List *);
 				MUTATE(newnode->colvalexprs, tf->colvalexprs, List *);
 				MUTATE(newnode->passingvalexprs, tf->passingvalexprs, List *);
+				return (Node *) newnode;
+			}
+			break;
+		case T_GraphElementPattern:
+			{
+				GraphElementPattern *gep = (GraphElementPattern *) node;
+				GraphElementPattern *newnode;
+
+				FLATCOPY(newnode, gep, GraphElementPattern);
+				MUTATE(newnode->labelexpr, gep->labelexpr, Node *);
+				MUTATE(newnode->subexpr, gep->subexpr, List *);
+				MUTATE(newnode->whereClause, gep->whereClause, Node *);
+				newnode->quantifier = list_copy(gep->quantifier);
+				return (Node *) newnode;
+			}
+			break;
+		case T_GraphPattern:
+			{
+				GraphPattern *gp = (GraphPattern *) node;
+				GraphPattern *newnode;
+
+				FLATCOPY(newnode, gp, GraphPattern);
+				MUTATE(newnode->path_pattern_list, gp->path_pattern_list, List *);
+				MUTATE(newnode->whereClause, gp->whereClause, Node *);
 				return (Node *) newnode;
 			}
 			break;
@@ -4824,6 +4853,8 @@ raw_expression_tree_walker_impl(Node *node,
 			{
 				GraphElementPattern *gep = (GraphElementPattern *) node;
 
+				if (WALK(gep->labelexpr))
+					return true;
 				if (WALK(gep->subexpr))
 					return true;
 				if (WALK(gep->whereClause))
