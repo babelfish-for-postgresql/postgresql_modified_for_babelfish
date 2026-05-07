@@ -31,6 +31,18 @@
 /* Static state for pg_strtok */
 static const char *pg_strtok_ptr = NULL;
 
+/*
+ * pg_strtok_init - set the input string for pg_strtok.
+ *
+ * Allows extensions to initialize the tokenizer state for their own
+ * deserialization without needing access to the static pg_strtok_ptr.
+ */
+void
+pg_strtok_init(const char *str)
+{
+	pg_strtok_ptr = str;
+}
+
 /* State flag that determines how readfuncs.c should treat location fields */
 #ifdef DEBUG_NODE_TESTS_ENABLED
 bool		restore_location_fields = false;
