@@ -1104,6 +1104,7 @@ GrantRoleStmt
 GrantStmt
 GrantTargetType
 Group
+GroupByColInfo
 GroupByOrdering
 GroupClause
 GroupPath
