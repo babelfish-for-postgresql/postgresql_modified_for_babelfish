@@ -329,13 +329,15 @@ ExecRepack(ParseState *pstate, RepackStmt *stmt, bool isTopLevel)
 			Assert(rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE);
 			ereport(ERROR,
 					errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					errmsg("REPACK (CONCURRENTLY) is not supported for partitioned tables"),
+					errmsg("%s is not supported for partitioned tables",
+						   "REPACK (CONCURRENTLY)"),
 					errhint("Consider running the command on individual partitions."));
 		}
 		else
 			ereport(ERROR,
 					errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					errmsg("REPACK (CONCURRENTLY) requires an explicit table name"));
+					errmsg("%s requires an explicit table name",
+						   "REPACK (CONCURRENTLY)"));
 	}
 
 	/*
@@ -894,7 +896,8 @@ check_concurrent_repack_requirements(Relation rel, Oid *ident_idx_p)
 				errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				errmsg("cannot repack relation \"%s\"",
 					   RelationGetRelationName(rel)),
-				errhint("REPACK CONCURRENTLY is not supported for catalog relations."));
+				errhint("%s is not supported for catalog relations.",
+						"REPACK (CONCURRENTLY)"));
 
 	/*
 	 * reorderbuffer.c does not seem to handle processing of TOAST relation
@@ -905,7 +908,8 @@ check_concurrent_repack_requirements(Relation rel, Oid *ident_idx_p)
 				errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				errmsg("cannot repack relation \"%s\"",
 					   RelationGetRelationName(rel)),
-				errhint("REPACK CONCURRENTLY is not supported for TOAST relations"));
+				errhint("%s is not supported for TOAST relations.",
+						"REPACK (CONCURRENTLY)"));
 
 	relpersistence = rel->rd_rel->relpersistence;
 	if (relpersistence != RELPERSISTENCE_PERMANENT)
@@ -913,7 +917,8 @@ check_concurrent_repack_requirements(Relation rel, Oid *ident_idx_p)
 				errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				errmsg("cannot repack relation \"%s\"",
 					   RelationGetRelationName(rel)),
-				errhint("REPACK CONCURRENTLY is only allowed for permanent relations."));
+				errhint("%s is only allowed for permanent relations.",
+						"REPACK (CONCURRENTLY)"));
 
 	/* With NOTHING, WAL does not contain the old tuple. */
 	replident = rel->rd_rel->relreplident;
