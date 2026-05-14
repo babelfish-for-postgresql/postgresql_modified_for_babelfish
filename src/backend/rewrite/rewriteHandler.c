@@ -48,6 +48,7 @@
 
 bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook = NULL; /** BBF Hook to check Instead Of trigger on View */
 pre_QueryRewrite_hook_type pre_QueryRewrite_hook = NULL;
+post_QueryRewrite_hook_type post_QueryRewrite_hook = NULL;
 walk_view_rule_hook_type walk_view_rule_hook = NULL;
 handle_target_view_hook_type handle_target_view_hook = NULL;
 
@@ -4735,6 +4736,16 @@ QueryRewrite(Query *parsetree)
 
 	if (!foundOriginalQuery && lastInstead != NULL)
 		lastInstead->canSetTag = true;
+
+	/* Post rewrite hook */
+	if (post_QueryRewrite_hook)
+	{
+		foreach(l, results)
+		{
+			Query *query = (Query *) lfirst(l);
+			(*post_QueryRewrite_hook)(query);
+		}
+	}
 
 	return results;
 }
