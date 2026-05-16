@@ -59,8 +59,8 @@ char	   *log_connections_string = NULL;
 ConnectionTiming conn_timing = {.ready_for_use = TIMESTAMP_MINUS_INFINITY};
 
 static void BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionConfig *protocol_config);
-int	ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done);
 int	ProcessSSLStartup(Port *port);
+int	ProcessStartupPacket(Port *port);
 static void ProcessCancelRequestPacket(Port *port, void *pkt, int pktlen);
 static void SendNegotiateProtocolVersion(List *unrecognized_protocol_options);
 static void process_startup_packet_die(SIGNAL_ARGS);
@@ -483,20 +483,27 @@ reject:
  * send anything to the client, which would typically be appropriate
  * if we detect a communications failure.)
  *
- * Set ssl_done and/or gss_done when negotiation of an encrypted layer
- * (currently, TLS or GSSAPI) is completed. A successful negotiation of either
- * encryption layer sets both flags, but a rejected negotiation sets only the
- * flag for that layer, since the client may wish to try the other one. We
- * should make no assumption here about the order in which the client may make
- * requests.
  */
 int
-ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done)
+ProcessStartupPacket(Port *port)
 {
 	int32		len;
 	char	   *buf = NULL;
 	ProtocolVersion proto;
 	MemoryContext oldcontext;
+	bool		gss_done;
+	bool		ssl_done;
+
+	/*
+	 * Set ssl_done and/or gss_done when negotiation of an encrypted layer
+	 * (currently, TLS or GSSAPI) is completed.  A successful negotiation of
+	 * either encryption layer sets both flags, but a rejected negotiation
+	 * sets only the flag for that layer, since the client may wish to try the
+	 * other one.  We should make no assumption here about the order in which
+	 * the client may make requests.
+	 */
+	gss_done = false;
+	ssl_done = false;
 
 retry:
 	pq_startmsgread();
