@@ -24,6 +24,9 @@
 #include "utils/lsyscache.h"
 #include "utils/selfuncs.h"
 
+/* Hook for extensions to override OpExpr selectivity */
+opexpr_selectivity_hook_type opexpr_selectivity_hook = NULL;
+
 /*
  * Data structure for accumulating info about possible range-query
  * clause pairs in clauselist_selectivity.
@@ -833,6 +836,7 @@ clause_selectivity_ext(PlannerInfo *root,
 		OpExpr	   *opclause = (OpExpr *) clause;
 		Oid			opno = opclause->opno;
 
+
 		if (treat_as_join_clause(root, clause, rinfo, varRelid, sjinfo))
 		{
 			/* Estimate selectivity for a join clause. */
@@ -844,11 +848,24 @@ clause_selectivity_ext(PlannerInfo *root,
 		}
 		else
 		{
-			/* Estimate selectivity for a restriction clause. */
-			s1 = restriction_selectivity(root, opno,
-										 opclause->args,
-										 opclause->inputcollid,
-										 varRelid);
+			/*
+			 * Allow extensions to override OpExpr selectivity estimation
+			 * via the opexpr_selectivity_hook.
+			 */
+			bool	handled = false;
+
+			if (opexpr_selectivity_hook &&
+				opexpr_selectivity_hook(root, clause, varRelid, jointype,
+										sjinfo, use_extended_stats, &s1))
+				handled = true;
+			if (!handled)
+			{
+				/* Estimate selectivity for a restriction clause. */
+				s1 = restriction_selectivity(root, opno,
+											 opclause->args,
+											 opclause->inputcollid,
+											 varRelid);
+			}
 		}
 
 		/*
