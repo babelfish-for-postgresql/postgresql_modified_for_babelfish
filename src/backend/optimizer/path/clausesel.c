@@ -23,6 +23,7 @@
 #include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
 #include "utils/selfuncs.h"
+#include "parser/parser.h"
 
 /* Hook for extensions to override OpExpr selectivity */
 opexpr_selectivity_hook_type opexpr_selectivity_hook = NULL;
@@ -850,15 +851,12 @@ clause_selectivity_ext(PlannerInfo *root,
 		{
 			/*
 			 * Allow extensions to override OpExpr selectivity estimation
-			 * via the opexpr_selectivity_hook.
+			 * via the opexpr_selectivity_hook (Babelfish only).
 			 */
-			bool	handled = false;
-
-			if (opexpr_selectivity_hook &&
-				opexpr_selectivity_hook(root, clause, varRelid, jointype,
-										sjinfo, use_extended_stats, &s1))
-				handled = true;
-			if (!handled)
+			if (!(sql_dialect == SQL_DIALECT_TSQL &&
+				  opexpr_selectivity_hook &&
+				  opexpr_selectivity_hook(root, clause, varRelid, jointype,
+										  sjinfo, use_extended_stats, &s1)))
 			{
 				/* Estimate selectivity for a restriction clause. */
 				s1 = restriction_selectivity(root, opno,

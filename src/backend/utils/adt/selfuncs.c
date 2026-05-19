@@ -141,6 +141,7 @@
 #include "utils/syscache.h"
 #include "utils/timestamp.h"
 #include "utils/typcache.h"
+#include "parser/parser.h"
 
 /* Hook for extensions to override NullTest selectivity */
 nulltest_selectivity_hook_type nulltest_selectivity_hook = NULL;
@@ -1758,14 +1759,11 @@ nulltestsel(PlannerInfo *root, NullTestType nulltesttype, Node *arg,
 	{
 		/*
 		 * No ANALYZE stats available. Allow extensions to override
-		 * NullTest selectivity via nulltest_selectivity_hook.
+		 * NullTest selectivity via nulltest_selectivity_hook (Babelfish only).
 		 */
-		if (nulltest_selectivity_hook &&
-			nulltest_selectivity_hook(root, nulltesttype, arg, varRelid, &selec))
-		{
-			/* Hook handled it */
-		}
-		else
+		if (!(sql_dialect == SQL_DIALECT_TSQL &&
+			  nulltest_selectivity_hook &&
+			  nulltest_selectivity_hook(root, nulltesttype, arg, varRelid, &selec)))
 		{
 			switch (nulltesttype)
 			{

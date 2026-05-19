@@ -77,25 +77,6 @@ extern Selectivity clauselist_selectivity_ext(PlannerInfo *root,
 											  bool use_extended_stats);
 
 
-/*
- * Hooks for extensions to override selectivity estimation.
- * Returns true if the hook handled the clause (and set *selec).
- */
-typedef bool (*opexpr_selectivity_hook_type) (PlannerInfo *root,
-											  Node *clause,
-											  int varRelid,
-											  JoinType jointype,
-											  SpecialJoinInfo *sjinfo,
-											  bool use_extended_stats,
-											  Selectivity *selec);
-extern PGDLLIMPORT opexpr_selectivity_hook_type opexpr_selectivity_hook;
-
-typedef bool (*nulltest_selectivity_hook_type) (PlannerInfo *root,
-												NullTestType nulltesttype,
-												Node *arg,
-												int varRelid,
-												Selectivity *selec);
-extern PGDLLIMPORT nulltest_selectivity_hook_type nulltest_selectivity_hook;
 /* in path/costsize.c: */
 
 /* widely used cost parameters */
