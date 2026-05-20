@@ -48,6 +48,13 @@ typedef RelOptInfo *(*join_search_hook_type) (PlannerInfo *root,
 											  List *initial_rels);
 extern PGDLLIMPORT join_search_hook_type join_search_hook;
 
+/* Hook for plugins to provide index clauses for unmatched OpExpr */
+typedef IndexClause *(*match_opclause_to_indexcol_hook_type) (PlannerInfo *root,
+																	 RestrictInfo *rinfo,
+																	 int indexcol,
+																	 IndexOptInfo *index);
+extern PGDLLIMPORT match_opclause_to_indexcol_hook_type match_opclause_to_indexcol_hook;
+
 
 extern RelOptInfo *make_one_rel(PlannerInfo *root, List *joinlist);
 extern RelOptInfo *standard_join_search(PlannerInfo *root, int levels_needed,
