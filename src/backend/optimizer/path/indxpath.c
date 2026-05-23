@@ -3011,12 +3011,17 @@ match_opclause_to_indexcol(PlannerInfo *root,
 		 * function for the operator's underlying function.
 		 */
 		set_opfuncid(clause);	/* make sure we have opfuncid */
-		return get_index_clause_from_support(root,
+		iclause = get_index_clause_from_support(root,
 											 rinfo,
 											 clause->opfuncid,
 											 1, /* indexarg on right */
 											 indexcol,
 											 index);
+		if (iclause)
+			return iclause;
+		if (match_opclause_to_indexcol_hook)
+			return match_opclause_to_indexcol_hook(root, rinfo, indexcol, index);
+		return NULL;
 	}
 
 	return NULL;
