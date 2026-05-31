@@ -42,10 +42,6 @@ extern void error_view_not_updatable(Relation view,
 typedef bool (*pre_QueryRewrite_hook_type) (Query *parsetree);
 extern PGDLLEXPORT pre_QueryRewrite_hook_type pre_QueryRewrite_hook;
 
-/* Post rewrite hook */
-typedef void (*post_QueryRewrite_hook_type) (Query *query);
-extern PGDLLEXPORT post_QueryRewrite_hook_type post_QueryRewrite_hook;
-
 typedef void (*walk_view_rule_hook_type) (Query *rule_action, Oid view_owner);
 extern PGDLLEXPORT walk_view_rule_hook_type walk_view_rule_hook;
 
