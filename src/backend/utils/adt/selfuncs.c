@@ -141,6 +141,10 @@
 #include "utils/syscache.h"
 #include "utils/timestamp.h"
 #include "utils/typcache.h"
+#include "parser/parser.h"
+
+/* Hook for extensions to override NullTest selectivity */
+nulltest_selectivity_hook_type nulltest_selectivity_hook = NULL;
 
 #define DEFAULT_PAGE_CPU_MULTIPLIER 50.0
 
@@ -1754,20 +1758,26 @@ nulltestsel(PlannerInfo *root, NullTestType nulltesttype, Node *arg,
 	else
 	{
 		/*
-		 * No ANALYZE stats available, so make a guess
+		 * No ANALYZE stats available. Allow extensions to override
+		 * NullTest selectivity via nulltest_selectivity_hook (Babelfish only).
 		 */
-		switch (nulltesttype)
+		if (!(sql_dialect == SQL_DIALECT_TSQL &&
+			  nulltest_selectivity_hook &&
+			  nulltest_selectivity_hook(root, nulltesttype, arg, varRelid, &selec)))
 		{
-			case IS_NULL:
-				selec = DEFAULT_UNK_SEL;
-				break;
-			case IS_NOT_NULL:
-				selec = DEFAULT_NOT_UNK_SEL;
-				break;
-			default:
-				elog(ERROR, "unrecognized nulltesttype: %d",
-					 (int) nulltesttype);
-				return (Selectivity) 0; /* keep compiler quiet */
+			switch (nulltesttype)
+			{
+				case IS_NULL:
+					selec = DEFAULT_UNK_SEL;
+					break;
+				case IS_NOT_NULL:
+					selec = DEFAULT_NOT_UNK_SEL;
+					break;
+				default:
+					elog(ERROR, "unrecognized nulltesttype: %d",
+						 (int) nulltesttype);
+					return (Selectivity) 0; /* keep compiler quiet */
+			}
 		}
 	}
 
