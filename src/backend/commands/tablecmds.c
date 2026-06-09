@@ -797,7 +797,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	LOCKMODE	parentLockmode;
 	Oid			accessMethodId = InvalidOid;
 	ObjectAddress tsql_tabletype_address;
-	const char *effective_relname;
+	const char *enr_relname;
 
 	/*
 	 * Truncate relname to appropriate length (probably a waste of time, as
@@ -813,9 +813,9 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	if (sql_dialect == SQL_DIALECT_TSQL &&
 		stmt->relation->relpersistence == RELPERSISTENCE_TEMP &&
 		stmt->relation->relname[0] == '#')
-		effective_relname = stmt->relation->relname;
+		enr_relname = stmt->relation->relname;
 	else
-		effective_relname = relname;
+		enr_relname = relname;
 
 	/*
 	 * Check consistency of arguments
@@ -1091,7 +1091,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 * passed in for immediate handling --- since they don't need parsing,
 	 * they can be stored immediately.
 	 */
-	relationId = heap_create_with_catalog(effective_relname,
+	relationId = heap_create_with_catalog(enr_relname,
 										  namespaceId,
 										  tablespaceId,
 										  InvalidOid,
