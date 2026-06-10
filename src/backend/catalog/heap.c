@@ -3500,28 +3500,15 @@ cookDefault(ParseState *pstate,
 		check_nested_generated(pstate, expr);
 
 		/* hook to handle stable func in computed columns */
-		if (persisted_col_hook)
+		if (!persisted_col_hook ||
+			persisted_col_hook(expr) != NULL)
 		{
-			Node *result = persisted_col_hook(expr);
-			if (result == NULL)
-			{
-				/* Hook says skip immutability check */
-				goto skip_immutability_check;
-			}
-			else
-			{
-				/* Hook returned a transformed expression */
-				expr = result;
-			}
+			/* Disallow mutable functions */
+			if (contain_mutable_functions_after_planning((Expr *) expr))
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+						 errmsg("generation expression is not immutable")));
 		}
-
-		/* Disallow mutable functions */
-		if (contain_mutable_functions_after_planning((Expr *) expr))
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-					 errmsg("generation expression is not immutable")));
-
-skip_immutability_check:
 		/* Check security of expressions for virtual generated column */
 		if (attgenerated == ATTRIBUTE_GENERATED_VIRTUAL)
 			check_virtual_generated_security(pstate, expr);
