@@ -797,25 +797,12 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	LOCKMODE	parentLockmode;
 	Oid			accessMethodId = InvalidOid;
 	ObjectAddress tsql_tabletype_address;
-	const char *enr_relname;
 
 	/*
 	 * Truncate relname to appropriate length (probably a waste of time, as
 	 * parser should have done this already).
 	 */
 	strlcpy(relname, stmt->relation->relname, NAMEDATALEN);
-
-	/*
-	 * For T-SQL #temp tables, ENR stores names in heap-allocated memory
-	 * without NAMEDATALEN limit.  Use the full original name so that
-	 * subsequent lookups via the scanner match the registered ENR entry.
-	 */
-	if (sql_dialect == SQL_DIALECT_TSQL &&
-		stmt->relation->relpersistence == RELPERSISTENCE_TEMP &&
-		stmt->relation->relname[0] == '#')
-		enr_relname = stmt->relation->relname;
-	else
-		enr_relname = relname;
 
 	/*
 	 * Check consistency of arguments
@@ -1091,7 +1078,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 * passed in for immediate handling --- since they don't need parsing,
 	 * they can be stored immediately.
 	 */
-	relationId = heap_create_with_catalog(enr_relname,
+	relationId = heap_create_with_catalog(relname,
 										  namespaceId,
 										  tablespaceId,
 										  InvalidOid,
@@ -5834,23 +5821,6 @@ ATParseTransformCmd(List **wqueue, AlteredTableInfo *tab, Relation rel,
 		makeRangeVar(get_namespace_name(RelationGetNamespace(rel)),
 					 pstrdup(RelationGetRelationName(rel)),
 					 -1);
-
-	/*
-	 * For T-SQL #temp tables with long names (>= NAMEDATALEN), the relation
-	 * descriptor stores the name clipped to NAMEDATALEN-1 (63 chars) due to the
-	 * Name type limitation. However, ENR stores the full untruncated name which
-	 * is what subsequent lookups via RangeVarGetRelidExtended need to match.
-	 * Replace the clipped relname with the full name from ENR.
-	 */
-	if (sql_dialect == SQL_DIALECT_TSQL &&
-		RelationGetRelationName(rel)[0] == '#')
-	{
-		EphemeralNamedRelation enr = get_ENR_withoid(currentQueryEnv,
-													RelationGetRelid(rel),
-													ENR_TSQL_TEMP, true);
-		if (enr)
-			atstmt->relation->relname = pstrdup(enr->md.name);
-	}
 	atstmt->relation->inh = recurse;
 	atstmt->cmds = list_make1(cmd);
 	atstmt->objtype = OBJECT_TABLE; /* needn't be picky here */
