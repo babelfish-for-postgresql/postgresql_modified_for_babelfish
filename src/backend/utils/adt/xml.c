@@ -4160,7 +4160,9 @@ xml_xmlnodetoxmltype(xmlNodePtr cur, PgXmlErrorContext *xmlerrcxt)
 {
 	xmltype    *result = NULL;
 
-	if (cur->type != XML_ATTRIBUTE_NODE && cur->type != XML_TEXT_NODE)
+	if (cur->type != XML_ATTRIBUTE_NODE &&
+		cur->type != XML_TEXT_NODE &&
+		cur->type != XML_NAMESPACE_DECL)
 	{
 		void		(*volatile nodefree) (xmlNodePtr) = NULL;
 		volatile xmlBufferPtr buf = NULL;
