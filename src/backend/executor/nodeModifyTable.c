@@ -4246,11 +4246,6 @@ ExecModifyTable(PlanState *pstate)
 	HeapTupleData oldtupdata;
 	HeapTuple	oldtuple;
 	ItemPointer tupleid;
-	/* for INSERT ... EXECUTE */
-	bool 		tsql_insert_exec = node->callStmt != NULL;
-	Tuplestorestate *tss = NULL;
-	TupleDesc 	tupdesc = NULL;
-	DestReceiver *dest = NULL;
 	bool		tuplock;
 
 	CHECK_FOR_INTERRUPTS();
@@ -4295,36 +4290,6 @@ ExecModifyTable(PlanState *pstate)
 	context.estate = estate;
 
 	/*
-	 * If we are here for INSERT ... EXECUTE, create a TuplestoreDestReceiver
-	 * and pass it to the procedure execution. The procedure execution will send
-	 * its result sets to the tuplestore via the receiver function.
-	 */
-	if (tsql_insert_exec)
-	{
-		tss = tuplestore_begin_heap(false, false, work_mem);
-		tupdesc = RelationGetDescr(resultRelInfo->ri_RelationDesc);
-		dest = CreateTuplestoreDestReceiver();
-		SetTuplestoreDestReceiverParams(dest, tss, CurrentMemoryContext, false, NULL, NULL);
-		dest->rStartup(dest, -1, tupdesc);
-
-		switch (nodeTag(node->callStmt))
-		{
-			case T_CallStmt:
-				ExecuteCallStmt((CallStmt *)node->callStmt,
-								pstate->state->es_param_list_info, false, dest);
-				break;
-			case T_DoStmt:
-				ExecuteDoStmtInsertExec((DoStmt *)node->callStmt, false, dest);
-				break;
-			default:
-				ereport(ERROR,
-						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("Unrecognized stmt in INSERT EXEC")));
-				break;
-		}
-	}
-
-	/*
 	 * Fetch rows from subplan(s), and execute the required table modification
 	 * for each row.
 	 */
@@ -4353,42 +4318,34 @@ ExecModifyTable(PlanState *pstate)
 			break;
 		}
 
-		if (tsql_insert_exec)
+		/*
+		 * If there is a pending MERGE ... WHEN NOT MATCHED [BY TARGET] action
+		 * to execute, do so now --- see the comments in ExecMerge().
+		 */
+		if (node->mt_merge_pending_not_matched != NULL)
 		{
-			context.planSlot = MakeSingleTupleTableSlot(tupdesc, &TTSOpsMinimalTuple);
-			tuplestore_gettupleslot(tss, true, false, context.planSlot);
-		}
-		else
-        {
-			/*
-			 * If there is a pending MERGE ... WHEN NOT MATCHED [BY TARGET] action
-			 * to execute, do so now --- see the comments in ExecMerge().
-			 */
-			if (node->mt_merge_pending_not_matched != NULL)
-			{
-				context.planSlot = node->mt_merge_pending_not_matched;
-				context.cpDeletedSlot = NULL;
-
-				slot = ExecMergeNotMatched(&context, node->resultRelInfo,
-									   node->canSetTag);
-
-				/* Clear the pending action */
-				node->mt_merge_pending_not_matched = NULL;
-
-				/*
-				 * If we got a RETURNING result, return it to the caller.  We'll
-				 * continue the work on next call.
-				 */
-				if (slot)
-					return slot;
-
-				continue;			/* continue with the next tuple */
-			}
-
-			/* Fetch the next row from subplan */
-			context.planSlot = ExecProcNode(subplanstate);
+			context.planSlot = node->mt_merge_pending_not_matched;
 			context.cpDeletedSlot = NULL;
+
+			slot = ExecMergeNotMatched(&context, node->resultRelInfo,
+								   node->canSetTag);
+
+			/* Clear the pending action */
+			node->mt_merge_pending_not_matched = NULL;
+
+			/*
+			 * If we got a RETURNING result, return it to the caller.  We'll
+			 * continue the work on next call.
+			 */
+			if (slot)
+				return slot;
+
+			continue;			/* continue with the next tuple */
 		}
+
+		/* Fetch the next row from subplan */
+		context.planSlot = ExecProcNode(subplanstate);
+		context.cpDeletedSlot = NULL;
 
 		/* No more tuples to process? */
 		if (TupIsNull(context.planSlot))
@@ -4679,21 +4636,12 @@ ExecModifyTable(PlanState *pstate)
 				break;
 		}
 
-		if(tsql_insert_exec)
-			ExecDropSingleTupleTableSlot(context.planSlot);
-
 		/*
 		 * If we got a RETURNING result, return it to caller.  We'll continue
 		 * the work on next call.
 		 */
 		if (slot)
 			return slot;
-	}
-
-	if (tsql_insert_exec && dest)
-	{
-		dest->rShutdown(dest);
-		dest->rDestroy(dest);
 	}
 
 	/*
