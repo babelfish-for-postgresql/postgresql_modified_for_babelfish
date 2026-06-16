@@ -865,7 +865,7 @@ extern PGDLLEXPORT invalidate_stat_table_hook_type invalidate_stat_table_hook;
 typedef bool (*tsql_has_pgstat_permissions_hook_type) (Oid role);
 extern PGDLLEXPORT tsql_has_pgstat_permissions_hook_type tsql_has_pgstat_permissions_hook;
 
-typedef void (*pgstat_function_wrapper_hook_type)(FunctionCallInfo, PgStat_FunctionCallUsage *, char *);
+typedef bool (*pgstat_function_wrapper_hook_type)(FunctionCallInfo, PgStat_FunctionCallUsage *, char *);
 extern PGDLLEXPORT pgstat_function_wrapper_hook_type pgstat_function_wrapper_hook;
 
 typedef void (*pltsql_pgstat_end_function_usage_hook_type) (FunctionCallInfo fcinfo, 
@@ -874,5 +874,8 @@ typedef void (*pltsql_pgstat_end_function_usage_hook_type) (FunctionCallInfo fci
 extern PGDLLEXPORT pltsql_pgstat_end_function_usage_hook_type pltsql_pgstat_end_function_usage_hook;
 
 extern bool lookup_pgstat_entry_in_cache(PgStat_Kind kind, Oid dboid, Oid objoid);
+
+extern void pgstat_init_function_usage_no_drop(FunctionCallInfo fcinfo,
+											   PgStat_FunctionCallUsage *fcu);
 
 #endif							/* PGSTAT_H */

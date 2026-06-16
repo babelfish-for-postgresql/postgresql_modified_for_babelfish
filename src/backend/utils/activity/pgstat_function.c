@@ -138,6 +138,76 @@ pgstat_init_function_usage(FunctionCallInfo fcinfo,
 	INSTR_TIME_SET_CURRENT(fcu->start);
 }
 
+void
+pgstat_init_function_usage_no_drop(FunctionCallInfo fcinfo,
+								   PgStat_FunctionCallUsage *fcu)
+{
+	PgStat_EntryRef *entry_ref;
+	PgStat_FunctionCounts *pending;
+	bool		created_entry;
+
+	if (pgstat_track_functions <= fcinfo->flinfo->fn_stats)
+	{
+		/* stats not wanted */
+		fcu->fs = NULL;
+		return;
+	}
+
+	entry_ref = pgstat_prep_pending_entry(PGSTAT_KIND_FUNCTION,
+										  MyDatabaseId,
+										  fcinfo->flinfo->fn_oid,
+										  &created_entry);
+
+	/*
+	 * If no shared entry already exists, check if the function has been
+	 * deleted concurrently. This can go unnoticed until here because
+	 * executing a statement that just calls a function, does not trigger
+	 * cache invalidation processing. The reason we care about this case is
+	 * that otherwise we could create a new stats entry for an already dropped
+	 * function (for relations etc this is not possible because emitting stats
+	 * requires a lock for the relation to already have been acquired).
+	 *
+	 * It's somewhat ugly to have a behavioral difference based on
+	 * track_functions being enabled/disabled. But it seems acceptable, given
+	 * that there's already behavioral differences depending on whether the
+	 * function is the caches etc.
+	 *
+	 * For correctness it'd be sufficient to set ->dropped to true. However,
+	 * the accepted invalidation will commonly cause "low level" failures in
+	 * PL code, with an OID in the error message. Making this harder to
+	 * test...
+	 *
+	 * Unlike pgstat_init_function_usage, we do NOT call
+	 * pgstat_drop_entry here. In Babelfish's concurrent scenarios, 
+	 * calling pgstat_drop_entry conflicts with the transactional
+	 * drop path (AtEOXact_PgStat_DroppedStats), causing a server crash.
+	 * The entry will be cleaned up by the transactional path at commit time.
+	 */
+	if (created_entry)
+	{
+		AcceptInvalidationMessages();
+		if (!SearchSysCacheExists1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid)))
+		{
+			fcu->fs = NULL;
+			ereport(ERROR, errcode(ERRCODE_UNDEFINED_FUNCTION),
+					errmsg("function call to dropped function"));
+		}
+	}
+
+	pending = entry_ref->pending;
+
+	fcu->fs = pending;
+
+	/* save stats for this function, later used to compensate for recursion */
+	fcu->save_f_total_time = pending->total_time;
+
+	/* save current backend-wide total time */
+	fcu->save_total = total_func_time;
+
+	/* get clock time as of function start */
+	INSTR_TIME_SET_CURRENT(fcu->start);
+}
+
 /*
  * Calculate function call usage and update stat counters.
  * Called by the executor after invoking a function.

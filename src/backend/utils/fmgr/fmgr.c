@@ -857,13 +857,11 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 		 * and the dialect is TSQL then we call this func using hook 
 		 * otherwise we will fall back to pgstat_init_function_usage
 		*/
-
-		if(pgstat_function_wrapper_hook && sql_dialect == SQL_DIALECT_TSQL)
+		if (!pgstat_function_wrapper_hook || sql_dialect != SQL_DIALECT_TSQL ||
+			!(*pgstat_function_wrapper_hook)(fcinfo, &fcusage, cacheTupleProcname))
 		{
-			(*pgstat_function_wrapper_hook)(fcinfo, &fcusage, cacheTupleProcname);
+			pgstat_init_function_usage(fcinfo, &fcusage);
 		}
-		
-		pgstat_init_function_usage(fcinfo, &fcusage);
 
 		if(cacheTupleProcname)
 		{
