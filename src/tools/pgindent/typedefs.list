@@ -525,6 +525,7 @@ ConnType
 ConnectionStateEnum
 ConnectionTiming
 ConnectionWarning
+ConnectionWarningFilter
 ConsiderSplitContext
 Const
 ConstrCheck
@@ -723,7 +724,6 @@ ENGINE
 EOM_flatten_into_method
 EOM_get_flat_size_method
 EPQState
-EPlan
 EState
 EStatus
 EVP_CIPHER
@@ -3111,7 +3111,6 @@ TParserStateActionItem
 TQueueDestReceiver
 TRGM
 TSAnyCacheEntry
-TscClockSourceInfo
 TSConfigCacheEntry
 TSConfigInfo
 TSDictInfo
@@ -3262,6 +3261,7 @@ TriggerInfo
 TriggerInstrumentation
 TriggerTransition
 TruncateStmt
+TscClockSourceInfo
 TsmRoutine
 TupOutputState
 TupSortStatus
