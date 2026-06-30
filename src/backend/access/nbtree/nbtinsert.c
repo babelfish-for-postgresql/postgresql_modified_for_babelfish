@@ -16,6 +16,7 @@
 #include "postgres.h"
 
 #include "access/nbtree.h"
+#include "executor/executor.h"
 #include "access/nbtxlog.h"
 #include "access/transam.h"
 #include "access/xloginsert.h"
@@ -663,14 +664,33 @@ _bt_check_unique(Relation rel, BTInsertState insertstate, Relation heapRel,
 						key_desc = BuildIndexValueDescription(rel, values,
 															  isnull);
 
-						ereport(ERROR,
-								(errcode(ERRCODE_UNIQUE_VIOLATION),
-								 errmsg("duplicate key value violates unique constraint \"%s\"",
-										RelationGetRelationName(rel)),
-								 key_desc ? errdetail("Key %s already exists.",
-													  key_desc) : 0,
-								 errtableconstraint(heapRel,
-													RelationGetRelationName(rel))));
+						{
+							const char *conname = RelationGetRelationName(rel);
+
+							/*
+							 * BABEL: Resolve the original (pre-truncation) name for
+							 * display in error messages. For Babelfish, identifiers
+							 * longer than NAMEDATALEN are MD5-truncated at storage
+							 * time. The index hook reads pg_class.reloptions to
+							 * recover the original index name, and the constraint hook
+							 * looks up babelfish_identifier_mapping for the full
+							 * constraint name. We chain both: first try the index
+							 * reloptions, then fall back to the identifier mapping if
+							 * the name is still at the truncation boundary.
+							 */
+							if (bbf_get_original_index_name_hook)
+								conname = bbf_get_original_index_name_hook(conname);
+							if (bbf_get_original_constraint_name_hook && strlen(conname) >= NAMEDATALEN - 1)
+								conname = bbf_get_original_constraint_name_hook(conname);
+							ereport(ERROR,
+									(errcode(ERRCODE_UNIQUE_VIOLATION),
+									 errmsg("duplicate key value violates unique constraint \"%s\"",
+											conname),
+									 key_desc ? errdetail("Key %s already exists.",
+														  key_desc) : 0,
+									 errtableconstraint(heapRel,
+														RelationGetRelationName(rel))));
+						}
 					}
 				}
 				else if (all_dead && (!inposting ||
