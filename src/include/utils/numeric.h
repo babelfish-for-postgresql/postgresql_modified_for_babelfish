@@ -18,7 +18,7 @@
 #include "fmgr.h"
 
 /* forward declaration to avoid node.h include */
-typedef struct Node Node;
+struct Node;
 
 /*
  * Limits on the precision and scale specifiable in a NUMERIC typmod.  The
@@ -113,7 +113,7 @@ extern Numeric numeric_mod_opt_error(Numeric num1, Numeric num2,
 extern int32 numeric_int4_opt_error(Numeric num, bool *have_error);
 extern int64 numeric_int8_opt_error(Numeric num, bool *have_error);
 extern int32 make_numeric_typmod_safe(int32 precision, int32 scale,
-									  Node *escontext);
+									  struct Node *escontext);
 
 extern Datum bigint_poly_aggr_final(FunctionCallInfo fcinfo, tsqlAggType aggType);
 
