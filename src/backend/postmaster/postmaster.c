@@ -1479,7 +1479,7 @@ libpq_init(ClientSocket *client_sock)
 int
 libpq_start(Port *port)
 {
-	return ProcessStartupPacket(port, false, false);
+	return ProcessStartupPacket(port);
 }
 
 void

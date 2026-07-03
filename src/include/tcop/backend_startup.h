@@ -119,7 +119,8 @@ typedef struct ConnectionTiming
 } ConnectionTiming;
 
 extern void BackendMain(const void *startup_data, size_t startup_data_len);
-extern int	ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done);
+
+extern int	ProcessStartupPacket(Port *port);
 extern int	ProcessSSLStartup(Port *port);
 
 #endif							/* BACKEND_STARTUP_H */
