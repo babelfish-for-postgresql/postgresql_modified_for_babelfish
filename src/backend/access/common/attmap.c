@@ -115,8 +115,8 @@ build_attrmap_by_position(TupleDesc indesc,
 
 			/* Found matching column, now check type */
 			/* skip check type if it is for tsql inline table valued function */
-			if ((outatt->atttypid != inatt->atttypid ||
-				(outatt->atttypmod != inatt->atttypmod && outatt->atttypmod >= 0)) &&
+			if ((atttypid != att->atttypid ||
+				(atttypmod != att->atttypmod && atttypmod >= 0)) &&
 				!(called_for_tsql_itvf_func_hook && called_for_tsql_itvf_func_hook()))
 				ereport(ERROR,
 						(errcode(ERRCODE_DATATYPE_MISMATCH),
@@ -315,8 +315,8 @@ check_attrmap_match(TupleDesc indesc,
 		 * for tsql inline table valued function, we need a cast
 		 */
 		if ((called_for_tsql_itvf_func_hook && called_for_tsql_itvf_func_hook())
-		 	&& (inatt_form_attributes->atttypid != outatt_form_attributes->atttypid ||
-			inatt_form_attributes->atttypmod != outatt_form_attributes->atttypmod))
+		 	&& (inatt->atttypid != outatt->atttypid ||
+			inatt->atttypmod != outatt->atttypmod))
 			return false;
 
 		if (attrMap->attnums[i] == (i + 1))

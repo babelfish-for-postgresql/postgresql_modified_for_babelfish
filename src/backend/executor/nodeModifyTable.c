@@ -4140,7 +4140,6 @@ ExecModifyTable(PlanState *pstate)
 		if (node->mt_merge_pending_not_matched != NULL)
 		{
 			context.planSlot = node->mt_merge_pending_not_matched;
-			context.cpDeletedSlot = NULL;
 
 			slot = ExecMergeNotMatched(&context, node->resultRelInfo,
 								   node->canSetTag);
@@ -4160,7 +4159,6 @@ ExecModifyTable(PlanState *pstate)
 
 		/* Fetch the next row from subplan */
 		context.planSlot = ExecProcNode(subplanstate);
-		context.cpDeletedSlot = NULL;
 
 		/* No more tuples to process? */
 		if (TupIsNull(context.planSlot))
