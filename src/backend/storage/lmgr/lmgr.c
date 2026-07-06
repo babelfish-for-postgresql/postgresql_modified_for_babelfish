@@ -336,6 +336,7 @@ CheckRelationLockedByMe(Relation relation, LOCKMODE lockmode, bool orstronger)
 {
 	LOCKTAG		tag;
 
+	/* ENRs are session-local and never locked; simply return true if rel is ENR */
 	if (find_object_in_enr_hook && (*find_object_in_enr_hook)(RelationRelationId, RelationGetRelid(relation), NULL))
 		return true;
 
@@ -355,6 +356,10 @@ bool
 CheckRelationOidLockedByMe(Oid relid, LOCKMODE lockmode, bool orstronger)
 {
 	LOCKTAG		tag;
+
+	/* ENRs are session-local and never locked; simply return true if rel is ENR */
+	if (find_object_in_enr_hook && (*find_object_in_enr_hook) (RelationRelationId, relid, NULL))
+		return true;
 
 	SetLocktagRelationOid(&tag, relid);
 
