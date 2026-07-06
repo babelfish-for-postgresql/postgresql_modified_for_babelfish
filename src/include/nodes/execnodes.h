@@ -1411,9 +1411,6 @@ typedef struct ModifyTableState
 	/* controls transition table population for INSERT...ON CONFLICT UPDATE */
 	struct TransitionCaptureState *mt_oc_transition_capture;
 
-	/* CallStmt for INSERT ... EXECUTE */
-	Node	   *callStmt;
-
 	/* Flags showing which subcommands are present INS/UPD/DEL/DO NOTHING */
 	int			mt_merge_subcommands;
 

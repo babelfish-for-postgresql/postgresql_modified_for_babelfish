@@ -2709,13 +2709,8 @@ _SPI_execute_plan(SPIPlanPtr plan, const SPIExecuteOptions *options,
 			else
 				dest = CreateDestReceiver(DestSPI);
 
-			if (stmt->utilityStmt == NULL || stmt->commandType == CMD_INSERT)
+			if (stmt->utilityStmt == NULL)
 			{
-				/*
-				 * INSERT ... EXECUTE stmt can also have a utilityStmt attached,
-				 * and here we should treat it like an INSERT stmt, and let it
-				 * handle the EXECUTE during its execution.
-				 */
 				QueryDesc  *qdesc;
 				Snapshot	snap;
 
