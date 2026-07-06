@@ -461,12 +461,6 @@ standard_planner(Query *parse, const char *query_string, int cursorOptions,
 	best_path = get_cheapest_fractional_path(final_rel, tuple_fraction);
 
 	top_plan = create_plan(root, best_path);
-	/*
-	 * For INSERT ... EXECUTE, add the utilityStmt (if any) from the Query to
-	 * the plan node.
-	 */
-	if (nodeTag(top_plan) == T_ModifyTable)
-		((ModifyTable *)top_plan)->callStmt = parse->utilityStmt;
 
 	/*
 	 * If creating a plan for a scrollable cursor, make sure it can run

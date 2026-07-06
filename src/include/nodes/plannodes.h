@@ -325,8 +325,6 @@ typedef struct ModifyTable
 	Index		exclRelRTI;
 	/* tlist of the EXCLUDED pseudo relation */
 	List	   *exclRelTlist;
-	/* for INSERT ... EXECUTE */
-	Node	   *callStmt;
 	/* per-target-table lists of actions for MERGE */
 	List	   *mergeActionLists;
 	/* per-target-table join conditions for MERGE */

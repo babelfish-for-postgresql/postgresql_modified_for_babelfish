@@ -785,39 +785,6 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 	Assert(list_length(icolumns) == list_length(attrnos));
 
 	/*
-	 * For INSERT ... EXECUTE, transform the CallStmt/DoStmt, and attach it to
-	 * the Query's utilityStmt.
-	 */
-	if (stmt->execStmt)
-	{
-		switch (nodeTag(stmt->execStmt))
-		{
-			case T_CallStmt:
-				{
-					Query *callStmtQry = transformCallStmt(pstate, (CallStmt *)stmt->execStmt);
-					((CallStmt *) stmt->execStmt)->relation = pstate->p_target_relation->rd_id;
-					((CallStmt *) stmt->execStmt)->attrnos = attrnos;
-					((CallStmt *) stmt->execStmt)->retdesc = NULL;
-					((CallStmt *) stmt->execStmt)->dest = NULL;
-					qry->utilityStmt = callStmtQry->utilityStmt;
-				}
-				break;
-			case T_DoStmt:
-				((DoStmt *) stmt->execStmt)->relation = pstate->p_target_relation->rd_id;
-				((DoStmt *) stmt->execStmt)->attrnos = attrnos;
-				qry->utilityStmt = stmt->execStmt;
-				break;
-			default:
-				ereport(ERROR,
-						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("Unrecognized stmt in INSERT EXEC"),
-						 parser_errposition(pstate,
-											exprLocation((Node *) stmt->execStmt))));
-				break;
-		}
-	}
-
-	/*
 	 * Determine which variant of INSERT we have.
 	 */
 	if (selectStmt == NULL)

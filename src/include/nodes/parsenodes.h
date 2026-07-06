@@ -2115,7 +2115,6 @@ typedef struct InsertStmt
 	ReturningClause *returningClause;	/* RETURNING clause */
 	WithClause *withClause;		/* WITH clause */
 	OverridingKind override;	/* OVERRIDING clause */
-	Node	   *execStmt; 		/* for INSERT ... EXECUTE */
 	Node       *limitCount;		/* used by INSERT TOP in T-SQL*/
 } InsertStmt;
 
@@ -3594,9 +3593,6 @@ typedef struct DoStmt
 {
 	NodeTag		type;
 	List	   *args;			/* List of DefElem nodes */
-	/* for INSERT ... EXECUTE */
-	Oid 		relation;		/* INSERT target relation */
-	List 	   *attrnos; 		/* columns list by attnum */
 } DoStmt;
 
 typedef struct InlineCodeBlock
@@ -3608,10 +3604,6 @@ typedef struct InlineCodeBlock
 	Oid			langOid;		/* OID of selected language */
 	bool		langIsTrusted;	/* trusted property of the language */
 	bool		atomic;			/* atomic execution context */
-	/* for INSERT ... EXECUTE */
-	Oid 		relation;		/* INSERT target relation */
-	List 	   *attrnos; 		/* columns list by attnum */
-	Node 	   *dest; 			/* dest receiver */
 } InlineCodeBlock;
 
 /* ----------------------
@@ -3634,17 +3626,6 @@ typedef struct CallStmt
 	FuncExpr   *funcexpr;
 	/* transformed output-argument expressions */
 	List	   *outargs;
-	/* for INSERT ... EXECUTE */
-	Oid 		relation;		/* INSERT target relation */
-	List 	   *attrnos; 		/* columns list by attnum */
-	/*
-	 * for nested CallStmt under INSERT ... EXECUTE
-	 * for example, in query "INSERT INTO t1 EXEC ('EXEC p1')"
-	 * the CallStmt of the inner "EXEC p1" will have the following two fields
-	 * filled in based on the outer "INSERT INTO t1 EXEC"
-	 */
-	void 	   *retdesc; 		/* expected TupleDesc of the result rows */
-	void 	   *dest; 			/* DestReceiver to send the result rows */
 } CallStmt;
 
 typedef struct CallContext
