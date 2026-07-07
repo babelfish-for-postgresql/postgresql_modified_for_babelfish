@@ -126,6 +126,22 @@ unicode_strupper(char *dst, size_t dstsize, const char *src, ssize_t srclen)
 	return convert_case(dst, dstsize, src, srclen, CaseUpper, NULL, NULL);
 }
 
+/* local version of pg_utf_mblen() to be inlinable */
+static int
+utf8_mblen(const unsigned char *s)
+{
+	if ((*s & 0x80) == 0)
+		return 1;
+	else if ((*s & 0xe0) == 0xc0)
+		return 2;
+	else if ((*s & 0xf0) == 0xe0)
+		return 3;
+	else if ((*s & 0xf8) == 0xf0)
+		return 4;
+	else
+		return -1;
+}
+
 /*
  * If str_casekind is CaseLower or CaseUpper, map each character in the string
  * for which a mapping is available.
@@ -152,11 +168,18 @@ convert_case(char *dst, size_t dstsize, const char *src, ssize_t srclen,
 		Assert(boundary == 0);	/* start of text is always a boundary */
 	}
 
-	while ((srclen < 0 || srcoff < srclen) && src[srcoff] != '\0')
+	srclen = (srclen < 0) ? strlen(src) : srclen;
+	while (srcoff < srclen && src[srcoff] != '\0')
 	{
-		pg_wchar	u1 = utf8_to_unicode((unsigned char *) src + srcoff);
-		int			u1len = unicode_utf8len(u1);
-		const pg_case_map *casemap = find_case_map(u1);
+		int			u1len = utf8_mblen((const unsigned char *) src + srcoff);
+		pg_wchar	u1;
+		const pg_case_map *casemap;
+
+		/* invalid UTF8 */
+		if (u1len < 0 || srcoff + u1len > srclen)
+			break;
+
+		u1 = utf8_to_unicode((const unsigned char *) src + srcoff);
 
 		if (str_casekind == CaseTitle)
 		{
@@ -168,6 +191,8 @@ convert_case(char *dst, size_t dstsize, const char *src, ssize_t srclen,
 			else
 				chr_casekind = CaseLower;
 		}
+
+		casemap = find_case_map(u1);
 
 		/* perform mapping, update result_len, and write to dst */
 		if (casemap)
