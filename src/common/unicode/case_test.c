@@ -169,12 +169,21 @@ test_strlower(const char *test_string, const char *expected)
 static void
 test_convert_case()
 {
+	size_t		needed;
+
 	/* test string with no case changes */
 	test_strlower("√∞", "√∞");
 	/* test string with case changes */
 	test_strlower("ABC", "abc");
 	/* test string with case changes and byte length changes */
 	test_strlower("ȺȺȺ", "ⱥⱥⱥ");
+
+	/* invalid UTF8: truncated multibyte sequence */
+	needed = unicode_strlower(NULL, 0, "abc\xCE", 4);
+	Assert(needed == 3);
+	/* invalid UTF8: invalid byte */
+	needed = unicode_strlower(NULL, 0, "abc\xF8xyz", 7);
+	Assert(needed == 3);
 
 	printf("case_test: convert_case: success\n");
 }
