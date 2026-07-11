@@ -1099,7 +1099,7 @@ ZeroAndLockBuffer(Buffer buffer, ReadBufferMode mode, bool already_valid)
  * already present, or false if more work is required to either read it in or
  * zero it.
  */
-static pg_attribute_always_inline Buffer
+static pg_always_inline Buffer
 PinBufferForBlock(Relation rel,
 				  SMgrRelation smgr,
 				  char smgr_persistence,
@@ -1192,7 +1192,7 @@ PinBufferForBlock(Relation rel,
  *
  * smgr is required, rel is optional unless using P_NEW.
  */
-static pg_attribute_always_inline Buffer
+static pg_always_inline Buffer
 ReadBuffer_common(Relation rel, SMgrRelation smgr, char smgr_persistence,
 				  ForkNumber forkNum,
 				  BlockNumber blockNum, ReadBufferMode mode,
@@ -1263,7 +1263,7 @@ ReadBuffer_common(Relation rel, SMgrRelation smgr, char smgr_persistence,
 	return buffer;
 }
 
-static pg_attribute_always_inline bool
+static pg_always_inline bool
 StartReadBuffersImpl(ReadBuffersOperation *operation,
 					 Buffer *buffers,
 					 BlockNumber blockNum,
@@ -1606,7 +1606,7 @@ WaitReadBuffers(ReadBuffersOperation *operation)
  *
  * No locks are held either at entry or exit.
  */
-static pg_attribute_always_inline BufferDesc *
+static pg_always_inline BufferDesc *
 BufferAlloc(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 			BlockNumber blockNum,
 			BufferAccessStrategy strategy,
