@@ -28,6 +28,8 @@
 #include "parser/parse_utilcmd.h"
 #include "rewrite/rewriteDefine.h"
 #include "rewrite/rewriteManip.h"
+#include "parser/parser.h"
+#include "parser/scansup.h"
 #include "rewrite/rewriteSupport.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
@@ -562,7 +564,18 @@ checkRuleResultList(List *targetList, TupleDesc resultDesc, bool isSelect,
 					 errmsg("cannot create a RETURNING list for a relation containing dropped columns")));
 
 		/* Check name match if required; no need for two error texts here */
-		if (requireColumnNameMatch && strcmp(tle->resname, attname) != 0)
+		/*
+		 * BABEL: For T-SQL views with long column names (>= NAMEDATALEN), the
+		 * SELECT target list entry retains the full-length name while attname
+		 * holds the MD5-truncated version. Allow the mismatch when truncating
+		 * the full name produces the stored attname. Without this, CREATE OR
+		 * REPLACE VIEW would fail for views with long column aliases.
+		 */
+		if (requireColumnNameMatch && strcmp(tle->resname, attname) != 0 &&
+			!(sql_dialect == SQL_DIALECT_TSQL &&
+			  strlen(tle->resname) >= NAMEDATALEN &&
+			  strlen(attname) < NAMEDATALEN &&
+			  pg_strcasecmp(downcase_truncate_identifier(tle->resname, strlen(tle->resname), false), attname) == 0))
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 					 errmsg("SELECT rule's target entry %d has different column name from column \"%s\"",
