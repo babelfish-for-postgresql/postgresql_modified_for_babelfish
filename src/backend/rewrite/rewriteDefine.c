@@ -567,13 +567,12 @@ checkRuleResultList(List *targetList, TupleDesc resultDesc, bool isSelect,
 		/*
 		 * BABEL: For T-SQL views with long column names (>= NAMEDATALEN), the
 		 * SELECT target list entry retains the full-length name while attname
-		 * holds the MD5-truncated version. Allow the mismatch when truncating
+		 * holds the truncated version. Allow the mismatch when truncating
 		 * the full name produces the stored attname. Without this, CREATE OR
 		 * REPLACE VIEW would fail for views with long column aliases.
 		 */
 		if (requireColumnNameMatch && strcmp(tle->resname, attname) != 0 &&
-			!(sql_dialect == SQL_DIALECT_TSQL &&
-			  strlen(tle->resname) >= NAMEDATALEN &&
+			!(strlen(tle->resname) >= NAMEDATALEN &&
 			  strlen(attname) < NAMEDATALEN &&
 			  pg_strcasecmp(downcase_truncate_identifier(tle->resname, strlen(tle->resname), false), attname) == 0))
 			ereport(ERROR,

@@ -81,8 +81,7 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 			 * 'bbf_original_name' and resolved at query time via
 			 * bbf_get_view_column_name().
 			 */
-			if (sql_dialect == SQL_DIALECT_TSQL && def->colname &&
-				strlen(def->colname) >= NAMEDATALEN)
+			if (def->colname && strlen(def->colname) >= NAMEDATALEN)
 				truncate_identifier(def->colname,
 								strlen(def->colname), false);
 
