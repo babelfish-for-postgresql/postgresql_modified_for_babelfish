@@ -3230,10 +3230,6 @@ ApplyWorkerMain(Datum main_arg)
 
 	CommitTransactionCommand();
 
-	/* Connect to the origin and start the replication. */
-	elog(DEBUG1, "connecting to publisher using connection string \"%s\"",
-		 MySubscription->conninfo);
-
 	if (am_tablesync_worker())
 	{
 		char	   *syncslotname;
