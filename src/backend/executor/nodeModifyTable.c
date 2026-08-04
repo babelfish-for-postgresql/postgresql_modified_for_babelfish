@@ -4085,7 +4085,12 @@ fireISTriggers(ModifyTableState *node)
 			ret = ExecISDeleteTriggers(node->ps.state, resultRelInfo, node->mt_transition_capture);
 			break;
 		case CMD_MERGE:
-			elog(ERROR, "Merge is unsupported in TSQL");
+			/*
+			 * T-SQL INSTEAD OF triggers are not supported on MERGE yet;
+			 * per-action row/statement triggers fire through the regular
+			 * PG MERGE paths.
+			 */
+			ret = IOT_NOT_REQUIRED;
 			break;
 		default:
 			elog(ERROR, "unknown operation");
