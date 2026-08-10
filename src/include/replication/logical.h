@@ -155,4 +155,7 @@ extern void UpdateDecodingStats(LogicalDecodingContext *ctx);
 typedef void (*logicalrep_modify_slot_hook_type)(Relation rel, EState *estate, TupleTableSlot *slot);
 extern PGDLLIMPORT logicalrep_modify_slot_hook_type logicalrep_modify_slot_hook;
 
+/* GUCs */
+extern PGDLLIMPORT char *output_plugin_libraries_string;
+
 #endif
