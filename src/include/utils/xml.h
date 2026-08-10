@@ -22,6 +22,7 @@
 #ifdef USE_LIBXML
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
+#include "utils/array.h"
 #endif
 
 typedef struct varlena xmltype;
@@ -108,5 +109,9 @@ extern PGDLLIMPORT int xmlbinary;	/* XmlBinaryType, but int for guc enum */
 extern PGDLLIMPORT int xmloption;	/* XmlOptionType, but int for guc enum */
 
 extern PGDLLIMPORT const TableFuncRoutine XmlTableRoutine;
+
+extern void xpath_internal(text *xpath_expr_text, xmltype *data,
+                          ArrayType *namespaces, int *res_nitems,
+                          ArrayBuildState *astate);
 
 #endif							/* XML_H */

@@ -4323,7 +4323,8 @@ xml_xpathobjtoxmlarray(xmlXPathObjectPtr xpathobj,
  * an XML document - XPath doesn't work easily on fragments without
  * a context node being known.
  */
-static void
+void
+//static void
 xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 			   int *res_nitems, ArrayBuildState *astate)
 {
@@ -4344,7 +4345,6 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 	Datum	   *ns_names_uris;
 	bool	   *ns_names_uris_nulls;
 	int			ns_count;
-
 	/*
 	 * Namespace mappings are passed as text[].  If an empty array is passed
 	 * (ndim = 0, "0-dimensional"), then there are no namespace mappings.
@@ -4394,6 +4394,7 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 	string = pg_xmlCharStrndup(datastr, len);
 	xpath_expr = pg_xmlCharStrndup(VARDATA_ANY(xpath_expr_text), xpath_len);
 
+printf("*** xpath_internal:xpath_expr=[%s] xmldata=[%s]\n", (char *)xpath_expr, (char *)string);
 	/*
 	 * In a UTF8 database, skip any xml declaration, which might assert
 	 * another encoding.  Ignore parse_xml_decl() failure, letting
