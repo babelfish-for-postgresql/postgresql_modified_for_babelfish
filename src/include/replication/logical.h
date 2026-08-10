@@ -153,7 +153,10 @@ extern bool filter_by_origin_cb_wrapper(LogicalDecodingContext *ctx, RepOriginId
 extern void ResetLogicalStreamingState(void);
 extern void UpdateDecodingStats(LogicalDecodingContext *ctx);
 
+/* GUCs */
+extern PGDLLIMPORT char *output_plugin_libraries_string;
+
 typedef void (*logicalrep_modify_slot_hook_type)(Relation rel, EState *estate, TupleTableSlot *slot);
-extern PGDLLEXPORT logicalrep_modify_slot_hook_type logicalrep_modify_slot_hook;
+extern PGDLLIMPORT logicalrep_modify_slot_hook_type logicalrep_modify_slot_hook;
 
 #endif
