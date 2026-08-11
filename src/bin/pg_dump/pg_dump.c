@@ -17091,6 +17091,24 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 		if (tbinfo->checkoption != NULL && !tbinfo->dummy_view)
 			appendPQExpBuffer(q, "\n  WITH %s CHECK OPTION", tbinfo->checkoption);
 		appendPQExpBufferStr(q, ";\n");
+
+		/* Dump view column attoptions (bbf_original_name for long identifiers) */
+		if (isBabelfishDatabase(fout))
+		{
+			for (j = 0; j < tbinfo->numatts; j++)
+			{
+				if (tbinfo->attisdropped[j])
+					continue;
+				if (tbinfo->attoptions[j][0] != '\0')
+				{
+					fixAttoptionsBbfOriginalName(fout, tbinfo->dobj.catId.oid, tbinfo, j);
+					appendPQExpBuffer(q, "ALTER TABLE ONLY %s ALTER COLUMN %s SET (%s);\n",
+									 qualrelname,
+									 fmtId(tbinfo->attnames[j]),
+									 tbinfo->attoptions[j]);
+				}
+			}
+		}
 	}
 	else
 	{

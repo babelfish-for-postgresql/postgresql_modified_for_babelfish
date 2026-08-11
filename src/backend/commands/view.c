@@ -19,8 +19,6 @@
 #include "catalog/namespace.h"
 #include "commands/tablecmds.h"
 #include "commands/view.h"
-#include "parser/parser.h"
-#include "parser/scansup.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/analyze.h"
@@ -71,19 +69,6 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 											exprType((Node *) tle->expr),
 											exprTypmod((Node *) tle->expr),
 											exprCollation((Node *) tle->expr));
-
-			/*
-			 * BABEL: For T-SQL views, column names can be up to 128 chars but
-			 * pg_attribute.attname is limited to NAMEDATALEN (64). Truncate
-			 * long column names here using the MD5 strategy (handled by
-			 * truncate_identifier) so they fit in the catalog. The original
-			 * full-length name is preserved in pg_attribute.attoptions as
-			 * 'bbf_original_name' and resolved at query time via
-			 * bbf_get_view_column_name().
-			 */
-			if (def->colname && strlen(def->colname) >= NAMEDATALEN)
-				truncate_identifier(def->colname,
-								strlen(def->colname), false);
 
 			if (inherit_view_constraints_from_table_hook)
 				(*inherit_view_constraints_from_table_hook) (def, tle->resorigtbl, tle->resorigcol);

@@ -5139,12 +5139,23 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
 			break;
 		case AT_SetOptions:		/* ALTER COLUMN SET ( options ) */
 		case AT_ResetOptions:	/* ALTER COLUMN RESET ( options ) */
-			ATSimplePermissions(cmd->subtype, rel,
-								ATT_TABLE | ATT_PARTITIONED_TABLE |
-								ATT_MATVIEW | ATT_FOREIGN_TABLE);
+		{
+			const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+
+			/* Allow attoptions on view columns in babelfish */
+			if (sql_dialect == SQL_DIALECT_TSQL ||
+				(dump_restore && strcmp(dump_restore, "on") == 0))
+				ATSimplePermissions(cmd->subtype, rel,
+									ATT_TABLE | ATT_PARTITIONED_TABLE |
+									ATT_VIEW | ATT_MATVIEW | ATT_FOREIGN_TABLE);
+			else
+				ATSimplePermissions(cmd->subtype, rel,
+									ATT_TABLE | ATT_PARTITIONED_TABLE |
+									ATT_MATVIEW | ATT_FOREIGN_TABLE);
 			/* This command never recurses */
 			pass = AT_PASS_MISC;
 			break;
+		}
 		case AT_SetStorage:		/* ALTER COLUMN SET STORAGE */
 			ATSimplePermissions(cmd->subtype, rel,
 								ATT_TABLE | ATT_PARTITIONED_TABLE |

@@ -6310,25 +6310,8 @@ get_target_list(List *targetList, deparse_context *context)
 		 * Otherwise, just use what we can find in the TLE.
 		 */
 		if (context->resultDesc && colno <= context->resultDesc->natts)
-		{
 			colname = NameStr(TupleDescAttr(context->resultDesc,
 											colno - 1)->attname);
-
-			/*
-			 * BABEL: For T-SQL views, column names longer than NAMEDATALEN
-			 * are MD5-truncated in pg_attribute.attname, but the rewrite
-			 * rule's target list retains the original full-length name in
-			 * tle->resname. When attname is at the truncation boundary
-			 * (NAMEDATALEN-1) and tle->resname is longer, prefer
-			 * tle->resname so that pg_get_viewdef() outputs the original
-			 * alias. This ensures dump/restore preserves the full column
-			 * name.
-			 */
-			if (tle->resname &&
-				strlen(colname) >= NAMEDATALEN - 1 &&
-				strlen(tle->resname) >= NAMEDATALEN)
-				colname = tle->resname;
-		}
 		else
 			colname = tle->resname;
 
