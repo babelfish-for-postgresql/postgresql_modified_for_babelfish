@@ -110,7 +110,7 @@ extern PGDLLIMPORT int xmloption;	/* XmlOptionType, but int for guc enum */
 
 extern PGDLLIMPORT const TableFuncRoutine XmlTableRoutine;
 
-extern void xpath_internal(text *xpath_expr_text, xmltype *data,
+extern void xpath_internal_wrapper(text *xpath_expr_text, xmltype *data,
                           ArrayType *namespaces, int *res_nitems,
                           ArrayBuildState *astate);
 

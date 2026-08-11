@@ -4323,8 +4323,7 @@ xml_xpathobjtoxmlarray(xmlXPathObjectPtr xpathobj,
  * an XML document - XPath doesn't work easily on fragments without
  * a context node being known.
  */
-void
-//static void
+static void
 xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 			   int *res_nitems, ArrayBuildState *astate)
 {
@@ -4394,7 +4393,6 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 	string = pg_xmlCharStrndup(datastr, len);
 	xpath_expr = pg_xmlCharStrndup(VARDATA_ANY(xpath_expr_text), xpath_len);
 
-printf("*** xpath_internal:xpath_expr=[%s] xmldata=[%s]\n", (char *)xpath_expr, (char *)string);
 	/*
 	 * In a UTF8 database, skip any xml declaration, which might assert
 	 * another encoding.  Ignore parse_xml_decl() failure, letting
@@ -4511,6 +4509,16 @@ printf("*** xpath_internal:xpath_expr=[%s] xmldata=[%s]\n", (char *)xpath_expr, 
 	xmlFreeParserCtxt(ctxt);
 
 	pg_xml_done(xmlerrcxt, false);
+}
+
+/*
+ * Wrapper around xpath_internal(), used by Babelfish
+ */
+void
+xpath_internal_wrapper(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
+			   int *res_nitems, ArrayBuildState *astate)
+{
+	xpath_internal(xpath_expr_text, data, namespaces, res_nitems, astate);
 }
 #endif							/* USE_LIBXML */
 
