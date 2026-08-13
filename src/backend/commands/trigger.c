@@ -7412,6 +7412,41 @@ cancel_prior_stmt_triggers(Oid relid, CmdType cmdType, int tgevent)
 	}
 done:
 
+	/*
+	 * BABELFISH: Also cancel matching statement-level events in the
+	 * composite trigger event list. Composite (pltsql) trigger events
+	 * are stored in a separate list from the standard query_stack, so
+	 * the scan above does not reach them. Without this, duplicate
+	 * statement-level events can accumulate when multiple row-level
+	 * actions (e.g. FK CASCADE) each queue a statement-level event
+	 * for the same relation and operation.
+	 */
+	if (table->after_trig_done && IsCompositeTriggerActive())
+	{
+		AfterTriggerEvent event;
+		AfterTriggerEventChunk *chunk;
+
+		for_each_event_chunk(event, chunk, compositeTriggers.triggers->data.events)
+		{
+			AfterTriggerShared evtshared = GetTriggerSharedData(event);
+
+			if (evtshared->ats_relid != relid)
+				continue;
+			if ((evtshared->ats_event & TRIGGER_EVENT_OPMASK) != tgevent)
+				continue;
+			if (!TRIGGER_FIRED_FOR_STATEMENT(evtshared->ats_event))
+				continue;
+			if (!TRIGGER_FIRED_AFTER(evtshared->ats_event))
+				continue;
+			if (event->ate_flags & AFTER_TRIGGER_DONE)
+				continue;
+
+			/* Mark it DONE so it won't fire again */
+			event->ate_flags &= ~AFTER_TRIGGER_IN_PROGRESS;
+			event->ate_flags |= AFTER_TRIGGER_DONE;
+		}
+	}
+
 	/* In any case, save current insertion point for next time */
 	table->after_trig_done = true;
 	table->after_trig_events = qs->events;
@@ -7520,14 +7555,21 @@ void EndCompositeTriggers(bool error)
 			int before_lxid = MyProc->vxid.lxid;
 			ResourceOwner oldOwner = CurrentResourceOwner;
 
-			/* Mark all triggers as IN PROGRESS */
+			/* Mark all triggers as IN PROGRESS, skipping already-cancelled ones */
 			for_each_event_chunk(event, chunk, triggers->data.events)
 			{
 				AfterTriggerShared evtshared = GetTriggerSharedData(event);
 
 				evtshared->ats_firing_id = 0;
-				Assert(!(event->ate_flags &
-						 (AFTER_TRIGGER_DONE | AFTER_TRIGGER_IN_PROGRESS)));
+				/*
+				 * Events may already be marked DONE if cancel_prior_stmt_triggers
+				 * cancelled them (e.g., during FK CASCADE where multiple
+				 * statement-level events were queued for the same relation).
+				 * Skip those — they should not fire.
+				 */
+				if (event->ate_flags & AFTER_TRIGGER_DONE)
+					continue;
+				Assert(!(event->ate_flags & AFTER_TRIGGER_IN_PROGRESS));
 				event->ate_flags |= AFTER_TRIGGER_IN_PROGRESS;
 			}
 			/* Fire all triggers events, deferred is not supported */
