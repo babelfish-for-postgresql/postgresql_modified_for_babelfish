@@ -125,6 +125,7 @@ static void set_iot_state(Oid relid, CmdType cmdType, IOTState newState);
 static bool IsCompositeTriggerActive(void);
 static void AddCompositeTriggerLevelData(void);
 static bool IsCompositeTrigger(Oid fn_oid, List *fn_name);
+static void cancel_prior_composite_stmt_triggers(Oid relid, int tgevent);
 
 static bool FreeTriggerTable(int query_depth);
 
@@ -7413,39 +7414,11 @@ cancel_prior_stmt_triggers(Oid relid, CmdType cmdType, int tgevent)
 done:
 
 	/*
-	 * BABELFISH: Also cancel matching statement-level events in the
-	 * composite trigger event list. Composite (pltsql) trigger events
-	 * are stored in a separate list from the standard query_stack, so
-	 * the scan above does not reach them. Without this, duplicate
-	 * statement-level events can accumulate when multiple row-level
-	 * actions (e.g. FK CASCADE) each queue a statement-level event
-	 * for the same relation and operation.
+	 * BABELFISH: Also cancel matching statement-level events in the composite
+	 * trigger event list, which the query_stack scan above does not reach.
 	 */
-	if (table->after_trig_done && IsCompositeTriggerActive())
-	{
-		AfterTriggerEvent event;
-		AfterTriggerEventChunk *chunk;
-
-		for_each_event_chunk(event, chunk, compositeTriggers.triggers->data.events)
-		{
-			AfterTriggerShared evtshared = GetTriggerSharedData(event);
-
-			if (evtshared->ats_relid != relid)
-				continue;
-			if ((evtshared->ats_event & TRIGGER_EVENT_OPMASK) != tgevent)
-				continue;
-			if (!TRIGGER_FIRED_FOR_STATEMENT(evtshared->ats_event))
-				continue;
-			if (!TRIGGER_FIRED_AFTER(evtshared->ats_event))
-				continue;
-			if (event->ate_flags & AFTER_TRIGGER_DONE)
-				continue;
-
-			/* Mark it DONE so it won't fire again */
-			event->ate_flags &= ~AFTER_TRIGGER_IN_PROGRESS;
-			event->ate_flags |= AFTER_TRIGGER_DONE;
-		}
-	}
+	if (table->after_trig_done)
+		cancel_prior_composite_stmt_triggers(relid, tgevent);
 
 	/* In any case, save current insertion point for next time */
 	table->after_trig_done = true;
@@ -7483,6 +7456,54 @@ bool IsCompositeTriggerActive(void)
 {
 	return (compositeTriggers.triggers != NULL &&
 			compositeTriggers.triggers->triggerLevel == compositeTriggers.triggerLevel);
+}
+
+/*
+ * cancel_prior_composite_stmt_triggers
+ *
+ * For Babelfish (pltsql) triggers, AFTER STATEMENT events are queued into a
+ * separate event list (compositeTriggers.triggers->data.events) instead of the
+ * query_stack, so the query_stack scan in cancel_prior_stmt_triggers() never
+ * sees them. This function applies the same cancellation to the composite
+ * event list: previously queued AFTER STATEMENT events for the given relation +
+ * operation that have not yet fired are marked DONE, preserving the property
+ * that AFTER STATEMENT triggers fire only once even when several FK enforcement
+ * triggers sequentially queue triggers for the same table into the same trigger
+ * query level.
+ *
+ * Unlike the query_stack scan, we cannot stop at the first non-matching event:
+ * the composite list may interleave events for different relations and
+ * operations, so we scan the whole list and skip non-matching entries.
+ */
+static void
+cancel_prior_composite_stmt_triggers(Oid relid, int tgevent)
+{
+	AfterTriggerEvent event;
+	AfterTriggerEventChunk *chunk;
+
+	/* Nothing to do unless a composite (pltsql) trigger is active */
+	if (!IsCompositeTriggerActive())
+		return;
+
+	for_each_event_chunk(event, chunk, compositeTriggers.triggers->data.events)
+	{
+		AfterTriggerShared evtshared = GetTriggerSharedData(event);
+
+		if (evtshared->ats_relid != relid)
+			continue;
+		if ((evtshared->ats_event & TRIGGER_EVENT_OPMASK) != tgevent)
+			continue;
+		if (!TRIGGER_FIRED_FOR_STATEMENT(evtshared->ats_event))
+			continue;
+		if (!TRIGGER_FIRED_AFTER(evtshared->ats_event))
+			continue;
+		if (event->ate_flags & AFTER_TRIGGER_DONE)
+			continue;
+
+		/* Mark it DONE so it won't fire again */
+		event->ate_flags &= ~AFTER_TRIGGER_IN_PROGRESS;
+		event->ate_flags |= AFTER_TRIGGER_DONE;
+	}
 }
 
 /*
