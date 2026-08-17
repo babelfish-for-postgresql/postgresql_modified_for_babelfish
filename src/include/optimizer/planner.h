@@ -29,6 +29,10 @@ typedef PlannedStmt *(*planner_hook_type) (Query *parse,
 										   ParamListInfo boundParams);
 extern PGDLLEXPORT planner_hook_type planner_hook;
 
+/* Hook for persisted computed column re-evaluation in subquery_planner */
+typedef Query* (*persisted_col_rewrite_hook_type)(Query *parse);
+extern PGDLLEXPORT persisted_col_rewrite_hook_type persisted_col_rewrite_hook;
+
 /* Hook for plugins to transform qual nodes in planner */
 typedef Node* (*planner_node_transformer_hook_type) (PlannerInfo *root,
 												  	 Node *expr,
