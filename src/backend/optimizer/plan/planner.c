@@ -73,6 +73,8 @@ bool		enable_distinct_reordering = true;
 
 /* Hook for plugins to get control in planner() */
 planner_hook_type planner_hook = NULL;
+/* Hook for persisted computed column re-evaluation in subquery_planner */
+persisted_col_rewrite_hook_type persisted_col_rewrite_hook = NULL;
 /* Hook for plugins to transform qual nodes in planner */
 planner_node_transformer_hook_type planner_node_transformer_hook = NULL;
 /* Hook for plugins to get control when grouping_planner() plans upper rels */
@@ -781,6 +783,13 @@ subquery_planner(PlannerGlobal *glob, Query *parse, PlannerInfo *parent_root,
 	 * query.
 	 */
 	pull_up_subqueries(root);
+
+	/*
+	 * Hook for persisted computed column re-evaluation when session GUCs
+	 * differ from defaults.
+	 */
+	if (persisted_col_rewrite_hook)
+		parse = root->parse = persisted_col_rewrite_hook(root->parse);
 
 	/*
 	 * If this is a simple UNION ALL query, flatten it into an appendrel. We

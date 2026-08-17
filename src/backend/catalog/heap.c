@@ -84,6 +84,7 @@
 InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook = NULL;
 transform_check_constraint_expr_hook_type transform_check_constraint_expr_hook = NULL;
 drop_relation_refcnt_hook_type drop_relation_refcnt_hook = NULL;
+persisted_col_hook_type persisted_col_hook = NULL;
 
 /* Potentially set by pg_upgrade_support functions */
 Oid			binary_upgrade_next_heap_pg_class_oid = InvalidOid;
@@ -3498,12 +3499,16 @@ cookDefault(ParseState *pstate,
 		/* Disallow refs to other generated columns */
 		check_nested_generated(pstate, expr);
 
-		/* Disallow mutable functions */
-		if (contain_mutable_functions_after_planning((Expr *) expr))
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-					 errmsg("generation expression is not immutable")));
-
+		/* hook to handle stable func in computed columns */
+		if (!persisted_col_hook ||
+			persisted_col_hook(expr) != NULL)
+		{
+			/* Disallow mutable functions */
+			if (contain_mutable_functions_after_planning((Expr *) expr))
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+						 errmsg("generation expression is not immutable")));
+		}
 		/* Check security of expressions for virtual generated column */
 		if (attgenerated == ATTRIBUTE_GENERATED_VIRTUAL)
 			check_virtual_generated_security(pstate, expr);
