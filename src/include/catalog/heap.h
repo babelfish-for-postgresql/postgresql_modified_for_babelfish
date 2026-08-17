@@ -175,4 +175,7 @@ extern PGDLLEXPORT transform_check_constraint_expr_hook_type transform_check_con
 typedef void (*drop_relation_refcnt_hook_type) (Relation rel);
 extern PGDLLEXPORT drop_relation_refcnt_hook_type drop_relation_refcnt_hook;
 
+typedef Node* (*persisted_col_hook_type)(Node *expr);
+extern PGDLLEXPORT persisted_col_hook_type persisted_col_hook;
+
 #endif							/* HEAP_H */
