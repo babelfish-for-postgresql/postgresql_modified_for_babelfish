@@ -1295,7 +1295,7 @@ get_collation_actual_version(char collprovider, const char *collcollate)
 static size_t
 strlower_c(char *dst, size_t dstsize, const char *src, size_t srclen)
 {
-	int			i;
+	size_t		i;
 
 	for (i = 0; i < srclen && i < dstsize; i++)
 		dst[i] = pg_ascii_tolower(src[i]);
@@ -1309,7 +1309,7 @@ static size_t
 strtitle_c(char *dst, size_t dstsize, const char *src, size_t srclen)
 {
 	bool		wasalnum = false;
-	int			i;
+	size_t		i;
 
 	for (i = 0; i < srclen && i < dstsize; i++)
 	{
@@ -1333,7 +1333,7 @@ strtitle_c(char *dst, size_t dstsize, const char *src, size_t srclen)
 static size_t
 strupper_c(char *dst, size_t dstsize, const char *src, size_t srclen)
 {
-	int			i;
+	size_t		i;
 
 	for (i = 0; i < srclen && i < dstsize; i++)
 		dst[i] = pg_ascii_toupper(src[i]);
