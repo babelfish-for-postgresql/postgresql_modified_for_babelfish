@@ -2115,7 +2115,7 @@ findTargetlistEntrySQL92(ParseState *pstate, Node *node, List **tlist,
 					((!tle_name_comparison_hook &&
 					  strcmp(tle->resname, name) == 0) ||
 					 (tle_name_comparison_hook &&
-					  (*tle_name_comparison_hook)(tle->resname, name, pstate->p_sourcetext, location))))
+					  (*tle_name_comparison_hook)(tle->resname, name))))
 				{
 					if (target_result != NULL)
 					{
