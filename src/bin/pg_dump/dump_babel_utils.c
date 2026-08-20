@@ -2086,3 +2086,34 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 
 	return;
 }
+
+/*
+ * babelDumpViewColumnAttoptions
+ *
+ * Dump per-column attoptions (bbf_original_name) for Babelfish view columns.
+ * The existing per-column attoptions dump logic only runs for tables (in the
+ * else branch of dumpTableSchema), so views need explicit handling.
+ */
+void
+babelDumpViewColumnAttoptions(Archive *fout, const TableInfo *tbinfo,
+							  PQExpBuffer q, const char *qualrelname)
+{
+	int j;
+
+	if (!isBabelfishDatabase(fout))
+		return;
+
+	for (j = 0; j < tbinfo->numatts; j++)
+	{
+		if (tbinfo->attisdropped[j])
+			continue;
+		if (tbinfo->attoptions[j][0] != '\0')
+		{
+			fixAttoptionsBbfOriginalName(fout, tbinfo->dobj.catId.oid, tbinfo, j);
+			appendPQExpBuffer(q, "ALTER TABLE ONLY %s ALTER COLUMN %s SET (%s);\n",
+							  qualrelname,
+							  fmtId(tbinfo->attnames[j]),
+							  tbinfo->attoptions[j]);
+		}
+	}
+}
