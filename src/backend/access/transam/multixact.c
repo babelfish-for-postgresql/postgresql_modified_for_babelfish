@@ -887,8 +887,6 @@ RecordNewMultiXact(MultiXactId multi, MultiXactOffset offset,
 	MultiXactOffset *next_offptr;
 	MultiXactOffset next_offset;
 
-	LWLockAcquire(MultiXactOffsetSLRULock, LW_EXCLUSIVE);
-
 	/* position of this multixid in the offsets SLRU area  */
 	pageno = MultiXactIdToOffsetPage(multi);
 	entryno = MultiXactIdToOffsetEntry(multi);
@@ -950,12 +948,16 @@ RecordNewMultiXact(MultiXactId multi, MultiXactOffset offset,
 		{
 			elog(DEBUG1, "next offsets page is not initialized, initializing it now");
 
+			LWLockAcquire(MultiXactOffsetSLRULock, LW_EXCLUSIVE);
+
 			/* Create and zero the page */
 			slotno = SimpleLruZeroPage(MultiXactOffsetCtl, next_pageno);
 
 			/* Make sure it's written out */
 			SimpleLruWritePage(MultiXactOffsetCtl, slotno);
 			Assert(!MultiXactOffsetCtl->shared->page_dirty[slotno]);
+
+			LWLockRelease(MultiXactOffsetSLRULock);
 
 			/*
 			 * Remember that we initialized the page, so that we don't zero it
@@ -975,6 +977,7 @@ RecordNewMultiXact(MultiXactId multi, MultiXactOffset offset,
 	 * concurrently, we might race ahead and get called before the previous
 	 * multixid.
 	 */
+	LWLockAcquire(MultiXactOffsetSLRULock, LW_EXCLUSIVE);
 
 	/*
 	 * Note: we pass the MultiXactId to SimpleLruReadPage as the "transaction"
@@ -1155,14 +1158,14 @@ GetNewMultiXactId(int nmembers, MultiXactOffset *offset)
 						 errmsg("database is not accepting commands that generate new MultiXactIds to avoid wraparound data loss in database \"%s\"",
 								oldest_datname),
 						 errhint("Execute a database-wide VACUUM in that database.\n"
-								 "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
+								 "You might also need to commit or roll back old prepared transactions.")));
 			else
 				ereport(ERROR,
 						(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
 						 errmsg("database is not accepting commands that generate new MultiXactIds to avoid wraparound data loss in database with OID %u",
 								oldest_datoid),
 						 errhint("Execute a database-wide VACUUM in that database.\n"
-								 "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
+								 "You might also need to commit or roll back old prepared transactions.")));
 		}
 
 		/*
@@ -1186,7 +1189,7 @@ GetNewMultiXactId(int nmembers, MultiXactOffset *offset)
 									   oldest_datname,
 									   multiWrapLimit - result),
 						 errhint("Execute a database-wide VACUUM in that database.\n"
-								 "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
+								 "You might also need to commit or roll back old prepared transactions.")));
 			else
 				ereport(WARNING,
 						(errmsg_plural("database with OID %u must be vacuumed before %u more MultiXactId is used",
@@ -1195,7 +1198,7 @@ GetNewMultiXactId(int nmembers, MultiXactOffset *offset)
 									   oldest_datoid,
 									   multiWrapLimit - result),
 						 errhint("Execute a database-wide VACUUM in that database.\n"
-								 "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
+								 "You might also need to commit or roll back old prepared transactions.")));
 		}
 
 		/* Re-acquire lock and start over */
@@ -2473,7 +2476,7 @@ SetMultiXactIdLimit(MultiXactId oldest_datminmxid, Oid oldest_datoid,
 								   oldest_datname,
 								   multiWrapLimit - curMulti),
 					 errhint("To avoid a database shutdown, execute a database-wide VACUUM in that database.\n"
-							 "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
+							 "You might also need to commit or roll back old prepared transactions.")));
 		else
 			ereport(WARNING,
 					(errmsg_plural("database with OID %u must be vacuumed before %u more MultiXactId is used",
@@ -2482,7 +2485,7 @@ SetMultiXactIdLimit(MultiXactId oldest_datminmxid, Oid oldest_datoid,
 								   oldest_datoid,
 								   multiWrapLimit - curMulti),
 					 errhint("To avoid a database shutdown, execute a database-wide VACUUM in that database.\n"
-							 "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
+							 "You might also need to commit or roll back old prepared transactions.")));
 	}
 }
 

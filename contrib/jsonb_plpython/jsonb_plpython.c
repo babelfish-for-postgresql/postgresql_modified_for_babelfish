@@ -1,5 +1,6 @@
 #include "postgres.h"
 
+#include "miscadmin.h"
 #include "plpy_elog.h"
 #include "plpy_typeio.h"
 #include "plpython.h"
@@ -145,6 +146,9 @@ PLyObject_FromJsonbContainer(JsonbContainer *jsonb)
 	JsonbIterator *it;
 	PyObject   *result;
 
+	/* this can recurse via PLyObject_FromJsonbValue() */
+	check_stack_depth();
+
 	it = JsonbIteratorInit(jsonb);
 	r = JsonbIteratorNext(&it, &v, true);
 
@@ -273,7 +277,12 @@ PLyMapping_ToJsonbValue(PyObject *obj, JsonbParseState **jsonb_state)
 	JsonbValue *volatile out;
 
 	pcount = PyMapping_Size(obj);
+	if (pcount < 0)
+		PLy_elog(ERROR, "could not get size of Python mapping");
+
 	items = PyMapping_Items(obj);
+	if (items == NULL)
+		PLy_elog(ERROR, "could not get items from Python mapping");
 
 	PG_TRY();
 	{
@@ -285,8 +294,15 @@ PLyMapping_ToJsonbValue(PyObject *obj, JsonbParseState **jsonb_state)
 		{
 			JsonbValue	jbvKey;
 			PyObject   *item = PyList_GetItem(items, i);
-			PyObject   *key = PyTuple_GetItem(item, 0);
-			PyObject   *value = PyTuple_GetItem(item, 1);
+			PyObject   *key;
+			PyObject   *value;
+
+			/* The mapping's items() must yield key/value pairs */
+			if (item == NULL || !PyTuple_Check(item) || PyTuple_Size(item) < 2)
+				PLy_elog(ERROR, "items() of a Python mapping must return key/value pairs");
+
+			key = PyTuple_GetItem(item, 0);
+			value = PyTuple_GetItem(item, 1);
 
 			/* Python dictionary can have None as key */
 			if (key == Py_None)
@@ -338,7 +354,10 @@ PLySequence_ToJsonbValue(PyObject *obj, JsonbParseState **jsonb_state)
 		for (i = 0; i < pcount; i++)
 		{
 			value = PySequence_GetItem(obj, i);
-			Assert(value);
+
+			/* PySequence_GetItem() can return NULL, with an exception set */
+			if (value == NULL)
+				PLy_elog(ERROR, "could not get element %d from sequence", (int) i);
 
 			(void) PLyObject_ToJsonbValue(value, jsonb_state, true);
 			Py_XDECREF(value);
@@ -414,6 +433,9 @@ static JsonbValue *
 PLyObject_ToJsonbValue(PyObject *obj, JsonbParseState **jsonb_state, bool is_elem)
 {
 	JsonbValue *out;
+
+	/* this can recurse via PLyMapping_ToJsonbValue() */
+	check_stack_depth();
 
 	if (!(PyString_Check(obj) || PyUnicode_Check(obj)))
 	{
