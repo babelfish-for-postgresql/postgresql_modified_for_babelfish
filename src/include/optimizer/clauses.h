@@ -71,6 +71,7 @@ extern PGDLLEXPORT insert_pltsql_function_defaults_hook_type insert_pltsql_funct
 
 typedef List* (*replace_pltsql_function_defaults_hook_type)(HeapTuple func_tuple, List *defaults, List *fargs);
 extern PGDLLEXPORT replace_pltsql_function_defaults_hook_type replace_pltsql_function_defaults_hook;
+
 extern bool expression_has_grouping_conflict(Node *expr,
 											 grouping_eqop_callback get_eqop,
 											 void *context);
