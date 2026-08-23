@@ -43,7 +43,9 @@ tests += {
   'isolation': {
     'specs': [
       'inplace',
+      'reindex_concurrently_deferred',
       'syscache-update-pruned',
+      'wait_cleanup',
       'heap_lock_update',
     ],
     'runningcheck': false, # see syscache-update-pruned

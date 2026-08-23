@@ -498,9 +498,12 @@ pgstat_get_entry_ref(PgStat_Kind kind, Oid dboid, Oid objoid, bool create,
 			if (shheader == NULL)
 			{
 				/*
-				 * Failed the allocation of a new entry, so clean up the
-				 * shared hashtable before giving up.
+				 * Failed the allocation of a new entry, so clean up both the
+				 * local reference and the shared hashtable before giving up.
+				 * Clean the local state first, since releasing the dshash
+				 * lock can process a pending interrupt.
 				 */
+				pgstat_release_entry_ref(key, entry_ref, false);
 				dshash_delete_entry(pgStatLocal.shared_hash, shhashent);
 
 				ereport(ERROR,
@@ -844,7 +847,7 @@ pgstat_free_entry(PgStatShared_HashEntry *shent, dshash_seq_status *hstat)
 
 /*
  * Helper for both pgstat_drop_database_and_contents() and
- * pgstat_drop_entry(). If hstat is non-null delete the shared entry using
+ * pgstat_drop_entry_ext(). If hstat is non-null delete the shared entry using
  * dshash_delete_current(), otherwise use dshash_delete_entry(). In either
  * case the entry needs to be already locked.
  */
@@ -862,13 +865,7 @@ pgstat_drop_entry_internal(PgStatShared_HashEntry *shent,
 	 * Signal that the entry is dropped - this will eventually cause other
 	 * backends to release their references.
 	 */
-	if (shent->dropped)
-		elog(ERROR,
-			 "trying to drop stats entry already dropped: kind=%s dboid=%u objoid=%u refcount=%u generation=%u",
-			 pgstat_get_kind_info(shent->key.kind)->name,
-			 shent->key.dboid, shent->key.objoid,
-			 pg_atomic_read_u32(&shent->refcount),
-			 pg_atomic_read_u32(&shent->generation));
+	Assert(!shent->dropped);
 	shent->dropped = true;
 
 	/* release refcount marking entry as not dropped */
@@ -939,10 +936,23 @@ pgstat_drop_database_and_contents(Oid dboid)
 }
 
 /*
+ * ABI-preserving wrapper around pgstat_drop_entry_ext().
+ *
+ * The original routine introduced in v15 did not include "missing_ok".
+ */
+bool
+pgstat_drop_entry(PgStat_Kind kind, Oid dboid, Oid objoid)
+{
+	return pgstat_drop_entry_ext(kind, dboid, objoid, false);
+}
+
+/*
  * Drop a single stats entry.
  *
  * This routine returns false if the stats entry of the dropped object could
  * not be freed, true otherwise.
+ *
+ * If missing_ok is true, skip entries that have been concurrently dropped.
  *
  * The callers of this function should call pgstat_request_entry_refs_gc()
  * if the stats entry could not be freed, to ensure that this entry's memory
@@ -950,7 +960,8 @@ pgstat_drop_database_and_contents(Oid dboid)
  * pgstat_gc_entry_refs().
  */
 bool
-pgstat_drop_entry(PgStat_Kind kind, Oid dboid, Oid objoid)
+pgstat_drop_entry_ext(PgStat_Kind kind, Oid dboid, Oid objoid,
+					  bool missing_ok)
 {
 	PgStat_HashKey key;
 	PgStatShared_HashEntry *shent;
@@ -978,6 +989,20 @@ pgstat_drop_entry(PgStat_Kind kind, Oid dboid, Oid objoid)
 	shent = dshash_find(pgStatLocal.shared_hash, &key, true);
 	if (shent)
 	{
+		if (shent->dropped)
+		{
+			if (!missing_ok)
+				elog(ERROR,
+					 "trying to drop stats entry already dropped: kind=%s dboid=%u objoid=%u refcount=%u generation=%u",
+					 pgstat_get_kind_info(shent->key.kind)->name,
+					 shent->key.dboid,
+					 shent->key.objoid,
+					 pg_atomic_read_u32(&shent->refcount),
+					 pg_atomic_read_u32(&shent->generation));
+			dshash_release_lock(pgStatLocal.shared_hash, shent);
+			return true;
+		}
+
 		freed = pgstat_drop_entry_internal(shent, NULL);
 
 		/*

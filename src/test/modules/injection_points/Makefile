@@ -13,7 +13,9 @@ REGRESS = injection_points reindex_conc vacuum
 REGRESS_OPTS = --dlpath=$(top_builddir)/src/test/regress
 
 ISOLATION = inplace \
+	    reindex_concurrently_deferred \
 	    syscache-update-pruned \
+	    wait_cleanup \
 	    heap_lock_update
 
 # The injection points are cluster-wide, so disable installcheck
