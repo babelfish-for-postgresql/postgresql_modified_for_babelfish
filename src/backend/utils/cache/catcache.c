@@ -942,7 +942,7 @@ RehashCatCache(CatCache *cp)
  *
  * Call CatalogCacheInitializeCache() if not yet done.
  */
-pg_attribute_always_inline
+pg_always_inline
 static void
 ConditionalCatalogCacheInitializeCache(CatCache *cache)
 {

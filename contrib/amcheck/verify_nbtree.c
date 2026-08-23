@@ -285,6 +285,8 @@ bt_index_check_internal(Oid indrelid, bool parentcheck, bool heapallindexed,
 		SetUserIdAndSecContext(heaprel->rd_rel->relowner,
 							   save_sec_context | SECURITY_RESTRICTED_OPERATION);
 		save_nestlevel = NewGUCNestLevel();
+		set_config_option("search_path", "pg_catalog, pg_temp", PGC_USERSET,
+						  PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);
 	}
 	else
 	{
@@ -2674,7 +2676,7 @@ bt_normalize_tuple(BtreeCheckState *state, IndexTuple itup)
 							ItemPointerGetOffsetNumber(&(itup->t_tid)),
 							RelationGetRelationName(state->rel))));
 		else if (!VARATT_IS_COMPRESSED(DatumGetPointer(normalized[i])) &&
-				 VARSIZE(DatumGetPointer(normalized[i])) > TOAST_INDEX_TARGET &&
+				 VARSIZE_ANY(DatumGetPointer(normalized[i])) > TOAST_INDEX_TARGET &&
 				 (att->attstorage == TYPSTORAGE_EXTENDED ||
 				  att->attstorage == TYPSTORAGE_MAIN))
 		{

@@ -25,6 +25,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <limits.h>
 
 #include "libpq-fe.h"
 #include "fe-auth.h"
@@ -70,7 +71,7 @@
 
 static int	verify_cb(int ok, X509_STORE_CTX *ctx);
 static int	openssl_verify_peer_name_matches_certificate_name(PGconn *conn,
-															  ASN1_STRING *name,
+															  const ASN1_STRING *name,
 															  char **store_name);
 static int	openssl_verify_peer_name_matches_certificate_ip(PGconn *conn,
 															ASN1_OCTET_STRING *addr_entry,
@@ -268,10 +269,42 @@ rloop:
 	return n;
 }
 
-bool
-pgtls_read_pending(PGconn *conn)
+ssize_t
+pgtls_bytes_pending(PGconn *conn)
 {
-	return SSL_pending(conn->ssl) > 0;
+	int			pending;
+
+	/*
+	 * OpenSSL readahead is documented to break SSL_pending().  Plus, we can't
+	 * afford to have OpenSSL take bytes off the socket without processing
+	 * them; that breaks the postconditions for pqsecure_drain_pending().
+	 */
+	Assert(!SSL_get_read_ahead(conn->ssl));
+
+	pending = SSL_pending(conn->ssl);
+	if (pending < 0)
+	{
+		/* shouldn't be possible */
+		Assert(false);
+		appendPQExpBufferStr(&conn->errorMessage,
+							 "OpenSSL reports negative bytes pending\n");
+		return -1;
+	}
+	else if (pending == INT_MAX)
+	{
+		/*
+		 * If we ever found a legitimate way to hit this, we'd need to loop
+		 * around in the caller to call pgtls_bytes_pending() again.  Throw an
+		 * error rather than complicate the code in that way, because
+		 * SSL_read() should be bounded to the size of a single TLS record,
+		 * and conn->inBuffer can't currently go past INT_MAX in size anyway.
+		 */
+		appendPQExpBufferStr(&conn->errorMessage,
+							 "OpenSSL reports INT_MAX bytes pending");
+		return -1;
+	}
+
+	return (ssize_t) pending;
 }
 
 ssize_t
@@ -490,7 +523,8 @@ verify_cb(int ok, X509_STORE_CTX *ctx)
  * into a plain C string.
  */
 static int
-openssl_verify_peer_name_matches_certificate_name(PGconn *conn, ASN1_STRING *name_entry,
+openssl_verify_peer_name_matches_certificate_name(PGconn *conn,
+												  const ASN1_STRING *name_entry,
 												  char **store_name)
 {
 	int			len;
@@ -683,14 +717,14 @@ pgtls_verify_peer_name_matches_certificate_guts(PGconn *conn,
 	 */
 	if (check_cn)
 	{
-		X509_NAME  *subject_name;
+		const X509_NAME *subject_name;
 
 		subject_name = X509_get_subject_name(conn->peer);
 		if (subject_name != NULL)
 		{
 			int			cn_index;
 
-			cn_index = X509_NAME_get_index_by_NID(subject_name,
+			cn_index = X509_NAME_get_index_by_NID(unconstify(X509_NAME *, subject_name),
 												  NID_commonName, -1);
 			if (cn_index >= 0)
 			{
