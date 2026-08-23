@@ -206,6 +206,7 @@ typedef struct AlteredTableInfo
 	char	   *clusterOnIndex; /* index to use for CLUSTER */
 	List	   *changedStatisticsOids;	/* OIDs of statistics to rebuild */
 	List	   *changedStatisticsDefs;	/* string definitions of same */
+	List	   *changedStatisticsOwners;	/* owners of same */
 } AlteredTableInfo;
 
 /* Struct describing one new constraint to check in Phase 3 scan */
@@ -582,7 +583,7 @@ static void RememberIndexForRebuilding(Oid indoid, AlteredTableInfo *tab);
 static void RememberStatisticsForRebuilding(Oid stxoid, AlteredTableInfo *tab);
 static void ATPostAlterTypeCleanup(List **wqueue, AlteredTableInfo *tab,
 								   LOCKMODE lockmode);
-static void ATPostAlterTypeParse(Oid oldId, Oid oldRelId, Oid refRelId,
+static void ATPostAlterTypeParse(Oid oldId, Oid oldRelId, Oid refRelId, Oid ownerId,
 								 char *cmd, List **wqueue, LOCKMODE lockmode,
 								 bool rewrite);
 static void RebuildConstraintComment(AlteredTableInfo *tab, int pass,
@@ -894,6 +895,14 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 						stmt->relation->relpersistence,
 						stmt->partbound != NULL,
 						&old_constraints);
+
+	/*
+	 * NB: The defaults and constraints we just inherited are already cooked,
+	 * so they don't get the USAGE checks that AddRelationNewConstraints()
+	 * applies to raw ones.  That's intentional: the parent's own catalog
+	 * entries already depend on those types, so copying them pins nothing
+	 * new, and creating a child requires owning the parent, anyway.
+	 */
 
 	/*
 	 * Create a tuple descriptor from the relation schema.  Note that this
@@ -5268,7 +5277,7 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab,
 			address =
 				AlterDomainAddConstraint(((AlterDomainStmt *) cmd->def)->typeName,
 										 ((AlterDomainStmt *) cmd->def)->def,
-										 NULL);
+										 NULL, true);
 			break;
 		case AT_ReAddComment:	/* Re-add existing comment */
 			address = CommentObject((CommentStmt *) cmd->def);
@@ -7968,7 +7977,14 @@ ATExecCookedColumnDefault(Relation rel, AttrNumber attnum,
 {
 	ObjectAddress address;
 
-	/* We assume no checking is required */
+	/*
+	 * This is used for a cooked default copied by CREATE TABLE ... LIKE,
+	 * which adds new type dependencies.  Such a default doesn't go through
+	 * AddRelationNewConstraints(), and StoreAttrDefault() leaves the
+	 * privilege checks to its caller, so we must check for USAGE on the types
+	 * here.
+	 */
+	CheckUsageOnTypesInSingleRelExpr(newDefault, RelationGetRelid(rel), GetUserId());
 
 	/*
 	 * Remove any old default for the column.  We use RESTRICT here for
@@ -8223,17 +8239,12 @@ static void
 ATPrepDropExpression(Relation rel, AlterTableCmd *cmd, bool recurse, bool recursing, LOCKMODE lockmode)
 {
 	/*
-	 * Reject ONLY if there are child tables.  We could implement this, but it
-	 * is a bit complicated.  GENERATED clauses must be attached to the column
-	 * definition and cannot be added later like DEFAULT, so if a child table
-	 * has a generation expression that the parent does not have, the child
-	 * column will necessarily be an attislocal column.  So to implement ONLY
-	 * here, we'd need extra code to update attislocal of the direct child
-	 * tables, somewhat similar to how DROP COLUMN does it, so that the
-	 * resulting state can be properly dumped and restored.
+	 * Reject ONLY if there are child tables -- but only, of course, at the
+	 * top of the tree, otherwise it'd be impossible to run this command with
+	 * trees deeper than two levels.  Caller already got lock.
 	 */
-	if (!recurse &&
-		find_inheritance_children(RelationGetRelid(rel), lockmode))
+	if (!recurse && !recursing &&
+		find_inheritance_children(RelationGetRelid(rel), NoLock))
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("ALTER TABLE / DROP EXPRESSION must be applied to child tables too")));
@@ -8978,7 +8989,11 @@ ATExecAddStatistics(AlteredTableInfo *tab, Relation rel,
 	/* The CreateStatsStmt has already been through transformStatsStmt */
 	Assert(stmt->transformed);
 
-	address = CreateStatistics(stmt, !is_rebuild);
+	/* The owner must be set to the original statistics owner */
+	Assert(OidIsValid(stmt->owner));
+
+	address = CreateStatistics(list_make1_oid(RelationGetRelid(rel)),
+							   stmt, !is_rebuild);
 
 	return address;
 }
@@ -13577,11 +13592,25 @@ RememberStatisticsForRebuilding(Oid stxoid, AlteredTableInfo *tab)
 	{
 		/* OK, capture the statistics object's existing definition string */
 		char	   *defstring = pg_get_statisticsobjdef_string(stxoid);
+		HeapTuple	tup;
+		Form_pg_statistic_ext statext;
+
+		tup = SearchSysCache1(STATEXTOID, ObjectIdGetDatum(stxoid));
+
+		if (!HeapTupleIsValid(tup)) /* should not happen */
+			elog(ERROR, "cache lookup failed for statistics object %u", stxoid);
+
+		statext = (Form_pg_statistic_ext) GETSTRUCT(tup);
 
 		tab->changedStatisticsOids = lappend_oid(tab->changedStatisticsOids,
 												 stxoid);
 		tab->changedStatisticsDefs = lappend(tab->changedStatisticsDefs,
 											 defstring);
+
+		tab->changedStatisticsOwners = lappend_oid(tab->changedStatisticsOwners,
+												   statext->stxowner);
+
+		ReleaseSysCache(tup);
 	}
 }
 
@@ -13599,6 +13628,7 @@ ATPostAlterTypeCleanup(List **wqueue, AlteredTableInfo *tab, LOCKMODE lockmode)
 	ObjectAddresses *objects;
 	ListCell   *def_item;
 	ListCell   *oid_item;
+	ListCell   *owner_item;
 
 	/*
 	 * Collect all the constraints and indexes to drop so we can process them
@@ -13671,7 +13701,7 @@ ATPostAlterTypeCleanup(List **wqueue, AlteredTableInfo *tab, LOCKMODE lockmode)
 		if (relid != tab->relid)
 			LockRelationOid(relid, AccessExclusiveLock);
 
-		ATPostAlterTypeParse(oldId, relid, confrelid,
+		ATPostAlterTypeParse(oldId, relid, confrelid, InvalidOid,
 							 (char *) lfirst(def_item),
 							 wqueue, lockmode, tab->rewrite);
 	}
@@ -13690,7 +13720,7 @@ ATPostAlterTypeCleanup(List **wqueue, AlteredTableInfo *tab, LOCKMODE lockmode)
 		if (relid != tab->relid)
 			LockRelationOid(relid, AccessExclusiveLock);
 
-		ATPostAlterTypeParse(oldId, relid, InvalidOid,
+		ATPostAlterTypeParse(oldId, relid, InvalidOid, InvalidOid,
 							 (char *) lfirst(def_item),
 							 wqueue, lockmode, tab->rewrite);
 
@@ -13699,8 +13729,9 @@ ATPostAlterTypeCleanup(List **wqueue, AlteredTableInfo *tab, LOCKMODE lockmode)
 	}
 
 	/* add dependencies for new statistics */
-	forboth(oid_item, tab->changedStatisticsOids,
-			def_item, tab->changedStatisticsDefs)
+	forthree(oid_item, tab->changedStatisticsOids,
+			 def_item, tab->changedStatisticsDefs,
+			 owner_item, tab->changedStatisticsOwners)
 	{
 		Oid			oldId = lfirst_oid(oid_item);
 		Oid			relid;
@@ -13720,7 +13751,7 @@ ATPostAlterTypeCleanup(List **wqueue, AlteredTableInfo *tab, LOCKMODE lockmode)
 		if (relid != tab->relid)
 			LockRelationOid(relid, ShareUpdateExclusiveLock);
 
-		ATPostAlterTypeParse(oldId, relid, InvalidOid,
+		ATPostAlterTypeParse(oldId, relid, InvalidOid, lfirst_oid(owner_item),
 							 (char *) lfirst(def_item),
 							 wqueue, lockmode, tab->rewrite);
 
@@ -13784,8 +13815,9 @@ ATPostAlterTypeCleanup(List **wqueue, AlteredTableInfo *tab, LOCKMODE lockmode)
  * operator that's not available for the new column type.
  */
 static void
-ATPostAlterTypeParse(Oid oldId, Oid oldRelId, Oid refRelId, char *cmd,
-					 List **wqueue, LOCKMODE lockmode, bool rewrite)
+ATPostAlterTypeParse(Oid oldId, Oid oldRelId, Oid refRelId, Oid ownerId,
+					 char *cmd, List **wqueue, LOCKMODE lockmode,
+					 bool rewrite)
 {
 	List	   *raw_parsetree_list;
 	List	   *querytree_list;
@@ -13825,10 +13857,14 @@ ATPostAlterTypeParse(Oid oldId, Oid oldRelId, Oid refRelId, char *cmd,
 			querytree_list = list_concat(querytree_list, afterStmts);
 		}
 		else if (IsA(stmt, CreateStatsStmt))
-			querytree_list = lappend(querytree_list,
-									 transformStatsStmt(oldRelId,
-														(CreateStatsStmt *) stmt,
-														cmd));
+		{
+			CreateStatsStmt *csstmt;
+
+			csstmt = transformStatsStmt(oldRelId, (CreateStatsStmt *) stmt, cmd);
+			csstmt->owner = ownerId;
+
+			querytree_list = lappend(querytree_list, csstmt);
+		}
 		else
 			querytree_list = lappend(querytree_list, stmt);
 	}
@@ -16174,12 +16210,17 @@ ATExecAddOf(Relation rel, const TypeName *ofTypename, LOCKMODE lockmode)
 	ObjectAddress tableobj,
 				typeobj;
 	HeapTuple	classtuple;
+	AclResult	aclresult;
 
 	/* Validate the type. */
 	typetuple = typenameType(NULL, ofTypename, NULL);
 	check_of_type(typetuple);
 	typeform = (Form_pg_type) GETSTRUCT(typetuple);
 	typeid = typeform->oid;
+
+	aclresult = object_aclcheck(TypeRelationId, typeid, GetUserId(), ACL_USAGE);
+	if (aclresult != ACLCHECK_OK)
+		aclcheck_error_type(aclresult, typeid);
 
 	/* Fail if the table has any inheritance parents. */
 	inheritsRelation = table_open(InheritsRelationId, AccessShareLock);

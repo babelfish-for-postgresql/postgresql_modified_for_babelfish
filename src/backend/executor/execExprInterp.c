@@ -173,24 +173,24 @@ static Datum ExecJustAssignOuterVarVirt(ExprState *state, ExprContext *econtext,
 static Datum ExecJustAssignScanVarVirt(ExprState *state, ExprContext *econtext, bool *isnull);
 
 /* execution helper functions */
-static pg_attribute_always_inline void ExecEvalArrayCompareInternal(FunctionCallInfo fcinfo,
-																	ArrayType *arr,
-																	int16 typlen,
-																	bool typbyval,
-																	char typalign,
-																	bool useOr,
-																	Datum *result,
-																	bool *resultnull);
-static pg_attribute_always_inline void ExecAggPlainTransByVal(AggState *aggstate,
-															  AggStatePerTrans pertrans,
-															  AggStatePerGroup pergroup,
-															  ExprContext *aggcontext,
-															  int setno);
-static pg_attribute_always_inline void ExecAggPlainTransByRef(AggState *aggstate,
-															  AggStatePerTrans pertrans,
-															  AggStatePerGroup pergroup,
-															  ExprContext *aggcontext,
-															  int setno);
+static pg_always_inline void ExecEvalArrayCompareInternal(FunctionCallInfo fcinfo,
+														  ArrayType *arr,
+														  int16 typlen,
+														  bool typbyval,
+														  char typalign,
+														  bool useOr,
+														  Datum *result,
+														  bool *resultnull);
+static pg_always_inline void ExecAggPlainTransByVal(AggState *aggstate,
+													AggStatePerTrans pertrans,
+													AggStatePerGroup pergroup,
+													ExprContext *aggcontext,
+													int setno);
+static pg_always_inline void ExecAggPlainTransByRef(AggState *aggstate,
+													AggStatePerTrans pertrans,
+													AggStatePerGroup pergroup,
+													ExprContext *aggcontext,
+													int setno);
 
 /*
  * ScalarArrayOpExprHashEntry
@@ -2129,7 +2129,7 @@ get_cached_rowtype(Oid type_id, int32 typmod,
  */
 
 /* implementation of ExecJust(Inner|Outer|Scan)Var */
-static pg_attribute_always_inline Datum
+static pg_always_inline Datum
 ExecJustVarImpl(ExprState *state, TupleTableSlot *slot, bool *isnull)
 {
 	ExprEvalStep *op = &state->steps[1];
@@ -2167,7 +2167,7 @@ ExecJustScanVar(ExprState *state, ExprContext *econtext, bool *isnull)
 }
 
 /* implementation of ExecJustAssign(Inner|Outer|Scan)Var */
-static pg_attribute_always_inline Datum
+static pg_always_inline Datum
 ExecJustAssignVarImpl(ExprState *state, TupleTableSlot *inslot, bool *isnull)
 {
 	ExprEvalStep *op = &state->steps[1];
@@ -2262,7 +2262,7 @@ ExecJustConst(ExprState *state, ExprContext *econtext, bool *isnull)
 }
 
 /* implementation of ExecJust(Inner|Outer|Scan)VarVirt */
-static pg_attribute_always_inline Datum
+static pg_always_inline Datum
 ExecJustVarVirtImpl(ExprState *state, TupleTableSlot *slot, bool *isnull)
 {
 	ExprEvalStep *op = &state->steps[0];
@@ -2305,7 +2305,7 @@ ExecJustScanVarVirt(ExprState *state, ExprContext *econtext, bool *isnull)
 }
 
 /* implementation of ExecJustAssign(Inner|Outer|Scan)VarVirt */
-static pg_attribute_always_inline Datum
+static pg_always_inline Datum
 ExecJustAssignVarVirtImpl(ExprState *state, TupleTableSlot *inslot, bool *isnull)
 {
 	ExprEvalStep *op = &state->steps[0];
@@ -3459,7 +3459,7 @@ ExecEvalScalarArrayOp(ExprState *state, ExprEvalStep *op)
  * Callers must handle the strict LHS-is-NULL; return NULL fast path prior to
  * calling this.
  */
-static pg_attribute_always_inline void
+static pg_always_inline void
 ExecEvalArrayCompareInternal(FunctionCallInfo fcinfo, ArrayType *arr,
 							 int16 typlen, bool typbyval, char typalign,
 							 bool useOr, Datum *result, bool *resultnull)
@@ -4719,7 +4719,7 @@ ExecEvalAggOrderedTransTuple(ExprState *state, ExprEvalStep *op,
 }
 
 /* implementation of transition function invocation for byval types */
-static pg_attribute_always_inline void
+static pg_always_inline void
 ExecAggPlainTransByVal(AggState *aggstate, AggStatePerTrans pertrans,
 					   AggStatePerGroup pergroup,
 					   ExprContext *aggcontext, int setno)
@@ -4751,7 +4751,7 @@ ExecAggPlainTransByVal(AggState *aggstate, AggStatePerTrans pertrans,
 }
 
 /* implementation of transition function invocation for byref types */
-static pg_attribute_always_inline void
+static pg_always_inline void
 ExecAggPlainTransByRef(AggState *aggstate, AggStatePerTrans pertrans,
 					   AggStatePerGroup pergroup,
 					   ExprContext *aggcontext, int setno)

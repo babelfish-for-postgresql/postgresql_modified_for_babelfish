@@ -2163,6 +2163,7 @@ PsqlScanQuoteType
 PsqlScanResult
 PsqlScanState
 PsqlScanStateData
+PsqlScanStateSave
 PsqlSettings
 Publication
 PublicationActions
@@ -2785,6 +2786,7 @@ Tcl_Time
 TempNamespaceStatus
 TestDecodingData
 TestDecodingTxnData
+TestSlruSharedState
 TestSpec
 TextFreq
 TextPositionState
@@ -3654,6 +3656,7 @@ pthread_mutex_t
 pthread_once_t
 pthread_t
 ptrdiff_t
+publication_tables_state
 published_rel
 pull_var_clause_context
 pull_varattnos_context

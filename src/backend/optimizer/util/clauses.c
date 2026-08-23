@@ -997,7 +997,7 @@ contain_nonstrict_functions_walker(Node *node, void *context)
 		/* an aggregate could return non-null with null input */
 		return true;
 	}
-	if (IsA(node, GroupingFunc))
+	else if (IsA(node, GroupingFunc))
 	{
 		/*
 		 * A GroupingFunc doesn't evaluate its arguments, and therefore must
@@ -1005,12 +1005,12 @@ contain_nonstrict_functions_walker(Node *node, void *context)
 		 */
 		return true;
 	}
-	if (IsA(node, WindowFunc))
+	else if (IsA(node, WindowFunc))
 	{
 		/* a window function could return non-null with null input */
 		return true;
 	}
-	if (IsA(node, SubscriptingRef))
+	else if (IsA(node, SubscriptingRef))
 	{
 		SubscriptingRef *sbsref = (SubscriptingRef *) node;
 		const SubscriptRoutines *sbsroutines;
@@ -1024,17 +1024,25 @@ contain_nonstrict_functions_walker(Node *node, void *context)
 			return true;
 		/* else fall through to check args */
 	}
-	if (IsA(node, DistinctExpr))
+	else if (IsA(node, DistinctExpr))
 	{
 		/* IS DISTINCT FROM is inherently non-strict */
 		return true;
 	}
-	if (IsA(node, NullIfExpr))
+	else if (IsA(node, NullIfExpr))
 	{
 		/* NULLIF is inherently non-strict */
 		return true;
 	}
-	if (IsA(node, BoolExpr))
+	else if (IsA(node, ScalarArrayOpExpr))
+	{
+		ScalarArrayOpExpr *expr = (ScalarArrayOpExpr *) node;
+
+		if (!is_strict_saop(expr, false))
+			return true;
+		/* else fall through to check args */
+	}
+	else if (IsA(node, BoolExpr))
 	{
 		BoolExpr   *expr = (BoolExpr *) node;
 
@@ -1048,28 +1056,26 @@ contain_nonstrict_functions_walker(Node *node, void *context)
 				break;
 		}
 	}
-	if (IsA(node, SubLink))
+	else if (IsA(node, SubLink))
 	{
 		/* In some cases a sublink might be strict, but in general not */
 		return true;
 	}
-	if (IsA(node, SubPlan))
+	else if (IsA(node, SubPlan))
 		return true;
-	if (IsA(node, AlternativeSubPlan))
+	else if (IsA(node, AlternativeSubPlan))
 		return true;
-	if (IsA(node, FieldStore))
+	else if (IsA(node, FieldStore))
 		return true;
-	if (IsA(node, CoerceViaIO))
+	else if (IsA(node, CoerceViaIO))
 	{
 		/*
 		 * CoerceViaIO is strict regardless of whether the I/O functions are,
-		 * so just go look at its argument; asking check_functions_in_node is
-		 * useless expense and could deliver the wrong answer.
+		 * so we should skip check_functions_in_node() and just fall through
+		 * to check the arguments.
 		 */
-		return contain_nonstrict_functions_walker((Node *) ((CoerceViaIO *) node)->arg,
-												  context);
 	}
-	if (IsA(node, ArrayCoerceExpr))
+	else if (IsA(node, ArrayCoerceExpr))
 	{
 		/*
 		 * ArrayCoerceExpr is strict at the array level, regardless of what
@@ -1079,31 +1085,33 @@ contain_nonstrict_functions_walker(Node *node, void *context)
 		return contain_nonstrict_functions_walker((Node *) ((ArrayCoerceExpr *) node)->arg,
 												  context);
 	}
-	if (IsA(node, CaseExpr))
+	else if (IsA(node, CaseExpr))
 		return true;
-	if (IsA(node, ArrayExpr))
+	else if (IsA(node, ArrayExpr))
 		return true;
-	if (IsA(node, RowExpr))
+	else if (IsA(node, RowExpr))
 		return true;
-	if (IsA(node, RowCompareExpr))
+	else if (IsA(node, RowCompareExpr))
 		return true;
-	if (IsA(node, CoalesceExpr))
+	else if (IsA(node, CoalesceExpr))
 		return true;
-	if (IsA(node, MinMaxExpr))
+	else if (IsA(node, MinMaxExpr))
 		return true;
-	if (IsA(node, XmlExpr))
+	else if (IsA(node, XmlExpr))
 		return true;
-	if (IsA(node, NullTest))
+	else if (IsA(node, NullTest))
 		return true;
-	if (IsA(node, BooleanTest))
+	else if (IsA(node, BooleanTest))
 		return true;
-	if (IsA(node, JsonConstructorExpr))
+	else if (IsA(node, JsonConstructorExpr))
 		return true;
-
-	/* Check other function-containing nodes */
-	if (check_functions_in_node(node, contain_nonstrict_functions_checker,
-								context))
-		return true;
+	else
+	{
+		/* Check other function-containing nodes */
+		if (check_functions_in_node(node, contain_nonstrict_functions_checker,
+									context))
+			return true;
+	}
 
 	return expression_tree_walker(node, contain_nonstrict_functions_walker,
 								  context);
@@ -1498,7 +1506,7 @@ find_nonnullable_rels_walker(Node *node, bool top_level)
 	{
 		ScalarArrayOpExpr *expr = (ScalarArrayOpExpr *) node;
 
-		if (is_strict_saop(expr, true))
+		if (is_strict_saop(expr, top_level))
 			result = find_nonnullable_rels_walker((Node *) expr->args, false);
 	}
 	else if (IsA(node, BoolExpr))
@@ -1751,7 +1759,7 @@ find_nonnullable_vars_walker(Node *node, bool top_level)
 	{
 		ScalarArrayOpExpr *expr = (ScalarArrayOpExpr *) node;
 
-		if (is_strict_saop(expr, true))
+		if (is_strict_saop(expr, top_level))
 			result = find_nonnullable_vars_walker((Node *) expr->args, false);
 	}
 	else if (IsA(node, BoolExpr))
@@ -2286,7 +2294,8 @@ convert_saop_to_hashed_saop_walker(Node *node, void *context)
 	if (IsA(node, ScalarArrayOpExpr))
 	{
 		ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *) node;
-		Expr	   *arrayarg = (Expr *) lsecond(saop->args);
+		Node	   *leftarg = (Node *) linitial(saop->args);
+		Node	   *arrayarg = (Node *) lsecond(saop->args);
 		Oid			lefthashfunc;
 		Oid			righthashfunc;
 
@@ -2295,7 +2304,8 @@ convert_saop_to_hashed_saop_walker(Node *node, void *context)
 		{
 			if (saop->useOr)
 			{
-				if (get_op_hash_functions(saop->opno, &lefthashfunc, &righthashfunc) &&
+				if (get_op_hash_functions_ext(saop->opno, exprType(leftarg),
+											  &lefthashfunc, &righthashfunc) &&
 					lefthashfunc == righthashfunc)
 				{
 					Datum		arrdatum = ((Const *) arrayarg)->constvalue;
@@ -2327,7 +2337,8 @@ convert_saop_to_hashed_saop_walker(Node *node, void *context)
 				 * just ensure the lookup items are not in the hash table.
 				 */
 				if (OidIsValid(negator) &&
-					get_op_hash_functions(negator, &lefthashfunc, &righthashfunc) &&
+					get_op_hash_functions_ext(negator, exprType(leftarg),
+											  &lefthashfunc, &righthashfunc) &&
 					lefthashfunc == righthashfunc)
 				{
 					Datum		arrdatum = ((Const *) arrayarg)->constvalue;
@@ -4469,7 +4480,7 @@ recheck_cast_function_args(List *args, Oid result_type,
 {
 	Form_pg_proc funcform = (Form_pg_proc) GETSTRUCT(func_tuple);
 	int			nargs;
-	Oid			actual_arg_types[FUNC_MAX_ARGS];
+	Oid			actual_arg_types[FUNC_MAX_ARGS] = {0};
 	Oid			declared_arg_types[FUNC_MAX_ARGS];
 	Oid			rettype;
 	ListCell   *lc;
