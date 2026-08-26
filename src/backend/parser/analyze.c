@@ -1976,6 +1976,14 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 							  (AttrNumber) pstate->p_next_resno++,
 							  colName,
 							  false);
+		/*
+		 * Babelfish: carry the original (pre-truncation) column name from the
+		 * leftmost query's target entry so long identifiers survive through
+		 * set operations (UNION/INTERSECT/EXCEPT). Inert in the postgres
+		 * dialect where resorigname is always NULL.
+		 */
+		if (lefttle->resorigname)
+			tle->resorigname = lefttle->resorigname;
 		qry->targetList = lappend(qry->targetList, tle);
 		targetvars = lappend(targetvars, var);
 		targetnames = lappend(targetnames, makeString(colName));
@@ -2509,6 +2517,13 @@ determineRecursiveColTypes(ParseState *pstate, Node *larg, List *nrtargetlist)
 							  next_resno++,
 							  colName,
 							  false);
+		/*
+		 * Babelfish: carry the original (pre-truncation) column name so long
+		 * identifiers survive into a (recursive) CTE's output column list.
+		 * Inert in the postgres dialect where resorigname is always NULL.
+		 */
+		if (lefttle->resorigname)
+			tle->resorigname = lefttle->resorigname;
 		targetList = lappend(targetList, tle);
 	}
 

@@ -1453,6 +1453,14 @@ generate_setop_tlist(List *colTypes, List *colCollations,
 							  false);
 
 		/*
+		 * Babelfish: carry the original (pre-truncation) column name so long
+		 * identifiers survive set operations into the plan targetlist that
+		 * TDS reads for column metadata.
+		 */
+		if (reftle->resorigname)
+			tle->resorigname = reftle->resorigname;
+
+		/*
 		 * By convention, all output columns in a setop tree have
 		 * ressortgroupref equal to their resno.  In some cases the ref isn't
 		 * needed, but this is a cleaner way than modifying the tlist later.
@@ -1563,6 +1571,13 @@ generate_append_tlist(List *colTypes, List *colCollations,
 							  (AttrNumber) resno++,
 							  pstrdup(reftle->resname),
 							  false);
+
+		/*
+		 * Babelfish: carry the original (pre-truncation) column name so long
+		 * identifiers survive set operations into the plan targetlist.
+		 */
+		if (reftle->resorigname)
+			tle->resorigname = reftle->resorigname;
 
 		/*
 		 * By convention, all output columns in a setop tree have
