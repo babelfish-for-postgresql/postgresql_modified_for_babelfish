@@ -127,6 +127,21 @@ static bool test_raw_expression_coverage(Node *node, void *context);
 #endif
 
 /*
+ * bbf_copy_target_entry_resorigname
+ *
+ * Carry Babelfish's original (untruncated) column name from src to dst when
+ * parse analysis builds a new target list (set operations, recursive CTEs),
+ * so long identifiers are not lost. No-op in the PostgreSQL dialect, where
+ * resorigname is always NULL.
+ */
+static void
+bbf_copy_target_entry_resorigname(TargetEntry *dst, const TargetEntry *src)
+{
+	if (src != NULL && dst != NULL && src->resorigname)
+		dst->resorigname = src->resorigname;
+}
+
+/*
  * parse_analyze_fixedparams
  *		Analyze a raw parse tree and transform it to Query form.
  *
@@ -1976,14 +1991,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 							  (AttrNumber) pstate->p_next_resno++,
 							  colName,
 							  false);
-		/*
-		 * Babelfish: carry the original (pre-truncation) column name from the
-		 * leftmost query's target entry so long identifiers survive through
-		 * set operations (UNION/INTERSECT/EXCEPT). Inert in the postgres
-		 * dialect where resorigname is always NULL.
-		 */
-		if (lefttle->resorigname)
-			tle->resorigname = lefttle->resorigname;
+		bbf_copy_target_entry_resorigname(tle, lefttle);
 		qry->targetList = lappend(qry->targetList, tle);
 		targetvars = lappend(targetvars, var);
 		targetnames = lappend(targetnames, makeString(colName));
@@ -2517,13 +2525,7 @@ determineRecursiveColTypes(ParseState *pstate, Node *larg, List *nrtargetlist)
 							  next_resno++,
 							  colName,
 							  false);
-		/*
-		 * Babelfish: carry the original (pre-truncation) column name so long
-		 * identifiers survive into a (recursive) CTE's output column list.
-		 * Inert in the postgres dialect where resorigname is always NULL.
-		 */
-		if (lefttle->resorigname)
-			tle->resorigname = lefttle->resorigname;
+		bbf_copy_target_entry_resorigname(tle, lefttle);
 		targetList = lappend(targetList, tle);
 	}
 

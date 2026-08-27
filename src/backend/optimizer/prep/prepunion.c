@@ -38,6 +38,7 @@
 #include "utils/selfuncs.h"
 
 
+static void bbf_copy_setop_tle_resorigname(TargetEntry *dst, const TargetEntry *src);
 static RelOptInfo *recurse_set_operations(Node *setOp, PlannerInfo *root,
 										  SetOperationStmt *parentOp,
 										  List *colTypes, List *colCollations,
@@ -168,6 +169,21 @@ plan_set_operations(PlannerInfo *root)
 	root->processed_tlist = top_tlist;
 
 	return setop_rel;
+}
+
+/*
+ * bbf_copy_setop_tle_resorigname
+ *
+ * Carry Babelfish's original (untruncated) column name from src onto a
+ * set-operation plan target entry, so long identifiers reach the final plan
+ * tlist reported to the client. No-op in the PostgreSQL dialect, where
+ * resorigname is always NULL.
+ */
+static void
+bbf_copy_setop_tle_resorigname(TargetEntry *dst, const TargetEntry *src)
+{
+	if (src != NULL && dst != NULL && src->resorigname)
+		dst->resorigname = src->resorigname;
 }
 
 /*
@@ -1452,13 +1468,7 @@ generate_setop_tlist(List *colTypes, List *colCollations,
 							  pstrdup(reftle->resname),
 							  false);
 
-		/*
-		 * Babelfish: carry the original (pre-truncation) column name so long
-		 * identifiers survive set operations into the plan targetlist that
-		 * TDS reads for column metadata.
-		 */
-		if (reftle->resorigname)
-			tle->resorigname = reftle->resorigname;
+		bbf_copy_setop_tle_resorigname(tle, reftle);
 
 		/*
 		 * By convention, all output columns in a setop tree have
@@ -1572,12 +1582,7 @@ generate_append_tlist(List *colTypes, List *colCollations,
 							  pstrdup(reftle->resname),
 							  false);
 
-		/*
-		 * Babelfish: carry the original (pre-truncation) column name so long
-		 * identifiers survive set operations into the plan targetlist.
-		 */
-		if (reftle->resorigname)
-			tle->resorigname = reftle->resorigname;
+		bbf_copy_setop_tle_resorigname(tle, reftle);
 
 		/*
 		 * By convention, all output columns in a setop tree have
