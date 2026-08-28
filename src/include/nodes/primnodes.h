@@ -2240,6 +2240,8 @@ typedef struct TargetEntry
 	AttrNumber	resorigcol pg_node_attr(query_jumble_ignore);
 	/* set to true to eliminate the attribute from final target list */
 	bool		resjunk pg_node_attr(query_jumble_ignore);
+	/* original (untruncated) column name for T-SQL long identifiers (could be NULL) */
+	char	   *resorigname pg_node_attr(equal_ignore, query_jumble_ignore, read_write_ignore, read_as(NULL));
 } TargetEntry;
 
 

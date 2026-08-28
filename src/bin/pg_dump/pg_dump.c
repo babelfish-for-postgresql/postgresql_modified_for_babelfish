@@ -17091,6 +17091,8 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 		if (tbinfo->checkoption != NULL && !tbinfo->dummy_view)
 			appendPQExpBuffer(q, "\n  WITH %s CHECK OPTION", tbinfo->checkoption);
 		appendPQExpBufferStr(q, ";\n");
+
+		babelDumpViewColumnAttoptions(fout, tbinfo, q, qualrelname);
 	}
 	else
 	{
