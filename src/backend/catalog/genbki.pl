@@ -68,6 +68,7 @@ my @extension_syscaches = qw(
     PROCNAMENSPSIGNATURE
     SYSNAMESPACENAME
     AUTHIDUSEREXTROLENAME
+    IDENTMAPPINGNAME
 );
 
 foreach my $header (@ARGV)
