@@ -76,6 +76,7 @@ extern Selectivity clauselist_selectivity_ext(PlannerInfo *root,
 											  SpecialJoinInfo *sjinfo,
 											  bool use_extended_stats);
 
+
 /* in path/costsize.c: */
 
 /* widely used cost parameters */
