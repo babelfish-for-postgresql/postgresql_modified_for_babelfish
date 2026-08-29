@@ -2503,8 +2503,27 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
 	 * Prepare for the update.  This includes BEFORE ROW triggers, so we're
 	 * done if it says we are.
 	 */
+	context->tmfd.traversed = false;
 	if (!ExecUpdatePrologue(context, resultRelInfo, tupleid, oldtuple, slot, NULL))
 		return NULL;
+
+	/*
+	 * If the target tuple was concurrently updated, the trigger code will
+	 * have done EPQ and updated tupleid, following the update chain.  In this
+	 * case, we must fetch the most recent version of old tuple for the
+	 * benefit of RETURNING.  Technically, we could get away with not doing
+	 * this, if there is no RETURNING clause, or it doesn't refer to OLD, but
+	 * it seems preferable to always ensure that the contents of oldSlot are
+	 * correct.
+	 */
+	if (context->tmfd.traversed)
+	{
+		if (!table_tuple_fetch_row_version(resultRelInfo->ri_RelationDesc,
+										   tupleid,
+										   SnapshotAny,
+										   oldSlot))
+			elog(ERROR, "failed to re-fetch tuple updated during trigger execution");
+	}
 
 	if (resultRelInfo->ri_TrigDesc &&
 		resultRelInfo->ri_TrigDesc->trig_update_instead_statement &&
@@ -4752,6 +4771,8 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 	List	   *updateColnosLists = NIL;
 	List	   *mergeActionLists = NIL;
 	List	   *mergeJoinConditions = NIL;
+	List	   *fdwPrivLists = NIL;
+	Bitmapset  *fdwDirectModifyPlans = NULL;
 	ResultRelInfo *resultRelInfo;
 	List	   *arowmarks;
 	ListCell   *l;
@@ -4794,6 +4815,8 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 
 		if (keep_rel)
 		{
+			List	   *fdwPrivList = (List *) list_nth(node->fdwPrivLists, i);
+
 			resultRelations = lappend_int(resultRelations, rti);
 			if (node->withCheckOptionLists)
 			{
@@ -4828,6 +4851,19 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 				List	   *mergeJoinCondition = list_nth(node->mergeJoinConditions, i);
 
 				mergeJoinConditions = lappend(mergeJoinConditions, mergeJoinCondition);
+			}
+
+			/*
+			 * fdwPrivLists/fdwDirectModifyPlans are re-indexed to match
+			 * resultRelations
+			 */
+			fdwPrivLists = lappend(fdwPrivLists, fdwPrivList);
+			if (bms_is_member(i, node->fdwDirectModifyPlans))
+			{
+				int			new_index = list_length(resultRelations) - 1;
+
+				fdwDirectModifyPlans = bms_add_member(fdwDirectModifyPlans,
+													  new_index);
 			}
 		}
 		i++;
@@ -4934,7 +4970,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 
 		/* Initialize the usesFdwDirectModify flag */
 		resultRelInfo->ri_usesFdwDirectModify =
-			bms_is_member(i, node->fdwDirectModifyPlans);
+			bms_is_member(i, fdwDirectModifyPlans);
 
 		/*
 		 * Verify result relation is a valid target for the current operation
@@ -4963,7 +4999,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 			resultRelInfo->ri_FdwRoutine != NULL &&
 			resultRelInfo->ri_FdwRoutine->BeginForeignModify != NULL)
 		{
-			List	   *fdw_private = (List *) list_nth(node->fdwPrivLists, i);
+			List	   *fdw_private = (List *) list_nth(fdwPrivLists, i);
 
 			resultRelInfo->ri_FdwRoutine->BeginForeignModify(mtstate,
 															 resultRelInfo,

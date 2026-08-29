@@ -1281,6 +1281,7 @@ copy_table(Relation rel)
 
 	/* Do the copy */
 	(void) CopyFrom(cstate);
+	EndCopyFrom(cstate);
 
 	logicalrep_rel_close(relmapentry, NoLock);
 }
