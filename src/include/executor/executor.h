@@ -101,6 +101,12 @@ extern PGDLLEXPORT TriggerRecuresiveCheck_hook_type TriggerRecuresiveCheck_hook;
 typedef bool (*bbfViewHasInsteadofTrigger_hook_type) (Relation view, CmdType event);
 extern PGDLLIMPORT bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook;
 
+typedef const char *(*bbf_get_original_constraint_name_hook_type)(const char *conname);
+extern PGDLLIMPORT bbf_get_original_constraint_name_hook_type bbf_get_original_constraint_name_hook;
+
+typedef const char *(*bbf_get_original_index_name_hook_type)(const char *idxname);
+extern PGDLLIMPORT bbf_get_original_index_name_hook_type bbf_get_original_index_name_hook;
+
 typedef Datum (*adjust_numeric_result_hook_type) (Plan *plan, Node *expr, Datum result, bool result_isnull, Oid result_type, int32 result_typmod);
 extern PGDLLIMPORT adjust_numeric_result_hook_type adjust_numeric_result_hook;
 

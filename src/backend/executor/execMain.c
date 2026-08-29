@@ -65,6 +65,10 @@
 #include "utils/rls.h"
 #include "utils/snapmgr.h"
 
+/* BABEL: Hooks for resolving original long identifier names in constraint errors */
+bbf_get_original_constraint_name_hook_type bbf_get_original_constraint_name_hook = NULL;
+bbf_get_original_index_name_hook_type bbf_get_original_index_name_hook = NULL;
+
 
 /* Hooks for plugins to get control in ExecutorStart/Run/Finish/End */
 ExecutorStart_hook_type ExecutorStart_hook = NULL;
@@ -2096,12 +2100,23 @@ ExecConstraints(ResultRelInfo *resultRelInfo,
 													 tupdesc,
 													 modifiedCols,
 													 64);
+			{
+				const char *display_name = failed;
+
+				/*
+				 * BABEL: Resolve the original constraint name for display in the
+				 * check violation error message. The stored constraint name may
+				 * be MD5-truncated; the hook reverses this via catalog lookup.
+				 */
+				if (bbf_get_original_constraint_name_hook)
+					display_name = bbf_get_original_constraint_name_hook(failed);
 			ereport(ERROR,
 					(errcode(ERRCODE_CHECK_VIOLATION),
 					 errmsg("new row for relation \"%s\" violates check constraint \"%s\"",
-							RelationGetRelationName(orig_rel), failed),
+							RelationGetRelationName(orig_rel), display_name),
 					 val_desc ? errdetail("Failing row contains %s.", val_desc) : 0,
 					 errtableconstraint(orig_rel, failed)));
+			}
 		}
 	}
 }
