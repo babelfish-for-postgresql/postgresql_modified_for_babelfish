@@ -341,6 +341,8 @@ apply_tlist_labeling(List *dest_tlist, List *src_tlist)
 		dest_tle->resorigtbl = src_tle->resorigtbl;
 		dest_tle->resorigcol = src_tle->resorigcol;
 		dest_tle->resjunk = src_tle->resjunk;
+		/* Propagate original (untruncated) name for Babelfish TDS display */
+		dest_tle->resorigname = src_tle->resorigname;
 	}
 }
 

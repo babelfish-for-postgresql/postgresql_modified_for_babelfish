@@ -58,4 +58,5 @@ extern bool bbfShouldDumpIndex(Archive *fout, const IndxInfo *indxinfo);
 extern void dumpBabelfishConstrIndex(Archive *fout, const IndxInfo *indxinfo,
                                      PQExpBuffer q, PQExpBuffer delq);
 
+extern void babelDumpViewColumnAttoptions(Archive *fout, const TableInfo *tbinfo, PQExpBuffer q, const char *qualrelname);
 #endif

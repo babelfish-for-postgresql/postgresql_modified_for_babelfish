@@ -11352,6 +11352,10 @@ ViewStmt: CREATE OptTemp VIEW qualified_name opt_column_list opt_reloptions
 					n->query = $8;
 					n->replace = false;
 					n->options = $6;
+					if (sql_dialect == SQL_DIALECT_TSQL && $5 != NIL)
+						n->options = lappend(n->options,
+							makeDefElem("bbf_view_collist_loc",
+										(Node *) makeInteger(@5), @5));
 					n->withCheckOption = $9;
 					n->createOrAlter = false;
 					$$ = (Node *) n;
