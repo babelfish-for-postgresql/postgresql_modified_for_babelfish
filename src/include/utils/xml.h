@@ -22,6 +22,7 @@
 #ifdef USE_LIBXML
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
+#include "utils/array.h"
 #endif
 
 typedef struct varlena xmltype;
@@ -101,6 +102,10 @@ extern int	parse_xml_decl_wrapper(const xmlChar *str, size_t *lenp,
 /* Hook function type for TSQL OPENXML namespace handling */
 typedef void (*openxml_set_namespaces_hook_type) (xmlXPathContext * xpathctx, PgXmlErrorContext *xmlerrcxt, char *doc_id_str);
 extern PGDLLIMPORT openxml_set_namespaces_hook_type openxml_set_namespaces_hook;
+
+extern void xpath_internal_wrapper(text *xpath_expr_text, xmltype *data,
+                          ArrayType *namespaces, int *res_nitems,
+                          ArrayBuildState *astate);
 #endif							/* USE_LIBXML */
 
 extern PGDLLIMPORT int xmlbinary;	/* XmlBinaryType, but int for guc enum */

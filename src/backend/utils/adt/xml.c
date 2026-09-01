@@ -4344,7 +4344,6 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 	Datum	   *ns_names_uris;
 	bool	   *ns_names_uris_nulls;
 	int			ns_count;
-
 	/*
 	 * Namespace mappings are passed as text[].  If an empty array is passed
 	 * (ndim = 0, "0-dimensional"), then there are no namespace mappings.
@@ -4510,6 +4509,16 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 	xmlFreeParserCtxt(ctxt);
 
 	pg_xml_done(xmlerrcxt, false);
+}
+
+/*
+ * Wrapper around xpath_internal(), used by Babelfish
+ */
+void
+xpath_internal_wrapper(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
+			   int *res_nitems, ArrayBuildState *astate)
+{
+	xpath_internal(xpath_expr_text, data, namespaces, res_nitems, astate);
 }
 #endif							/* USE_LIBXML */
 
