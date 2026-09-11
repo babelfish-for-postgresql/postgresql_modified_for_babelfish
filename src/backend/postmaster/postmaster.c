@@ -253,7 +253,7 @@ static ProtocolExtensionConfig default_protocol_config = {
  * the postmaster stop (rather than kill) peers and not reinitialize
  * shared data structures.  (Reinit is currently dead code, though.)
  */
-static bool Reinit = true;
+pg_attribute_unused() static bool Reinit = true;
 static int	SendStop = false;
 
 /* still more option variables */
