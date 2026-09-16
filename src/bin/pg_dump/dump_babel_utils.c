@@ -2107,7 +2107,7 @@ void
 babelDumpViewColumnAttoptions(Archive *fout, const TableInfo *tbinfo,
 							  PQExpBuffer q, const char *qualrelname)
 {
-	int j;
+	int			j;
 
 	if (!isBabelfishDatabase(fout))
 		return;
