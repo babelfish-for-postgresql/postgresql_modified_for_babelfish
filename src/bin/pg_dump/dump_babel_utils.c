@@ -1056,6 +1056,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 	 * sys.babelfish_namespace_ext
 	 * sys.babelfish_extended_properties
 	 * sys.babelfish_schema_permissions
+	 * sys.babelfish_identifier_mapping
 	 * sys.babelfish_partition_function
 	 * sys.babelfish_partition_scheme
 	 * sys.babelfish_partition_depend
@@ -1065,6 +1066,7 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 						 "FROM pg_class "
 						 "WHERE relname in ('babelfish_schema_permissions', "
 						 "'babelfish_namespace_ext', "
+						 "'babelfish_identifier_mapping', "
 						 "'babelfish_partition_function', "
 						 "'babelfish_partition_scheme', "
 						 "'babelfish_partition_depend', "
@@ -1137,6 +1139,12 @@ addFromClauseForLogicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						  "ON a.nspname = b.nspname "
 						  "WHERE b.dbid = %d",
 						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
+	else if (strcmp(tbinfo->dobj.name, "babelfish_identifier_mapping") == 0)
+		appendPQExpBuffer(buf, " FROM ONLY %s a "
+						  "INNER JOIN sys.babelfish_namespace_ext b "
+						  "ON a.nspname = b.nspname "
+						  "WHERE b.dbid = %d",
+						  fmtQualifiedDumpable(tbinfo), bbf_db_id);
 	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_user_ext") == 0)
 	{
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
@@ -1200,6 +1208,7 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 						fmtQualifiedDumpable(tbinfo), babel_init_user);
 	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
+			strcmp(tbinfo->dobj.name, "babelfish_identifier_mapping") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0 ||
 			strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
@@ -2085,4 +2094,35 @@ dumpBabelPhysicalDatabaseACLs(Archive *fout)
 	destroyPQExpBuffer(query);
 
 	return;
+}
+
+/*
+ * babelDumpViewColumnAttoptions
+ *
+ * Dump per-column attoptions (bbf_original_name) for Babelfish view columns.
+ * The existing per-column attoptions dump logic only runs for tables (in the
+ * else branch of dumpTableSchema), so views need explicit handling.
+ */
+void
+babelDumpViewColumnAttoptions(Archive *fout, const TableInfo *tbinfo,
+							  PQExpBuffer q, const char *qualrelname)
+{
+	int j;
+
+	if (!isBabelfishDatabase(fout))
+		return;
+
+	for (j = 0; j < tbinfo->numatts; j++)
+	{
+		if (tbinfo->attisdropped[j])
+			continue;
+		if (tbinfo->attoptions[j][0] != '\0')
+		{
+			fixAttoptionsBbfOriginalName(fout, tbinfo->dobj.catId.oid, tbinfo, j);
+			appendPQExpBuffer(q, "ALTER TABLE ONLY %s ALTER COLUMN %s SET (%s);\n",
+							  qualrelname,
+							  fmtId(tbinfo->attnames[j]),
+							  tbinfo->attoptions[j]);
+		}
+	}
 }

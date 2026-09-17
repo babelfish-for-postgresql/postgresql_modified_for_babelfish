@@ -58,6 +58,7 @@
 #include "commands/cluster.h"
 #include "commands/comment.h"
 #include "commands/defrem.h"
+#include "commands/extension.h"
 #include "commands/event_trigger.h"
 #include "commands/sequence.h"
 #include "commands/tablecmds.h"
@@ -71,6 +72,7 @@
 #include "foreign/fdwapi.h"
 #include "foreign/foreign.h"
 #include "miscadmin.h"
+#include "libpq/libpq-be.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/parsenodes.h"
@@ -4984,6 +4986,35 @@ ATController(AlterTableStmt *parsetree,
 }
 
 /*
+ * allow_attoptions_for_babelfish
+ *
+ * Check if Babelfish-specific attoptions/reloptions should be allowed.
+ * Returns true only when:
+ *   1. The babelfishpg_tds extension is installed (confirming this is a
+ *      Babelfish database), AND
+ *   2. Either the connection is a TDS connection in T-SQL dialect, OR
+ *      we are in a babelfish dump/restore operation.
+ *
+ * The extension check prevents non-Babelfish users from accidentally
+ * enabling this path by setting babelfishpg_tsql.dump_restore.
+ */
+static bool
+allow_attoptions_for_babelfish(void)
+{
+	const char *dump_restore;
+
+	/* Quick check: babelfishpg_tds must be installed */
+	if (get_extension_oid("babelfishpg_tds", true) == InvalidOid)
+		return false;
+
+	if (sql_dialect == SQL_DIALECT_TSQL &&
+		MyProcPort && MyProcPort->is_tds_conn)
+		return true;
+	dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
+	return (dump_restore && strcmp(dump_restore, "on") == 0);
+}
+
+/*
  * ATPrepCmd
  *
  * Traffic cop for ALTER TABLE Phase 1 operations, including simple
@@ -5139,9 +5170,14 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
 			break;
 		case AT_SetOptions:		/* ALTER COLUMN SET ( options ) */
 		case AT_ResetOptions:	/* ALTER COLUMN RESET ( options ) */
-			ATSimplePermissions(cmd->subtype, rel,
-								ATT_TABLE | ATT_PARTITIONED_TABLE |
-								ATT_MATVIEW | ATT_FOREIGN_TABLE);
+			if (allow_attoptions_for_babelfish())
+				ATSimplePermissions(cmd->subtype, rel,
+									ATT_TABLE | ATT_PARTITIONED_TABLE |
+									ATT_VIEW | ATT_MATVIEW | ATT_FOREIGN_TABLE);
+			else
+				ATSimplePermissions(cmd->subtype, rel,
+									ATT_TABLE | ATT_PARTITIONED_TABLE |
+									ATT_MATVIEW | ATT_FOREIGN_TABLE);
 			/* This command never recurses */
 			pass = AT_PASS_MISC;
 			break;
@@ -5273,12 +5309,8 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
 		case AT_SetRelOptions:	/* SET (...) */
 		case AT_ResetRelOptions:	/* RESET (...) */
 		case AT_ReplaceRelOptions:	/* reset them all, then set just these */
-		{
-			const char *dump_restore = GetConfigOption("babelfishpg_tsql.dump_restore", true, false);
-
 			/* Allow reloptions on partitioned index in babelfish */
-			if (sql_dialect == SQL_DIALECT_TSQL ||
-				(dump_restore && strcmp(dump_restore, "on") == 0))
+			if (allow_attoptions_for_babelfish())
 				ATSimplePermissions(cmd->subtype, rel, ATT_TABLE | ATT_PARTITIONED_TABLE | ATT_VIEW | ATT_MATVIEW | ATT_INDEX | ATT_PARTITIONED_INDEX);
 			else
 				ATSimplePermissions(cmd->subtype, rel, ATT_TABLE | ATT_PARTITIONED_TABLE | ATT_VIEW | ATT_MATVIEW | ATT_INDEX);
@@ -5286,7 +5318,6 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
 			/* No command-specific prep needed */
 			pass = AT_PASS_MISC;
 			break;
-		}
 		case AT_AddInherit:		/* INHERIT */
 			ATSimplePermissions(cmd->subtype, rel,
 								ATT_TABLE | ATT_PARTITIONED_TABLE | ATT_FOREIGN_TABLE);

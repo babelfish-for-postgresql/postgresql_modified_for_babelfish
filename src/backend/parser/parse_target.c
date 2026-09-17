@@ -33,6 +33,7 @@
 #include "utils/rel.h"
 
 pre_transform_target_entry_hook_type pre_transform_target_entry_hook = NULL;
+post_transform_target_entry_hook_type post_transform_target_entry_hook = NULL;
 resolve_target_list_unknowns_hook_type resolve_target_list_unknowns_hook = NULL;
 handle_type_and_collation_hook_type handle_type_and_collation_hook = NULL;
 
@@ -132,6 +133,7 @@ transformTargetList(ParseState *pstate, List *targetlist,
 	List	   *p_target = NIL;
 	bool		expand_star;
 	ListCell   *o_target;
+	TargetEntry *te;
 
 	/* Shouldn't have any leftover multiassign items at start */
 	Assert(pstate->p_multiassign_exprs == NIL);
@@ -188,13 +190,17 @@ transformTargetList(ParseState *pstate, List *targetlist,
 		 * Not "something.*", or we want to treat that as a plain whole-row
 		 * variable, so transform as a single expression
 		 */
-		p_target = lappend(p_target,
-						   transformTargetEntry(pstate,
-												res->val,
-												NULL,
-												exprKind,
-												res->name,
-												false));
+		te = transformTargetEntry(pstate,
+								 res->val,
+								 NULL,
+								 exprKind,
+								 res->name,
+								 false);
+
+		if (post_transform_target_entry_hook)
+			(*post_transform_target_entry_hook)(te, res, pstate, exprKind);
+
+		p_target = lappend(p_target, te);
 	}
 
 	/*
