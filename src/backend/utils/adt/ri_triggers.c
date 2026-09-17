@@ -343,21 +343,14 @@ RI_FKey_check(TriggerData *trigdata)
 					 * Not allowed - MATCH FULL says either all or none of the
 					 * attributes can be NULLs
 					 */
-					{
-						const char *fk_conname = NameStr(riinfo->conname);
-
-						/* BABEL: resolve original FK name for error display */
-						if (bbf_get_original_constraint_name_hook)
-							fk_conname = bbf_get_original_constraint_name_hook(fk_conname);
-						ereport(ERROR,
-								(errcode(ERRCODE_FOREIGN_KEY_VIOLATION),
-								 errmsg("insert or update on table \"%s\" violates foreign key constraint \"%s\"",
-										RelationGetRelationName(fk_rel),
-										fk_conname),
-								 errdetail("MATCH FULL does not allow mixing of null and nonnull key values."),
-								 errtableconstraint(fk_rel,
-													NameStr(riinfo->conname))));
-					}
+					ereport(ERROR,
+							(errcode(ERRCODE_FOREIGN_KEY_VIOLATION),
+							 errmsg("insert or update on table \"%s\" violates foreign key constraint \"%s\"",
+									RelationGetRelationName(fk_rel),
+									NameStr(riinfo->conname)),
+							 errdetail("MATCH FULL does not allow mixing of null and nonnull key values."),
+							 errtableconstraint(fk_rel,
+												NameStr(riinfo->conname))));
 					table_close(pk_rel, RowShareLock);
 					return PointerGetDatum(NULL);
 
@@ -1811,21 +1804,14 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 		 */
 		if (fake_riinfo.confmatchtype == FKCONSTR_MATCH_FULL &&
 			ri_NullCheck(tupdesc, slot, &fake_riinfo, false) != RI_KEYS_NONE_NULL)
-		{
-			const char *fk_conname = NameStr(fake_riinfo.conname);
-
-			/* BABEL: resolve original FK name for error display */
-			if (bbf_get_original_constraint_name_hook)
-				fk_conname = bbf_get_original_constraint_name_hook(fk_conname);
 			ereport(ERROR,
 					(errcode(ERRCODE_FOREIGN_KEY_VIOLATION),
 					 errmsg("insert or update on table \"%s\" violates foreign key constraint \"%s\"",
 							RelationGetRelationName(fk_rel),
-							fk_conname),
+							NameStr(fake_riinfo.conname)),
 					 errdetail("MATCH FULL does not allow mixing of null and nonnull key values."),
 					 errtableconstraint(fk_rel,
 										NameStr(fake_riinfo.conname))));
-		}
 
 		/*
 		 * We tell ri_ReportViolation we were doing the RI_PLAN_CHECK_LOOKUPPK
@@ -2807,22 +2793,17 @@ ri_ReportViolation(const RI_ConstraintInfo *riinfo,
 		}
 	}
 
-	/*
-	 * BABEL: Resolve the original (pre-truncation) FK constraint name for
-	 * display in error messages. The stored conname may be MD5-truncated;
-	 * the hook reverses this via babelfish_identifier_mapping catalog lookup.
-	 * This ensures cross-session FK violations show the full user-visible name.
-	 */
+	/* BABEL: resolve original (pre-truncation) name */
 	conname_display = NameStr(riinfo->conname);
-	if (bbf_get_original_constraint_name_hook)
-		conname_display = bbf_get_original_constraint_name_hook(conname_display);
+	if (bbf_get_original_ident_name_hook)
+		conname_display = bbf_get_original_ident_name_hook(conname_display, false /* is_index */);
 
 	if (partgone)
 		ereport(ERROR,
 				(errcode(ERRCODE_FOREIGN_KEY_VIOLATION),
 				 errmsg("removing partition \"%s\" violates foreign key constraint \"%s\"",
 						RelationGetRelationName(pk_rel),
-						conname_display),
+						NameStr(riinfo->conname)),
 				 errdetail("Key (%s)=(%s) is still referenced from table \"%s\".",
 						   key_names.data, key_values.data,
 						   RelationGetRelationName(fk_rel)),

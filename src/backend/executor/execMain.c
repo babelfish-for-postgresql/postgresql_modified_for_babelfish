@@ -65,9 +65,8 @@
 #include "utils/rls.h"
 #include "utils/snapmgr.h"
 
-/* BABEL: Hooks for resolving original long identifier names in constraint errors */
-bbf_get_original_constraint_name_hook_type bbf_get_original_constraint_name_hook = NULL;
-bbf_get_original_index_name_hook_type bbf_get_original_index_name_hook = NULL;
+/* BABEL: Hook for resolving original long identifier names in constraint errors */
+bbf_get_original_ident_name_hook_type bbf_get_original_ident_name_hook = NULL;
 
 
 /* Hooks for plugins to get control in ExecutorStart/Run/Finish/End */
@@ -2061,6 +2060,7 @@ ExecConstraints(ResultRelInfo *resultRelInfo,
 		if ((failed = ExecRelCheck(resultRelInfo, slot, estate)) != NULL)
 		{
 			char	   *val_desc;
+			const char *display_name = failed;	/* BABEL: original long name */
 			Relation	orig_rel = rel;
 
 			/*
@@ -2100,23 +2100,15 @@ ExecConstraints(ResultRelInfo *resultRelInfo,
 													 tupdesc,
 													 modifiedCols,
 													 64);
-			{
-				const char *display_name = failed;
-
-				/*
-				 * BABEL: Resolve the original constraint name for display in the
-				 * check violation error message. The stored constraint name may
-				 * be MD5-truncated; the hook reverses this via catalog lookup.
-				 */
-				if (bbf_get_original_constraint_name_hook)
-					display_name = bbf_get_original_constraint_name_hook(failed);
+			/* BABEL: resolve original (pre-truncation) name */
+			if (bbf_get_original_ident_name_hook)
+				display_name = bbf_get_original_ident_name_hook(failed, false /* is_index */);
 			ereport(ERROR,
 					(errcode(ERRCODE_CHECK_VIOLATION),
 					 errmsg("new row for relation \"%s\" violates check constraint \"%s\"",
 							RelationGetRelationName(orig_rel), display_name),
 					 val_desc ? errdetail("Failing row contains %s.", val_desc) : 0,
 					 errtableconstraint(orig_rel, failed)));
-			}
 		}
 	}
 }
