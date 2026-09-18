@@ -1053,12 +1053,9 @@ setBabelfishDependenciesForLogicalDatabaseDump(Archive *fout)
 
 	/*
 	 * Now get the OIDs for following desired catalog tables:
-	 * sys.babelfish_namespace_ext
-	 * sys.babelfish_extended_properties
-	 * sys.babelfish_schema_permissions
-	 * sys.babelfish_identifier_mapping
-	 * sys.babelfish_partition_function
-	 * sys.babelfish_partition_scheme
+	 * sys.babelfish_namespace_ext sys.babelfish_extended_properties
+	 * sys.babelfish_schema_permissions sys.babelfish_identifier_mapping
+	 * sys.babelfish_partition_function sys.babelfish_partition_scheme
 	 * sys.babelfish_partition_depend
 	 */
 	appendPQExpBufferStr(query,
@@ -1201,21 +1198,21 @@ addFromClauseForPhysicalDatabaseDump(PQExpBuffer buf, TableInfo *tbinfo)
 	 * Do not dump sysadmin, bbf_role_admin, securityadmin,
 	 * dbcreator and Babelfish initialize user 
 	 */
-	else if(strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
+	else if (strcmp(tbinfo->dobj.name, "babelfish_authid_login_ext") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a "
 						"WHERE a.rolname NOT IN ('sysadmin', 'bbf_role_admin', "
 						"'securityadmin', 'dbcreator', '%s')",
 						fmtQualifiedDumpable(tbinfo), babel_init_user);
-	else if(strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_identifier_mapping") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_partition_function") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_partition_scheme") == 0 ||
-			strcmp(tbinfo->dobj.name, "babelfish_partition_depend") == 0)
+	else if (strcmp(tbinfo->dobj.name, "babelfish_domain_mapping") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_function_ext") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_identifier_mapping") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_view_def") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_server_options") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_extended_properties") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_schema_permissions") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_partition_function") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_partition_scheme") == 0 ||
+			 strcmp(tbinfo->dobj.name, "babelfish_partition_depend") == 0)
 		appendPQExpBuffer(buf, " FROM ONLY %s a",
 						  fmtQualifiedDumpable(tbinfo));
 	else
