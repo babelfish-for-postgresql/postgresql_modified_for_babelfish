@@ -101,8 +101,9 @@ extern PGDLLEXPORT TriggerRecuresiveCheck_hook_type TriggerRecuresiveCheck_hook;
 typedef bool (*bbfViewHasInsteadofTrigger_hook_type) (Relation view, CmdType event);
 extern PGDLLIMPORT bbfViewHasInsteadofTrigger_hook_type bbfViewHasInsteadofTrigger_hook;
 
-/* BABEL: resolve original (pre-truncation) identifier name for error display; is_index selects index vs constraint lookup */
-typedef const char *(*bbf_get_original_ident_name_hook_type)(const char *ident_name, bool is_index);
+/* BABEL: resolve original (pre-truncation) identifier name for error display.
+ * object_id = index Oid (is_index) or constraint's owning-relation Oid (else), InvalidOid if unknown. */
+typedef const char *(*bbf_get_original_ident_name_hook_type)(const char *ident_name, Oid object_id, bool is_index);
 extern PGDLLIMPORT bbf_get_original_ident_name_hook_type bbf_get_original_ident_name_hook;
 
 typedef Datum (*adjust_numeric_result_hook_type) (Plan *plan, Node *expr, Datum result, bool result_isnull, Oid result_type, int32 result_typmod);

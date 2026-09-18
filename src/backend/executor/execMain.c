@@ -2102,7 +2102,7 @@ ExecConstraints(ResultRelInfo *resultRelInfo,
 													 64);
 			/* BABEL: resolve original (pre-truncation) name */
 			if (bbf_get_original_ident_name_hook)
-				display_name = bbf_get_original_ident_name_hook(failed, false /* is_index */);
+				display_name = bbf_get_original_ident_name_hook(failed, RelationGetRelid(orig_rel), false /* is_index */);
 			ereport(ERROR,
 					(errcode(ERRCODE_CHECK_VIOLATION),
 					 errmsg("new row for relation \"%s\" violates check constraint \"%s\"",

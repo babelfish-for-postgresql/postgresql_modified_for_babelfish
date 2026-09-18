@@ -667,7 +667,7 @@ _bt_check_unique(Relation rel, BTInsertState insertstate, Relation heapRel,
 
 						/* BABEL: resolve original (pre-truncation) name */
 						if (bbf_get_original_ident_name_hook)
-							conname = bbf_get_original_ident_name_hook(conname, true /* is_index */);
+							conname = bbf_get_original_ident_name_hook(conname, RelationGetRelid(rel), true /* is_index */);
 						ereport(ERROR,
 								(errcode(ERRCODE_UNIQUE_VIOLATION),
 								 errmsg("duplicate key value violates unique constraint \"%s\"",

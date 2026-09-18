@@ -2796,7 +2796,7 @@ ri_ReportViolation(const RI_ConstraintInfo *riinfo,
 	/* BABEL: resolve original (pre-truncation) name */
 	conname_display = NameStr(riinfo->conname);
 	if (bbf_get_original_ident_name_hook)
-		conname_display = bbf_get_original_ident_name_hook(conname_display, false /* is_index */);
+		conname_display = bbf_get_original_ident_name_hook(conname_display, riinfo->fk_relid, false /* is_index */);
 
 	if (partgone)
 		ereport(ERROR,
