@@ -92,8 +92,5 @@ extern int	psql_scan_count_copy_from_stdin(PsqlScanState state);
 
 extern bool psql_scan_in_quote(PsqlScanState state);
 
-extern void psql_scan_setup_ex(PsqlScanState state,
-				const char *line, int line_len,
-							int encoding, bool std_strings, bool tsql);
 
 #endif							/* PSQLSCAN_H */

@@ -378,8 +378,8 @@ MainLoop(FILE *source)
 		/*
 		 * Parse line, looking for command separators.
 		 */
-		psql_scan_setup_ex(scan_state, line, strlen(line),
-						pset.encoding, standard_strings(), pset.tsql);
+		psql_scan_setup(scan_state, line, strlen(line),
+						pset.encoding, standard_strings());
 		success = true;
 		line_saved_in_history = false;
 
@@ -543,8 +543,8 @@ MainLoop(FILE *source)
 					resetPQExpBuffer(query_buf);
 					/* reset parsing state since we are rescanning whole line */
 					psql_scan_reset(scan_state);
-					psql_scan_setup_ex(scan_state, line, strlen(line),
-									   pset.encoding, standard_strings(), pset.tsql);
+					psql_scan_setup(scan_state, line, strlen(line),
+									   pset.encoding, standard_strings());
 					line_saved_in_history = false;
 					prompt_status = PROMPT_READY;
 					/* we'll want to redisplay after parsing what we have */
