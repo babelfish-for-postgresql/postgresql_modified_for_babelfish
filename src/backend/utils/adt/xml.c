@@ -4813,10 +4813,12 @@ XmlTableSetNamespace(TableFuncScanState *state, const char *name, const char *ur
 
 	/*
 	 * For TSQL OPENXML, following hook will fetch and register namespaces in
-	 * Xpath context.
+	 * Xpath context.  It returns false for a plain XMLTABLE, in which case
+	 * the declaration is registered normally below.
 	 */
-	if (openxml_set_namespaces_hook)
-		return openxml_set_namespaces_hook(xtCxt->xpathcxt, xtCxt->xmlerrcxt, (char *) uri);
+	if (openxml_set_namespaces_hook &&
+		openxml_set_namespaces_hook(xtCxt->xpathcxt, xtCxt->xmlerrcxt, (char *) uri))
+		return;
 
 	if (xmlXPathRegisterNs(xtCxt->xpathcxt,
 						   pg_xmlCharStrndup(name, strlen(name)),
