@@ -685,8 +685,6 @@ other			.
 ";"				{
 					ECHO;
 
-					if (cur_state->tsql == false)
-					{
 						if (cur_state->paren_depth == 0 &&
 						cur_state->begin_depth == 0)
 						{
@@ -698,29 +696,6 @@ other			.
 							cur_state->init_idents_count = 0;
 							return LEXRES_SEMI;
 						}
-					}
-				}
-
-	/*
-	 * [BABEL-2076] The TSQL enhancement GO feature for PSQL client is not handled
-	 * properly with the new exclusive state xqs in the psql scanner and is failing.
-	 * several tests in installcheck babelfish. The Temporary fix
-	 * is to remove ^ from the pattern. This makes GO a terminator even if it
-	 * doesn't start at a newline, it's probably OK since this feature is just
-	 * for testing purpose.
-	 */
-[Gg][Oo]			{
-					if (cur_state->tsql == true)
-					{
-					    if (cur_state->paren_depth == 0)
-					    {
-						/* Terminate lexing temporarily */
-						cur_state->start_state = YY_START;
-						return LEXRES_SEMI;
-					    }
-					}
-                                        else
-					   ECHO;
 				}
 
 
@@ -1199,27 +1174,10 @@ psql_scan_set_passthrough(PsqlScanState state, void *passthrough)
  * and std_strings says whether standard_conforming_strings is on.
  */
 
-/*
- * NOTE: for BABEL-120, we must add another argument (tsql) to this
- *       this function.  To avoid future merge conflicts, we leave
- *       the signature alone and just add a wrapper function that 
- *       invokes the original (5-argument) function.  This might 
- *       seem unnecessary, but keep in mind that psql_scan_setup()
- *       is used by pgbench, not just psql.
- */
-
 void
 psql_scan_setup(PsqlScanState state,
 				const char *line, int line_len,
 				int encoding, bool std_strings)
-{
-	psql_scan_setup_ex(state, line, line_len, encoding, std_strings, false);
-}
-
-void
-psql_scan_setup_ex(PsqlScanState state,
-				const char *line, int line_len,
-				int encoding, bool std_strings, bool tsql)
 {
 	/* Mustn't be scanning already */
 	Assert(state->scanbufhandle == NULL);
@@ -1241,8 +1199,6 @@ psql_scan_setup_ex(PsqlScanState state,
 	state->curline = state->scanbuf;
 	state->refline = state->scanline;
 
-	/* Remember whether we are in TSQL mode */
-	state->tsql  = tsql;
 }
 
 /*

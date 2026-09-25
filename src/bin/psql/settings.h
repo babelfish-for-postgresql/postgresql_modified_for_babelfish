@@ -116,7 +116,6 @@ typedef struct _psqlSettings
 	uint64		stmt_lineno;	/* line number inside the current statement */
 
 	bool		timing;			/* enable timing of all queries */
-	bool        tsql;           /* enable TSQL features */
 	FILE	   *logfile;		/* session log file handle */
 
 	VariableSpace vars;			/* "shell variable" repository */
