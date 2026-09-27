@@ -56,7 +56,8 @@
 #include "catalog/storage.h"
 #include "commands/tablecmds.h"
 #include "commands/typecmds.h"
-#include "executor/spi.h"
+#include "executor/spi.h"	/* BABELFISH: keep include used by Babelfish code */
+#include "common/int.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/optimizer.h"
@@ -2373,7 +2374,7 @@ StoreRelCheck(Relation rel, const char *ccname, Node *expr,
 static void
 StoreConstraints(Relation rel, List *cooked_constraints, bool is_internal)
 {
-	int			numchecks = 0;
+	int16		numchecks = 0;
 	ListCell   *lc;
 
 	if (cooked_constraints == NIL)
@@ -2397,12 +2398,18 @@ StoreConstraints(Relation rel, List *cooked_constraints, bool is_internal)
 											   is_internal, false);
 				break;
 			case CONSTR_CHECK:
+				if (pg_add_s16_overflow(numchecks, 1, &numchecks))
+					ereport(ERROR,
+							errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+							errmsg("too many check constraints on relation \"%s\"",
+								   RelationGetRelationName(rel)));
+
 				con->conoid =
 					StoreRelCheck(rel, con->name, con->expr,
 								  !con->skip_validation, con->is_local,
 								  con->inhcount, con->is_no_inherit,
 								  is_internal);
-				numchecks++;
+
 				break;
 			default:
 				elog(ERROR, "unrecognized constraint type: %d",
@@ -2457,7 +2464,7 @@ AddRelationNewConstraints(Relation rel,
 	int			numoldchecks;
 	ParseState *pstate;
 	ParseNamespaceItem *nsitem;
-	int			numchecks;
+	int16		numchecks;
 	List	   *checknames;
 	ListCell   *cell;
 	Node	   *expr;
@@ -2663,13 +2670,21 @@ AddRelationNewConstraints(Relation rel,
 		}
 
 		/*
+		 * pg_class.relchecks stores this count in an int16, so we should
+		 * avoid overflowing that field
+		 */
+		if (pg_add_s16_overflow(numchecks, 1, &numchecks))
+			ereport(ERROR,
+					errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+					errmsg("too many check constraints on relation \"%s\"",
+						   RelationGetRelationName(rel)));
+
+		/*
 		 * OK, store it.
 		 */
 		constrOid =
 			StoreRelCheck(rel, ccname, expr, cdef->initially_valid, is_local,
 						  is_local ? 0 : 1, cdef->is_no_inherit, is_internal);
-
-		numchecks++;
 
 		cooked = (CookedConstraint *) palloc(sizeof(CookedConstraint));
 		cooked->contype = CONSTR_CHECK;
@@ -2873,6 +2888,10 @@ SetRelationNumChecks(Relation rel, int numchecks)
 
 	if (relStruct->relchecks != numchecks)
 	{
+		if (numchecks > INT16_MAX || numchecks < 0)
+			elog(ERROR, "invalid new relchecks %d for relation %u",
+				 numchecks, RelationGetRelid(rel));
+
 		relStruct->relchecks = numchecks;
 
 		CatalogTupleUpdate(relrel, &reltup->t_self, reltup);
