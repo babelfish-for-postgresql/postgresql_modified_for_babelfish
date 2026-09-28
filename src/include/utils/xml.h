@@ -99,8 +99,12 @@ extern xmlChar *pg_xmlCharStrndup_wrapper(const char *str, size_t len);
 extern int	parse_xml_decl_wrapper(const xmlChar *str, size_t *lenp,
 								   xmlChar **version, xmlChar **encoding, int *standalone);
 
-/* Hook function type for TSQL OPENXML namespace handling */
-typedef void (*openxml_set_namespaces_hook_type) (xmlXPathContext * xpathctx, PgXmlErrorContext *xmlerrcxt, char *doc_id_str);
+/*
+ * Hook function type for TSQL OPENXML namespace handling.  Returns true if the
+ * hook has taken over namespace registration, false to let the caller fall
+ * back to the standard XMLTABLE namespace registration.
+ */
+typedef bool (*openxml_set_namespaces_hook_type) (xmlXPathContext * xpathctx, PgXmlErrorContext *xmlerrcxt, char *doc_id_str);
 extern PGDLLIMPORT openxml_set_namespaces_hook_type openxml_set_namespaces_hook;
 
 extern void xpath_internal_wrapper(text *xpath_expr_text, xmltype *data,
