@@ -191,14 +191,14 @@ transformTargetList(ParseState *pstate, List *targetlist,
 		 * variable, so transform as a single expression
 		 */
 		te = transformTargetEntry(pstate,
-								 res->val,
-								 NULL,
-								 exprKind,
-								 res->name,
-								 false);
+								  res->val,
+								  NULL,
+								  exprKind,
+								  res->name,
+								  false);
 
 		if (post_transform_target_entry_hook)
-			(*post_transform_target_entry_hook)(te, res, pstate, exprKind);
+			(*post_transform_target_entry_hook) (te, res, pstate, exprKind);
 
 		p_target = lappend(p_target, te);
 	}
