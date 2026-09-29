@@ -58,7 +58,7 @@ extern char *FigureIndexColname(Node *node);
 typedef void (*pre_transform_target_entry_hook_type)(ResTarget *res, ParseState *pstate, ParseExprKind exprKind);
 extern PGDLLEXPORT pre_transform_target_entry_hook_type pre_transform_target_entry_hook;
 
-typedef void (*post_transform_target_entry_hook_type)(TargetEntry *te, ResTarget *res, ParseState *pstate, ParseExprKind exprKind);
+typedef void (*post_transform_target_entry_hook_type) (TargetEntry *te, ResTarget *res, ParseState *pstate, ParseExprKind exprKind);
 extern PGDLLEXPORT post_transform_target_entry_hook_type post_transform_target_entry_hook;
 
 typedef void (*resolve_target_list_unknowns_hook_type)(ParseState *pstate, List *targetlist);
