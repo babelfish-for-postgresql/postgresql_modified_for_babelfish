@@ -92,10 +92,11 @@ eval_const_expressions_in_preprocess_hook_type eval_const_expressions_in_preproc
 #define EXPRKIND_APPINFO			7
 #define EXPRKIND_PHV				8
 #define EXPRKIND_TABLESAMPLE		9
-#define EXPRKIND_ARBITER_ELEM		10
-#define EXPRKIND_TABLEFUNC			11
-#define EXPRKIND_TABLEFUNC_LATERAL	12
-#define EXPRKIND_GROUPEXPR			13
+#define EXPRKIND_TABLESAMPLE_LATERAL	10
+#define EXPRKIND_ARBITER_ELEM		11
+#define EXPRKIND_TABLEFUNC			12
+#define EXPRKIND_TABLEFUNC_LATERAL	13
+#define EXPRKIND_GROUPEXPR			14
 
 /*
  * Data specific to grouping sets
@@ -1011,10 +1012,15 @@ subquery_planner(PlannerGlobal *glob, Query *parse, PlannerInfo *parent_root,
 		if (rte->rtekind == RTE_RELATION)
 		{
 			if (rte->tablesample)
+			{
+				/* Preprocess the tablesample expression(s) fully */
+				kind = rte->lateral ? EXPRKIND_TABLESAMPLE_LATERAL :
+					EXPRKIND_TABLESAMPLE;
 				rte->tablesample = (TableSampleClause *)
 					preprocess_expression(root,
 										  (Node *) rte->tablesample,
-										  EXPRKIND_TABLESAMPLE);
+										  kind);
+			}
 		}
 		else if (rte->rtekind == RTE_SUBQUERY)
 		{
