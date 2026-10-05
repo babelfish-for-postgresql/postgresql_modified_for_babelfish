@@ -94,7 +94,7 @@ extern PGDLLIMPORT match_pltsql_func_call_hook_type match_pltsql_func_call_hook;
 typedef const char * (*remove_db_name_in_schema_hook_type) (const char *schema_name, const char *object_type);
 extern PGDLLIMPORT remove_db_name_in_schema_hook_type remove_db_name_in_schema_hook;
 
-typedef bool (*is_bbf_tds_connection_hook_type) ();
+typedef bool (*is_bbf_tds_connection_hook_type) (void);
 extern PGDLLEXPORT is_bbf_tds_connection_hook_type is_bbf_tds_connection_hook;
 
 #define RangeVarGetRelid(relation, lockmode, missing_ok) \
