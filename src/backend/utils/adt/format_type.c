@@ -365,7 +365,7 @@ format_type_with_typemod(Oid type_oid, int32 typemod)
 }
 
 static void
-removeTimeZoneStrFromTypmod(const char *tmstr, const char *tzstr)
+removeTimeZoneStrFromTypmod(char *tmstr, const char *tzstr)
 {
 	char *substr = strstr(tmstr, tzstr);
 	if (substr)
