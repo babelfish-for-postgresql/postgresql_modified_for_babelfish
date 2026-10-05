@@ -42,7 +42,7 @@ typedef void (*pltsql_nextval_hook_type) (Oid seqid, int64 val);
 extern PGDLLEXPORT pltsql_nextval_hook_type pltsql_nextval_hook;
 
 /* Sequence reset cache hook */
-typedef void (*pltsql_resetcache_hook_type) ();
+typedef void (*pltsql_resetcache_hook_type) (void);
 extern PGDLLEXPORT pltsql_resetcache_hook_type pltsql_resetcache_hook;
 
 /* Sequence setval hook */

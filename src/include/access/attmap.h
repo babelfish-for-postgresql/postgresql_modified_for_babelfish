@@ -50,8 +50,8 @@ extern AttrMap *build_attrmap_by_name_if_req(TupleDesc indesc,
 extern AttrMap *build_attrmap_by_position(TupleDesc indesc,
 										  TupleDesc outdesc,
 										  const char *msg);
-typedef bool (*called_from_tsql_insert_exec_hook_type)();
-typedef bool (*called_for_tsql_itvf_func_hook_type)();
+typedef bool (*called_from_tsql_insert_exec_hook_type) (void);
+typedef bool (*called_for_tsql_itvf_func_hook_type) (void);
 extern PGDLLEXPORT called_from_tsql_insert_exec_hook_type called_from_tsql_insert_exec_hook;
 extern PGDLLIMPORT called_for_tsql_itvf_func_hook_type called_for_tsql_itvf_func_hook;
 
