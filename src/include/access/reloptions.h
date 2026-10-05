@@ -256,7 +256,7 @@ extern bytea *index_reloptions(amoptions_function amoptions, Datum reloptions,
 extern bytea *attribute_reloptions(Datum reloptions, bool validate);
 extern bytea *tablespace_reloptions(Datum reloptions, bool validate);
 extern LOCKMODE AlterTableGetRelOptionsLockLevel(List *defList);
-typedef bool (*pltsql_is_partitioned_table_reloptions_allowed_hook_type)();
+typedef bool (*pltsql_is_partitioned_table_reloptions_allowed_hook_type) (Datum reloptions);
 extern PGDLLEXPORT pltsql_is_partitioned_table_reloptions_allowed_hook_type pltsql_is_partitioned_table_reloptions_allowed_hook;
 
 #endif							/* RELOPTIONS_H */
