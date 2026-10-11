@@ -608,6 +608,7 @@ jsonb_get_value(Datum val, bool is_null, JsonbValue *json, Oid val_type)
 {
 	JsonbInState state;
 	memset(&state, 0, sizeof(JsonbInState));
+	state.outcontext = CurrentMemoryContext;
 
 	add_jsonb(val, is_null, &state, val_type, false);
 	*json = *(state.result);
