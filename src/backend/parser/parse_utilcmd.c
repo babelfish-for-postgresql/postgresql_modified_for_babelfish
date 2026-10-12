@@ -369,7 +369,8 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
 	 */
 	transformCheckConstraints(&cxt, !cxt.isforeign);
 
-	if (post_transform_table_definition_hook)
+	/* BABEL-7225: skip hook for internal partition child tables */
+	if (post_transform_table_definition_hook && stmt->partbound == NULL)
 	{
 		(* post_transform_table_definition_hook) (cxt.pstate, cxt.relation, cxt.relation->relname, &cxt.alist);
 	}
