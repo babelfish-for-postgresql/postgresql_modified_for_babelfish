@@ -60,4 +60,9 @@ typedef int (*print_pltsql_function_arguments_hook_type) (StringInfo buf,
 														  bool print_defaults);
 extern PGDLLEXPORT print_pltsql_function_arguments_hook_type print_pltsql_function_arguments_hook;
 
+typedef void (*pltsql_substitute_simple_column_names_hook_type) (RangeTblEntry *rte,
+																  char **colnames,
+																  int num_cols);
+extern PGDLLEXPORT pltsql_substitute_simple_column_names_hook_type pltsql_substitute_simple_column_names_hook;
+
 #endif							/* RULEUTILS_H */
