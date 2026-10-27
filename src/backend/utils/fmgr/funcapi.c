@@ -21,6 +21,8 @@
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
+#include "parser/parser.h"		/* SQL_DIALECT_TSQL */
+#include "parser/scansup.h"		/* truncate_identifier */
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
@@ -1837,6 +1839,14 @@ build_function_result_tupdesc_d(char prokind,
 			/* Parameter is not named, so gin up a column name */
 			pname = psprintf("column%d", numoutargs + 1);
 		}
+
+		/*
+		 * TupleDescInitEntry below clips this to a plain NAMEDATALEN-1
+		 * prefix, so apply the scanner's MD5-truncation here to keep
+		 * name-based lookups consistent.
+		 */
+		if (sql_dialect == SQL_DIALECT_TSQL && strlen(pname) >= NAMEDATALEN)
+			truncate_identifier(pname, strlen(pname), false);
 		outargnames[numoutargs] = pname;
 		numoutargs++;
 	}
