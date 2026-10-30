@@ -1199,6 +1199,7 @@ main(int argc, char **argv)
 		dumpDumpableObject(fout, dobjs[i]);
 
 	dumpBabelPhysicalDatabaseACLs(fout);
+	dumpBabelItvfColumnNames(fout);
 
 	/*
 	 * Set up options info to ensure we dump what we want.

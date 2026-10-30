@@ -339,6 +339,7 @@ static const char *const query_getviewrule = "SELECT * FROM pg_catalog.pg_rewrit
 bool		quote_all_identifiers = false;
 
 print_pltsql_function_arguments_hook_type print_pltsql_function_arguments_hook = NULL;
+pltsql_substitute_simple_column_names_hook_type pltsql_substitute_simple_column_names_hook = NULL;
 
 
 /* ----------
@@ -4122,7 +4123,11 @@ set_simple_column_names(deparse_namespace *dpns)
 		deparse_columns *colinfo = (deparse_columns *) lfirst(lc2);
 
 		if (rte->rtekind != RTE_JOIN)
+		{
 			set_relation_column_names(dpns, rte, colinfo);
+			if (pltsql_substitute_simple_column_names_hook)
+				pltsql_substitute_simple_column_names_hook(rte, colinfo->colnames, colinfo->num_cols);
+		}
 	}
 }
 
