@@ -819,6 +819,69 @@ setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *fi
 }
 
 /*
+ * dumpBabelItvfColumnNames:
+ * The output column names of a PL/tsql inline table-valued function are kept
+ * at full length in the text[] pg_proc.proargnames, but CREATE FUNCTION dumps
+ * them as identifiers, which the restore clips to NAMEDATALEN-1 bytes. For
+ * each dumped inline TVF with such a name, also dump proargnames as a string
+ * literal so that the extension can put the full names back.
+ *
+ * Called after all objects are dumped: in binary upgrade mode the function
+ * that is called is created individually, possibly after the inline TVF.
+ */
+void
+dumpBabelItvfColumnNames(Archive *fout)
+{
+	PQExpBuffer query;
+	PGresult   *res;
+
+	/* like dumpFunc(), nothing to do if the functions themselves are not dumped */
+	if (!isBabelfishDatabase(fout) || !fout->dopt->dumpSchema)
+		return;
+
+	/* only an inline TVF can hold a name this long; getTsqlTvfType() checks that */
+	query = createPQExpBuffer();
+	appendPQExpBuffer(query,
+					  "SELECT oid, prokind, proretset, oid::pg_catalog.regprocedure, proargnames "
+					  "FROM pg_catalog.pg_proc "
+					  "WHERE EXISTS (SELECT FROM pg_catalog.unnest(proargnames) n "
+					  "WHERE pg_catalog.octet_length(n) >= %d)",
+					  NAMEDATALEN);
+	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
+
+	for (int i = 0; i < PQntuples(res); i++)
+	{
+		FuncInfo   *finfo = findFuncByOid(atooid(PQgetvalue(res, i, 0)));
+
+		/* only inline TVFs whose definition is in this dump */
+		if (finfo == NULL || !(finfo->dobj.dump & DUMP_COMPONENT_DEFINITION) ||
+			getTsqlTvfType(fout, finfo, PQgetvalue(res, i, 1)[0],
+						   PQgetvalue(res, i, 2)[0] == 't') != PLTSQL_TVFTYPE_ITVF)
+			continue;
+
+		resetPQExpBuffer(query);
+		appendPQExpBufferStr(query, "SELECT sys.babelfish_restore_itvf_column_names(");
+		appendStringLiteralAH(query, PQgetvalue(res, i, 3), fout);
+		appendPQExpBufferStr(query, "::pg_catalog.regprocedure, ");
+		appendStringLiteralAH(query, PQgetvalue(res, i, 4), fout);
+		appendPQExpBufferStr(query, "::pg_catalog.text[]);\n");
+
+		ArchiveEntry(fout, nilCatalogId, createDumpId(),
+					 ARCHIVE_OPTS(.tag = finfo->dobj.name,
+								  .namespace = finfo->dobj.namespace->dobj.name,
+								  .owner = finfo->rolname,
+								  .description = "BABELFISH ITVF COLUMN NAMES",
+								  .section = SECTION_POST_DATA,
+								  .createStmt = query->data,
+								  .deps = &finfo->dobj.dumpId,
+								  .nDeps = 1));
+	}
+
+	PQclear(res);
+	destroyPQExpBuffer(query);
+}
+
+/*
  * getCurrentServerCollationNameSetting - returns current setting of babelfishpg_tsql.server_collation_name guc which
  * should be same as the default collation of _ci_sysname data type.
  * Note that, return result is palloc'd which should be freed by caller

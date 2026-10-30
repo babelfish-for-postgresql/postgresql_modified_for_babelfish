@@ -31,6 +31,7 @@ extern void fixTsqlTableTypeDependency(Archive *fout, DumpableObject *func, Dump
 extern bool isTsqlTableType(Archive *fout, const TableInfo *tbinfo);
 extern void fixAttoptionsBbfOriginalName(Archive *fout, Oid relOid, const TableInfo *tbinfo, int idx);
 extern void setOrResetPltsqlFuncRestoreGUCs(Archive *fout, PQExpBuffer q, const FuncInfo *finfo, char prokind, bool proretset, bool is_set);
+extern void dumpBabelItvfColumnNames(Archive *fout);
 extern void dumpBabelfishSpecificConfig(Archive *AH, const char *dbname, PQExpBuffer outbuf);
 extern void updateExtConfigArray(Archive *fout, char ***extconfigarray, int nconfigitems);
 extern void prepareForBabelfishDatabaseDump(Archive *fout, SimpleStringList *schema_include_patterns);
