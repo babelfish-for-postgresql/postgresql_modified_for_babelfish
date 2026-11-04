@@ -248,4 +248,21 @@ extern Selectivity scalararraysel_containment(PlannerInfo *root,
 											  Oid elemtype, bool isEquality, bool useOr,
 											  int varRelid);
 
+/* Babelfish hooks for selectivity estimation override */
+typedef bool (*opexpr_selectivity_hook_type) (PlannerInfo *root,
+											  Node *clause,
+											  int varRelid,
+											  JoinType jointype,
+											  SpecialJoinInfo *sjinfo,
+											  bool use_extended_stats,
+											  Selectivity *selec);
+extern PGDLLEXPORT opexpr_selectivity_hook_type opexpr_selectivity_hook;
+
+typedef bool (*nulltest_selectivity_hook_type) (PlannerInfo *root,
+											    NullTestType nulltesttype,
+											    Node *arg,
+											    int varRelid,
+											    Selectivity *selec);
+extern PGDLLEXPORT nulltest_selectivity_hook_type nulltest_selectivity_hook;
+
 #endif							/* SELFUNCS_H */
