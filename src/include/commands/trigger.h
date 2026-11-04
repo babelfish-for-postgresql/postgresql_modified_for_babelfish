@@ -313,6 +313,7 @@ extern void RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel,
 #define RI_TRIGGER_NONE 0		/* is not an RI trigger function */
 
 extern int	RI_FKey_trigger_type(Oid tgfoid);
+extern void AtEOXact_RI(bool isCommit);
 
 extern PGDLLEXPORT void BeginCompositeTriggers(MemoryContext curCxt);
 extern PGDLLEXPORT void EndCompositeTriggers(bool error);
