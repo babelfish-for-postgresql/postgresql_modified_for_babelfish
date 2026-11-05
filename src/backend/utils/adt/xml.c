@@ -95,6 +95,7 @@
 #include "nodes/execnodes.h"
 #include "nodes/miscnodes.h"
 #include "nodes/nodeFuncs.h"
+#include "parser/parser.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/date.h"
@@ -4802,9 +4803,13 @@ XmlTableSetNamespace(TableFuncScanState *state, const char *name, const char *ur
 				 errmsg("DEFAULT namespace is not supported")));
 	xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetNamespace");
 
-	/* For TSQL OPENXML, following hook will fetch and register namespaces in Xpath context. */
-	if (openxml_set_namespaces_hook)
-        return openxml_set_namespaces_hook(xtCxt->xpathcxt, xtCxt->xmlerrcxt, uri);
+	/*
+	 * For TSQL OPENXML, following hook will fetch and register namespaces in
+	 * Xpath context.  Only the TSQL dialect can produce OPENXML, so a plain
+	 * XMLTABLE falls through to the standard registration below.
+	 */
+	if (sql_dialect == SQL_DIALECT_TSQL && openxml_set_namespaces_hook)
+		return openxml_set_namespaces_hook(xtCxt->xpathcxt, xtCxt->xmlerrcxt, (char *) uri);
 
 	if (xmlXPathRegisterNs(xtCxt->xpathcxt,
 						   pg_xmlCharStrndup(name, strlen(name)),
