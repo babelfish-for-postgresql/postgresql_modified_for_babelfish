@@ -86,6 +86,7 @@
 InvokePreAddConstraintsHook_type InvokePreAddConstraintsHook = NULL;
 transform_check_constraint_expr_hook_type transform_check_constraint_expr_hook = NULL;
 drop_relation_refcnt_hook_type drop_relation_refcnt_hook = NULL;
+GetNextAttributeVersion_hook_type GetNextAttributeVersion_hook = NULL;
 
 /* Potentially set by pg_upgrade_support functions */
 Oid			binary_upgrade_next_heap_pg_class_oid = InvalidOid;
@@ -1052,8 +1053,21 @@ SetBinaryUpgradeAttributeVersions(TupleDesc tupdesc, const char *relname)
  * version.
  */
 XLogRecPtr
-GetNextAttributeVersion(void)
+GetNextAttributeVersion(char relpersistence)
 {
+	/*
+	 * An extension may own relations the source below cannot serve, and
+	 * supply their versions itself.  It declines by returning
+	 * InvalidXLogRecPtr, which is never a usable version.
+	 */
+	if (GetNextAttributeVersion_hook)
+	{
+		XLogRecPtr	version = GetNextAttributeVersion_hook(relpersistence);
+
+		if (!XLogRecPtrIsInvalid(version))
+			return version;
+	}
+
 	return GetXLogInsertRecPtr();
 }
 
@@ -1863,7 +1877,7 @@ heap_create_with_catalog(const char *relname,
 		if (IsBinaryUpgrade)
 			SetBinaryUpgradeAttributeVersions(new_rel_desc->rd_att, relname);
 		else
-			attversion = GetNextAttributeVersion();
+			attversion = GetNextAttributeVersion(relpersistence);
 	}
 
 	/*
