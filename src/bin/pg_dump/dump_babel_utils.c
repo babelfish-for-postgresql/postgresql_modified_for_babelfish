@@ -731,19 +731,27 @@ void fixAttoptionsBbfOriginalName(Archive *fout, Oid relOid, const TableInfo *tb
 	 * As attoptions can be a list of options,
 	 * we will split options first, make them as an array, find an option starting with 'bbf_original_name',
 	 * enclose its value with single quotes, and aggregate all array elements into a single string.
+	 *
+	 * pg_attver is a reserved attribute option holding the attribute's
+	 * version; it is assigned by the server and must not be carried in a
+	 * dump. Mapping it to NULL drops it, as string_agg ignores NULL inputs.
+	 * Core pg_dump filters it out of its own attoptions queries for the same
+	 * reason.
 	 */
 	appendPQExpBuffer(q,
-		"SELECT string_agg( "
-		"CASE "
-		"WHEN option LIKE 'bbf_original_name=%%' "
-		"THEN 'bbf_original_name=' || quote_literal(substring(option, length('bbf_original_name=')+1)) "
-		"ELSE option "
-		"END, ',')::text as options "
-		"FROM ( "
-		"SELECT UNNEST(attoptions) as option FROM pg_attribute where attrelid = %d and attname = '%s' "
-		") option",
-		relOid,
-		escapedAttname
+					  "SELECT string_agg( "
+					  "CASE "
+					  "WHEN option LIKE 'pg_attver=%%' "
+					  "THEN NULL "
+					  "WHEN option LIKE 'bbf_original_name=%%' "
+					  "THEN 'bbf_original_name=' || quote_literal(substring(option, length('bbf_original_name=')+1)) "
+					  "ELSE option "
+					  "END, ',')::text as options "
+					  "FROM ( "
+					  "SELECT UNNEST(attoptions) as option FROM pg_attribute where attrelid = %d and attname = '%s' "
+					  ") option",
+					  relOid,
+					  escapedAttname
 		);
 
 	res = ExecuteSqlQueryForSingleRow(fout, q->data);
