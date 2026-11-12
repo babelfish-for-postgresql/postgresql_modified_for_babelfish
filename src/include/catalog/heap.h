@@ -100,7 +100,15 @@ extern void InsertPgAttributeTuples(Relation pg_attribute_rel,
 									Datum *attoptions,
 									CatalogIndexState indstate);
 
-extern XLogRecPtr GetNextAttributeVersion(void);
+/*
+ * Hook allowing an extension to supply the attribute version for relations it
+ * owns, when the engine's own source cannot serve them.  Returning
+ * InvalidXLogRecPtr declines, leaving the engine to assign the version.
+ */
+typedef XLogRecPtr (*GetNextAttributeVersion_hook_type) (char relpersistence);
+extern PGDLLIMPORT GetNextAttributeVersion_hook_type GetNextAttributeVersion_hook;
+
+extern XLogRecPtr GetNextAttributeVersion(char relpersistence);
 extern HeapTuple SetAttributeVersionInTuple(Relation attrelation,
 											HeapTuple tuple,
 											XLogRecPtr version);
