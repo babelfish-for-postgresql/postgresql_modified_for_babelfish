@@ -7727,7 +7727,9 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 	Assert(HasVersionedAttributes(rel) || allowSystemTableMods);
 	if (HasVersionedAttributes(rel))
 	{
-		XLogRecPtr	attversion = GetNextAttributeVersion();
+		XLogRecPtr	attversion;
+
+		attversion = GetNextAttributeVersion(rel->rd_rel->relpersistence);
 
 		/*
 		 * We rely on the version to be monotonic, so make sure that's true,
@@ -9143,6 +9145,7 @@ ATExecSetOptions(Relation rel, const char *colName, Node *options,
 	newOptions = transformRelOptions(isnull ? (Datum) 0 : datum,
 									 castNode(List, options), NULL, NULL,
 									 false, isReset);
+
 	/* Validate new options except for those allowed by extension */
 	if (!check_extended_attoptions_hook || !check_extended_attoptions_hook(options))
 		(void) attribute_reloptions(newOptions, true);
@@ -14042,7 +14045,7 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 	{
 		HeapTuple	newTup;
 
-		attversion = GetNextAttributeVersion();
+		attversion = GetNextAttributeVersion(rel->rd_rel->relpersistence);
 
 		newTup = SetAttributeVersionInTuple(attrelation,
 											heapTup,
