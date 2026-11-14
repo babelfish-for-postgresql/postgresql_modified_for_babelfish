@@ -25,6 +25,7 @@
 #include "catalog/pg_subscription_rel.h"
 #include "executor/executor.h"
 #include "parser/parser.h"      /* only needed for GUC variables */
+#include "utils/queryenvironment.h"
 #include "utils/rel.h"
 
 

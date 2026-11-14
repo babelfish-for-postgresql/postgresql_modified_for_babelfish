@@ -46,6 +46,7 @@
 #include "storage/procarray.h"
 #include "storage/smgr.h"
 #include "utils/builtins.h"
+#include "utils/queryenvironment.h"
 #include "utils/rel.h"
 #include "utils/tuplesort.h"
 
