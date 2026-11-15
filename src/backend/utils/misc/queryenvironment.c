@@ -787,7 +787,7 @@ bool ENRDropTuple(Relation rel, HeapTuple tup)
 	/*
 	 * The caller falls back to CatalogTupleDelete(&tup->t_self).  A tuple
 	 * without a real heap TID came from an ENR, so a heap delete would hit
-	 * a bogus block.  Refuse it instead of corrupting or crashing.
+	 * a bogus block.  Refuse it here instead.
 	 */
 	if (!ret && HeapTupleIsValid(tup) && !ItemPointerIsValid(&tup->t_self))
 		elog(ERROR, "Failed to drop ENR tuple in relation %u: tuple has no heap TID",
