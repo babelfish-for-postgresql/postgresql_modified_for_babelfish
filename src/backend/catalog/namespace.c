@@ -212,7 +212,7 @@ static SubTransactionId myTempNamespaceSubID = InvalidSubTransactionId;
 char	   *namespace_search_path = NULL;
 
 /* Catalog schema that TSQL uses */
-char *SYS_NAMESPACE_NAME = "sys";
+static char *SYS_NAMESPACE_NAME = "sys";
 
 relname_lookup_hook_type relname_lookup_hook = NULL;
 match_pltsql_func_call_hook_type match_pltsql_func_call_hook = NULL;

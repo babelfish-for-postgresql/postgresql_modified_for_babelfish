@@ -109,17 +109,20 @@ typedef CoercionPathType (*find_coercion_pathway_hook_type) (Oid sourceTypeId,
 									Oid targetTypeId,
 									CoercionContext ccontext,
 									Oid *funcid);
+extern PGDLLEXPORT find_coercion_pathway_hook_type find_coercion_pathway_hook;
 
 /*
  * Hook interface to check TSQL datatype precedence
  * Return true if typeId1 precedes typeId2
  */
 typedef bool (*determine_datatype_precedence_hook_type) (Oid typeId1, Oid typeId2);
+extern PGDLLEXPORT determine_datatype_precedence_hook_type determine_datatype_precedence_hook;
 
 /*
  * Hook interface to determine if a data type is a base type in T-SQL
  */
 typedef bool (*is_tsql_base_datatype_hook_type) (Oid typeId);
+extern PGDLLEXPORT is_tsql_base_datatype_hook_type is_tsql_base_datatype_hook;
 
 /*
  * T-SQL has different rules for string literal datatype coercions
@@ -132,15 +135,18 @@ typedef Node *(*coerce_string_literal_hook_type) (Oid targetTypeId,
 												  CoercionContext ccontext,
 												  CoercionForm cformat,
 												  int location);
+extern PGDLLEXPORT coerce_string_literal_hook_type coerce_string_literal_hook;
 
 /*
  * T-SQL may forbid casting from string literal to certain datatypes (i.e. binary, varbinary)
  */
 typedef void (*validate_implicit_conversion_from_string_literal_hook_type) (Const *newcon, const char *value);
+extern PGDLLEXPORT validate_implicit_conversion_from_string_literal_hook_type validate_implicit_conversion_from_string_literal_hook;
 
 typedef Oid (*select_common_type_hook_type) (ParseState *pstate, List *exprs, const char *context, Node **which_expr);
 extern PGDLLEXPORT select_common_type_hook_type select_common_type_hook;
 typedef int32 (*select_common_typmod_hook_type) (ParseState *pstate, List *exprs, Oid common_type);
+extern PGDLLEXPORT select_common_typmod_hook_type select_common_typmod_hook;
 
 typedef Node *(*handle_constant_literals_hook_type) (ParseState *pstate, Node *e);
 extern PGDLLEXPORT handle_constant_literals_hook_type handle_constant_literals_hook;
