@@ -67,4 +67,6 @@ extern PGDLLEXPORT resolve_target_list_unknowns_hook_type resolve_target_list_un
 typedef void (*handle_type_and_collation_hook_type)(Node *node, Oid typeid, Oid collationid);
 extern PGDLLEXPORT handle_type_and_collation_hook_type handle_type_and_collation_hook;
 
+extern PGDLLEXPORT bool ansi_qualified_update_set_target;
+
 #endif							/* PARSE_TARGET_H */
