@@ -467,7 +467,7 @@ static const struct config_enum_entry default_toast_compression_options[] = {
 	{NULL, 0, false}
 };
 
-const struct config_enum_entry sql_dialect_options[] = {
+static const struct config_enum_entry sql_dialect_options[] = {
 	{"postgres", SQL_DIALECT_PG, false},
 	{"tsql", SQL_DIALECT_TSQL, false},
 	{"pg", SQL_DIALECT_PG, true},
