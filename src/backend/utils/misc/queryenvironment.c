@@ -83,7 +83,7 @@ static Oid ENRCatalogOids[NUM_ENR_CATALOGS] =
 	AttrDefaultRelationId		/* pg_attrdef */
 };
 
-struct QueryEnvironment topLevelQueryEnvData;
+static struct QueryEnvironment topLevelQueryEnvData;
 struct QueryEnvironment *topLevelQueryEnv = &topLevelQueryEnvData;
 struct QueryEnvironment *currentQueryEnv = NULL;
 
