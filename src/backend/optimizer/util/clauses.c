@@ -1222,6 +1222,11 @@ contain_context_dependent_node_walker(Node *node, int *flags)
  * passed Var nodes of the current query level, and which might therefore leak
  * data.  Such clauses must be applied after any lower-level security barrier
  * clauses.
+ *
+ * We might find a leaky function that is passed a CaseTestExpr or internal
+ * Param.  Those cases are dangerous since the CaseTestExpr or Param might
+ * represent the value of a Var.  We do not go to the trouble of figuring
+ * out whether it actually does; we just deem the clause leaky.
  */
 bool
 contain_leaked_vars(Node *clause)
@@ -1277,12 +1282,12 @@ contain_leaked_vars_walker(Node *node, void *context)
 		case T_ArrayCoerceExpr:
 
 			/*
-			 * If node contains a leaky function call, and there's any Var
-			 * underneath it, reject.
+			 * If node contains a leaky function call, and there's any Var or
+			 * Var-representative node underneath it, reject.
 			 */
 			if (check_functions_in_node(node, contain_leaked_vars_checker,
 										context) &&
-				contain_var_clause(node))
+				contain_var_or_representative(node))
 				return true;
 			break;
 
@@ -1300,7 +1305,7 @@ contain_leaked_vars_walker(Node *node, void *context)
 					  sbsroutines->fetch_leakproof))
 				{
 					/* Node is leaky, so reject if it contains Vars */
-					if (contain_var_clause(node))
+					if (contain_var_or_representative(node))
 						return true;
 				}
 			}
@@ -1325,8 +1330,8 @@ contain_leaked_vars_walker(Node *node, void *context)
 					Oid			funcid = get_opcode(lfirst_oid(opid));
 
 					if (!get_func_leakproof(funcid) &&
-						(contain_var_clause((Node *) lfirst(larg)) ||
-						 contain_var_clause((Node *) lfirst(rarg))))
+						(contain_var_or_representative((Node *) lfirst(larg)) ||
+						 contain_var_or_representative((Node *) lfirst(rarg))))
 						return true;
 				}
 			}
@@ -1357,7 +1362,7 @@ contain_leaked_vars_walker(Node *node, void *context)
 				}
 
 				if (!leakproof &&
-					contain_var_clause((Node *) minmaxexpr->args))
+					contain_var_or_representative((Node *) minmaxexpr->args))
 					return true;
 			}
 			break;
@@ -5282,7 +5287,8 @@ substitute_actual_srf_parameters_mutator(Node *node,
 
 /*
  * pull_paramids
- *		Returns a Bitmapset containing the paramids of all Params in 'expr'.
+ *		Returns a Bitmapset containing the paramids of all PARAM_EXEC Params
+ *		in 'expr'.
  */
 Bitmapset *
 pull_paramids(Expr *expr)
@@ -5303,7 +5309,8 @@ pull_paramids_walker(Node *node, Bitmapset **context)
 	{
 		Param	   *param = (Param *)node;
 
-		*context = bms_add_member(*context, param->paramid);
+		if (param->paramkind == PARAM_EXEC)
+			*context = bms_add_member(*context, param->paramid);
 		return false;
 	}
 	return expression_tree_walker(node, pull_paramids_walker,

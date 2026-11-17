@@ -41,6 +41,7 @@
 #include "access/attnum.h"
 #include "access/sysattr.h"
 #include "access/transam.h"
+#include "access/xlogdefs.h"
 #include "catalog/pg_aggregate_d.h"
 #include "catalog/pg_am_d.h"
 #include "catalog/pg_attribute_d.h"
@@ -295,6 +296,9 @@ static void binary_upgrade_extension_member(PQExpBuffer upgrade_buffer,
 											const char *objtype,
 											const char *objname,
 											const char *objnamespace);
+static void binary_upgrade_set_next_attribute_versions(PQExpBuffer upgrade_buffer,
+													   int numatts,
+													   const uint64 *attversions);
 static const char *getAttrName(int attrnum, const TableInfo *tblInfo);
 static const char *fmtCopyColumnList(const TableInfo *ti, PQExpBuffer buffer);
 static bool nonemptyReloptions(const char *reloptions);
@@ -305,6 +309,7 @@ static void setupDumpWorker(Archive *AHX);
 static void set_restrict_relation_kind(Archive *AH, const char *value);
 static TableInfo *getRootTableInfo(const TableInfo *tbinfo);
 static bool forcePartitionRootLoad(const TableInfo *tbinfo);
+static uint64 pg_strtouint64(const char *str, char **endptr, int base);
 
 
 int
@@ -697,11 +702,13 @@ main(int argc, char **argv)
 
 	/* archiveFormat specific setup */
 	if (archiveFormat == archNull)
-	{
 		plainText = 1;
-
+	if (archiveFormat == archNull ||
+		archiveFormat == archTar)
+	{
 		/*
 		 * If you don't provide a restrict key, one will be appointed for you.
+		 * tar format uses this for its undocumented restore.sql file.
 		 */
 		if (!dopt.restrict_key)
 			dopt.restrict_key = generate_restrict_key();
@@ -711,7 +718,8 @@ main(int argc, char **argv)
 			fatal("invalid restrict key");
 	}
 	else if (dopt.restrict_key)
-		fatal("option --restrict-key can only be used with --format=plain");
+		fatal("option %s can only be used with %s or %s",
+			  "--restrict-key", "--format=plain", "--format=tar");
 
 	/* Custom and directory formats are compressed by default, others not */
 	if (compressLevel == -1)
@@ -5009,6 +5017,37 @@ binary_upgrade_set_pg_class_oids(Archive *fout,
 }
 
 /*
+ * Emit SQL to pre-set the attribute versions for the next relation to be
+ * created.
+ *
+ * attversions[j] is the version of attribute j+1, or InvalidXLogRecPtr if it
+ * was unversioned in the source cluster. This needs to include dropped
+ * attributes.
+ *
+ * The version has to be set as part of the CREATE itself, rather than be
+ * fixed up afterwards, as some CREATE statements can contain expressions that
+ * can embed a row type constant of the relation being created. If the
+ * attribute versions were to be updated subsequently, the embedded datums
+ * would be considered "out-of-date" and throw errors on use.
+ */
+static void
+binary_upgrade_set_next_attribute_versions(PQExpBuffer upgrade_buffer,
+										   int numatts,
+										   const uint64 *attversions)
+{
+	appendPQExpBufferStr(upgrade_buffer,
+						 "\n-- For binary upgrade, must preserve the attribute versions\n"
+						 "SELECT pg_catalog.binary_upgrade_set_next_attribute_versions('{");
+
+	for (int j = 0; j < numatts; j++)
+		appendPQExpBuffer(upgrade_buffer, "%s%X/%X",
+						  j > 0 ? "," : "",
+						  LSN_FORMAT_ARGS(attversions[j]));
+
+	appendPQExpBufferStr(upgrade_buffer, "}'::pg_catalog.pg_lsn[]);\n\n");
+}
+
+/*
  * If the DumpableObject is a member of an extension, add a suitable
  * ALTER EXTENSION ADD command to the creation commands in upgrade_buffer.
  *
@@ -9035,12 +9074,35 @@ getTableAttrs(Archive *fout, TableInfo *tblinfo, int numTables)
 							 "a.attislocal,\n"
 							 "pg_catalog.format_type(t.oid, a.atttypmod) AS atttypname,\n");
 
+		/*
+		 * Read attoptions and attversion.
+		 *
+		 * Attversion is stored as a special attoptions value in the
+		 * back-branches. In that case we need to remove the special attoptions
+		 * value.
+		 *
+		 * Attribute versioning may also have been backpatched to versions
+		 * older than the ones it was backpatched to upstream, so do this for
+		 * all server versions that have attoptions (i.e. >= 9.0), without
+		 * using functions missing in old versions (like starts_with()).
+		 */
 		if (fout->remoteVersion >= 90000)
-			appendPQExpBufferStr(q,
-								 "array_to_string(a.attoptions, ', ') AS attoptions,\n");
+			appendPQExpBuffer(q,
+							  "array_to_string(ARRAY(\n"
+							  "  SELECT o FROM unnest(a.attoptions) o\n"
+							  "  WHERE substr(o, 1, %2$zu) <> '%1$s='\n"
+							  "), ', ') AS attoptions,\n"
+							  "(\n"
+							  "  SELECT substr(o, %2$zu + 1)\n"
+							  "  FROM unnest(a.attoptions) o\n"
+							  "  WHERE substr(o, 1, %2$zu) = '%1$s='\n"
+							  ") AS attversion,\n",
+							  ATTRIBUTE_VERSION_ATTOPTION,
+							  strlen(ATTRIBUTE_VERSION_ATTOPTION) + 1);
 		else
 			appendPQExpBufferStr(q,
-								 "'' AS attoptions,\n");
+								 "'' AS attoptions,\n"
+								 "NULL AS attversion,\n");
 
 		if (fout->remoteVersion >= 90100)
 		{
@@ -9125,6 +9187,7 @@ getTableAttrs(Archive *fout, TableInfo *tblinfo, int numTables)
 		tbinfo->attalign = (char *) pg_malloc(ntups * sizeof(char));
 		tbinfo->attislocal = (bool *) pg_malloc(ntups * sizeof(bool));
 		tbinfo->attoptions = (char **) pg_malloc(ntups * sizeof(char *));
+		tbinfo->attversion = (uint64 *) pg_malloc(ntups * sizeof(uint64));
 		tbinfo->attcollation = (Oid *) pg_malloc(ntups * sizeof(Oid));
 		tbinfo->attcompression = (char *) pg_malloc(ntups * sizeof(char));
 		tbinfo->attfdwoptions = (char **) pg_malloc(ntups * sizeof(char *));
@@ -9154,6 +9217,10 @@ getTableAttrs(Archive *fout, TableInfo *tblinfo, int numTables)
 			tbinfo->attislocal[j] = (PQgetvalue(res, j, PQfnumber(res, "attislocal"))[0] == 't');
 			tbinfo->notnull[j] = (PQgetvalue(res, j, PQfnumber(res, "attnotnull"))[0] == 't');
 			tbinfo->attoptions[j] = pg_strdup(PQgetvalue(res, j, PQfnumber(res, "attoptions")));
+			if (PQgetisnull(res, j, PQfnumber(res, "attversion")))
+				tbinfo->attversion[j] = 0;
+			else
+				tbinfo->attversion[j] = pg_strtouint64(PQgetvalue(res, j, PQfnumber(res, "attversion")), NULL, 10);
 			tbinfo->attcollation[j] = atooid(PQgetvalue(res, j, PQfnumber(res, "attcollation")));
 			tbinfo->attcompression[j] = *(PQgetvalue(res, j, PQfnumber(res, "attcompression")));
 			tbinfo->attfdwoptions[j] = pg_strdup(PQgetvalue(res, j, PQfnumber(res, "attfdwoptions")));
@@ -11778,8 +11845,11 @@ dumpCompositeType(Archive *fout, const TypeInfo *tyinfo)
 	int			i_attalign;
 	int			i_attisdropped;
 	int			i_attcollation;
+	int			i_attnum;
+	int			i_attversion;
 	int			i;
 	int			actual_atts;
+	uint64	   *attversions = NULL;
 
 	/* Fetch type specific details */
 	if (fout->remoteVersion >= 90100)
@@ -11791,11 +11861,31 @@ dumpCompositeType(Archive *fout, const TypeInfo *tyinfo)
 		 * attcollations cheaply.  atttypid will be 0 for dropped columns;
 		 * collation does not matter for those.
 		 */
-		appendPQExpBuffer(query, "SELECT a.attname, "
+		appendPQExpBuffer(query, "SELECT a.attname, a.attnum, "
 						  "pg_catalog.format_type(a.atttypid, a.atttypmod) AS atttypdefn, "
 						  "a.attlen, a.attalign, a.attisdropped, "
 						  "CASE WHEN a.attcollation <> at.typcollation "
-						  "THEN a.attcollation ELSE 0 END AS attcollation "
+						  "THEN a.attcollation ELSE 0 END AS attcollation, ");
+
+		/*
+		 * See similar code in getTableAttrs().
+		 *
+		 * XXX: This query is non-trivial enough to make deduplicating with
+		 * getTableAttrs() worthwhile. But ISTM the proper way for that is to
+		 * deduplicate all of getTableAttrs() and dumpCompositeType().
+		 *
+		 * I think it's safe to assume that nobody will backport attribute
+		 * versioning to before 9.1.
+		 */
+		appendPQExpBuffer(query,
+						  "(\n"
+						  " SELECT substr(o, %2$zu + 1)\n"
+						  " FROM unnest(a.attoptions) o\n"
+						  " WHERE substr(o, 1, %2$zu) = '%1$s=') AS attversion\n",
+						  ATTRIBUTE_VERSION_ATTOPTION,
+						  strlen(ATTRIBUTE_VERSION_ATTOPTION) + 1);
+
+		appendPQExpBuffer(query,
 						  "FROM pg_catalog.pg_type ct "
 						  "JOIN pg_catalog.pg_attribute a ON a.attrelid = ct.typrelid "
 						  "LEFT JOIN pg_catalog.pg_type at ON at.oid = a.atttypid "
@@ -11809,10 +11899,10 @@ dumpCompositeType(Archive *fout, const TypeInfo *tyinfo)
 		 * Since ALTER TYPE could not drop columns until 9.1, attisdropped
 		 * should always be false.
 		 */
-		appendPQExpBuffer(query, "SELECT a.attname, "
+		appendPQExpBuffer(query, "SELECT a.attname, a.attnum, "
 						  "pg_catalog.format_type(a.atttypid, a.atttypmod) AS atttypdefn, "
 						  "a.attlen, a.attalign, a.attisdropped, "
-						  "0 AS attcollation "
+						  "0 AS attcollation, NULL AS attversion "
 						  "FROM pg_catalog.pg_type ct, pg_catalog.pg_attribute a "
 						  "WHERE ct.oid = '%u'::pg_catalog.oid "
 						  "AND a.attrelid = ct.typrelid "
@@ -11830,13 +11920,30 @@ dumpCompositeType(Archive *fout, const TypeInfo *tyinfo)
 	i_attalign = PQfnumber(res, "attalign");
 	i_attisdropped = PQfnumber(res, "attisdropped");
 	i_attcollation = PQfnumber(res, "attcollation");
+	i_attnum = PQfnumber(res, "attnum");
+	i_attversion = PQfnumber(res, "attversion");
 
 	if (dopt->binary_upgrade)
 	{
+		/*
+		 * Collect the attribute versions in a pass of their own, so that they
+		 * can be emitted before the CREATE TYPE, like in dumpTableSchema().
+		 */
+		attversions = pg_malloc0_array(uint64, ntups);
+		for (i = 0; i < ntups; i++)
+		{
+			int			attnum = atoi(PQgetvalue(res, i, i_attnum));
+
+			if (attnum >= 1 && attnum <= ntups &&
+				!PQgetisnull(res, i, i_attversion))
+				attversions[attnum - 1] = pg_strtouint64(PQgetvalue(res, i, i_attversion), NULL, 10);
+		}
+
 		binary_upgrade_set_type_oids_by_type_oid(fout, q,
 												 tyinfo->dobj.catId.oid,
 												 false, false);
 		binary_upgrade_set_pg_class_oids(fout, q, tyinfo->typrelid, false);
+		binary_upgrade_set_next_attribute_versions(q, ntups, attversions);
 	}
 
 	qtypname = pg_strdup(fmtId(tyinfo->dobj.name));
@@ -11955,6 +12062,8 @@ dumpCompositeType(Archive *fout, const TypeInfo *tyinfo)
 	PQclear(res);
 	destroyPQExpBuffer(q);
 	destroyPQExpBuffer(dropped);
+	if (attversions != NULL)
+		pg_free(attversions);
 	destroyPQExpBuffer(delq);
 	destroyPQExpBuffer(query);
 	free(qtypname);
@@ -16163,8 +16272,15 @@ dumpTableSchema(Archive *fout, const TableInfo *tbinfo)
 					   qrelname);
 
 	if (dopt->binary_upgrade)
+	{
 		binary_upgrade_set_type_oids_by_rel_oid(fout, q,
 												tbinfo->dobj.catId.oid);
+
+		/* only relations with a row type have versioned attributes */
+		if (RELKIND_HAS_ROWTYPE(tbinfo->relkind))
+			binary_upgrade_set_next_attribute_versions(q, tbinfo->numatts,
+													   tbinfo->attversion);
+	}
 
 	/* Is it a table or a view? */
 	if (tbinfo->relkind == RELKIND_VIEW)
@@ -17084,6 +17200,48 @@ getAttrName(int attrnum, const TableInfo *tblInfo)
 }
 
 /*
+ * appendIndexStatTargets
+ *	  append ALTER INDEX ... SET STATISTICS commands for the per-column
+ *	  statistics targets of an index (attstattarget), if any.
+ */
+static void
+appendIndexStatTargets(PQExpBuffer q, const IndxInfo *indxinfo)
+{
+	char	  **indstatcolsarray = NULL;
+	char	  **indstatvalsarray = NULL;
+	int			nstatcols = 0;
+	int			nstatvals = 0;
+
+	if (strlen(indxinfo->indstatcols) == 0 &&
+		strlen(indxinfo->indstatvals) == 0)
+		return;
+
+	if (!parsePGArray(indxinfo->indstatcols, &indstatcolsarray, &nstatcols))
+		fatal("could not parse index statistic columns");
+	if (!parsePGArray(indxinfo->indstatvals, &indstatvalsarray, &nstatvals))
+		fatal("could not parse index statistic values");
+	if (nstatcols != nstatvals)
+		fatal("mismatched number of columns and values for index statistics");
+
+	for (int j = 0; j < nstatcols; j++)
+	{
+		appendPQExpBuffer(q, "ALTER INDEX %s ",
+						  fmtQualifiedDumpable(indxinfo));
+
+		/*
+		 * Note that this is a column number, so no quotes should be used.
+		 */
+		appendPQExpBuffer(q, "ALTER COLUMN %s ",
+						  indstatcolsarray[j]);
+		appendPQExpBuffer(q, "SET STATISTICS %s;\n",
+						  indstatvalsarray[j]);
+	}
+
+	free(indstatcolsarray);
+	free(indstatvalsarray);
+}
+
+/*
  * dumpIndex
  *	  write out to fout a user-defined index
  */
@@ -17116,13 +17274,6 @@ dumpIndex(Archive *fout, const IndxInfo *indxinfo)
 	 */
 	if (!is_constraint)
 	{
-		char	   *indstatcols = indxinfo->indstatcols;
-		char	   *indstatvals = indxinfo->indstatvals;
-		char	  **indstatcolsarray = NULL;
-		char	  **indstatvalsarray = NULL;
-		int			nstatcols = 0;
-		int			nstatvals = 0;
-
 		if (dopt->binary_upgrade)
 			binary_upgrade_set_pg_class_oids(fout, q,
 											 indxinfo->dobj.catId.oid, true);
@@ -17146,35 +17297,8 @@ dumpIndex(Archive *fout, const IndxInfo *indxinfo)
 							  qindxname);
 		}
 
-		/*
-		 * If the index has any statistics on some of its columns, generate
-		 * the associated ALTER INDEX queries.
-		 */
-		if (strlen(indstatcols) != 0 || strlen(indstatvals) != 0)
-		{
-			int			j;
-
-			if (!parsePGArray(indstatcols, &indstatcolsarray, &nstatcols))
-				fatal("could not parse index statistic columns");
-			if (!parsePGArray(indstatvals, &indstatvalsarray, &nstatvals))
-				fatal("could not parse index statistic values");
-			if (nstatcols != nstatvals)
-				fatal("mismatched number of columns and values for index statistics");
-
-			for (j = 0; j < nstatcols; j++)
-			{
-				appendPQExpBuffer(q, "ALTER INDEX %s ", qqindxname);
-
-				/*
-				 * Note that this is a column number, so no quotes should be
-				 * used.
-				 */
-				appendPQExpBuffer(q, "ALTER COLUMN %s ",
-								  indstatcolsarray[j]);
-				appendPQExpBuffer(q, "SET STATISTICS %s;\n",
-								  indstatvalsarray[j]);
-			}
-		}
+		/* Per-column statistics targets, if any */
+		appendIndexStatTargets(q, indxinfo);
 
 		/* Indexes can depend on extensions */
 		append_depends_on_extension(fout, q, &indxinfo->dobj,
@@ -17213,11 +17337,6 @@ dumpIndex(Archive *fout, const IndxInfo *indxinfo)
 									  .section = SECTION_POST_DATA,
 									  .createStmt = q->data,
 									  .dropStmt = delq->data));
-
-		if (indstatcolsarray)
-			free(indstatcolsarray);
-		if (indstatvalsarray)
-			free(indstatvalsarray);
 	}
 
 	/* Dump Index Comments */
@@ -17476,6 +17595,9 @@ dumpConstraint(Archive *fout, const ConstraintInfo *coninfo)
 			appendPQExpBuffer(q, " ON %s;\n",
 							  fmtId(indxinfo->dobj.name));
 		}
+
+		/* Per-column statistics targets, if any */
+		appendIndexStatTargets(q, indxinfo);
 
 		/* If the index defines identity, we need to record that. */
 		if (indxinfo->indisreplident)
@@ -19318,4 +19440,29 @@ appendReloptionsArrayAH(PQExpBuffer buffer, const char *reloptions,
 								fout->std_strings);
 	if (!res)
 		pg_log_warning("could not parse reloptions array");
+}
+
+/*
+ * pg_strtouint64
+ *		Converts 'str' into an unsigned 64-bit integer.
+ *
+ * This has the identical API to strtoul(3), except that it will handle
+ * 64-bit ints even where "long" is narrower than that.
+ *
+ * For the moment it seems sufficient to assume that the platform has
+ * such a function somewhere; let's not roll our own.
+ *
+ * In 14 there's no pg_strtouint64() available in FE code, so copying the BE
+ * version seems to be the most straightforward approach for backpatching.
+ */
+static uint64
+pg_strtouint64(const char *str, char **endptr, int base)
+{
+#ifdef _MSC_VER					/* MSVC only */
+	return _strtoui64(str, endptr, base);
+#elif defined(HAVE_STRTOULL) && SIZEOF_LONG < 8
+	return strtoull(str, endptr, base);
+#else
+	return strtoul(str, endptr, base);
+#endif
 }

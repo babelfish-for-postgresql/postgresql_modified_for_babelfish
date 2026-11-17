@@ -80,3 +80,21 @@ insert into spgist_domain_tbl values('fee'), ('fi'), ('fo'), ('fum');
 explain (costs off)
 select * from spgist_domain_tbl where f1 = 'fo';
 select * from spgist_domain_tbl where f1 = 'fo';
+
+-- Bug #19597: coverage of getQuadrant for a point just over EPSILON from the centroid
+create table spgist_quad_fp_tbl(p point);
+insert into spgist_quad_fp_tbl select point(i, 5) from generate_series(1, 300) i;
+create index spgist_quad_fp_idx on spgist_quad_fp_tbl using spgist(p);
+insert into spgist_quad_fp_tbl values (point(3, 5 + 1e-6));
+
+-- Bug #19597: needs exact comparison on one axis, within EPSILON on the other
+insert into spgist_quad_fp_tbl values (point(114 - 5e-7, 5 + 1e-6));
+set enable_seqscan = off;
+select count(*) from spgist_quad_fp_tbl
+  where p <@ box(point(113.999999, 5.0000004), point(113.9999999, 5.0000016));
+
+-- test top of box within EPSILON of the centroid
+insert into spgist_quad_fp_tbl values (point(200, 5 - 5e-6));
+select count(*) from spgist_quad_fp_tbl
+  where p <@ box(point(0, 4.99999), point(400, 4.9999995));
+reset enable_seqscan;
