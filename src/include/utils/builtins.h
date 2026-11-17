@@ -128,7 +128,7 @@ extern int32 type_maximum_size(Oid type_oid, int32 typemod);
 extern char *quote_literal_cstr(const char *rawstr);
 
 /* varchar.c */
-typedef bool (*suppress_string_truncation_error_hook_type)();
+typedef bool (*suppress_string_truncation_error_hook_type) (void);
 extern PGDLLIMPORT suppress_string_truncation_error_hook_type suppress_string_truncation_error_hook;
 
 /* name.c */
