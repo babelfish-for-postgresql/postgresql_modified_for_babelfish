@@ -541,12 +541,16 @@ finish_edata(ApplyExecutionData *edata)
 		ExecCleanupTupleRouting(edata->mtstate, edata->proute);
 
 	/*
-	 * Cleanup.  It might seem that we should call ExecCloseResultRelations()
-	 * here, but we intentionally don't.  It would close the rel we added to
+	 * Close relations opened specifically for trigger targets.  It might seem
+	 * that we should call ExecCloseResultRelations() here, but we
+	 * intentionally don't as that would close the rel we added to
 	 * es_opened_result_relations above, which is wrong because we took no
-	 * corresponding refcount.  We rely on ExecCleanupTupleRouting() to close
-	 * any other relations opened during execution.
+	 * corresponding refcount.  ExecCleanupTupleRouting() closes relations
+	 * opened for tuple routing, while ExecCloseTrigTargetRelations() closes
+	 * any relations we opened for AFTER triggers.
 	 */
+	ExecCloseTrigTargetRelations(estate);
+
 	ExecResetTupleTable(estate->es_tupleTable, false);
 	FreeExecutorState(estate);
 	pfree(edata);
@@ -639,8 +643,10 @@ slot_store_data(TupleTableSlot *slot, LogicalRepRelMapEntry *rel,
 			if (remoteattnum >= tupleData->ncols)
 				ereport(ERROR,
 						(errcode(ERRCODE_PROTOCOL_VIOLATION),
-						 errmsg("logical replication column %d not found in tuple: only %d column(s) received",
-								remoteattnum + 1, tupleData->ncols)));
+						 errmsg_plural("logical replication column %d not found in tuple: only %d column received",
+									   "logical replication column %d not found in tuple: only %d columns received",
+									   tupleData->ncols,
+									   remoteattnum + 1, tupleData->ncols)));
 
 			colvalue = &tupleData->colvalues[remoteattnum];
 
@@ -756,8 +762,10 @@ slot_modify_data(TupleTableSlot *slot, TupleTableSlot *srcslot,
 		if (remoteattnum >= tupleData->ncols)
 			ereport(ERROR,
 					(errcode(ERRCODE_PROTOCOL_VIOLATION),
-					 errmsg("logical replication column %d not found in tuple: only %d column(s) received",
-							remoteattnum + 1, tupleData->ncols)));
+					 errmsg_plural("logical replication column %d not found in tuple: only %d column received",
+								   "logical replication column %d not found in tuple: only %d columns received",
+								   tupleData->ncols,
+								   remoteattnum + 1, tupleData->ncols)));
 
 		if (tupleData->colstatus[remoteattnum] != LOGICALREP_COLUMN_UNCHANGED)
 		{
@@ -1861,8 +1869,10 @@ apply_handle_update(StringInfo s)
 			if (remoteattnum >= newtup.ncols)
 				ereport(ERROR,
 						(errcode(ERRCODE_PROTOCOL_VIOLATION),
-						 errmsg("logical replication column %d not found in tuple: only %d column(s) received",
-								remoteattnum + 1, newtup.ncols)));
+						 errmsg_plural("logical replication column %d not found in tuple: only %d column received",
+									   "logical replication column %d not found in tuple: only %d columns received",
+									   newtup.ncols,
+									   remoteattnum + 1, newtup.ncols)));
 
 			if (newtup.colstatus[remoteattnum] != LOGICALREP_COLUMN_UNCHANGED)
 				target_rte->updatedCols =
@@ -2185,9 +2195,9 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 	 * unsupported relkinds; and the set of partitions can change, so checking
 	 * at CREATE/ALTER SUBSCRIPTION would be insufficient.
 	 */
-	CheckSubscriptionRelkind(partrel->rd_rel->relkind,
-							 get_namespace_name(RelationGetNamespace(partrel)),
-							 RelationGetRelationName(partrel));
+	CheckSubscriptionTargetRel(RelationGetRelid(partrel),
+							   get_namespace_name(RelationGetNamespace(partrel)),
+							   RelationGetRelationName(partrel));
 
 	/*
 	 * To perform any of the operations below, the tuple must match the
@@ -2341,9 +2351,9 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 					partrel_new = partrelinfo_new->ri_RelationDesc;
 
 					/* Check that new partition also has supported relkind. */
-					CheckSubscriptionRelkind(partrel_new->rd_rel->relkind,
-											 get_namespace_name(RelationGetNamespace(partrel_new)),
-											 RelationGetRelationName(partrel_new));
+					CheckSubscriptionTargetRel(RelationGetRelid(partrel_new),
+											   get_namespace_name(RelationGetNamespace(partrel_new)),
+											   RelationGetRelationName(partrel_new));
 
 					/* DELETE old tuple found in the old partition. */
 					apply_handle_delete_internal(edata, partrelinfo,
