@@ -338,6 +338,9 @@ WalSndErrorCleanup(void)
 	if (xlogreader != NULL && xlogreader->seg.ws_file >= 0)
 		wal_segment_close(xlogreader);
 
+	xlogreader = NULL;
+	logical_decoding_ctx = NULL;
+
 	if (MyReplicationSlot != NULL)
 		ReplicationSlotRelease();
 
@@ -859,6 +862,9 @@ StartReplication(StartReplicationCmd *cmd)
 		Assert(streamingDoneSending && streamingDoneReceiving);
 	}
 
+	XLogReaderFree(xlogreader);
+	xlogreader = NULL;
+
 	if (cmd->slotname)
 		ReplicationSlotRelease();
 
@@ -1363,6 +1369,8 @@ StartLogicalReplication(StartReplicationCmd *cmd)
 	WalSndLoop(XLogSendLogical);
 
 	FreeDecodingContext(logical_decoding_ctx);
+	logical_decoding_ctx = NULL;
+	xlogreader = NULL;
 	ReplicationSlotRelease();
 
 	replication_active = false;
@@ -1759,6 +1767,9 @@ exec_replication_command(const char *cmd_string)
 
 	CHECK_FOR_INTERRUPTS();
 
+	Assert(xlogreader == NULL);
+	Assert(logical_decoding_ctx == NULL);
+
 	/*
 	 * Prepare to parse and execute the command.
 	 */
@@ -1892,7 +1903,6 @@ exec_replication_command(const char *cmd_string)
 				/* dupe, but necessary per libpqrcv_endstreaming */
 				EndReplicationCommand(cmdtag);
 
-				Assert(xlogreader != NULL);
 				break;
 			}
 
@@ -3469,7 +3479,47 @@ WalSndWait(uint32 socket_events, long timeout, uint32 wait_event)
 	 * walsenders for selective wake ups, see WalSndWakeup() for more details.
 	 */
 	if (MyWalSnd->kind == REPLICATION_KIND_PHYSICAL)
+	{
 		ConditionVariablePrepareToSleep(&WalSndCtl->wal_flush_cv);
+
+		/*
+		 * Recheck the conditions tested by XLogSendPhysical() now that we're
+		 * on the waitlist. Otherwise, we could miss a wakeup for a WAL flush,
+		 * promotion, or timeline switch that occurred before we joined it.
+		 */
+		if (wait_event == WAIT_EVENT_WAL_SENDER_MAIN &&
+			!sendTimeLineIsHistoric && !pq_is_send_pending())
+		{
+			XLogRecPtr	flushPtr;
+			bool		becameHistoric = false;
+
+			Assert(WalSndCaughtUp);
+			Assert(!streamingDoneSending);
+
+			if (am_cascading_walsender)
+			{
+				TimeLineID	flushTLI;
+
+				flushPtr = GetStandbyFlushRecPtr(&flushTLI);
+
+				/*
+				 * Promotion or a timeline switch need not advance the flush
+				 * pointer.  Let XLogSendPhysical() handle the now-historic
+				 * timeline.
+				 */
+				becameHistoric = !RecoveryInProgress() ||
+					sendTimeLine != flushTLI;
+			}
+			else
+				flushPtr = GetFlushRecPtr(NULL);
+
+			if (flushPtr > sentPtr || becameHistoric)
+			{
+				ConditionVariableCancelSleep();
+				return;
+			}
+		}
+	}
 	else if (MyWalSnd->kind == REPLICATION_KIND_LOGICAL)
 		ConditionVariablePrepareToSleep(&WalSndCtl->wal_replay_cv);
 
