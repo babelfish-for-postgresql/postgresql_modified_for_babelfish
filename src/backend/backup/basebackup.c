@@ -21,8 +21,10 @@
 #include "backup/basebackup.h"
 #include "backup/basebackup_sink.h"
 #include "backup/basebackup_target.h"
+#include "catalog/pg_control.h"
 #include "commands/defrem.h"
 #include "common/compression.h"
+#include "common/controldata_utils.h"
 #include "common/file_perm.h"
 #include "lib/stringinfo.h"
 #include "miscadmin.h"
@@ -38,6 +40,7 @@
 #include "storage/dsm_impl.h"
 #include "storage/fd.h"
 #include "storage/ipc.h"
+#include "storage/lwlock.h"
 #include "storage/reinit.h"
 #include "utils/builtins.h"
 #include "utils/ps_status.h"
@@ -79,10 +82,11 @@ static int64 sendDir(bbsink *sink, const char *path, int basepathlen, bool sizeo
 					 List *tablespaces, bool sendtblspclinks,
 					 backup_manifest_info *manifest, const char *spcoid);
 static bool sendFile(bbsink *sink, const char *readfilename, const char *tarfilename,
-					 struct stat *statbuf, bool missing_ok, Oid dboid,
+					 const struct stat *statbuf, bool missing_ok, Oid dboid,
+					 bool isRelationFile,
 					 backup_manifest_info *manifest, const char *spcoid);
 static void sendFileWithContent(bbsink *sink, const char *filename,
-								const char *content,
+								const char *content, int len,
 								backup_manifest_info *manifest);
 static int64 _tarWriteHeader(bbsink *sink, const char *filename,
 							 const char *linktarget, struct stat *statbuf,
@@ -310,20 +314,22 @@ perform_base_backup(basebackup_options *opt, bbsink *sink)
 
 			if (ti->path == NULL)
 			{
-				struct stat statbuf;
 				bool		sendtblspclinks = true;
+				ControlFileData *controlData;
+				bool		crc_ok;
+				char	   *controlFile;
 
 				bbsink_begin_archive(sink, "base.tar");
 
 				/* In the main tar, include the backup_label first... */
-				sendFileWithContent(sink, BACKUP_LABEL_FILE, labelfile->data,
-									&manifest);
+				sendFileWithContent(sink, BACKUP_LABEL_FILE,
+									labelfile->data, -1, &manifest);
 
 				/* Then the tablespace_map file, if required... */
 				if (opt->sendtblspcmapfile)
 				{
-					sendFileWithContent(sink, TABLESPACE_MAP, tblspc_map_file->data,
-										&manifest);
+					sendFileWithContent(sink, TABLESPACE_MAP,
+										tblspc_map_file->data, -1, &manifest);
 					sendtblspclinks = false;
 				}
 
@@ -332,13 +338,23 @@ perform_base_backup(basebackup_options *opt, bbsink *sink)
 						sendtblspclinks, &manifest, NULL);
 
 				/* ... and pg_control after everything else. */
-				if (lstat(XLOG_CONTROL_FILE, &statbuf) != 0)
+				LWLockAcquire(ControlFileLock, LW_SHARED);
+				controlData = get_controlfile(DataDir, &crc_ok);
+				LWLockRelease(ControlFileLock);
+
+				if (!crc_ok)
 					ereport(ERROR,
-							(errcode_for_file_access(),
-							 errmsg("could not stat file \"%s\": %m",
-									XLOG_CONTROL_FILE)));
-				sendFile(sink, XLOG_CONTROL_FILE, XLOG_CONTROL_FILE, &statbuf,
-						 false, InvalidOid, &manifest, NULL);
+							(errmsg("calculated CRC checksum does not match value stored in file")));
+
+				/* Send the full file, zero-padded as it is on disk */
+				controlFile = palloc0(PG_CONTROL_FILE_SIZE);
+				memcpy(controlFile, controlData, sizeof(ControlFileData));
+				pfree(controlData);
+
+				sendFileWithContent(sink, XLOG_CONTROL_FILE,
+									controlFile, PG_CONTROL_FILE_SIZE,
+									&manifest);
+				pfree(controlFile);
 			}
 			else
 			{
@@ -575,7 +591,7 @@ perform_base_backup(basebackup_options *opt, bbsink *sink)
 			 * complete segment.
 			 */
 			StatusFilePath(pathbuf, walFileName, ".done");
-			sendFileWithContent(sink, pathbuf, "", &manifest);
+			sendFileWithContent(sink, pathbuf, "", -1, &manifest);
 		}
 
 		/*
@@ -599,11 +615,11 @@ perform_base_backup(basebackup_options *opt, bbsink *sink)
 						 errmsg("could not stat file \"%s\": %m", pathbuf)));
 
 			sendFile(sink, pathbuf, pathbuf, &statbuf, false, InvalidOid,
-					 &manifest, NULL);
+					 false, &manifest, NULL);
 
 			/* unconditionally mark file as archived */
 			StatusFilePath(pathbuf, fname, ".done");
-			sendFileWithContent(sink, pathbuf, "", &manifest);
+			sendFileWithContent(sink, pathbuf, "", -1, &manifest);
 		}
 
 		/* Properly terminate the tar file. */
@@ -625,12 +641,11 @@ perform_base_backup(basebackup_options *opt, bbsink *sink)
 
 	if (total_checksum_failures)
 	{
-		if (total_checksum_failures > 1)
-			ereport(WARNING,
-					(errmsg_plural("%lld total checksum verification failure",
-								   "%lld total checksum verification failures",
-								   total_checksum_failures,
-								   total_checksum_failures)));
+		ereport(WARNING,
+				(errmsg_plural("%lld total checksum verification failure",
+							   "%lld total checksum verification failures",
+							   total_checksum_failures,
+							   total_checksum_failures)));
 
 		ereport(ERROR,
 				(errcode(ERRCODE_DATA_CORRUPTED),
@@ -1009,26 +1024,29 @@ SendBaseBackup(BaseBackupCmd *cmd)
 
 /*
  * Inject a file with given name and content in the output tar stream.
+ *
+ * "len" can optionally be set to an arbitrary length of data sent.  If set
+ * to -1, the content sent is treated as a string with strlen() as length.
  */
 static void
 sendFileWithContent(bbsink *sink, const char *filename, const char *content,
-					backup_manifest_info *manifest)
+					int len, backup_manifest_info *manifest)
 {
 	struct stat statbuf;
-	int			bytes_done = 0,
-				len;
+	int			bytes_done = 0;
 	pg_checksum_context checksum_ctx;
 
 	if (pg_checksum_init(&checksum_ctx, manifest->checksum_type) < 0)
 		elog(ERROR, "could not initialize checksum of file \"%s\"",
 			 filename);
 
-	len = strlen(content);
+	if (len < 0)
+		len = strlen(content);
 
 	/*
-	 * Construct a stat struct for the backup_label file we're injecting in
-	 * the tar.
+	 * Construct a stat struct for the file we're injecting in the tar.
 	 */
+
 	/* Windows doesn't have the concept of uid and gid */
 #ifdef WIN32
 	statbuf.st_uid = 0;
@@ -1172,6 +1190,7 @@ sendDir(bbsink *sink, const char *path, int basepathlen, bool sizeonly,
 		bool		excludeFound;
 		ForkNumber	relForkNum; /* Type of fork if file is a relation */
 		int			relOidChars;	/* Chars in filename that are the rel oid */
+		bool		isRelationFile = false;
 
 		/* Skip special stuff */
 		if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
@@ -1223,10 +1242,13 @@ sendDir(bbsink *sink, const char *path, int basepathlen, bool sizeonly,
 		if (excludeFound)
 			continue;
 
+		if (isDbDir)
+			isRelationFile =
+				parse_filename_for_nontemp_relation(de->d_name, &relOidChars,
+													&relForkNum);
+
 		/* Exclude all forks for unlogged tables except the init fork */
-		if (isDbDir &&
-			parse_filename_for_nontemp_relation(de->d_name, &relOidChars,
-												&relForkNum))
+		if (isRelationFile)
 		{
 			/* Never exclude init forks */
 			if (relForkNum != INIT_FORKNUM)
@@ -1408,7 +1430,7 @@ sendDir(bbsink *sink, const char *path, int basepathlen, bool sizeonly,
 			if (!sizeonly)
 				sent = sendFile(sink, pathbuf, pathbuf + basepathlen + 1, &statbuf,
 								true, isDbDir ? atooid(lastDir + 1) : InvalidOid,
-								manifest, spcoid);
+								isRelationFile, manifest, spcoid);
 
 			if (sent || sizeonly)
 			{
@@ -1479,12 +1501,16 @@ is_checksummed_file(const char *fullpath, const char *filename)
  * If dboid is anything other than InvalidOid then any checksum failures
  * detected will get reported to the cumulative stats system.
  *
+ * For non-relation files, the stat data of the opened file is used, not
+ * 'statbuf'.
+ *
  * Returns true if the file was successfully sent, false if 'missing_ok',
  * and the file did not exist.
  */
 static bool
 sendFile(bbsink *sink, const char *readfilename, const char *tarfilename,
-		 struct stat *statbuf, bool missing_ok, Oid dboid,
+		 const struct stat *statbuf, bool missing_ok, Oid dboid,
+		 bool isRelationFile,
 		 backup_manifest_info *manifest, const char *spcoid)
 {
 	int			fd;
@@ -1501,6 +1527,7 @@ sendFile(bbsink *sink, const char *readfilename, const char *tarfilename,
 	char	   *segmentpath;
 	bool		verify_checksum = false;
 	pg_checksum_context checksum_ctx;
+	struct stat filestat;
 
 	if (pg_checksum_init(&checksum_ctx, manifest->checksum_type) < 0)
 		elog(ERROR, "could not initialize checksum of file \"%s\"",
@@ -1516,7 +1543,18 @@ sendFile(bbsink *sink, const char *readfilename, const char *tarfilename,
 				 errmsg("could not open file \"%s\": %m", readfilename)));
 	}
 
-	_tarWriteHeader(sink, tarfilename, NULL, statbuf, false);
+	/*
+	 * Non-relation files may be replaced by a rename(), making irrelevant the
+	 * caller's stat data.  Reuse fstat() on the opened file.
+	 */
+	filestat = *statbuf;
+
+	if (!isRelationFile && fstat(fd, &filestat) != 0)
+		ereport(ERROR,
+				(errcode_for_file_access(),
+				 errmsg("could not stat file \"%s\": %m", readfilename)));
+
+	_tarWriteHeader(sink, tarfilename, NULL, &filestat, false);
 
 	if (!noverify_checksums && DataChecksumsEnabled())
 	{
@@ -1555,9 +1593,9 @@ sendFile(bbsink *sink, const char *readfilename, const char *tarfilename,
 	 * for a base backup we can ignore such extended data. It will be restored
 	 * from WAL.
 	 */
-	while (len < statbuf->st_size)
+	while (len < filestat.st_size)
 	{
-		size_t		remaining = statbuf->st_size - len;
+		size_t		remaining = filestat.st_size - len;
 
 		/* Try to read some more data. */
 		cnt = basebackup_read_file(fd, sink->bbs_buffer,
@@ -1686,9 +1724,9 @@ sendFile(bbsink *sink, const char *readfilename, const char *tarfilename,
 	}
 
 	/* If the file was truncated while we were sending it, pad it with zeros */
-	while (len < statbuf->st_size)
+	while (len < filestat.st_size)
 	{
-		size_t		remaining = statbuf->st_size - len;
+		size_t		remaining = filestat.st_size - len;
 		size_t		nbytes = Min(sink->bbs_buffer_length, remaining);
 
 		MemSet(sink->bbs_buffer, 0, nbytes);
@@ -1709,7 +1747,7 @@ sendFile(bbsink *sink, const char *readfilename, const char *tarfilename,
 
 	CloseTransientFile(fd);
 
-	if (checksum_failures > 1)
+	if (checksum_failures > 0)
 	{
 		ereport(WARNING,
 				(errmsg_plural("file \"%s\" has a total of %d checksum verification failure",
@@ -1722,8 +1760,8 @@ sendFile(bbsink *sink, const char *readfilename, const char *tarfilename,
 
 	total_checksum_failures += checksum_failures;
 
-	AddFileToBackupManifest(manifest, spcoid, tarfilename, statbuf->st_size,
-							(pg_time_t) statbuf->st_mtime, &checksum_ctx);
+	AddFileToBackupManifest(manifest, spcoid, tarfilename, filestat.st_size,
+							(pg_time_t) filestat.st_mtime, &checksum_ctx);
 
 	return true;
 }

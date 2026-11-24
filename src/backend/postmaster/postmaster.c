@@ -255,7 +255,7 @@ static ProtocolExtensionConfig default_protocol_config = {
  * the postmaster stop (rather than kill) peers and not reinitialize
  * shared data structures.  (Reinit is currently dead code, though.)
  */
-static bool Reinit = true;
+pg_attribute_unused() static bool Reinit = true;
 static int	SendStop = false;
 
 /* still more option variables */
@@ -379,8 +379,6 @@ static time_t AbortStartTime = 0;
 
 /* Length of said timeout */
 #define SIGKILL_CHILDREN_AFTER_SECS		5
-
-static bool ReachedNormalRunning = false;	/* T if we've reached PM_RUN */
 
 bool		ClientAuthInProgress = false;	/* T during new-client
 											 * authentication */
@@ -3268,7 +3266,6 @@ reaper(SIGNAL_ARGS)
 			StartupStatus = STARTUP_NOT_RUNNING;
 			FatalError = false;
 			AbortStartTime = 0;
-			ReachedNormalRunning = true;
 			pmState = PM_RUN;
 			connsAllowed = true;
 

@@ -165,6 +165,9 @@ XLogReaderFree(XLogReaderState *state)
 	if (state->seg.ws_file != -1)
 		state->routine.segment_close(state);
 
+	/* Release queued records before freeing the decode buffer */
+	ResetDecoder(state);
+
 	if (state->decode_buffer && state->free_decode_buffer)
 		pfree(state->decode_buffer);
 
@@ -1599,8 +1602,7 @@ WALRead(XLogReaderState *state,
  */
 
 /*
- * Private function to reset the state, forgetting all decoded records, if we
- * are asked to move to a new read position.
+ * Forget all decoded records, freeing any oversized ones.
  */
 static void
 ResetDecoder(XLogReaderState *state)
@@ -1759,7 +1761,7 @@ DecodeXLogRecord(XLogReaderState *state,
 				report_invalid_record(state,
 									  "out-of-order block_id %u at %X/%X",
 									  block_id,
-									  LSN_FORMAT_ARGS(state->ReadRecPtr));
+									  LSN_FORMAT_ARGS(lsn));
 				goto err;
 			}
 			decoded->max_block_id = block_id;
@@ -1782,7 +1784,7 @@ DecodeXLogRecord(XLogReaderState *state,
 			{
 				report_invalid_record(state,
 									  "BKPBLOCK_HAS_DATA set, but no data included at %X/%X",
-									  LSN_FORMAT_ARGS(state->ReadRecPtr));
+									  LSN_FORMAT_ARGS(lsn));
 				goto err;
 			}
 			if (!blk->has_data && blk->data_len != 0)
@@ -1790,7 +1792,7 @@ DecodeXLogRecord(XLogReaderState *state,
 				report_invalid_record(state,
 									  "BKPBLOCK_HAS_DATA not set, but data length is %u at %X/%X",
 									  (unsigned int) blk->data_len,
-									  LSN_FORMAT_ARGS(state->ReadRecPtr));
+									  LSN_FORMAT_ARGS(lsn));
 				goto err;
 			}
 			datatotal += blk->data_len;
@@ -1828,7 +1830,7 @@ DecodeXLogRecord(XLogReaderState *state,
 										  (unsigned int) blk->hole_offset,
 										  (unsigned int) blk->hole_length,
 										  (unsigned int) blk->bimg_len,
-										  LSN_FORMAT_ARGS(state->ReadRecPtr));
+										  LSN_FORMAT_ARGS(lsn));
 					goto err;
 				}
 
@@ -1843,7 +1845,7 @@ DecodeXLogRecord(XLogReaderState *state,
 										  "BKPIMAGE_HAS_HOLE not set, but hole offset %u length %u at %X/%X",
 										  (unsigned int) blk->hole_offset,
 										  (unsigned int) blk->hole_length,
-										  LSN_FORMAT_ARGS(state->ReadRecPtr));
+										  LSN_FORMAT_ARGS(lsn));
 					goto err;
 				}
 
@@ -1856,7 +1858,7 @@ DecodeXLogRecord(XLogReaderState *state,
 					report_invalid_record(state,
 										  "BKPIMAGE_COMPRESSED set, but block image length %u at %X/%X",
 										  (unsigned int) blk->bimg_len,
-										  LSN_FORMAT_ARGS(state->ReadRecPtr));
+										  LSN_FORMAT_ARGS(lsn));
 					goto err;
 				}
 
@@ -1870,8 +1872,8 @@ DecodeXLogRecord(XLogReaderState *state,
 				{
 					report_invalid_record(state,
 										  "neither BKPIMAGE_HAS_HOLE nor BKPIMAGE_COMPRESSED set, but block image length is %u at %X/%X",
-										  (unsigned int) blk->data_len,
-										  LSN_FORMAT_ARGS(state->ReadRecPtr));
+										  (unsigned int) blk->bimg_len,
+										  LSN_FORMAT_ARGS(lsn));
 					goto err;
 				}
 			}
@@ -1886,7 +1888,7 @@ DecodeXLogRecord(XLogReaderState *state,
 				{
 					report_invalid_record(state,
 										  "BKPBLOCK_SAME_REL set but no previous rel at %X/%X",
-										  LSN_FORMAT_ARGS(state->ReadRecPtr));
+										  LSN_FORMAT_ARGS(lsn));
 					goto err;
 				}
 
@@ -1898,7 +1900,7 @@ DecodeXLogRecord(XLogReaderState *state,
 		{
 			report_invalid_record(state,
 								  "invalid block_id %u at %X/%X",
-								  block_id, LSN_FORMAT_ARGS(state->ReadRecPtr));
+								  block_id, LSN_FORMAT_ARGS(lsn));
 			goto err;
 		}
 	}
@@ -1965,7 +1967,7 @@ DecodeXLogRecord(XLogReaderState *state,
 shortdata_err:
 	report_invalid_record(state,
 						  "record with invalid length at %X/%X",
-						  LSN_FORMAT_ARGS(state->ReadRecPtr));
+						  LSN_FORMAT_ARGS(lsn));
 err:
 	*errormsg = state->errormsg_buf;
 
