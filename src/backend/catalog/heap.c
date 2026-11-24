@@ -1061,7 +1061,7 @@ GetNextAttributeVersion(char relpersistence)
 			return version;
 	}
 
-	return GetXLogInsertRecPtr;
+	return GetXLogInsertRecPtr();
 }
 
 /*
