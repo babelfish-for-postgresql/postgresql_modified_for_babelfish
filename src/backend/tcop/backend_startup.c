@@ -58,6 +58,28 @@ char	   *log_connections_string = NULL;
  */
 ConnectionTiming conn_timing = {.ready_for_use = TIMESTAMP_MINUS_INFINITY};
 
+/*
+ * Cancel request parsed from a startup packet.
+ */
+#define STARTUP_CANCEL_KEY_MAX 256
+typedef struct PendingCancelRequest
+{
+	bool		valid;
+	int			backendPID;
+	int			cancel_key_len;
+	uint8		cancel_key[STARTUP_CANCEL_KEY_MAX];
+} PendingCancelRequest;
+
+/*
+ * BABELFISH: ProcessStartupPacket() is exported and is reached through the
+ * protocol extension hook fn_start(Port *), whose signature cannot carry the
+ * pending request back to BackendInitialize().  Keep it here instead of in a
+ * BackendInitialize() local as upstream does.  It is set while the startup
+ * packet is read and dispatched by BackendInitialize() once
+ * STARTUP_PACKET_TIMEOUT is disabled and SIGTERM is blocked.
+ */
+static PendingCancelRequest pending_cancel_req;
+
 static void BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionConfig *protocol_config);
 int	ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done);
 int	ProcessSSLStartup(Port *port);
@@ -290,8 +312,8 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionCon
 	status = port->protocol_config->fn_direct_ssl_handshake(port);
 
 	/*
-	 * Receive the startup packet (which might turn out to be a cancel request
-	 * packet).
+	 * Receive the startup packet, which may be a cancel request, in which
+	 * case it is delayed for later dispatch.
 	 */
 	if (status == STATUS_OK)
 		status = (port->protocol_config->fn_start)(port);
@@ -365,6 +387,15 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac, ProtocolExtensionCon
 	 * handlers unfortunately, since pq_init() already registered one.)
 	 */
 	check_on_shmem_exit_lists_are_empty();
+
+	/*
+	 * Now that STARTUP_PACKET_TIMEOUT is disabled and SIGTERM is blocked, it
+	 * is safe to touch shared memory.  Fire the cancel request.
+	 */
+	if (pending_cancel_req.valid)
+		SendCancelRequest(pending_cancel_req.backendPID,
+						  pending_cancel_req.cancel_key,
+						  pending_cancel_req.cancel_key_len);
 
 	/*
 	 * Stop here if it was bad or a cancel packet.  ProcessStartupPacket
@@ -894,8 +925,9 @@ retry:
 
 /*
  * The client has sent a cancel request packet, not a normal
- * start-a-new-connection packet.  Perform the necessary processing.  Nothing
- * is sent back to the client.
+ * start-a-new-connection packet.  Parse, validate, then stash the parsed
+ * request in pending_cancel_req so that BackendInitialize() can dispatch it
+ * later to SendCancelRequest().  Nothing is sent back to the client.
  */
 static void
 ProcessCancelRequestPacket(Port *port, void *pkt, int pktlen)
@@ -911,7 +943,7 @@ ProcessCancelRequestPacket(Port *port, void *pkt, int pktlen)
 		return;
 	}
 	len = pktlen - offsetof(CancelRequestPacket, cancelAuthCode);
-	if (len == 0 || len > 256)
+	if (len == 0 || len > STARTUP_CANCEL_KEY_MAX)
 	{
 		ereport(COMMERROR,
 				(errcode(ERRCODE_PROTOCOL_VIOLATION),
@@ -920,7 +952,10 @@ ProcessCancelRequestPacket(Port *port, void *pkt, int pktlen)
 	}
 
 	canc = (CancelRequestPacket *) pkt;
-	SendCancelRequest(pg_ntoh32(canc->backendPID), canc->cancelAuthCode, len);
+	pending_cancel_req.backendPID = pg_ntoh32(canc->backendPID);
+	pending_cancel_req.cancel_key_len = len;
+	memcpy(pending_cancel_req.cancel_key, canc->cancelAuthCode, len);
+	pending_cancel_req.valid = true;
 }
 
 /*
