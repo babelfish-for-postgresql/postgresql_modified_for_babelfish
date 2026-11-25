@@ -782,7 +782,18 @@ bool ENRDropTuple(Relation rel, HeapTuple tup)
 	/*
 	 * If we've already dropped it in this transaction but haven't committed, pretend the drop is done. 
 	 */
-	return _ENR_tuple_operation(rel, tup, ENR_OP_DROP, false, false);
+	bool ret = _ENR_tuple_operation(rel, tup, ENR_OP_DROP, false, false);
+
+	/*
+	 * The caller falls back to CatalogTupleDelete(&tup->t_self).  A tuple
+	 * without a real heap TID came from an ENR, so a heap delete would hit
+	 * a bogus block.  Refuse it here instead.
+	 */
+	if (!ret && HeapTupleIsValid(tup) && !ItemPointerIsValid(&tup->t_self))
+		elog(ERROR, "Failed to drop ENR tuple in relation %u: tuple has no heap TID",
+			 RelationGetRelid(rel));
+
+	return ret;
 }
 
 /*
@@ -872,7 +883,17 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 	QueryEnvironment		*queryEnv = currentQueryEnv;
 	int                      insert_at = 0;
 
-	if (sql_dialect != SQL_DIALECT_TSQL)
+	/*
+	 * Allow ENR tuple operations for T-SQL dialect, and for PG dialect on a
+	 * TDS connection.  This must match the gate in ENRGetSystableScan():
+	 * fmgr_security_definer() sets the dialect to PG while a PG function
+	 * runs, and a FATAL raised there exits without restoring it.  The
+	 * temp table cleanup at proc_exit then scans ENR tuples in PG dialect,
+	 * so it must also be able to drop them here.  Otherwise the caller
+	 * falls back to a heap operation on a tuple that has no real TID.
+	 */
+	if (sql_dialect != SQL_DIALECT_TSQL &&
+		!(is_bbf_tds_connection_hook && is_bbf_tds_connection_hook()))
 		return false;
 
 	catalog_oid = RelationGetRelid(catalog_rel);
@@ -1167,6 +1188,8 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 			switch (op) {
 				case ENR_OP_ADD:
 					newtup = heap_copytuple(tup);
+					/* ENR tuples never live on a heap page. */
+					ItemPointerSetInvalid(&newtup->t_self);
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, newtup, in_enr_rollback);
 					*list_ptr = list_insert_nth(*list_ptr, insert_at, newtup);
@@ -1186,7 +1209,10 @@ static bool _ENR_tuple_operation(Relation catalog_rel, HeapTuple tup, ENRTupleOp
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
 						ENRAddUncommittedTupleData(enr, catalog_oid, op, oldtup, in_enr_rollback);
 					CacheInvalidateENRHeapTuple(catalog_rel, oldtup, tup);
-					lfirst(lc) = heap_copytuple(tup);
+					newtup = heap_copytuple(tup);
+					/* ENR tuples never live on a heap page. */
+					ItemPointerSetInvalid(&newtup->t_self);
+					lfirst(lc) = newtup;
 					break;
 				case ENR_OP_DROP:
 					if (enr->md.is_bbf_temp_table && temp_table_xact_support)
