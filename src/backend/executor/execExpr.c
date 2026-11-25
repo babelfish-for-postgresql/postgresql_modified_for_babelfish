@@ -1470,25 +1470,19 @@ ExecInitExprRec(Expr *node, ExprState *state,
 			{
 				FieldStore *fstore = (FieldStore *) node;
 				TupleDesc	tupDesc;
-				ExprEvalRowtypeCache *rowcachep;
 				Datum	   *values;
 				bool	   *nulls;
 				int			ncolumns;
 				ListCell   *l1,
 						   *l2;
 
-				/* find out the number of columns in the composite type */
-				tupDesc = lookup_rowtype_tupdesc(fstore->resulttype, -1);
+				/* Copy the tupdesc to describe result tuples */
+				tupDesc = lookup_rowtype_tupdesc_copy(fstore->resulttype, -1);
 				ncolumns = tupDesc->natts;
-				ReleaseTupleDesc(tupDesc);
 
 				/* create workspace for column values */
 				values = (Datum *) palloc(sizeof(Datum) * ncolumns);
 				nulls = (bool *) palloc(sizeof(bool) * ncolumns);
-
-				/* create shared composite-type-lookup cache struct */
-				rowcachep = palloc(sizeof(ExprEvalRowtypeCache));
-				rowcachep->cacheptr = NULL;
 
 				/* emit code to evaluate the composite input value */
 				ExecInitExprRec(fstore->arg, state, resv, resnull);
@@ -1496,23 +1490,37 @@ ExecInitExprRec(Expr *node, ExprState *state,
 				/* next, deform the input tuple into our workspace */
 				scratch.opcode = EEOP_FIELDSTORE_DEFORM;
 				scratch.d.fieldstore.fstore = fstore;
-				scratch.d.fieldstore.rowcache = rowcachep;
+				scratch.d.fieldstore.tupdesc = tupDesc;
 				scratch.d.fieldstore.values = values;
 				scratch.d.fieldstore.nulls = nulls;
-				scratch.d.fieldstore.ncolumns = ncolumns;
 				ExprEvalPushStep(state, &scratch);
 
 				/* evaluate new field values, store in workspace columns */
 				forboth(l1, fstore->newvals, l2, fstore->fieldnums)
 				{
 					Expr	   *e = (Expr *) lfirst(l1);
+					Oid			etype = exprType((Node *) e);
 					AttrNumber	fieldnum = lfirst_int(l2);
+					Oid			atttype = TupleDescAttr(tupDesc, fieldnum - 1)->atttypid;
 					Datum	   *save_innermost_caseval;
 					bool	   *save_innermost_casenull;
 
 					if (fieldnum <= 0 || fieldnum > ncolumns)
 						elog(ERROR, "field number %d is out of range in FieldStore",
 							 fieldnum);
+
+					/*
+					 * Be paranoid about the plan and the current type
+					 * definition having gotten out of sync.
+					 */
+					if (etype != atttype)
+						ereport(ERROR,
+								(errcode(ERRCODE_DATATYPE_MISMATCH),
+								 errmsg("attribute %d of type %s has wrong type",
+										fieldnum, format_type_be(fstore->resulttype)),
+								 errdetail("Attribute has type %s, but query expects %s.",
+										   format_type_be(atttype),
+										   format_type_be(etype))));
 
 					/*
 					 * Use the CaseTestExpr mechanism to pass down the old
@@ -1554,10 +1562,9 @@ ExecInitExprRec(Expr *node, ExprState *state,
 				/* finally, form result tuple */
 				scratch.opcode = EEOP_FIELDSTORE_FORM;
 				scratch.d.fieldstore.fstore = fstore;
-				scratch.d.fieldstore.rowcache = rowcachep;
+				scratch.d.fieldstore.tupdesc = tupDesc;
 				scratch.d.fieldstore.values = values;
 				scratch.d.fieldstore.nulls = nulls;
-				scratch.d.fieldstore.ncolumns = ncolumns;
 				ExprEvalPushStep(state, &scratch);
 				break;
 			}
@@ -3355,6 +3362,7 @@ ExecInitCoerceToDomain(ExprEvalStep *scratch, CoerceToDomain *ctest,
 	Datum	   *domainval = NULL;
 	bool	   *domainnull = NULL;
 	ListCell   *l;
+	List	   *skipjumps = NIL;
 
 	scratch->d.domaincheck.resulttype = ctest->resulttype;
 	/* we'll allocate workspace only if needed */
@@ -3405,6 +3413,24 @@ ExecInitCoerceToDomain(ExprEvalStep *scratch, CoerceToDomain *ctest,
 		bool	   *save_innermost_domainnull;
 
 		scratch->d.domaincheck.constraintname = con->name;
+
+		/*
+		 * If this CoerceToDomain is being evaluated softly and its argument,
+		 * or a constraint checked before this one, has already failed, the
+		 * result is going to be discarded, so don't check the remaining
+		 * constraints against it; doing so might throw a hard error or
+		 * overwrite the saved error.
+		 */
+		if (state->escontext != NULL)
+		{
+			ExprEvalStep jump = {0};
+
+			jump.opcode = EEOP_JUMP_IF_NULL;
+			jump.resnull = &state->escontext->error_occurred;
+			jump.d.jump.jumpdone = -1;	/* set below */
+			skipjumps = lappend_int(skipjumps, state->steps_len);
+			ExprEvalPushStep(state, &jump);
+		}
 
 		switch (con->constrainttype)
 		{
@@ -3486,6 +3512,10 @@ ExecInitCoerceToDomain(ExprEvalStep *scratch, CoerceToDomain *ctest,
 				break;
 		}
 	}
+
+	/* Now that we know where the constraint steps end, fix up the jumps. */
+	foreach_int(jumpno, skipjumps)
+		state->steps[jumpno].d.jump.jumpdone = state->steps_len;
 }
 
 /*
@@ -3678,11 +3708,11 @@ ExecBuildAggTrans(AggState *aggstate, AggStatePerPhase phase,
 			}
 			Assert(pertrans->numTransInputs == argno);
 		}
-		else if (pertrans->numInputs == 1)
+		else if (pertrans->numInputs == 1 && pertrans->numSortCols == 1)
 		{
 			/*
 			 * Non-presorted DISTINCT and/or ORDER BY case, with a single
-			 * column sorted on.
+			 * input column sorted on a single key.
 			 */
 			TargetEntry *source_tle =
 				(TargetEntry *) linitial(pertrans->aggref->args);
@@ -3701,7 +3731,7 @@ ExecBuildAggTrans(AggState *aggstate, AggStatePerPhase phase,
 		{
 			/*
 			 * Non-presorted DISTINCT and/or ORDER BY case, with multiple
-			 * columns sorted on.
+			 * input columns or sort keys.
 			 */
 			Datum	   *values = pertrans->sortslot->tts_values;
 			bool	   *nulls = pertrans->sortslot->tts_isnull;
@@ -3924,7 +3954,7 @@ ExecBuildAggTransCall(ExprState *state, AggState *aggstate,
 				scratch->opcode = EEOP_AGG_PLAIN_TRANS_BYREF;
 		}
 	}
-	else if (pertrans->numInputs == 1)
+	else if (pertrans->numInputs == 1 && pertrans->numSortCols == 1)
 		scratch->opcode = EEOP_AGG_ORDERED_TRANS_DATUM;
 	else
 		scratch->opcode = EEOP_AGG_ORDERED_TRANS_TUPLE;
@@ -4305,17 +4335,12 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 		jsestate->args = lappend(jsestate->args, var);
 	}
 
-	/* Step for jsonpath evaluation; see ExecEvalJsonExprPath(). */
-	scratch->opcode = EEOP_JSONEXPR_PATH;
-	scratch->resvalue = resv;
-	scratch->resnull = resnull;
-	scratch->d.jsonexpr.jsestate = jsestate;
-	ExprEvalPushStep(state, scratch);
-
 	/*
-	 * Step to return NULL after jumping to skip the EEOP_JSONEXPR_PATH step
-	 * when either formatted_expr or pathspec is NULL.  Adjust jump target
-	 * addresses of JUMPs that we added above.
+	 * Adjust jump target addresses of JUMPs that we added above to point to
+	 * the EEOP_JSONEXPR_PATH step.  That step itself handles the case where
+	 * either formatted_expr or pathspec is NULL by returning NULL, which
+	 * ensures that JsonExprState's empty/error flags are reset for every row
+	 * before the ON EMPTY / ON ERROR steps below look at them.
 	 */
 	foreach(lc, jumps_return_null)
 	{
@@ -4323,11 +4348,12 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 
 		as->d.jump.jumpdone = state->steps_len;
 	}
-	scratch->opcode = EEOP_CONST;
+
+	/* Step for jsonpath evaluation; see ExecEvalJsonExprPath(). */
+	scratch->opcode = EEOP_JSONEXPR_PATH;
 	scratch->resvalue = resv;
 	scratch->resnull = resnull;
-	scratch->d.constval.value = (Datum) 0;
-	scratch->d.constval.isnull = true;
+	scratch->d.jsonexpr.jsestate = jsestate;
 	ExprEvalPushStep(state, scratch);
 
 	escontext = jsexpr->on_error->btype != JSON_BEHAVIOR_ERROR ?
@@ -4342,7 +4368,7 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 
 	/*
 	 * Steps to coerce the result value computed by EEOP_JSONEXPR_PATH or the
-	 * NULL returned on NULL input as described above.
+	 * NULL that it returns on NULL input.
 	 */
 	jsestate->jump_eval_coercion = -1;
 	if (jsexpr->use_json_coercion)
@@ -4446,19 +4472,14 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 								 resv, resnull);
 
 		/*
-		 * Add a COERCION_FINISH step to check for errors that may occur when
-		 * coercing and rethrow them.
+		 * Add a COERCION_FINISH step to throw any error saved while
+		 * evaluating the ON ERROR expression or coercing its result.
 		 */
-		if (jsexpr->on_error->coerce ||
-			IsA(jsexpr->on_error->expr, CoerceViaIO) ||
-			IsA(jsexpr->on_error->expr, CoerceToDomain))
-		{
-			scratch->opcode = EEOP_JSONEXPR_COERCION_FINISH;
-			scratch->resvalue = resv;
-			scratch->resnull = resnull;
-			scratch->d.jsonexpr.jsestate = jsestate;
-			ExprEvalPushStep(state, scratch);
-		}
+		scratch->opcode = EEOP_JSONEXPR_COERCION_FINISH;
+		scratch->resvalue = resv;
+		scratch->resnull = resnull;
+		scratch->d.jsonexpr.jsestate = jsestate;
+		ExprEvalPushStep(state, scratch);
 
 		/* JUMP to end to skip the ON EMPTY steps added below. */
 		jumps_to_end = lappend_int(jumps_to_end, state->steps_len);
@@ -4493,8 +4514,10 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 		ExprEvalPushStep(state, scratch);
 
 		/*
-		 * Steps to evaluate the ON EMPTY expression; handle errors softly to
-		 * rethrow them in COERCION_FINISH step that will be added later.
+		 * Steps to evaluate the ON EMPTY expression.  Unless ON ERROR is
+		 * ERROR, errors are handled softly, to be rethrown by the
+		 * COERCION_FINISH step added below; otherwise they are thrown
+		 * directly.
 		 */
 		saved_escontext = state->escontext;
 		state->escontext = escontext;
@@ -4509,14 +4532,12 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
 								 resv, resnull);
 
 		/*
-		 * Add a COERCION_FINISH step to check for errors that may occur when
-		 * coercing and rethrow them.
+		 * If the ON EMPTY expression was evaluated softly, add a
+		 * COERCION_FINISH step to throw any error saved while evaluating it
+		 * or coercing its result.
 		 */
-		if (jsexpr->on_empty->coerce ||
-			IsA(jsexpr->on_empty->expr, CoerceViaIO) ||
-			IsA(jsexpr->on_empty->expr, CoerceToDomain))
+		if (escontext)
 		{
-
 			scratch->opcode = EEOP_JSONEXPR_COERCION_FINISH;
 			scratch->resvalue = resv;
 			scratch->resnull = resnull;
