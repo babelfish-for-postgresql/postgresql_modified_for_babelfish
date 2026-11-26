@@ -346,12 +346,29 @@ bbf_selectDumpableObject(DumpableObject *dobj, Archive *fout)
 				TypeInfo    	*tTypeInfo;
 				ExtensionInfo	*ext = findOwningExtension(cast->dobj.catId);
 
+				sTypeInfo = findTypeByOid(cast->castsource);
+				tTypeInfo = findTypeByOid(cast->casttarget);
+
+				/*
+				 * getCasts() names a cast "<source typname> <target typname>",
+				 * only to sort it.  Babelfish has casts from same-named types in
+				 * different schemas, for example sys.varchar and
+				 * pg_catalog.varchar to sys.datetimeoffset.  They tie on that
+				 * name, and DOTypeNameCompare() then reaches Assert(false).  Add
+				 * the type schemas to the name so that the casts sort apart.
+				 */
+				if (sTypeInfo && tTypeInfo &&
+					sTypeInfo->dobj.namespace &&
+					tTypeInfo->dobj.namespace)
+					cast->dobj.name = psprintf("%s.%s %s.%s",
+											   sTypeInfo->dobj.namespace->dobj.name,
+											   sTypeInfo->dobj.name,
+											   tTypeInfo->dobj.namespace->dobj.name,
+											   tTypeInfo->dobj.name);
+
 				/* Skip if cast is not a member of babelfish extension */
 				if (ext == NULL || strcmp(ext->dobj.name, "babelfishpg_common") != 0)
 					return;
-
-				sTypeInfo = findTypeByOid(cast->castsource);
-				tTypeInfo = findTypeByOid(cast->casttarget);
 
 				/*
 				* Do not dump following unused CASTS:
